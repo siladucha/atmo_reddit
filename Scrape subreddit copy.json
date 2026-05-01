@@ -1,0 +1,554 @@
+{
+  "name": "Scrape subreddit copy",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -496,
+        -192
+      ],
+      "id": "6587b91b-5ea7-4e90-875e-ad40c44c1dd1",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -496,
+        224
+      ],
+      "id": "ba0be6a0-af93-4627-999e-a5272aa1e3e5",
+      "name": "When chat message received",
+      "webhookId": "485cb5ae-4905-4329-8a96-88cbca02b402"
+    },
+    {
+      "parameters": {
+        "inputSource": "jsonExample",
+        "jsonExample": "{\n  \"subreddit\": \"a string\",\n  \"limit\": 123\n}"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -496,
+        0
+      ],
+      "id": "c7105a24-674c-4d54-b26a-599c2318804f",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5dd7a04e-12aa-435e-bf5d-9ecadf94cb66",
+              "name": "subreddit",
+              "value": "={{ $json.chatInput || $json.subreddit || \"Malware\"}}",
+              "type": "string"
+            },
+            {
+              "id": "e7ef9e4b-8e6e-4632-8cf7-2fbf5f8a803a",
+              "name": "limit",
+              "value": "={{ $json.limit || \"10\"}}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -240,
+        0
+      ],
+      "id": "0c236958-38fa-458d-b687-dda2a11f2d6a",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "subreddit": "={{ $json.subreddit }}",
+        "limit": "={{ $json.limit }}",
+        "filters": {
+          "category": "new"
+        }
+      },
+      "type": "n8n-nodes-base.reddit",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "4a31cfb0-358b-4d9f-b06d-4034b8ea518f",
+      "name": "r/subreddit",
+      "credentials": {
+        "redditOAuth2Api": {
+          "id": "JNKaoWpI6JVLsCTT",
+          "name": "Ori's"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "7d084883-6b82-4aa9-94e1-9381aa7c4ae8",
+              "leftValue": "={{ DateTime.fromSeconds($('r/subreddit').item.json.created_utc) > $now.minus({ hours: 24 }) }}",
+              "rightValue": "=",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        512,
+        -16
+      ],
+      "id": "4b939093-5a59-4225-89b1-920f9628c378",
+      "name": "last_24h"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1104,
+        -16
+      ],
+      "id": "0d7460e3-629d-4390-94e6-9857f67dcfe7",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "5GjrL0160kCVo5Ye",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/5GjrL0160kCVo5Ye",
+          "cachedResultName": "Reddit | Comments | Official"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('r/subreddit').item.json.id }}",
+            "subreddit": "={{ $('Edit Fields').item.json.subreddit }}",
+            "limit": 20
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "subreddit",
+              "displayName": "subreddit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "limit",
+              "displayName": "limit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1248,
+        -48
+      ],
+      "id": "a0c038bb-81b8-40df-8c59-9b938c6da6a4",
+      "name": "Call 'Get Reddit Comments'"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.ceil(($items().length / 90) * 60) }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1392,
+        -48
+      ],
+      "id": "91a201a1-dc53-4182-a1e2-862caa7b377c",
+      "name": "15_seconds",
+      "webhookId": "84bc2e2f-41df-41d1-8d40-57e75218e191"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        896,
+        -16
+      ],
+      "id": "17d2ec1c-e886-4bfc-9ebf-7469d006719d",
+      "name": "15_seconds1",
+      "webhookId": "b44c8dea-e95e-4657-afe6-8451bdb9970c"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f767b14a-65ce-4658-a1ca-403c890456d5",
+              "name": "content",
+              "value": "={{ $('r/subreddit').item.json.selftext }}",
+              "type": "string"
+            },
+            {
+              "id": "9018a708-ca96-44b1-853a-330773565933",
+              "name": "link",
+              "value": "={{ 'https://www.reddit.com' + $('r/subreddit').item.json.permalink }}",
+              "type": "string"
+            },
+            {
+              "id": "deda8ba3-bf5d-4067-acbc-df60d0eea1ee",
+              "name": "pubDate",
+              "value": "={{ DateTime.fromSeconds($('r/subreddit').item.json.created_utc).toUTC().toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "c61aa7f8-0dca-4415-9ea2-bfe823a4e885",
+              "name": "creator",
+              "value": "={{ $('r/subreddit').item.json.author_fullname }}",
+              "type": "string"
+            },
+            {
+              "id": "42ba766d-fbe1-48a2-80c7-b90bdca1ef64",
+              "name": "title",
+              "value": "={{ $('r/subreddit').item.json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "c2cf00a4-c323-42cc-b150-3ffc894c3f0c",
+              "name": "dc:creator",
+              "value": "={{ $('r/subreddit').item.json.author_fullname }}",
+              "type": "string"
+            },
+            {
+              "id": "88605d5c-4be6-4ebc-a631-e87423059ee4",
+              "name": "sourceName",
+              "value": "={{ $('r/subreddit').item.json.subreddit }}",
+              "type": "string"
+            },
+            {
+              "id": "a020b86a-02dd-4184-96e8-33a8bd68acc0",
+              "name": "comments",
+              "value": "={{ JSON.stringify($json.data) }}",
+              "type": "string"
+            },
+            {
+              "id": "1496be7d-2afa-47e0-972c-209400bb3e6d",
+              "name": "ups",
+              "value": "={{ $('r/subreddit').item.json.ups}}",
+              "type": "string"
+            },
+            {
+              "id": "addcb91c-4b5b-4b7e-a5be-cf46ac8b7db2",
+              "name": "downs",
+              "value": "={{ $('r/subreddit').item.json.downs}}",
+              "type": "string"
+            },
+            {
+              "id": "3a56ba71-05ba-4823-9a03-04b3e27f9155",
+              "name": "post_image",
+              "value": "={{ $('Extract images').item.json.image_url }}",
+              "type": "array"
+            },
+            {
+              "id": "af61ec0c-4e09-4fb6-b47e-c9db29418328",
+              "name": "subreddit_id",
+              "value": "={{ $('r/subreddit').item.json.subreddit_id}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1600,
+        -32
+      ],
+      "id": "51d8cce1-d1ed-4e5f-8e3e-7766cdd71e2c",
+      "name": "normalize_reddit_artificial"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node — extracts image URLs from Reddit post items\n// Returns one output item per input post, with image_url as a string (single)\n// or array (multiple), or null if the post has no images.\n\nfunction extractImageUrls(post) {\n  const urls = [];\n\n  // Gallery / multi-image posts store images in media_metadata\n  if (post.media_metadata) {\n    for (const imageId of Object.keys(post.media_metadata)) {\n      const media = post.media_metadata[imageId];\n\n      if (media.status === 'valid' && media.e === 'Image' && media.m) {\n        // Build a direct i.redd.it URL from the image ID + mime type.\n        // This is publicly accessible without auth, unlike the signed preview.redd.it URLs.\n        const ext = media.m.split('/')[1]; // e.g. \"image/png\" → \"png\"\n        urls.push(`https://i.redd.it/${imageId}.${ext}`);\n      }\n    }\n  }\n\n  // Single direct image post (i.redd.it or external image URL)\n  if (urls.length === 0 && post.url) {\n    const isDirectImage =\n      /\\.(jpg|jpeg|png|gif|webp)(\\?|$)/i.test(post.url) ||\n      post.url.startsWith('https://i.redd.it/');\n    if (isDirectImage) {\n      urls.push(post.url);\n    }\n  }\n\n  return urls;\n}\n\n// Process every input item\nreturn $input.all().map((item) => {\n  const post = item.json;\n  const imageUrls = extractImageUrls(post);\n\n  return {\n    json: {\n      post_id: post.id,\n      title: post.title,\n      image_url: imageUrls.length > 0 ? imageUrls : null,\n      image_count: imageUrls.length,\n    },\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        304,
+        -16
+      ],
+      "id": "6ec090a8-1030-4f43-937b-c4623ebd04cd",
+      "name": "Extract images"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "9974952c-df1d-4300-90b5-4383045c2052",
+              "leftValue": "={{ $('r/subreddit').item.json.selftext }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        704,
+        -16
+      ],
+      "id": "83d32561-47de-42ca-98fd-e1af2b24916b",
+      "name": "Add(no content)"
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "subreddit": "cybersecurity",
+          "limit": 70
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "When clicking ‘Execute workflow’": [
+      {
+        "json": {},
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "r/subreddit": {
+      "main": [
+        [
+          {
+            "node": "Extract images",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "r/subreddit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "last_24h": {
+      "main": [
+        [
+          {
+            "node": "Add(no content)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "normalize_reddit_artificial",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Get Reddit Comments'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Get Reddit Comments'": {
+      "main": [
+        [
+          {
+            "node": "15_seconds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "15_seconds": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "15_seconds1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract images": {
+      "main": [
+        [
+          {
+            "node": "last_24h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add(no content)": {
+      "main": [
+        [
+          {
+            "node": "15_seconds1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "7f72ac8e-e6e0-441d-86ff-bcc16f4c4c48",
+  "meta": {
+    "instanceId": "cad99e0db3a98e24bdcf9db93b2ab3cd4459da1bfdce7b2dae5c1de9fc4aaa3b"
+  },
+  "id": "QsMKqnX9290gBcaQ",
+  "tags": [
+    {
+      "updatedAt": "2026-04-23T13:44:34.287Z",
+      "createdAt": "2026-04-23T13:44:34.287Z",
+      "id": "gES85Aiw3NFcfOin",
+      "name": "to transfer"
+    }
+  ]
+}

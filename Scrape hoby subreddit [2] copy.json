@@ -1,0 +1,632 @@
+{
+  "name": "Scrape hoby subreddit [2] copy",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -496,
+        -192
+      ],
+      "id": "58ac5fee-d949-4017-885d-b9703bb7179f",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -496,
+        224
+      ],
+      "id": "3710bb5a-b7ee-4456-9e40-02bd610735f5",
+      "name": "When chat message received",
+      "webhookId": "109e2229-f5ca-415d-910f-fe692303f859"
+    },
+    {
+      "parameters": {
+        "inputSource": "jsonExample",
+        "jsonExample": "{\n  \"subreddit\": \"a string\"\n}"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -496,
+        0
+      ],
+      "id": "fcc06c20-5dbb-4980-94bf-aa6792bd8157",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5dd7a04e-12aa-435e-bf5d-9ecadf94cb66",
+              "name": "subreddit",
+              "value": "={{ $json.chatInput || $json.subreddit || \"Malware\"}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -240,
+        0
+      ],
+      "id": "bb14d62a-6469-433e-a9fe-01366b410cbc",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "subreddit": "={{ $json.subreddit }}",
+        "limit": "=6",
+        "filters": {
+          "category": "hot"
+        }
+      },
+      "type": "n8n-nodes-base.reddit",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "2aa2452b-986a-4947-826e-c6488cc6b682",
+      "name": "r/subreddit",
+      "credentials": {
+        "redditOAuth2Api": {
+          "id": "JNKaoWpI6JVLsCTT",
+          "name": "Ori's"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "7d084883-6b82-4aa9-94e1-9381aa7c4ae8",
+              "leftValue": "={{ DateTime.fromSeconds($('r/subreddit').item.json.created_utc) > $now.minus({ hours: 24 }) }}",
+              "rightValue": "=",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        512,
+        -16
+      ],
+      "id": "6ce3715c-d5fc-4e81-9796-6efce1df17d7",
+      "name": "last_24h"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1104,
+        -16
+      ],
+      "id": "12697764-0e89-4d98-9e84-243ce11d248f",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "5GjrL0160kCVo5Ye",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/5GjrL0160kCVo5Ye",
+          "cachedResultName": "Reddit | Comments | Official"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('r/subreddit').item.json.id }}",
+            "subreddit": "={{ $('Edit Fields').item.json.subreddit }}",
+            "limit": 20
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "subreddit",
+              "displayName": "subreddit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "limit",
+              "displayName": "limit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1248,
+        -48
+      ],
+      "id": "158f3f11-9929-4dd6-a269-2ab74bac07ad",
+      "name": "Call 'Get Reddit Comments'"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.ceil(($items().length / 90) * 60) }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1392,
+        -48
+      ],
+      "id": "7204a624-2057-4e57-a40a-295aaa4fcac1",
+      "name": "15_seconds",
+      "webhookId": "41f8d448-4e94-42bd-8ead-f118ff760e83"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        896,
+        -16
+      ],
+      "id": "83ea6084-d147-4fc9-a518-122592f83421",
+      "name": "15_seconds1",
+      "webhookId": "72b4fd3a-c4c1-4ce3-b121-5f53ff6aceee"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f767b14a-65ce-4658-a1ca-403c890456d5",
+              "name": "content",
+              "value": "={{ $('r/subreddit').item.json.selftext }}",
+              "type": "string"
+            },
+            {
+              "id": "9018a708-ca96-44b1-853a-330773565933",
+              "name": "link",
+              "value": "={{ 'https://www.reddit.com' + $('r/subreddit').item.json.permalink }}",
+              "type": "string"
+            },
+            {
+              "id": "deda8ba3-bf5d-4067-acbc-df60d0eea1ee",
+              "name": "pubDate",
+              "value": "={{ DateTime.fromSeconds($('r/subreddit').item.json.created_utc).toUTC().toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "c61aa7f8-0dca-4415-9ea2-bfe823a4e885",
+              "name": "creator",
+              "value": "={{ $('r/subreddit').item.json.author_fullname }}",
+              "type": "string"
+            },
+            {
+              "id": "42ba766d-fbe1-48a2-80c7-b90bdca1ef64",
+              "name": "title",
+              "value": "={{ $('r/subreddit').item.json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "c2cf00a4-c323-42cc-b150-3ffc894c3f0c",
+              "name": "dc:creator",
+              "value": "={{ $('r/subreddit').item.json.author_fullname }}",
+              "type": "string"
+            },
+            {
+              "id": "88605d5c-4be6-4ebc-a631-e87423059ee4",
+              "name": "sourceName",
+              "value": "={{ $('r/subreddit').item.json.subreddit }}",
+              "type": "string"
+            },
+            {
+              "id": "a020b86a-02dd-4184-96e8-33a8bd68acc0",
+              "name": "comments",
+              "value": "={{ JSON.stringify($json.data) }}",
+              "type": "string"
+            },
+            {
+              "id": "1496be7d-2afa-47e0-972c-209400bb3e6d",
+              "name": "ups",
+              "value": "={{ $('r/subreddit').item.json.ups}}",
+              "type": "string"
+            },
+            {
+              "id": "addcb91c-4b5b-4b7e-a5be-cf46ac8b7db2",
+              "name": "downs",
+              "value": "={{ $('r/subreddit').item.json.downs}}",
+              "type": "string"
+            },
+            {
+              "id": "3a56ba71-05ba-4823-9a03-04b3e27f9155",
+              "name": "post_image",
+              "value": "={{ $('Extract images').item.json.image_url }}",
+              "type": "array"
+            },
+            {
+              "id": "af61ec0c-4e09-4fb6-b47e-c9db29418328",
+              "name": "subreddit_id",
+              "value": "={{ $('r/subreddit').item.json.subreddit_id}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1600,
+        -32
+      ],
+      "id": "f1f417fd-79ba-4b51-a884-4d2bfc564231",
+      "name": "normalize_reddit_artificial"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        160,
+        368
+      ],
+      "id": "d9d86f59-ef90-4d16-80a8-b704fad4069d",
+      "name": "Loop Over Items1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "name": "Replace Me",
+      "typeVersion": 1,
+      "position": [
+        352,
+        384
+      ],
+      "id": "5fe78214-ea36-4c89-a1f3-51b5f872af76"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "313ff98b-eac4-471c-8e9a-243924e89172",
+              "name": "crosspost_parent_list[0].permalink",
+              "value": "={{ $json.crosspost_parent_list[0].permalink }}",
+              "type": "string"
+            },
+            {
+              "id": "6517ca11-7d5d-47f1-98c7-e5240a38e659",
+              "name": "permalink",
+              "value": "={{ $json.permalink }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        560,
+        384
+      ],
+      "id": "14e55355-8530-4fb0-9001-df98a2ea78d2",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node — extracts image URLs from Reddit post items\n// Returns one output item per input post, with image_url as a string (single)\n// or array (multiple), or null if the post has no images.\n\nfunction extractImageUrls(post) {\n  const urls = [];\n\n  // Gallery / multi-image posts store images in media_metadata\n  if (post.media_metadata) {\n    for (const imageId of Object.keys(post.media_metadata)) {\n      const media = post.media_metadata[imageId];\n\n      if (media.status === 'valid' && media.e === 'Image' && media.m) {\n        // Build a direct i.redd.it URL from the image ID + mime type.\n        // This is publicly accessible without auth, unlike the signed preview.redd.it URLs.\n        const ext = media.m.split('/')[1]; // e.g. \"image/png\" → \"png\"\n        urls.push(`https://i.redd.it/${imageId}.${ext}`);\n      }\n    }\n  }\n\n  // Single direct image post (i.redd.it or external image URL)\n  if (urls.length === 0 && post.url) {\n    const isDirectImage =\n      /\\.(jpg|jpeg|png|gif|webp)(\\?|$)/i.test(post.url) ||\n      post.url.startsWith('https://i.redd.it/');\n    if (isDirectImage) {\n      urls.push(post.url);\n    }\n  }\n\n  return urls;\n}\n\n// Process every input item\nreturn $input.all().map((item) => {\n  const post = item.json;\n  const imageUrls = extractImageUrls(post);\n\n  return {\n    json: {\n      post_id: post.id,\n      title: post.title,\n      image_url: imageUrls.length > 0 ? imageUrls : null,\n      image_count: imageUrls.length,\n    },\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        304,
+        -16
+      ],
+      "id": "bccc7db9-9063-40e1-a193-c65600f4fe64",
+      "name": "Extract images"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "9974952c-df1d-4300-90b5-4383045c2052",
+              "leftValue": "={{ $('r/subreddit').item.json.selftext }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        704,
+        -16
+      ],
+      "id": "14dc5dfa-185a-4397-b7c1-da5258e45731",
+      "name": "Add(no content)"
+    },
+    {
+      "parameters": {
+        "content": "# This hobby subreddit scrpaer is differnet because we filter by \"Hot\"",
+        "height": 176,
+        "width": 480,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -144,
+        -240
+      ],
+      "typeVersion": 1,
+      "id": "27fdb6ab-d9d3-4d33-b6e5-5498ea921a9f",
+      "name": "Sticky Note"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "r/subreddit": {
+      "main": [
+        [
+          {
+            "node": "Extract images",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "r/subreddit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "last_24h": {
+      "main": [
+        [
+          {
+            "node": "Add(no content)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "normalize_reddit_artificial",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Get Reddit Comments'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Get Reddit Comments'": {
+      "main": [
+        [
+          {
+            "node": "15_seconds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "15_seconds": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "15_seconds1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Replace Me",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replace Me": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract images": {
+      "main": [
+        [
+          {
+            "node": "last_24h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add(no content)": {
+      "main": [
+        [
+          {
+            "node": "15_seconds1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "e6eb5630-ff4d-47ca-ad45-bc132fcbd193",
+  "meta": {
+    "instanceId": "cad99e0db3a98e24bdcf9db93b2ab3cd4459da1bfdce7b2dae5c1de9fc4aaa3b"
+  },
+  "id": "KuxlmIjYsS9LpaSH",
+  "tags": [
+    {
+      "updatedAt": "2026-04-23T13:44:34.287Z",
+      "createdAt": "2026-04-23T13:44:34.287Z",
+      "id": "gES85Aiw3NFcfOin",
+      "name": "to transfer"
+    }
+  ]
+}

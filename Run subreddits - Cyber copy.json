@@ -1,0 +1,1196 @@
+{
+  "name": "Run subreddits - Cyber copy",
+  "nodes": [
+    {
+      "parameters": {
+        "fieldToSplitOut": "subreddits",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        672,
+        -192
+      ],
+      "id": "7eca4467-bb2b-41ab-bd05-1126d08ddf20",
+      "name": "Split Out1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "278cb32c-d6aa-4440-83c7-258747918a60",
+              "name": "subreddits",
+              "value": "[\n    { \"subreddit\": \"InfoSecNews\", \"limit\": \"30\" },\n    { \"subreddit\": \"cybersecurity\", \"limit\": \"70\" },\n    { \"subreddit\": \"netsec\", \"limit\": \"10\" },\n    { \"subreddit\": \"AskNetsec\", \"limit\": \"10\" },\n    { \"subreddit\": \"sysadmin\", \"limit\": \"80\" },\n    { \"subreddit\": \"ShittySysadmin\", \"limit\": \"10\" },\n    { \"subreddit\": \"blueteamsec\", \"limit\": \"10\" },\n    { \"subreddit\": \"redteamsec\", \"limit\": \"30\" },\n    { \"subreddit\": \"malware\", \"limit\": \"10\" },\n    { \"subreddit\": \"ansible\", \"limit\": \"10\" },\n    { \"subreddit\": \"healthIT\", \"limit\": \"10\" },\n    { \"subreddit\": \"devops\", \"limit\": \"30\" },\n    { \"subreddit\": \"linuxadmin\", \"limit\": \"10\" },\n    { \"subreddit\": \"hacking\", \"limit\": \"10\" },\n    { \"subreddit\": \"HowToHack\", \"limit\": \"10\" },\n    { \"subreddit\": \"aws\", \"limit\": \"30\" },\n    { \"subreddit\": \"AZURE\", \"limit\": \"30\" },\n    { \"subreddit\": \"cloudsecurity\", \"limit\": \"10\" },\n    { \"subreddit\": \"devsecops\", \"limit\": \"10\" },\n    { \"subreddit\": \"vulnerabilitymanagement\", \"limit\": \"10\" },\n    { \"subreddit\": \"pentesting\", \"limit\": \"10\" },\n    { \"subreddit\": \"securityoperations\", \"limit\": \"10\" },\n    { \"subreddit\": \"CISO\", \"limit\": \"10\" },\n    { \"subreddit\": \"infosec\", \"limit\": \"10\" },\n    { \"subreddit\": \"riskmanagement\", \"limit\": \"10\" },\n    { \"subreddit\": \"kubernetes\", \"limit\": \"10\" },\n    { \"subreddit\": \"securityCTF\", \"limit\": \"10\" },\n    { \"subreddit\": \"netsecstudents\", \"limit\": \"10\" },\n    { \"subreddit\": \"securityarchitecture\", \"limit\": \"10\" },\n    { \"subreddit\": \"ZeroTrust\", \"limit\": \"10\" },\n    { \"subreddit\": \"ITManagers\", \"limit\": \"10\" },\n    { \"subreddit\": \"servicenow\", \"limit\": \"10\" },\n    { \"subreddit\": \"activedirectory\", \"limit\": \"10\" }\n  ]",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        480,
+        -192
+      ],
+      "id": "445d61fa-8357-4eee-98a8-eb6847a0db23",
+      "name": "urls1"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1264,
+        -192
+      ],
+      "id": "50711542-af91-4814-bd97-3db0c7dc4e2d",
+      "name": "Aggregate26"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "K5htMcpnriUZEb3byeLKz",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/K5htMcpnriUZEb3byeLKz",
+          "cachedResultName": "Scrape subreddit"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "limit": "={{ $json.limit }}",
+            "subreddit": "={{ $json.subreddit }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "subreddit",
+              "displayName": "subreddit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "limit",
+              "displayName": "limit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1072,
+        -192
+      ],
+      "id": "cf1d765f-7410-4b93-b04b-5dbcc674bf55",
+      "name": "Call 'Scrape subreddit'",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e3a2421a-290c-4148-8dcd-38da29fd4995",
+              "name": "creator",
+              "value": "={{ $json.creator }}",
+              "type": "string"
+            },
+            {
+              "id": "5db4e308-6bd0-4a9f-9926-f37550768f88",
+              "name": "title",
+              "value": "={{ $json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "e07a3f47-247e-4229-965e-80946a653166",
+              "name": "pubDate",
+              "value": "={{ $json.pubDate }}",
+              "type": "string"
+            },
+            {
+              "id": "521f064e-4961-4aab-ab25-241ba7f8fb92",
+              "name": "post",
+              "value": "={{ $json.content }}",
+              "type": "string"
+            },
+            {
+              "id": "bf0d340c-dcda-4843-ac4f-f3e98e0b6d6e",
+              "name": "sourceName",
+              "value": "=r/{{ $json.sourceName }}",
+              "type": "string"
+            },
+            {
+              "id": "7834ed85-cbe8-4f05-8848-adb0ab98cc80",
+              "name": "comments",
+              "value": "={{ $json.comments }}",
+              "type": "string"
+            },
+            {
+              "id": "9d024494-6ff4-4ede-abbe-f500f6815225",
+              "name": "ups",
+              "value": "={{ $json.ups }}",
+              "type": "string"
+            },
+            {
+              "id": "d3fbdb22-2552-495e-9da4-8d188c823e63",
+              "name": "downs",
+              "value": "={{ $json.downs }}",
+              "type": "string"
+            },
+            {
+              "id": "e49cb641-bcbc-4c53-a628-1bcbde0d86c2",
+              "name": "link",
+              "value": "={{ $json.link }}",
+              "type": "string"
+            },
+            {
+              "id": "bbfe19eb-8208-43d5-b235-48d5a1e3367c",
+              "name": "id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "74beb14d-398a-4af5-b3f9-5adf86882aae",
+              "name": "subreddit_id",
+              "value": "={{ $json.subreddit_id }}",
+              "type": "string"
+            },
+            {
+              "id": "dd0c179e-5e6b-450d-861d-28d5104c64a5",
+              "name": "post_image",
+              "value": "={{ $json.post_image }}",
+              "type": "array"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2080,
+        -192
+      ],
+      "id": "948587b9-74f4-4435-bdb4-5849b44402dd",
+      "name": "normalize_all_news"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e3a2421a-290c-4148-8dcd-38da29fd4995",
+              "name": "creator",
+              "value": "={{ $json.creator }}",
+              "type": "string"
+            },
+            {
+              "id": "5db4e308-6bd0-4a9f-9926-f37550768f88",
+              "name": "title",
+              "value": "={{ $json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "b2c07170-10ae-478e-90f1-639d236225cd",
+              "name": "link",
+              "value": "={{ $json.link }}",
+              "type": "string"
+            },
+            {
+              "id": "e07a3f47-247e-4229-965e-80946a653166",
+              "name": "pubDate",
+              "value": "={{ $json.pubDate }}",
+              "type": "string"
+            },
+            {
+              "id": "521f064e-4961-4aab-ab25-241ba7f8fb92",
+              "name": "post",
+              "value": "={{ $json.content }}",
+              "type": "string"
+            },
+            {
+              "id": "bf0d340c-dcda-4843-ac4f-f3e98e0b6d6e",
+              "name": "sourceName",
+              "value": "={{ $json.sourceName }}",
+              "type": "string"
+            },
+            {
+              "id": "e53744b4-2053-4a86-82a3-6e073a8bf68a",
+              "name": "comments",
+              "value": "={{ $json.comments }}",
+              "type": "string"
+            },
+            {
+              "id": "e09354af-6561-4cef-9a8d-30bcdc607ab6",
+              "name": "ups",
+              "value": "={{ $json.ups }}",
+              "type": "string"
+            },
+            {
+              "id": "c7c3b6b4-7f5c-4246-b941-dd5f88a315f5",
+              "name": "downs",
+              "value": "={{ $json.downs }}",
+              "type": "string"
+            },
+            {
+              "id": "9036881e-3e1b-441b-8652-c6cdd1030bf0",
+              "name": "permalink",
+              "value": "={{ $json.permalink }}",
+              "type": "string"
+            },
+            {
+              "id": "f5dd99b6-39ca-4d05-9d2a-843949fa051b",
+              "name": "id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "19bd066e-79f6-421d-a550-fdbf247ecc16",
+              "name": "subreddit_id",
+              "value": "={{ $json.subreddit_id }}",
+              "type": "string"
+            },
+            {
+              "id": "2d3927b0-bfa0-4ff6-861b-6e52cb469b46",
+              "name": "post_image",
+              "value": "={{ $json.post_image }}",
+              "type": "array"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1968,
+        208
+      ],
+      "id": "52139302-032e-4b7d-9fff-5dbfcc5605f3",
+      "name": "normalize_all_reddits"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"type\": \"object\",\n  \"properties\": {\n    \"alert\": {\n      \"type\": \"boolean\",\n      \"description\": \"Whether this thread triggers an immediate alert condition requiring urgent attention\"\n    },\n    \"tag\": {\n      \"type\": \"string\",\n      \"enum\": [\"engage\", \"monitor\", \"skip\"],\n      \"description\": \"Classification tag indicating priority level for the discussion thread\"\n    },\n    \"scores\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"relevance\": {\n          \"type\": \"integer\",\n          \"minimum\": 0,\n          \"maximum\": 3,\n          \"description\": \"Topic relevance score: 0=off-topic, 1=adjacent, 2=in-domain, 3=direct hit\"\n        },\n        \"quality\": {\n          \"type\": \"integer\",\n          \"minimum\": 0,\n          \"maximum\": 3,\n          \"description\": \"Discussion quality score: 0=noise, 1=low quality, 2=decent, 3=high quality\"\n        },\n        \"strategic\": {\n          \"type\": \"integer\",\n          \"minimum\": 0,\n          \"maximum\": 3,\n          \"description\": \"Strategic value score: 0=none, 1=low, 2=market education opportunity, 3=high strategic value\"\n        },\n        \"composite\": {\n          \"type\": \"integer\",\n          \"minimum\": 0,\n          \"maximum\": 9,\n          \"description\": \"Sum of relevance, quality, and strategic scores\"\n        }\n      },\n      \"required\": [\"relevance\", \"quality\", \"strategic\", \"composite\"],\n      \"additionalProperties\": false,\n      \"description\": \"Score breakdown across evaluation dimensions\"\n    },\n    \"intent\": {\n      \"type\": \"string\",\n      \"enum\": [\"help_seeking\", \"comparison\", \"opinion_forming\", \"venting\", \"announcement\", \"other\"],\n      \"description\": \"Primary intent classification of the discussion\"\n    },\n    \"triggers\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"competitor_mentioned\": {\n          \"type\": [\"string\", \"null\"],\n          \"description\": \"Name of competitor mentioned in thread, or null if none\"\n        },\n        \"company_mentioned\": {\n          \"type\": \"boolean\",\n          \"description\": \"Whether our company name or brand variations appear in the thread\"\n        },\n        \"buying_signal\": {\n          \"type\": \"boolean\",\n          \"description\": \"Whether discussion involves evaluation, purchasing decision, or tool selection\"\n        }\n      },\n      \"required\": [\"competitor_mentioned\", \"company_mentioned\", \"buying_signal\"],\n      \"additionalProperties\": false,\n      \"description\": \"Alert trigger conditions detected in the thread\"\n    },\n    \"override_applied\": {\n      \"type\": [\"string\", \"null\"],\n      \"enum\": [\"direct_hit\", \"competitor_context\", \"company_mention\", \"buying_signal\", null],\n      \"description\": \"Type of override rule applied to elevate classification, or null if none\"\n    },\n    \"reason\": {\n      \"type\": \"string\",\n      \"maxLength\": 150,\n      \"description\": \"Brief explanation of the classification decision (target 15 words)\"\n    }\n  },\n  \"required\": [\"alert\", \"tag\", \"scores\", \"intent\", \"triggers\", \"override_applied\", \"reason\"],\n  \"additionalProperties\": false\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2448,
+        672
+      ],
+      "id": "42cbf740-eabe-4140-a58f-f45575bb39e0",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=<subreddit>\n{{ $json.sourceName }}\n</subreddit>\n\n<full_thread>\n{{ $json.content }}\n</full_thread>",
+        "hasOutputParser": true,
+        "needsFallback": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=You are a content analyst expert and online discussions thread Classifier\n\nEvaluate discussion threads to determine which ones deserve human attention and potential engagement.\n\n**Important context**: We engage as regular individuals sharing opinions and expertise - NOT as official company representatives. This means:\n- No thread is \"locked\" to us - we can always respond as a person\n- We're looking for discussions worth participating in as knowledgeable individuals\n- The goal is market education and positioning through authentic participation\n\n---\n\n## Context Reference\n\nRefer to the `company_overview` document for:\n- Company name and brand variations\n- Industry domain and world of content\n- Direct competitors to monitor for alerts\n- High-relevance keywords (terms we want to own)\n- Market education goals (key differentiators to teach without direct brand mentions)\n- Desired market positioning\n\n---\n\n## Input\n\n<subreddit>\nThe subreddit we scrpaed to get that data.\n</subreddit>\n<full_thread>\nThe full discussion with all comments and replies, including depth indicators.\n</full_thread>\n<company_overview>\nContains:\n- **brand_name**: Our company name and common variations\n- **comapny_overview**: short company overview.\n- **competitors**: List of direct competitors to monitor for alerts\n- **high_relevance_keywords**: Terms that indicate high-value discussions\n- **market_education_goals**: Key differentiators we want to educate the market about (without direct brand mentions)\n- **desired_positioning**: How we want to be perceived in the market\n- **world_of_content**: Topics and domains we operate in\n</company_overview>\n\n---\n\n## Evaluation Framework\n\nAnalyze the thread across four dimensions. For each, consider the specific criteria below.\n\n### 1. Topic Relevance (Score 0-3)\n\n| Score | Criteria |\n|-------|----------|\n| 0 | **Off-topic** - Discussion has nothing to do with our world of content. Different industry entirely. |\n| 1 | **Adjacent** - In our general space (e.g., cybersecurity) but not our specific domain. Too broad to add value. |\n| 2 | **In-domain** - Discusses topics within our world of content. Core terms or related concepts appear. |\n| 3 | **Direct hit** - Discusses our exact domain, core terms, or a direct competitor in our space. |\n\n### 2. Discussion Quality (Score 0-3)\n\nSince we engage as regular Redditors (not as the company), evaluate whether the discussion is worth participating in:\n\n| Score | Criteria |\n|-------|----------|\n| 0 | **Noise** - Spam, trolling, incoherent, or completely dead thread with no real discussion. |\n| 1 | **Low quality** - Shallow discussion, mostly memes/jokes. |\n| 2 | **Decent discussion** - Real conversation happening. People are sharing opinions and engaging with each other. |\n| 3 | **High quality** - Substantive discussion with people genuinely seeking to understand or debate the topic. |\n\n**Note**: Even a \"negative\" or critical thread can be high quality if people are genuinely discussing the topic.\n\n### 3. Discussion Intent Classification\n\nClassify the primary intent of the discussion:\n\n| Intent | Description |\n|--------|-------------|\n| `help_seeking` | Asking for solutions, recommendations, or guidance |\n| `comparison` | Evaluating options, asking \"X vs Y\", buying decision |\n| `opinion_forming` | Discussing trends, best practices, how things should work |\n| `venting` | Complaining, frustrated, not seeking solutions |\n| `announcement` | Sharing news, no discussion expected |\n| `other` | Doesn't fit above categories |\n\n**Note**: `help_seeking` and `comparison` intents are highest value for engagement.\n\n### 4. Strategic Value (Score 0-3)\n\n| Score | Criteria |\n|-------|----------|\n| 0 | **No strategic value** - Even if relevant, engaging won't advance our positioning. Wrong context (salary questions, off-topic tangent). |\n| 1 | **Low value** - Tangentially related to our positioning. Could engage but limited upside. |\n| 2 | **Market education opportunity** - Discussion touches on topics where we can educate about the right approach (per `market_education_goals`) without brand mention. Teach how things *should* be done. |\n| 3 | **High strategic value** - Discussion directly involves our differentiators, core positioning, or a competitor weakness we can address. Prime opportunity to shape perception. |\n\n---\n\n## Alert Triggers\n\nCheck for these conditions separately:\n\n| Trigger | Condition |\n|---------|-----------|\n| `competitor_mentioned` | Any competitor from `company_overview.competitors` is named in the thread |\n| `company_mentioned` | Our company name or brand variations appear |\n| `buying_signal` | Discussion involves evaluation, purchasing decision, or \"which tool should I use\" |\n\n---\n\n## Decision Logic\n\n**Calculate composite score** = relevance + quality + strategic (0-9)\n\n| Composite Score | Tag | Meaning |\n|-----------------|-----|---------|\n| 7-9 | `engage` (+ 'alert' : true) | High-value thread requiring immediate attention |\n| 5-6 | `engage` | Worth queuing for response |\n| 3-4 | `monitor` | Relevant but lower priority |\n| 0-2 | `skip` | Not worth attention |\n\n**Override rules** (set `alert` to 'true' regardless of composite score):\n- Our company mentioned directly\n- Competitor mentioned in a comparison or negative context AND relevance ≥ 2\n- Buying signal detected AND relevance ≥ 2\n\n**Override rules** (elevate to `engage`):\n- If `alert: true` → tag must be `engage` (never `monitor` or `skip`)\n- Relevance = 3 (direct hit) → minimum tag is `engage`, even if quality/strategic scores are low\n- Competitor mentioned AND relevance ≥ 2\n\n**Rationale**: A direct hit on relevance is always worth human review. We engage as regular Redditors, so even \"hostile\" or \"low quality\" threads can be opportunities to share a different perspective.\n\n---\n\n## Output\n\nReturn JSON only. No additional text, no wrappers.\n\n\n{\n  \"alert\": true | false,\n  \"tag\": \"engage\" | \"monitor\" | \"skip\",\n  \"scores\": {\n    \"relevance\": 0-3,\n    \"quality\": 0-3,\n    \"strategic\": 0-3,\n    \"composite\": 0-9\n  },\n  \"intent\": \"help_seeking\" | \"comparison\" | \"opinion_forming\" | \"venting\" | \"announcement\" | \"other\",\n  \"triggers\": {\n    \"competitor_mentioned\": \"competitor_name\" | null,\n    \"company_mentioned\": true | false,\n    \"buying_signal\": true | false\n  },\n  \"override_applied\": \"direct_hit\" | \"competitor_context\" | \"company_mention\" | \"buying_signal\" | null,\n  \"reason\": \"<15 word explanation of decision>\"\n}"
+            },
+            {
+              "type": "HumanMessagePromptTemplate",
+              "message": "=# XM CYBER COMPANY CONTEXT\n\n## SECTION 1: COMPANY OVERVIEW\n\n### Executive Summary\n\nXM Cyber is a Continuous Exposure Management platform that validates exploitable attack paths across hybrid and multi-cloud environments using digital twin technology. The solution addresses three critical pain points: (1) Security teams drowning in endless vulnerability lists without knowing what actually puts the business at risk, (2) inability to see how external exposures chain with internal misconfigurations and identity issues to create exploitable attack paths to critical assets, and (3) wasted resources fixing the wrong things while lateral movement and privilege escalation risks go unaddressed. The ICP is enterprise security leadership (CISOs, Deputy CISOs, Security Architects, VM Leads) at organizations with 2,000+ employees operating hybrid/multi-cloud environments where identity sprawl, cloud drift, and constantly changing attack surfaces create continuous exposure.\n\n### The Problem Angle\n\nThe modern CISO faces an impossible situation: their vulnerability scanners generate thousands of alerts monthly, their CSPM tools flag hundreds of cloud misconfigurations, and their identity systems show excessive permissions everywhere—but they have no way to know which exposures actually matter. Traditional tools measure risk in isolation, showing that a door is open but not proving whether an attacker can walk through it, pivot laterally through the network by exploiting weak credentials and over-privileged accounts, and ultimately reach the crown jewels. Meanwhile, their team is burning resources patching the wrong things while the real attack paths—the ones that chain multiple exposures together across on-prem and cloud—remain wide open, creating measurable business risk they can't articulate to the board.\n\n### Solution Breakdown\n\n## How XM Cyber Works: Attack Graph Analysis and Digital Twin Validation\n\nXM Cyber builds a comprehensive attack graph by continuously discovering all exposure types across the hybrid environment—CVEs, misconfigurations, identity issues, weak credentials, behavioral anomalies, and security control gaps—from external attack surface through on-prem and multi-cloud infrastructure. The platform then maps how these exposures interconnect into actual attack paths that could compromise critical business assets, showing security teams not isolated vulnerabilities but the complete chains attackers would exploit to move laterally and escalate privileges. This attack-path perspective reveals the true risk context: which of the 5,000 findings actually lead to your critical assets versus which are dead ends.\n\n## Validation Without Production Impact: The Digital Twin Approach\n\nUnlike traditional penetration testing or BAS tools that operate in production and risk causing downtime, XM Cyber creates a cyber digital twin—a continuously updated replica of your environment—where attack path validation happens safely. The platform uses a two-step validation process: first, it confirms whether an exposure is actually exploitable in your specific environment with your security controls in place (not just theoretically vulnerable), and second, it proves whether that exploitation enables lateral movement toward critical assets. This production-safe validation eliminates false positives and provides proof-backed insights about what attackers can actually accomplish in your environment, not just what scanners theoretically detect.\n\n## Choke Point Prioritization: Fix What Matters\n\nThe attack graph reveals choke points—critical intersections where multiple attack paths converge—allowing teams to prioritize remediations with the highest ROI. By fixing a single choke point, security teams can break dozens of attack paths simultaneously rather than addressing vulnerabilities one by one. The platform provides complete remediation context to IT teams including urgency justification, step-by-step guidance, and alternative fixes for non-patchable exposures, all integrated with existing ticketing and workflow systems. This approach shifts measurement from vanity metrics like \"patched 700 vulnerabilities\" to business risk metrics the board understands: \"reduced attack paths to critical assets by 75%.\"\n\n## Continuous External-to-Internal Visibility Across Hybrid Environments\n\nXM Cyber uniquely bridges external attack surface discovery with internal validation, answering the critical \"so what?\" question for EASM findings. The platform correlates what's exposed externally with how those exposures enable internal lateral movement, showing the complete attack chain from initial breach to critical asset compromise. This unified view spans on-prem infrastructure, multi-cloud environments (AWS/Azure/GCP), and the identity layer (AD + Entra ID), maintaining continuous visibility as environments change—addressing cloud drift, identity sprawl, and the ephemeral nature of modern infrastructure that makes point-in-time assessments obsolete within hours.\n\n---\n\n## SECTION 2: MARKET EDUCATION GOAL\n\n**Exposure Management vs. Vulnerability Management Evolution**\nThe market understands vulnerability management (CVE scanning, patching) but needs to recognize that exposure management is the necessary evolution. In hybrid/multi-cloud environments, risk comes from the combination of CVEs, cloud misconfigurations, identity over-permissions, weak credentials, and security control gaps—not just patchable vulnerabilities. Teach that modern risk is defined by how exposures chain together into exploitable paths, not by isolated vulnerability severity scores.\n\n**Attack Paths Over Vulnerability Piles**\nSecurity teams don't need more things to fix; they need to understand how attackers actually move through environments. Prioritization must be based on validated, exploitable attack paths to critical assets—not CVSS scores or scanner volume. A critical CVE that doesn't lead anywhere meaningful is less urgent than a medium-severity issue on a choke point that breaks multiple attack paths.\n\n**Validation Eliminates False Positives**\nTheoretical exploitability (what scanners detect) differs dramatically from actual exploitability in a specific environment with specific security controls. Without validation, teams waste 98% of their effort on exposures that aren't actually exploitable or don't lead to critical assets. Real validation requires proving both that the exposure can be exploited AND that it enables lateral movement—not just flagging potential issues.\n\n**Continuous Over Point-in-Time Assessment**\nEnvironments change constantly—new cloud resources spin up, permissions change, configurations drift, users are added. Point-in-time assessments (quarterly pen tests, annual audits, static BAS scenarios) are outdated before they're delivered. Only continuous exposure discovery and validation reflects how fast modern hybrid infrastructures evolve.\n\n**Digital Twin = Safe, Realistic, Scalable Validation**\nProduction-safe validation is the only way to continuously test attack scenarios without risking business operations. Unlike active penetration testing or BAS tools that can cause outages, digital twin technology enables realistic attack simulation at scale without touching production systems. This approach solves the legacy/OT challenge where systems can't be scanned or tested without operational disruption.\n\n**Identity Is the New Perimeter and Primary Breach Vector**\nMost breaches begin with compromised credentials and privilege escalation, not unpatched software. Understanding identity blast radius (how far attackers can move with stolen credentials), AD/Entra ID exposure, and excessive permissions is fundamental to preventing lateral movement. Identity security can't be separated from infrastructure security—they must be analyzed together as components of attack paths.\n\n**External + Internal Correlation, Not Silos**\nEASM alone identifies exposed assets but cannot validate whether external exposures enable internal exploitation. Internal-only tools miss the entry points. Security teams need unified visibility showing how external exposures chain with internal vulnerabilities to threaten the business, eliminating the dashboard-flipping and guesswork about which external findings actually matter.\n\n**Choke Points = Remediation ROI**\nNot all fixes are equal. Fixing exposures on choke points (where multiple attack paths intersect) delivers exponentially higher risk reduction than addressing issues on dead-end branches. Graph-based analysis reveals these high-impact remediation opportunities that linear vulnerability lists cannot identify.\n\n---\n\n## SECTION 3: DESIRED POSITIONING\n\nXM Cyber is positioned as the **exposure management native pioneer** and the only platform delivering **validated, exploitable attack path analysis** across the complete hybrid attack surface. Unlike VM vendors (Tenable, Qualys, Rapid7) that evolved from legacy scanning or CSPM vendors (Wiz, Prisma) that focus primarily on cloud, XM Cyber was built from inception to solve the exposure management problem using attack graph analysis and digital twin validation. This native approach enables capabilities competitors cannot match: continuous validation of complete external-to-internal attack chains, production-safe testing in complex hybrid and OT environments, and AI-driven attack path modeling that shows not just what's exposed but what's actually exploitable and leads to critical assets.\n\nThe competitive differentiation centers on **validation and proof**, positioning against vendors that provide discovery without exploitability confirmation (EASM players like CyCognito, Randori), partial validation in limited scenarios (BAS tools like Pentera, SafeBreach that run point-in-time simulations), or broad attack-path claims without end-to-end validation (Tenable, CrowdStrike, Microsoft Defender emerging narratives). XM Cyber's digital twin approach and two-step validation process (confirming exploitability AND lateral movement potential) delivers zero false positives and proven attack paths—answering \"so what?\" where competitors provide theoretical risk scores.\n\n### Primary SEO and Market Position Keywords\n\n**Attack path validation** (not just \"attack path management\" which competitors own)\n**Exploitable attack paths** or **validated attack paths** (emphasizing proof over theory)\n**Hybrid exposure management** or **hybrid attack surface validation** (spanning on-prem + multi-cloud together)\n**Digital twin cybersecurity** or **cyber digital twin validation**\n**External-to-internal attack path** or **EASM with internal validation** (bridging the gap competitors leave open)\n**Choke point remediation** or **attack path choke points** (unique prioritization methodology)\n**Production-safe validation** or **non-intrusive attack validation** (vs. disruptive pen testing)\n**Identity attack path** or **identity blast radius analysis** (identity-specific exposure management)\n**Cloud drift attack paths** or **cloud misconfiguration validation** (beyond CSPM noise)\n**Continuous attack surface validation** (emphasis on continuous + validated, not just continuous monitoring)\n\n### Secondary/Supporting Terms\n\n**Exposure management native** (differentiation from pivoted vendors)\n**Attack graph analysis** (technical differentiator and \"secret sauce\")\n**CTEM platform** (Gartner framework alignment)\n**Lateral movement prevention** through validated paths\n**On-prem to cloud attack paths** (hybrid environment expertise)\n**OT exposure management** or **legacy system validation** (areas requiring non-intrusive approach)\n\nThe positioning avoids competing head-on for broad terms like \"exposure management\" (where larger players dominate) or \"vulnerability management\" (legacy category). Instead, it owns the intersection of **validation + attack paths + hybrid environments**, establishing XM Cyber as the vendor that proves what's actually exploitable rather than generating more alerts, and solves exposure management for the complex, distributed, identity-heavy environments that define modern enterprise security."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        2192,
+        208
+      ],
+      "id": "b6533acc-2cd3-402c-83b9-88415fe9761b",
+      "name": "filtering_from_subreddits",
+      "retryOnFail": true,
+      "waitBetweenTries": 3000,
+      "maxTries": 5,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        3008,
+        96
+      ],
+      "id": "56f4a65e-f40f-49f7-a467-afaca3d20f54",
+      "name": "alert_client",
+      "webhookId": "a3a38291-b7a6-463f-8187-503d45ddc24e",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3200,
+        96
+      ],
+      "id": "ac19ffc5-bf59-42cc-bdc0-478e5b590977",
+      "name": "alerts_log",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "03a22d52-a241-4d70-8ed6-2e2fcfa406fc",
+              "leftValue": "={{ $json.output.alert }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2736,
+        112
+      ],
+      "id": "bb8604e5-1185-4675-a540-b0b7b5859cf5",
+      "name": "Alert",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "03a22d52-a241-4d70-8ed6-2e2fcfa406fc",
+              "leftValue": "={{ $json.output.tag }}",
+              "rightValue": "skip",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2752,
+        304
+      ],
+      "id": "c58a436f-4f31-4e08-9d8d-2d3303142473",
+      "name": "tag"
+    },
+    {
+      "parameters": {
+        "maxItems": 2
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        880,
+        -192
+      ],
+      "id": "4c594f68-abdc-414c-9b6e-facba23d0511",
+      "name": "Limit",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1472,
+        -192
+      ],
+      "id": "ce253278-4a54-4fce-b6b6-4c27bdd46b20",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "89676022-1e1e-4abf-b01d-0197b5c55a8c",
+              "leftValue": "={{ $json.content}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        1680,
+        -192
+      ],
+      "id": "dbf13bff-733a-4095-b56f-c8c2ae2b95e3",
+      "name": "Filter no content"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        224,
+        -192
+      ],
+      "id": "8ce02165-99b3-48fb-92cf-dc37f5a689d5",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserAutofixing",
+      "typeVersion": 1,
+      "position": [
+        2352,
+        416
+      ],
+      "id": "41b66398-c921-4f03-95bf-9c0e3d5acafc",
+      "name": "Auto-fixing Output Parser1",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5.3-codex",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        2240,
+        624
+      ],
+      "id": "3aba0285-73cc-448b-b0b9-24f670aba03d",
+      "name": "codex 5.3",
+      "credentials": {
+        "openRouterApi": {
+          "id": "7ndoCv2PiCgkCy81",
+          "name": "XM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "google/gemini-3-flash-preview",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        1904,
+        720
+      ],
+      "id": "dd2bd529-dec9-44ce-b69d-6485bd789598",
+      "name": "gemini-3 flash",
+      "credentials": {
+        "openRouterApi": {
+          "id": "VuMyzyrL1ceaGgXF",
+          "name": "co-intelligent"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "x-ai/grok-4.1-fast",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        2096,
+        736
+      ],
+      "id": "83931b84-1a8a-4963-8ad4-f42cc1b1a913",
+      "name": "grok-4.1-fast",
+      "credentials": {
+        "openRouterApi": {
+          "id": "VuMyzyrL1ceaGgXF",
+          "name": "co-intelligent"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "XM_Cyber_Reddit",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "keyword": "(sub)",
+            "tag": "={{ $node[\"filtering_from_subreddits\"].json[\"output\"][\"tag\"] }}",
+            "alert": "={{ $node[\"filtering_from_subreddits\"].json[\"output\"][\"alert\"] }}",
+            "reasoning": "={{ $node[\"filtering_from_subreddits\"].json[\"output\"][\"reason\"] }}",
+            "relevance": "={{ $node[\"filtering_from_subreddits\"].json[\"output\"][\"scores\"][\"relevance\"] }}",
+            "quality": "={{ $node[\"filtering_from_subreddits\"].json[\"output\"][\"scores\"][\"quality\"] }}",
+            "strategic": "={{ $node[\"filtering_from_subreddits\"].json[\"output\"][\"scores\"][\"strategic\"] }}",
+            "composite": "={{ $node[\"filtering_from_subreddits\"].json[\"output\"][\"scores\"][\"composite\"] }}",
+            "intent": "={{ $node[\"filtering_from_subreddits\"].json[\"output\"][\"intent\"] }}",
+            "post_title": "={{ $node[\"normalize_all_reddits\"].json[\"title\"] }}",
+            "post": "={{ $node[\"normalize_all_reddits\"].json[\"post\"] }}",
+            "comments": "={{ $node[\"normalize_all_reddits\"].json[\"comments\"] }}",
+            "url": "={{ $node[\"normalize_all_reddits\"].json[\"link\"] }}",
+            "created": "={{ $node[\"normalize_all_reddits\"].json[\"pubDate\"] }}",
+            "subreddit": "={{ $node[\"normalize_all_reddits\"].json[\"sourceName\"] }}",
+            "author": "={{ $node[\"normalize_all_reddits\"].json[\"creator\"] }}",
+            "post_image": "={{ $node[\"normalize_all_reddits\"].json[\"post_image\"] }}",
+            "post_ups": "={{ $node[\"normalize_all_reddits\"].json[\"ups\"] }}",
+            "post_downs": "={{ $node[\"normalize_all_reddits\"].json[\"downs\"] }}",
+            "score": 0
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "keyword",
+              "displayName": "keyword",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Thread",
+              "displayName": "Thread",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "tag",
+              "displayName": "tag",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "alert",
+              "displayName": "alert",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "flag",
+              "displayName": "flag",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "reasoning",
+              "displayName": "reasoning",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "relevance",
+              "displayName": "relevance",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "quality",
+              "displayName": "quality",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "strategic",
+              "displayName": "strategic",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "composite",
+              "displayName": "composite",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "intent",
+              "displayName": "intent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "post",
+              "displayName": "post",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Content (containing keyword)",
+              "displayName": "Content (containing keyword)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "content type",
+              "displayName": "content type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "permalink",
+              "displayName": "permalink",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created",
+              "displayName": "created",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "subreddit",
+              "displayName": "subreddit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "author",
+              "displayName": "author",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "score",
+              "displayName": "score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "post_id",
+              "displayName": "post_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "post_ups",
+              "displayName": "post_ups",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "post_downs",
+              "displayName": "post_downs",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ups_downs_ratio",
+              "displayName": "ups_downs_ratio",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "comments",
+              "displayName": "comments",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "post_title",
+              "displayName": "post_title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "item_id",
+              "displayName": "item_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "ai_suggested_comment",
+              "displayName": "ai_suggested_comment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "model",
+              "displayName": "model",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "post_image",
+              "displayName": "post_image",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "array",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "fc18e937-6725-499c-9361-df1845124603",
+      "name": "Postgres_XM_Cyber_Reddit",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [
+        3024,
+        288
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "mqXwxCYq5ENg9eMI",
+          "name": "co-intelligent"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {},
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Split Out1": {
+      "main": [
+        [
+          {
+            "node": "Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "urls1": {
+      "main": [
+        [
+          {
+            "node": "Split Out1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Scrape subreddit'": {
+      "main": [
+        [
+          {
+            "node": "Aggregate26",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "normalize_all_news": {
+      "main": [
+        [
+          {
+            "node": "normalize_all_reddits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "normalize_all_reddits": {
+      "main": [
+        [
+          {
+            "node": "filtering_from_subreddits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Auto-fixing Output Parser1",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "filtering_from_subreddits": {
+      "main": [
+        [
+          {
+            "node": "Alert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "tag",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "alert_client": {
+      "main": [
+        [
+          {
+            "node": "alerts_log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert": {
+      "main": [
+        [
+          {
+            "node": "alert_client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "tag": {
+      "main": [
+        [
+          {
+            "node": "Postgres_XM_Cyber_Reddit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate26": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit": {
+      "main": [
+        [
+          {
+            "node": "Call 'Scrape subreddit'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Filter no content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter no content": {
+      "main": [
+        [
+          {
+            "node": "normalize_all_news",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "urls1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-fixing Output Parser1": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "filtering_from_subreddits",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "codex 5.3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Auto-fixing Output Parser1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "gemini-3 flash": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "filtering_from_subreddits",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "grok-4.1-fast": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "filtering_from_subreddits",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "ab508fa1-44b2-40a5-998f-087c0ed7ec83",
+  "meta": {
+    "instanceId": "cad99e0db3a98e24bdcf9db93b2ab3cd4459da1bfdce7b2dae5c1de9fc4aaa3b"
+  },
+  "id": "8kMClC5gVMRxdF7e",
+  "tags": [
+    {
+      "updatedAt": "2026-04-23T13:44:34.287Z",
+      "createdAt": "2026-04-23T13:44:34.287Z",
+      "id": "gES85Aiw3NFcfOin",
+      "name": "to transfer"
+    }
+  ]
+}

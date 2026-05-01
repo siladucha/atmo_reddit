@@ -1,0 +1,596 @@
+{
+  "name": "Run hobby subreddits [1] copy",
+  "nodes": [
+    {
+      "parameters": {
+        "fieldToSplitOut": "subreddits",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        448,
+        -576
+      ],
+      "id": "d64c8eaa-eba5-4e9a-ad3c-fa2124c4b1bf",
+      "name": "Split Out1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "278cb32c-d6aa-4440-83c7-258747918a60",
+              "name": "subreddits",
+              "value": "[\n    { \"subreddit\": \"wine\" },\n    { \"subreddit\": \"sailing\" },\n    { \"subreddit\": \"investing\" },\n    { \"subreddit\": \"marathontraining\" },\n    { \"subreddit\": \"homelab\" },\n    { \"subreddit\": \"opensource\" },\n    { \"subreddit\": \"amateurradio\" },\n    { \"subreddit\": \"securityctf\" },\n    { \"subreddit\": \"netsecstudents\" },\n    { \"subreddit\": \"NFL\" },\n    { \"subreddit\": \"popcultureanalysis\" },\n    { \"subreddit\": \"todayilearned\" },\n    { \"subreddit\": \"travel\" },\n    { \"subreddit\": \"cocktails\" },\n    { \"subreddit\": \"foodscience\" },\n    { \"subreddit\": \"dodgers\" },\n    { \"subreddit\": \"steelydan\" },\n    { \"subreddit\": \"movingday\" }\n]",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        256,
+        -576
+      ],
+      "id": "9ca90600-37d4-4834-bbc2-96e6a423b4a8",
+      "name": "urls1"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1072,
+        -192
+      ],
+      "id": "d784c7f9-e03f-4a8b-83a1-a207df9e59ff",
+      "name": "Aggregate26"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e3a2421a-290c-4148-8dcd-38da29fd4995",
+              "name": "creator",
+              "value": "={{ $json.creator }}",
+              "type": "string"
+            },
+            {
+              "id": "5db4e308-6bd0-4a9f-9926-f37550768f88",
+              "name": "title",
+              "value": "={{ $json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "b2c07170-10ae-478e-90f1-639d236225cd",
+              "name": "link",
+              "value": "={{ $json.link }}",
+              "type": "string"
+            },
+            {
+              "id": "e07a3f47-247e-4229-965e-80946a653166",
+              "name": "pubDate",
+              "value": "={{ $json.pubDate }}",
+              "type": "string"
+            },
+            {
+              "id": "521f064e-4961-4aab-ab25-241ba7f8fb92",
+              "name": "post",
+              "value": "={{ $json.content }}",
+              "type": "string"
+            },
+            {
+              "id": "bf0d340c-dcda-4843-ac4f-f3e98e0b6d6e",
+              "name": "sourceName",
+              "value": "=r/{{ $json.sourceName }}",
+              "type": "string"
+            },
+            {
+              "id": "7834ed85-cbe8-4f05-8848-adb0ab98cc80",
+              "name": "comments",
+              "value": "={{ $json.comments }}",
+              "type": "string"
+            },
+            {
+              "id": "9d024494-6ff4-4ede-abbe-f500f6815225",
+              "name": "ups",
+              "value": "={{ $json.ups }}",
+              "type": "string"
+            },
+            {
+              "id": "d3fbdb22-2552-495e-9da4-8d188c823e63",
+              "name": "downs",
+              "value": "={{ $json.downs }}",
+              "type": "string"
+            },
+            {
+              "id": "e49cb641-bcbc-4c53-a628-1bcbde0d86c2",
+              "name": "permalink",
+              "value": "={{ $json.permalink }}",
+              "type": "string"
+            },
+            {
+              "id": "bbfe19eb-8208-43d5-b235-48d5a1e3367c",
+              "name": "id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "74beb14d-398a-4af5-b3f9-5adf86882aae",
+              "name": "subreddit_id",
+              "value": "={{ $json.subreddit_id }}",
+              "type": "string"
+            },
+            {
+              "id": "dd0c179e-5e6b-450d-861d-28d5104c64a5",
+              "name": "post_image",
+              "value": "={{ $json.post_image }}",
+              "type": "array"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1744,
+        -192
+      ],
+      "id": "20e0d345-31a9-42d6-a13c-7ba70c99eaab",
+      "name": "normalize_all_news"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2016,
+        -192
+      ],
+      "id": "cc103783-243a-4b73-9ba4-5474cfea203f",
+      "name": "Loop Over Items4",
+      "notes": "An error occurs when n8n is trying to batch insert multiple rows to Supabase, but each item has different keys/columns.\nExample of what's happening:\n// ❌ This fails - different keys in each object\n[\n  { \"post_id\": \"123\", \"title\": \"Post A\" },\n  { \"post_id\": \"456\", \"title\": \"Post B\", \"author\": \"John\" }\n]\n\nSo you should either insert those with the same keys or loop over item and insert each one individually. "
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        -192
+      ],
+      "id": "f889e2aa-c30c-4485-a00d-54544ce3658f",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "89676022-1e1e-4abf-b01d-0197b5c55a8c",
+              "leftValue": "={{ $json.content}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        1488,
+        -192
+      ],
+      "id": "6603d9ef-8853-41ec-a003-20f53203fe06",
+      "name": "Filter no content"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        288,
+        -192
+      ],
+      "id": "2f949097-dacc-4c38-82d9-996d106be1f1",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        2336,
+        -368
+      ],
+      "id": "35bdf4d9-c8d2-468a-bcdc-60f6cb90c286",
+      "name": "Aggregate"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "Jclm2WMIZwsSodlW",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/Jclm2WMIZwsSodlW",
+          "cachedResultName": "Scrape hoby subreddit [2]"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "subreddit": "={{ $json.subreddit }}"
+          },
+          "matchingColumns": [
+            "subreddit"
+          ],
+          "schema": [
+            {
+              "id": "subreddit",
+              "displayName": "subreddit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        880,
+        -192
+      ],
+      "id": "756427c2-cb66-4c89-ac9b-bfa36e359acf",
+      "name": "Call 'Scrape hoby subreddit'",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "tableId": "hobby_subreddits",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "url",
+              "fieldValue": "={{ $('normalize_all_news').item.json.link }}"
+            },
+            {
+              "fieldId": "created",
+              "fieldValue": "={{ $('normalize_all_news').item.json.pubDate }}"
+            },
+            {
+              "fieldId": "author",
+              "fieldValue": "={{ $('normalize_all_news').item.json['creator'] }}"
+            },
+            {
+              "fieldId": "content",
+              "fieldValue": "=<post>\n{{ $('normalize_all_news').item.json['post'] }}\n</post>\n<comments>\n{{ $('normalize_all_news').item.json['comments'] }}\n</comments>"
+            },
+            {
+              "fieldId": "post",
+              "fieldValue": "={{ $('normalize_all_news').item.json['post'] }}"
+            },
+            {
+              "fieldId": "comments",
+              "fieldValue": "={{ $('normalize_all_news').item.json['comments'] }}"
+            },
+            {
+              "fieldId": "scraped_at",
+              "fieldValue": "={{ $now.toISO() }}"
+            },
+            {
+              "fieldId": "post_image",
+              "fieldValue": "={{ $('normalize_all_news').item.json.post_image }}"
+            },
+            {
+              "fieldId": "post_ups",
+              "fieldValue": "={{ $('normalize_all_news').item.json.ups }}"
+            },
+            {
+              "fieldId": "post_downs",
+              "fieldValue": "={{ $('normalize_all_news').item.json.downs }}"
+            },
+            {
+              "fieldId": "permalink",
+              "fieldValue": "={{ $('normalize_all_news').item.json.permalink }}"
+            },
+            {
+              "fieldId": "post_id",
+              "fieldValue": "={{ $('normalize_all_news').item.json.id }}"
+            },
+            {
+              "fieldId": "subreddit",
+              "fieldValue": "={{ $('normalize_all_news').item.json.sourceName }}"
+            },
+            {
+              "fieldId": "subreddit_id",
+              "fieldValue": "={{ $('normalize_all_news').item.json.subreddit_id }}"
+            },
+            {
+              "fieldId": "post_title",
+              "fieldValue": "={{ $json.title }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2256,
+        -176
+      ],
+      "id": "67f35d9b-e6cf-416e-9f56-79df19859314",
+      "name": "update_hobby_sub",
+      "credentials": {
+        "supabaseApi": {
+          "id": "dJMYTBTouEj1kaFl",
+          "name": "co-intelligent"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "reddit_avatars",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "active",
+              "condition": "eq",
+              "keyValue": "TRUE"
+            }
+          ]
+        }
+      },
+      "id": "bb6ce864-366e-4c1a-a275-f04c06bfd499",
+      "name": "Get Reddit Avatars",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        496,
+        -192
+      ],
+      "executeOnce": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "dJMYTBTouEj1kaFl",
+          "name": "co-intelligent"
+        }
+      },
+      "notes": "This node queries reddit_avatars where active = true to dynamically pull only non-burned avatars, replacing the old static Set node (urls1) that had a hardcoded JSON list of hobby subreddits which required manual updates every time an avatar was deactivated."
+    },
+    {
+      "parameters": {
+        "jsCode": "const avatars = $input.all().map(i => i.json);\nconst seen = new Set();\nconst output = [];\n\nfor (const avatar of avatars) {\n  const hobbySubs = avatar['hobby_sub-reddits'];\n  if (!Array.isArray(hobbySubs)) continue;\n\n  for (const sub of hobbySubs) {\n    const name = sub.subreddit || sub.name || sub.display_name || sub.fullname;\n    if (!name || seen.has(name.toLowerCase())) continue;\n    seen.add(name.toLowerCase());\n    output.push({ json: { subreddit: name } });\n  }\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        -192
+      ],
+      "id": "3a005143-e14f-44dc-8d6f-19ce7aec1d3c",
+      "name": "Code in JavaScript",
+      "notes": "This node collects all hobby_sub-reddits arrays from the active avatars, deduplicates them (case-insensitive), and outputs one item per unique subreddit — eliminating the need for the separate Split node that followed the old static Set node."
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "timestamp": "2026-02-28T06:00:31.015+02:00",
+          "Readable date": "February 28th 2026, 6:00:31 am",
+          "Readable time": "6:00:31 am",
+          "Day of week": "Saturday",
+          "Year": "2026",
+          "Month": "February",
+          "Day of month": "28",
+          "Hour": "06",
+          "Minute": "00",
+          "Second": "31",
+          "Timezone": "Asia/Jerusalem (UTC+02:00)"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Split Out1": {
+      "main": [
+        []
+      ]
+    },
+    "urls1": {
+      "main": [
+        [
+          {
+            "node": "Split Out1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "normalize_all_news": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items4": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "update_hobby_sub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate26": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Filter no content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter no content": {
+      "main": [
+        [
+          {
+            "node": "normalize_all_news",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Get Reddit Avatars",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Scrape hoby subreddit'": {
+      "main": [
+        [
+          {
+            "node": "Aggregate26",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_hobby_sub": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Reddit Avatars": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Call 'Scrape hoby subreddit'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "73534afb-833b-46a0-bb2d-77d0e682a72b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "cad99e0db3a98e24bdcf9db93b2ab3cd4459da1bfdce7b2dae5c1de9fc4aaa3b"
+  },
+  "id": "pxTnzvQIB4KsQ5du",
+  "tags": [
+    {
+      "updatedAt": "2026-04-23T13:44:34.287Z",
+      "createdAt": "2026-04-23T13:44:34.287Z",
+      "id": "gES85Aiw3NFcfOin",
+      "name": "to transfer"
+    }
+  ]
+}

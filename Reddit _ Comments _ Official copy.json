@@ -1,0 +1,204 @@
+{
+  "name": "Reddit | Comments | Official copy",
+  "nodes": [
+    {
+      "parameters": {
+        "resource": "postComment",
+        "operation": "getAll",
+        "subreddit": "={{ $json.subreddit }}",
+        "postId": "={{ $json.id }}",
+        "limit": "={{ $json.limit }}"
+      },
+      "type": "n8n-nodes-base.reddit",
+      "typeVersion": 1,
+      "position": [
+        576,
+        -128
+      ],
+      "id": "313ec209-6c12-424f-b002-23e796a18f5d",
+      "name": "Get many comments in a post",
+      "alwaysOutputData": true,
+      "credentials": {
+        "redditOAuth2Api": {
+          "id": "JNKaoWpI6JVLsCTT",
+          "name": "Ori's"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        816,
+        -192
+      ],
+      "id": "f9e8eee3-0490-4cc0-9a9d-a8647bbe1e7a",
+      "name": "Loop Over Items",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Helper function to format a single comment recursively\nfunction processComment(comment) {\n    // 1. Basic safety check\n    if (!comment || typeof comment !== 'object') return null;\n  \n    const formatted = {\n      upvotes: comment.score,\n      uploads: comment.ups,\n      downloads: comment.downs,\n      rotation: comment.controversiality,\n      author: comment.author,\n      body: comment.body,\n      depth: comment.depth,\n      id: comment.name,\n      replies: []\n    };\n  \n    // 2. Nested Replies Logic\n    // We check if replies is an OBJECT. \n    // This fixes the bug: if replies is \"\" (empty string), this if-statement \n    // is skipped, but the comment itself is still returned with empty replies [].\n    if (comment.replies && typeof comment.replies === 'object' && comment.replies.data) {\n      const children = comment.replies.data.children || [];\n      \n      children.forEach(child => {\n        // Only process actual comments (kind: 't1')\n        if (child.kind === 't1' && child.data) {\n          const processedChild = processComment(child.data);\n          if (processedChild) {\n            formatted.replies.push(processedChild);\n          }\n        }\n      });\n    }\n  \n    return formatted;\n  }\n  \n  // --- MAIN EXECUTION ---\n  let allComments = [];\n  \n  // Loop through ALL items n8n has (Run Once for All Items)\n  for (const item of $input.all()) {\n    const inputData = item.json;\n  \n    if (Array.isArray(inputData)) {\n      // Case A: Input is an array of comments\n      inputData.forEach(c => {\n        const processed = processComment(c);\n        if (processed) allComments.push(processed);\n      });\n    } else {\n      // Case B: Input is a single comment object\n      const processed = processComment(inputData);\n      if (processed) allComments.push(processed);\n    }\n  }\n  \n  // Return as ONE single item containing the list\n  return { json: { comments: allComments } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        992,
+        -48
+      ],
+      "id": "6b1b6fff-3a46-4922-a516-85f47a49f5f6",
+      "name": "clean_reddit_comments",
+      "alwaysOutputData": true,
+      "notes": "This is a universal code that cleans Reddit comments and replies in a nice format"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        -128
+      ],
+      "id": "502b2156-302a-4669-9f2d-2c08e3568e43",
+      "name": "Aggregate1",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "subreddit"
+            },
+            {
+              "name": "id"
+            },
+            {
+              "name": "limit",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        384,
+        -128
+      ],
+      "id": "509f95d7-766c-4aee-97f5-a3f44e94b2a2",
+      "name": "When Executed by Another Workflow"
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "subreddit": "cybersecurity",
+          "id": "1rg2thu",
+          "limit": 20
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Get many comments in a post": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Aggregate1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Aggregate1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "clean_reddit_comments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "clean_reddit_comments": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Get many comments in a post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate1": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "saveDataSuccessExecution": "none",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "errorWorkflow": "SrIkzlf6Ls6pNFq8"
+  },
+  "versionId": "c0f2af57-52b3-4baf-b0ef-5c3225b8c0d7",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "cad99e0db3a98e24bdcf9db93b2ab3cd4459da1bfdce7b2dae5c1de9fc4aaa3b"
+  },
+  "id": "pmRV1fj0s90zg8bf",
+  "tags": [
+    {
+      "updatedAt": "2026-04-23T13:44:34.287Z",
+      "createdAt": "2026-04-23T13:44:34.287Z",
+      "id": "gES85Aiw3NFcfOin",
+      "name": "to transfer"
+    }
+  ]
+}

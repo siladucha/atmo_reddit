@@ -1,0 +1,42 @@
+Reddit Project Handoff - April 15
+
+VIEW RECORDING - 24 mins (No highlights)
+Meeting Purpose
+Handoff of the Reddit project's technical architecture and workflow.
+Key Takeaways
+Architecture: The system uses N8N for automation, Supabase for the database, Airtable as the UI, and an LLM agent chain for content generation.
+Workflow: Scrapes Reddit, qualifies posts with a low-cost LLM (Gemini Flash), selects the top 15, and then uses an agent to assign the most suitable avatar for a response.
+Strategy: The agent's prompts are designed with fallbacks (Paradigm Shift → Helpful → Karma Play) to ensure a relevant response even for complex topics.
+Handoff: Ori will provide comprehensive documentation next week, enabling Tzvi's team to create a staging environment for new clients and experiments.
+Topics
+System Architecture & Tech Stack
+Automation: N8N
+Database: Supabase
+UI: Airtable
+Scraping: Ori's custom Reddit app (now unavailable)
+Alternative: Ori will provide a RapidAPI-based scraper for Tzvi's team.
+LLMs: No custom models are trained; the system relies on prompt engineering and context.
+Router: An LLM router selects the best model for each task.
+Workflow: Post to Response
+Scraping: Scrapes entire relevant subreddits (e.g., cybersecurity), avoiding keyword-based scraping to prevent duplicates and wasted resources.
+Qualification:
+A low-cost LLM (Gemini Flash) filters the scraped posts for relevance to the client's ICP and tone of voice.
+The system selects the top 15 most relevant posts daily.
+Avatar Assignment:
+An agent assigns an avatar to each post.
+Rationale: The agent's prompt asks, "Who would be least annoying to the audience?" This ensures the response feels authentic by matching the avatar's persona to the post's context.
+Response Generation:
+An agent writes the initial response.
+Human Feedback: The "Refined Version" field in Airtable is for human edits, which are later analyzed to identify common LLM mistakes and improve prompts. This is a manual process to avoid the instability of fully autonomous prompt optimization.
+Strategy: Handling Complexity (XM Case Study)
+Challenge: Differentiating cybersecurity clients like XM is difficult, as their solutions often overlap with competitors.
+Solution: Prompts are designed to highlight the client's unique value proposition in specific contexts.
+Future Vision (Unrealized): A more advanced agent would analyze competitor documentation to identify granular scenarios where the client is superior.
+Example: "Wizz is good for X, but for situation A+B, XM is the only solution."
+Blocker: XM's competitor documentation was insufficient for this level of analysis.
+Recommendation: Avoid highly technical clients (e.g., cybersecurity) to keep prompts simpler and more universal.
+Next Steps
+Ori: Send comprehensive documentation (including a "shopping list" of required tools) by early next week.
+Tzvi: Review documentation with the technical partner and schedule a follow-up meeting for questions.
+Action Items
+Email Tzvi: documentation + Start Guide + RapidAPI scraper + shopping list; then Tzvi ping to schedule tech-partner mtg - WATCH (5 secs)

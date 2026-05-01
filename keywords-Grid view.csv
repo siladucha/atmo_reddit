@@ -1,0 +1,137 @@
+﻿keyword,probability_level,category
+Attack chain,HIGH,Attack Path & Lateral Movement
+Exposure Reduction,HIGH,Core CTEM & Exposure Management
+Identity exposure,HIGH,Identity & Privilege
+Horizon3.ai,HIGH,Competitive Landscape
+Attack graph,HIGH,Attack Path & Lateral Movement
+Choke points,HIGH,Attack Path & Lateral Movement
+Vulnerability prioritization,HIGH,Vulnerability Management
+Outside-in visibility,HIGH,External Attack Surface
+CSPM limitations,HIGH,Cloud Security & Hybrid
+External-to-internal,HIGH,External Attack Surface
+Entra ID,HIGH,Identity & Privilege
+Tenable,HIGH,Competitive Landscape
+Shadow admin,HIGH,Identity & Privilege
+Lateral movement,HIGH,Attack Path & Lateral Movement
+Attack path,HIGH,Attack Path & Lateral Movement
+Palo Alto Prisma,HIGH,Identity & Privilege
+Attack path,HIGH,Attack Path & Lateral Movement
+Wiz,HIGH,Core CTEM & Exposure Management
+Azure AD risks,HIGH,Identity & Privilege
+Rapid7,HIGH,Competitive Landscape
+Attack vector analysis,HIGH,Attack Path & Lateral Movement
+Identity blast radius,HIGH,Identity & Privilege
+Qualys,HIGH,Competitive Landscape
+Identity-based attacks,HIGH,Identity & Privilege
+CTEM,HIGH,Core CTEM & Exposure Management
+Exposure Management,HIGH,Core CTEM & Exposure Management
+Digital Twin,HIGH,Security Validation & Testing
+Attack surface,HIGH,Attack Path & Lateral Movement
+AD security,HIGH,Identity & Privilege
+XM Cyber,HIGH,
+CrowdStrike,HIGH,
+Microsoft Defender,HIGH,
+AttackIQ,HIGH,
+EDR,HIGH,
+XDR,HIGH,
+pentera,HIGH,
+SafeBreach,HIGH,
+Cymulate,HIGH,
+CyCognito,HIGH,
+Measurable risk reduction,MEDIUM,Executive & Business Impact
+External Attack Surface Management,MEDIUM,External Attack Surface
+EASM,MEDIUM,External Attack Surface
+Scanner noise,MEDIUM,Vulnerability Management
+Risk scoring,MEDIUM,Executive & Business Impact
+Privilege escalation,MEDIUM,Identity & Privilege
+Continuous assessment,MEDIUM,Security Validation & Testing
+AWS attack paths,MEDIUM,"Cloud Security & Hybrid,Attack Path & Lateral Movement"
+What to fix first,MEDIUM,Vulnerability Management
+On-prem-to-cloud,MEDIUM,Cloud Security & Hybrid
+Exploitability,MEDIUM,Core CTEM & Exposure Management
+Exploitable vulnerabilities,MEDIUM,Vulnerability Management
+Cloud drift,MEDIUM,Cloud Security & Hybrid
+Unknown assets,MEDIUM,External Attack Surface
+Security validation,MEDIUM,Security Validation & Testing
+Shadow IT,MEDIUM,External Attack Surface
+ROI on security,MEDIUM,Executive & Business Impact
+Cloud misconfiguration,MEDIUM,Cloud Security & Hybrid
+Board reporting,MEDIUM,Executive & Business Impact
+Multi-cloud visibility,MEDIUM,Cloud Security & Hybrid
+Pen test replacement,MEDIUM,Security Validation & Testing
+Security posture metrics,MEDIUM,Executive & Business Impact
+Asset discovery,MEDIUM,External Attack Surface
+Azure attack paths,MEDIUM,"Cloud Security & Hybrid,Attack Path & Lateral Movement"
+Hybrid attack surface,MEDIUM,Cloud Security & Hybrid
+Prioritizing what matters,MEDIUM,Executive & Business Impact
+Security posture improvement,MEDIUM,Executive & Business Impact
+Continuous pen testing,MEDIUM,Security Validation & Testing
+Too many vulnerabilities,MEDIUM,Vulnerability Management
+Continuous Threat Exposure Management,MEDIUM,Core CTEM & Exposure Management
+Breach and Attack Simulation,MEDIUM,Security Validation & Testing
+Risk prioritization,MEDIUM,Core CTEM & Exposure Management
+Alert fatigue,MEDIUM,"Vulnerability Management,Security Operations"
+Production-safe testing,MEDIUM,Security Validation & Testing
+Cloud-to-on-prem,MEDIUM,Cloud Security & Hybrid
+VM fatigue,MEDIUM,Vulnerability Management
+Risk-based prioritization,MEDIUM,Core CTEM & Exposure Management
+BAS limitations,MEDIUM,Security Validation & Testing
+security validation,MEDIUM,
+Exploitability count,MEDIUM,
+vulnerability count,MEDIUM,
+Detection gaps,MEDIUM-LOW,Security Operations
+CrowdStrike,MEDIUM-LOW,Competitive Landscape
+Zero Trust architecture,MEDIUM-LOW,Compliance & Frameworks
+Picus,MEDIUM-LOW,Competitive Landscape
+Prisma Cloud,MEDIUM-LOW,Competitive Landscape
+CyCognito,MEDIUM-LOW,Competitive Landscape
+SafeBreach,MEDIUM-LOW,Competitive Landscape
+Zero Trust implementation,MEDIUM-LOW,Compliance & Frameworks
+Risk reduction workflows,MEDIUM-LOW,Security Operations
+Remediation prioritization,MEDIUM-LOW,Security Operations
+Multi-account AWS,MEDIUM-LOW,Technology Stack
+Pentera,MEDIUM-LOW,Competitive Landscape
+Multi-account Azure,MEDIUM-LOW,Technology Stack
+Hybrid environments,MEDIUM-LOW,Technology Stack
+Security automation,MEDIUM-LOW,Security Operations
+Risk assessment methodologies,MEDIUM-LOW,Compliance & Frameworks
+SOC efficiency,MEDIUM-LOW,Security Operations
+Palo Alto,MEDIUM-LOW,Competitive Landscape
+Security tooling consolidation,MEDIUM-LOW,Technology Stack
+Security frameworks,MEDIUM-LOW,Compliance & Frameworks
+Wiz,MEDIUM-LOW,Competitive Landscape
+Cymulate,MEDIUM-LOW,Competitive Landscape
+Zero Trust gaps,MEDIUM-LOW,Compliance & Frameworks
+Security dashboards,MEDIUM-LOW,Security Operations
+Cloud security tools,MEDIUM-LOW,Technology Stack
+Randori,MEDIUM-LOW,Competitive Landscape
+CI/CD security,LOW,General Cloud & Identity
+AI in cybersecurity,LOW,AI & Emerging Topics
+Risk management,LOW,Business Context
+Network segmentation,LOW,Technical Adjacent
+Cloud security strategy,LOW,General Cloud & Identity
+Security budget,LOW,Business Context
+Security tool selection,LOW,Business Context
+DevSecOps practices,LOW,General Cloud & Identity
+Firewall configuration,LOW,Technical Adjacent
+Vendor evaluation,LOW,Business Context
+XDR limitations,LOW,Technical Adjacent
+Cloud governance,LOW,General Cloud & Identity
+Security program maturity,LOW,Broad Security Themes
+Threat landscape,LOW,Broad Security Themes
+EDR limitations,LOW,Technical Adjacent
+SIEM limitations,LOW,Technical Adjacent
+Security best practices,LOW,Broad Security Themes
+CISO priorities,LOW,Business Context
+Threat intelligence,LOW,Technical Adjacent
+AI security risks,LOW,AI & Emerging Topics
+Shadow AI,LOW,AI & Emerging Topics
+Supply chain exposure,LOW,AI & Emerging Topics
+Breach prevention,LOW,Broad Security Themes
+IAM best practices,LOW,General Cloud & Identity
+Unmanaged cloud services,LOW,AI & Emerging Topics
+Security transformation,LOW,Broad Security Themes
+Identity-first security,LOW,General Cloud & Identity
+Cybersecurity strategy,LOW,Broad Security Themes
+Security ROI,LOW,Business Context
+Supply chain security,LOW,AI & Emerging Topics
