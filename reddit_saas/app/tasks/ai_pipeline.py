@@ -103,7 +103,10 @@ def generate_comments(client_id: str, max_comments: int = 15):
         generated = 0
         for thread in engage_threads:
             try:
-                # Step 1: Select persona
+                # Step 1: Safety check
+                from app.services.safety import check_avatar_can_post, check_subreddit_limit
+
+                # Step 2: Select persona
                 selection = select_persona(db, thread, client, client_avatars)
 
                 # Find the selected avatar
@@ -113,12 +116,32 @@ def generate_comments(client_id: str, max_comments: int = 15):
                     client_avatars[0],  # fallback to first avatar
                 )
 
-                # Step 2: Generate comment
+                # Step 3: Safety gate
+                safety = check_avatar_can_post(db, avatar, "professional")
+                if not safety:
+                    logger.info(f"Safety blocked {avatar.reddit_username}: {safety.reason}")
+                    continue
+
+                sub_safety = check_subreddit_limit(db, avatar, thread.subreddit)
+                if not sub_safety:
+                    logger.info(f"Subreddit limit for {avatar.reddit_username}: {sub_safety.reason}")
+                    continue
+
+                # Step 4: Generate comment
                 draft = generate_comment(
                     db, thread, client, avatar, selection, prev_comments
                 )
 
-                # Step 3: Edit/clean comment
+                # Step 5: Content safety check
+                from app.services.safety import check_comment_content
+                content_check = check_comment_content(draft.ai_draft or "")
+                if not content_check:
+                    logger.warning(f"Content blocked: {content_check.reason}")
+                    draft.status = "rejected"
+                    db.commit()
+                    continue
+
+                # Step 6: Edit/clean comment
                 edit_comment(db, draft, thread, client)
 
                 # Add to previous comments for next iteration

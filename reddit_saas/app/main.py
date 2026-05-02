@@ -3,7 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import get_settings
-from app.routes import auth, dashboard, review, pipeline
+from app.routes import auth, dashboard, review, pipeline, avatars
 
 settings = get_settings()
 
@@ -22,6 +22,7 @@ app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(dashboard.router, prefix="/admin", tags=["admin"])
 app.include_router(review.router, prefix="/review", tags=["review"])
 app.include_router(pipeline.router, prefix="/pipeline", tags=["pipeline"])
+app.include_router(avatars.router, prefix="/avatars", tags=["avatars"])
 
 
 @app.get("/health")
