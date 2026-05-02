@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}{{ client.client_name }} — Reddit SaaS{% endblock %}
+{% block content %}
+<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+
+<div class="mb-6">
+    <a href="/" class="text-sm text-gray-500 hover:text-gray-700">← Dashboard</a>
+    <h1 class="text-2xl font-bold text-gray-800 mt-2">{{ client.client_name }}</h1>
+    <p class="text-gray-500">{{ client.brand_name }}</p>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Left column: Client info -->
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Company Profile -->
+        <div class="bg-white rounded-lg shadow-sm border p-4">
+            <h2 class="font-semibold text-gray-800 mb-3">Company Profile</h2>
+            <div class="text-sm text-gray-600 space-y-2">
+                {% if client.company_worldview %}
+                <div><span class="font-medium">Worldview:</span> {{ client.company_worldview[:200] }}...</div>
+                {% endif %}
+                {% if client.company_problem %}
+                <div><span class="font-medium">Problem:</span> {{ client.company_problem[:200] }}...</div>
+                {% endif %}
+                {% if client.competitive_landscape %}
+                <div><span class="font-medium">Competitors:</span> {{ client.competitive_landscape[:200] }}...</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Subreddits -->
+        <div class="bg-white rounded-lg shadow-sm border p-4">
+            <h2 class="font-semibold text-gray-800 mb-3">Monitored Subreddits ({{ subreddits|length }})</h2>
+            <div class="flex flex-wrap gap-2 mb-3">
+                {% for sub in subreddits %}
+                <span class="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-sm">
+                    r/{{ sub.subreddit_name }}
+                    <span class="text-xs text-gray-400">({{ sub.type }})</span>
+                </span>
+                {% endfor %}
+            </div>
+            <form hx-post="/clients/{{ client.id }}/subreddits" hx-swap="none" class="flex gap-2">
+                <input type="text" name="subreddit_name" placeholder="subreddit name"
+                    class="flex-1 px-3 py-1.5 border rounded text-sm">
+                <select name="type" class="px-2 py-1.5 border rounded text-sm">
+                    <option value="professional">Professional</option>
+                    <option value="hobby">Hobby</option>
+                </select>
+                <button type="submit" class="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700">Add</button>
+            </form>
+        </div>
+
+        <!-- Pipeline Controls -->
+        <div class="bg-white rounded-lg shadow-sm border p-4">
+            <h2 class="font-semibold text-gray-800 mb-3">Pipeline</h2>
+            <div class="flex gap-2 mb-3">
+                <span class="text-sm text-gray-500">Threads: {{ threads_count }} total, {{ engage_count }} engage</span>
+            </div>
+            <div class="flex gap-2">
+                <button hx-post="/pipeline/scrape/{{ client.id }}" hx-swap="innerHTML" hx-target="#pipeline-status"
+                    class="bg-gray-100 px-3 py-1.5 rounded text-sm hover:bg-gray-200">🔍 Scrape</button>
+                <button hx-post="/pipeline/score/{{ client.id }}" hx-swap="innerHTML" hx-target="#pipeline-status"
+                    class="bg-gray-100 px-3 py-1.5 rounded text-sm hover:bg-gray-200">📊 Score</button>
+                <button hx-post="/pipeline/generate/{{ client.id }}" hx-swap="innerHTML" hx-target="#pipeline-status"
+                    class="bg-gray-100 px-3 py-1.5 rounded text-sm hover:bg-gray-200">✍️ Generate</button>
+                <button hx-post="/pipeline/full-pipeline/{{ client.id }}" hx-swap="innerHTML" hx-target="#pipeline-status"
+                    class="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700">🚀 Full Pipeline</button>
+            </div>
+            <div id="pipeline-status" class="mt-2 text-sm text-gray-500"></div>
+            <a href="/threads/{{ client.id }}" class="inline-block mt-3 text-sm text-blue-600 hover:underline">View all threads →</a>
+        </div>
+    </div>
+
+    <!-- Right column: Avatars -->
+    <div class="space-y-4">
+        <div class="bg-white rounded-lg shadow-sm border p-4">
+            <h2 class="font-semibold text-gray-800 mb-3">Avatars ({{ avatars|length }})</h2>
+            <div class="space-y-3">
+                {% for avatar in avatars %}
+                <div class="p-3 bg-gray-50 rounded">
+                    <div class="font-medium text-sm">u/{{ avatar.reddit_username }}</div>
+                    <div class="text-xs text-gray-500 mt-1">
+                        Karma: {{ avatar.karma_comment }} comment / {{ avatar.karma_post }} post
+                    </div>
+                    {% if avatar.is_shadowbanned %}
+                    <span class="text-xs text-red-600 font-medium">⚠ Shadowbanned</span>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="text-sm text-gray-400">No avatars assigned</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {% if unassigned_avatars %}
+        <div class="bg-white rounded-lg shadow-sm border p-4">
+            <h2 class="font-semibold text-gray-800 mb-3">Assign Avatar</h2>
+            <div class="space-y-2">
+                {% for avatar in unassigned_avatars %}
+                <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                    <span class="text-sm">u/{{ avatar.reddit_username }}</span>
+                    <button hx-post="/clients/{{ client.id }}/avatars/{{ avatar.id }}" hx-swap="none"
+                        class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200">Assign</button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

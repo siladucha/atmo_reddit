@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Admin — AI Costs{% endblock %}
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">AI Usage & Costs</h1>
+</div>
+
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+    <div class="bg-white p-4 rounded-lg shadow-sm border">
+        <div class="text-sm text-gray-500">Total Cost</div>
+        <div class="text-2xl font-bold text-gray-800">${{ "%.4f"|format(total_cost) }}</div>
+    </div>
+    <div class="bg-white p-4 rounded-lg shadow-sm border">
+        <div class="text-sm text-gray-500">Total Calls</div>
+        <div class="text-2xl font-bold text-gray-800">{{ total_calls }}</div>
+    </div>
+    <div class="bg-white p-4 rounded-lg shadow-sm border">
+        <div class="text-sm text-gray-500">Input Tokens</div>
+        <div class="text-2xl font-bold text-gray-800">{{ "{:,}".format(total_input) }}</div>
+    </div>
+    <div class="bg-white p-4 rounded-lg shadow-sm border">
+        <div class="text-sm text-gray-500">Output Tokens</div>
+        <div class="text-2xl font-bold text-gray-800">{{ "{:,}".format(total_output) }}</div>
+    </div>
+</div>
+
+{% if by_client %}
+<div class="bg-white rounded-lg shadow-sm border">
+    <div class="p-4 border-b">
+        <h2 class="text-lg font-semibold text-gray-800">Cost by Client</h2>
+    </div>
+    <table class="w-full">
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="text-left p-3 text-sm font-medium text-gray-600">Client</th>
+                <th class="text-right p-3 text-sm font-medium text-gray-600">Calls</th>
+                <th class="text-right p-3 text-sm font-medium text-gray-600">Cost</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y">
+            {% for row in by_client %}
+            <tr>
+                <td class="p-3 text-sm">{{ row.client_name }}</td>
+                <td class="p-3 text-sm text-right">{{ row.calls }}</td>
+                <td class="p-3 text-sm text-right">${{ "%.4f"|format(row.cost or 0) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}

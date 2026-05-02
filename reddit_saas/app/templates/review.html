@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Review Comments — Reddit SaaS{% endblock %}
+{% block content %}
+<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+
+<div class="mb-6 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-800">Review Comments</h1>
+    <div class="flex gap-2">
+        <a href="/review?status=pending" class="px-3 py-1.5 rounded text-sm {{ 'bg-blue-600 text-white' if status == 'pending' else 'bg-gray-100 hover:bg-gray-200' }}">Pending</a>
+        <a href="/review?status=approved" class="px-3 py-1.5 rounded text-sm {{ 'bg-blue-600 text-white' if status == 'approved' else 'bg-gray-100 hover:bg-gray-200' }}">Approved</a>
+        <a href="/review?status=posted" class="px-3 py-1.5 rounded text-sm {{ 'bg-blue-600 text-white' if status == 'posted' else 'bg-gray-100 hover:bg-gray-200' }}">Posted</a>
+        <a href="/review?status=rejected" class="px-3 py-1.5 rounded text-sm {{ 'bg-blue-600 text-white' if status == 'rejected' else 'bg-gray-100 hover:bg-gray-200' }}">Rejected</a>
+    </div>
+</div>
+
+{% if not drafts %}
+<div class="bg-white rounded-lg shadow-sm border p-12 text-center text-gray-400">
+    No {{ status }} comments. {% if status == 'pending' %}Run the pipeline to generate some.{% endif %}
+</div>
+{% endif %}
+
+<div class="space-y-4">
+    {% for item in drafts %}
+    <div class="bg-white rounded-lg shadow-sm border" id="comment-{{ item.draft.id }}">
+        <!-- Header -->
+        <div class="p-4 border-b bg-gray-50 flex justify-between items-start">
+            <div>
+                <div class="font-medium text-gray-800">{{ item.thread.post_title if item.thread else 'Unknown thread' }}</div>
+                <div class="text-xs text-gray-500 mt-1">
+                    r/{{ item.thread.subreddit if item.thread else '?' }}
+                    · by u/{{ item.avatar.reddit_username if item.avatar else '?' }}
+                    · {{ item.draft.engagement_mode or 'unknown' }} mode
+                    · {{ item.draft.comment_approach or '' }}
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                {% if item.thread and item.thread.alert %}
+                <span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">ALERT</span>
+                {% endif %}
+                {% if item.thread %}
+                <span class="text-xs bg-gray-100 px-2 py-0.5 rounded">score: {{ item.thread.composite or 0 }}</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Original post preview -->
+        {% if item.thread and item.thread.post_body %}
+        <div class="px-4 py-3 border-b bg-blue-50">
+            <div class="text-xs text-blue-600 font-medium mb-1">Original Post</div>
+            <div class="text-sm text-gray-700">{{ item.thread.post_body[:300] }}{% if item.thread.post_body|length > 300 %}...{% endif %}</div>
+        </div>
+        {% endif %}
+
+        <!-- Comment to -->
+        {% if item.draft.comment_to and item.draft.comment_to != 'post' %}
+        <div class="px-4 py-2 border-b bg-yellow-50">
+            <div class="text-xs text-yellow-700 font-medium">Replying to:</div>
+            <div class="text-sm text-gray-600 italic">{{ item.draft.comment_to[:200] }}</div>
+        </div>
+        {% endif %}
+
+        <!-- AI Draft -->
+        <div class="p-4">
+            <div class="text-xs text-gray-500 mb-1">AI Draft</div>
+            <div class="text-gray-800 leading-relaxed">{{ item.draft.edited_draft or item.draft.ai_draft or '(empty)' }}</div>
+
+            {% if item.draft.location_reasoning %}
+            <div class="mt-2 text-xs text-gray-400">Location: {{ item.draft.location_reasoning }}</div>
+            {% endif %}
+        </div>
+
+        <!-- Actions -->
+        {% if status == 'pending' %}
+        <div class="px-4 py-3 border-t bg-gray-50 flex gap-2 items-center">
+            <button hx-post="/review/{{ item.draft.id }}/approve" hx-target="#actions-{{ item.draft.id }}" hx-swap="innerHTML"
+                class="bg-green-600 text-white px-3 py-1.5 rounded text-sm hover:bg-green-700">✓ Approve</button>
+            <button hx-post="/review/{{ item.draft.id }}/reject" hx-target="#actions-{{ item.draft.id }}" hx-swap="innerHTML"
+                class="bg-red-100 text-red-700 px-3 py-1.5 rounded text-sm hover:bg-red-200">✗ Reject</button>
+            {% if item.thread %}
+            <a href="{{ item.thread.url }}" target="_blank" class="text-xs text-blue-600 hover:underline ml-auto">Open on Reddit ↗</a>
+            {% endif %}
+            <span id="actions-{{ item.draft.id }}"></span>
+        </div>
+
+        <!-- Edit area -->
+        <div class="px-4 py-3 border-t">
+            <form hx-post="/review/{{ item.draft.id }}/edit" hx-target="#edit-status-{{ item.draft.id }}" hx-swap="innerHTML" class="flex gap-2">
+                <textarea name="edited_text" rows="2" class="flex-1 px-3 py-2 border rounded text-sm resize-none"
+                    placeholder="Edit the comment...">{{ item.draft.edited_draft or item.draft.ai_draft or '' }}</textarea>
+                <button type="submit" class="bg-blue-100 text-blue-700 px-3 py-1.5 rounded text-sm hover:bg-blue-200 self-end">Save Edit</button>
+            </form>
+            <span id="edit-status-{{ item.draft.id }}" class="text-xs"></span>
+        </div>
+        {% elif status == 'approved' %}
+        <div class="px-4 py-3 border-t bg-gray-50 flex gap-2 items-center">
+            <button hx-post="/review/{{ item.draft.id }}/posted" hx-target="#actions-{{ item.draft.id }}" hx-swap="innerHTML"
+                class="bg-purple-600 text-white px-3 py-1.5 rounded text-sm hover:bg-purple-700">📤 Mark as Posted</button>
+            {% if item.thread %}
+            <a href="{{ item.thread.url }}" target="_blank" class="text-xs text-blue-600 hover:underline ml-auto">Open on Reddit ↗</a>
+            {% endif %}
+            <span id="actions-{{ item.draft.id }}"></span>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
