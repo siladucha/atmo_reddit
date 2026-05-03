@@ -22,18 +22,25 @@ router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
 
+def _render(request: Request, template: str, context: dict | None = None) -> HTMLResponse:
+    """Render a Jinja2 template — compatible with all Starlette versions."""
+    ctx = context or {}
+    ctx["request"] = request
+    return templates.TemplateResponse(name=template, context=ctx, request=request)
+
+
 # --- Auth Pages ---
 
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+    return _render(request, "login.html")
 
 
 @router.post("/login", response_class=HTMLResponse)
 def login_submit(request: Request, email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     user = authenticate_user(db, email, password)
     if not user:
-        return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials"})
+        return _render(request, "login.html", {"error": "Invalid credentials"})
     token = create_access_token(data={"sub": str(user.id), "email": user.email})
     response = RedirectResponse(url="/", status_code=303)
     response.set_cookie(key="access_token", value=token, httponly=True, max_age=86400)
@@ -42,7 +49,7 @@ def login_submit(request: Request, email: str = Form(...), password: str = Form(
 
 @router.get("/register", response_class=HTMLResponse)
 def register_page(request: Request):
-    return templates.TemplateResponse("register.html", {"request": request})
+    return _render(request, "register.html")
 
 
 @router.post("/register", response_class=HTMLResponse)
@@ -54,7 +61,7 @@ def register_submit(
     db: Session = Depends(get_db),
 ):
     if get_user_by_email(db, email):
-        return templates.TemplateResponse("register.html", {"request": request, "error": "Email already registered"})
+        return _render(request, "register.html", {"error": "Email already registered"})
     user = create_user(db, email=email, password=password, full_name=full_name or None)
     token = create_access_token(data={"sub": str(user.id), "email": user.email})
     response = RedirectResponse(url="/", status_code=303)
@@ -79,8 +86,7 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     pending_posts = db.query(func.count(PostDraft.id)).filter(PostDraft.status == "pending").scalar()
     ai_cost = db.query(func.sum(AIUsageLog.cost_usd)).scalar() or 0
 
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request,
+    return _render(request, "dashboard.html", {
         "clients": clients,
         "total_avatars": total_avatars,
         "pending_comments": pending_comments,
@@ -112,8 +118,7 @@ def client_detail(client_id: UUID, request: Request, db: Session = Depends(get_d
         RedditThread.client_id == client_id, RedditThread.tag == "engage"
     ).scalar()
 
-    return templates.TemplateResponse("client_detail.html", {
-        "request": request,
+    return _render(request, "client_detail.html", {
         "client": client,
         "avatars": client_avatars,
         "unassigned_avatars": unassigned_avatars,
@@ -132,32 +137,21 @@ def review_comments(
     client_id: str | None = None,
     db: Session = Depends(get_db),
 ):
-    query = (
-        db.query(CommentDraft)
-        .join(RedditThread, CommentDraft.thread_id == RedditThread.id)
-        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
-        .filter(CommentDraft.status == status)
-    )
+    query = db.query(CommentDraft).filter(CommentDraft.status == status)
     if client_id:
         query = query.filter(CommentDraft.client_id == client_id)
 
     drafts = query.order_by(CommentDraft.created_at.desc()).limit(50).all()
 
-    # Enrich with thread and avatar data
     enriched = []
     for draft in drafts:
         thread = db.query(RedditThread).filter(RedditThread.id == draft.thread_id).first()
         avatar = db.query(Avatar).filter(Avatar.id == draft.avatar_id).first()
-        enriched.append({
-            "draft": draft,
-            "thread": thread,
-            "avatar": avatar,
-        })
+        enriched.append({"draft": draft, "thread": thread, "avatar": avatar})
 
     clients = db.query(Client).filter(Client.is_active.is_(True)).all()
 
-    return templates.TemplateResponse("review.html", {
-        "request": request,
+    return _render(request, "review.html", {
         "drafts": enriched,
         "status": status,
         "clients": clients,
@@ -165,10 +159,10 @@ def review_comments(
     })
 
 
-# --- HTMX partials for review actions ---
+# --- HTMX partials ---
 
 @router.post("/review/{comment_id}/approve", response_class=HTMLResponse)
-def approve_comment(comment_id: UUID, request: Request, db: Session = Depends(get_db)):
+def approve_comment(comment_id: UUID, db: Session = Depends(get_db)):
     draft = db.query(CommentDraft).filter(CommentDraft.id == comment_id).first()
     if draft:
         draft.status = "approved"
@@ -177,7 +171,7 @@ def approve_comment(comment_id: UUID, request: Request, db: Session = Depends(ge
 
 
 @router.post("/review/{comment_id}/reject", response_class=HTMLResponse)
-def reject_comment(comment_id: UUID, request: Request, db: Session = Depends(get_db)):
+def reject_comment(comment_id: UUID, db: Session = Depends(get_db)):
     draft = db.query(CommentDraft).filter(CommentDraft.id == comment_id).first()
     if draft:
         draft.status = "rejected"
@@ -186,12 +180,7 @@ def reject_comment(comment_id: UUID, request: Request, db: Session = Depends(get
 
 
 @router.post("/review/{comment_id}/edit", response_class=HTMLResponse)
-def edit_comment_text(
-    comment_id: UUID,
-    request: Request,
-    edited_text: str = Form(...),
-    db: Session = Depends(get_db),
-):
+def edit_comment_text(comment_id: UUID, edited_text: str = Form(...), db: Session = Depends(get_db)):
     draft = db.query(CommentDraft).filter(CommentDraft.id == comment_id).first()
     if draft:
         draft.edited_draft = edited_text
@@ -200,7 +189,7 @@ def edit_comment_text(
 
 
 @router.post("/review/{comment_id}/posted", response_class=HTMLResponse)
-def mark_posted(comment_id: UUID, request: Request, db: Session = Depends(get_db)):
+def mark_posted(comment_id: UUID, db: Session = Depends(get_db)):
     from datetime import datetime, timezone
     draft = db.query(CommentDraft).filter(CommentDraft.id == comment_id).first()
     if draft:
@@ -210,15 +199,10 @@ def mark_posted(comment_id: UUID, request: Request, db: Session = Depends(get_db
     return HTMLResponse('<span class="text-purple-600 font-medium">✓ Posted</span>')
 
 
-# --- Threads View ---
+# --- Threads ---
 
 @router.get("/threads/{client_id}", response_class=HTMLResponse)
-def threads_list(
-    client_id: UUID,
-    request: Request,
-    tag: str | None = None,
-    db: Session = Depends(get_db),
-):
+def threads_list(client_id: UUID, request: Request, tag: str | None = None, db: Session = Depends(get_db)):
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
         raise HTTPException(status_code=404)
@@ -228,8 +212,7 @@ def threads_list(
         query = query.filter(RedditThread.tag == tag)
     threads = query.order_by(RedditThread.created_at.desc()).limit(100).all()
 
-    return templates.TemplateResponse("threads.html", {
-        "request": request,
+    return _render(request, "threads.html", {
         "client": client,
         "threads": threads,
         "selected_tag": tag,
@@ -243,13 +226,10 @@ def avatars_page(request: Request, db: Session = Depends(get_db)):
     from app.services.safety import get_avatar_health
     avatars = db.query(Avatar).all()
     health_data = [get_avatar_health(db, a) for a in avatars]
-    return templates.TemplateResponse("avatars.html", {
-        "request": request,
-        "avatars": health_data,
-    })
+    return _render(request, "avatars.html", {"avatars": health_data})
 
 
-# --- Admin / AI Costs ---
+# --- Admin ---
 
 @router.get("/admin-page", response_class=HTMLResponse)
 def admin_page(request: Request, db: Session = Depends(get_db)):
@@ -258,7 +238,6 @@ def admin_page(request: Request, db: Session = Depends(get_db)):
     total_input = db.query(func.sum(AIUsageLog.input_tokens)).scalar() or 0
     total_output = db.query(func.sum(AIUsageLog.output_tokens)).scalar() or 0
 
-    # Per client breakdown
     by_client = (
         db.query(
             Client.client_name,
@@ -270,8 +249,7 @@ def admin_page(request: Request, db: Session = Depends(get_db)):
         .all()
     )
 
-    return templates.TemplateResponse("admin.html", {
-        "request": request,
+    return _render(request, "admin.html", {
         "total_cost": float(total_cost),
         "total_calls": total_calls,
         "total_input": total_input,
