@@ -1,11 +1,16 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import get_settings
+from app.logging_config import setup_logging
 from app.routes import auth, dashboard, review, pipeline, avatars, clients, pages
 
 settings = get_settings()
+setup_logging(level="DEBUG" if settings.app_env == "development" else "INFO")
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Reddit Marketing SaaS",
@@ -33,3 +38,8 @@ app.include_router(pages.router, tags=["pages"])
 @app.get("/health")
 def health_check():
     return {"status": "ok", "version": "0.1.0"}
+
+
+@app.on_event("startup")
+def on_startup():
+    logger.info("Reddit SaaS started — env=%s", settings.app_env)

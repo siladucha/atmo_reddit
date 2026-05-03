@@ -28,3 +28,6 @@ docker-compose.override.yml
 # Sensitive data (credentials, secrets)
 Scrape-Grid view.csv
 Reddit Personas-Grid view.csv
+
+# Logs
+logs/
