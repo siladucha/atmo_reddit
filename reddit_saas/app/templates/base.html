@@ -6,22 +6,40 @@
     <title>{% block title %}Reddit SaaS{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <style>
+        .help-tip { position: relative; display: inline-block; cursor: help; }
+        .help-tip .tip-text { visibility: hidden; background: #1f2937; color: #fff; padding: 8px 12px;
+            border-radius: 6px; font-size: 13px; position: absolute; z-index: 50; bottom: 125%;
+            left: 50%; transform: translateX(-50%); white-space: nowrap; max-width: 320px; white-space: normal; }
+        .help-tip:hover .tip-text { visibility: visible; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
-    <nav class="bg-white shadow-sm border-b">
+    <nav class="bg-white shadow-sm border-b sticky top-0 z-40">
         <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
-            <a href="/" class="text-lg font-semibold text-gray-800">📡 Reddit SaaS</a>
-            <div class="flex gap-4 text-sm text-gray-600">
-                <a href="/" class="hover:text-gray-900">Dashboard</a>
-                <a href="/review" class="hover:text-gray-900">Review</a>
-                <a href="/avatars-page" class="hover:text-gray-900">Avatars</a>
-                <a href="/admin-page" class="hover:text-gray-900">AI Costs</a>
-                <a href="/logout" class="hover:text-gray-900 text-red-500">Logout</a>
+            <a href="/" class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <span class="text-xl">📡</span> Reddit SaaS
+            </a>
+            <div class="flex gap-5 text-sm text-gray-600 items-center">
+                <a href="/" class="hover:text-gray-900 {% block nav_dashboard %}{% endblock %}">Dashboard</a>
+                <a href="/review" class="hover:text-gray-900 {% block nav_review %}{% endblock %}">
+                    Review
+                </a>
+                <a href="/avatars-page" class="hover:text-gray-900 {% block nav_avatars %}{% endblock %}">Avatars</a>
+                <a href="/admin-page" class="hover:text-gray-900 {% block nav_admin %}{% endblock %}">AI Costs</a>
+                <span class="text-gray-300">|</span>
+                <a href="/guide" class="hover:text-gray-900 text-blue-600">📖 Guide</a>
+                <a href="/logout" class="hover:text-red-600 text-gray-400">Logout</a>
             </div>
         </div>
     </nav>
-    <main class="max-w-7xl mx-auto px-4 py-6">
+    <main class="max-w-7xl mx-auto px-4 py-6 fade-in">
         {% block content %}{% endblock %}
     </main>
+    <footer class="max-w-7xl mx-auto px-4 py-4 text-center text-xs text-gray-400 border-t mt-8">
+        Reddit Marketing SaaS v0.1.0 · <a href="/guide" class="text-blue-500 hover:underline">User Guide</a>
+    </footer>
 </body>
 </html>

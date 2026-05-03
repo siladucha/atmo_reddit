@@ -29,6 +29,13 @@ def _render(request: Request, template: str, context: dict | None = None) -> HTM
     return templates.TemplateResponse(name=template, context=ctx, request=request)
 
 
+# --- Guide ---
+
+@router.get("/guide", response_class=HTMLResponse)
+def guide_page(request: Request):
+    return _render(request, "guide.html")
+
+
 # --- Auth Pages ---
 
 @router.get("/login", response_class=HTMLResponse)
@@ -259,6 +266,41 @@ def avatars_page(request: Request, db: Session = Depends(get_db)):
     avatars = db.query(Avatar).all()
     health_data = [get_avatar_health(db, a) for a in avatars]
     return _render(request, "avatars.html", {"avatars": health_data})
+
+
+@router.get("/avatars/new", response_class=HTMLResponse)
+def avatar_new_page(request: Request):
+    return _render(request, "avatar_new.html")
+
+
+@router.post("/avatars/new", response_class=HTMLResponse)
+def avatar_create_submit(
+    request: Request,
+    reddit_username: str = Form(...),
+    email_address: str = Form(""),
+    voice_profile_md: str = Form(""),
+    tone_principles: str = Form(""),
+    hill_i_die_on: str = Form(""),
+    helpful_mode_topics: str = Form(""),
+    constraints: str = Form(""),
+    hobby_subreddits: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    hobby_list = [s.strip() for s in hobby_subreddits.split(",") if s.strip()] if hobby_subreddits else []
+    avatar = Avatar(
+        reddit_username=reddit_username,
+        email_address=email_address or None,
+        voice_profile_md=voice_profile_md or None,
+        tone_principles=tone_principles or None,
+        hill_i_die_on=hill_i_die_on or None,
+        helpful_mode_topics=helpful_mode_topics or None,
+        constraints=constraints or None,
+        hobby_subreddits=hobby_list,
+        active=True,
+    )
+    db.add(avatar)
+    db.commit()
+    return RedirectResponse(url="/avatars-page", status_code=303)
 
 
 # --- Admin ---

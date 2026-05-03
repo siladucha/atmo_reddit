@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}User Guide — Reddit SaaS{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <h1 class="text-2xl font-bold text-gray-800 mb-6">📖 User Guide</h1>
+
+    <div class="space-y-6">
+        <!-- Step 1 -->
+        <div class="bg-white rounded-lg shadow-sm border p-5">
+            <div class="flex items-start gap-3">
+                <span class="bg-blue-100 text-blue-700 rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm shrink-0">1</span>
+                <div>
+                    <h2 class="font-semibold text-gray-800">Create a Client</h2>
+                    <p class="text-sm text-gray-600 mt-1">
+                        Go to <a href="/" class="text-blue-600 hover:underline">Dashboard</a> → click <strong>"+ New Client"</strong>.
+                        Fill in the company name, brand, and most importantly the <strong>Company Worldview</strong> — this is what the AI uses to shape comments.
+                        The more detail you provide about the company's positioning and competitors, the better the AI output.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="bg-white rounded-lg shadow-sm border p-5">
+            <div class="flex items-start gap-3">
+                <span class="bg-blue-100 text-blue-700 rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm shrink-0">2</span>
+                <div>
+                    <h2 class="font-semibold text-gray-800">Add Subreddits</h2>
+                    <p class="text-sm text-gray-600 mt-1">
+                        On the client page, add subreddits to monitor. Type the subreddit name (without r/) and select the type:
+                    </p>
+                    <ul class="text-sm text-gray-600 mt-2 ml-4 list-disc space-y-1">
+                        <li><strong>Professional</strong> — where your client's audience hangs out (e.g. cybersecurity, sysadmin)</li>
+                        <li><strong>Hobby</strong> — for avatar karma building (e.g. wine, NFL, cooking)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="bg-white rounded-lg shadow-sm border p-5">
+            <div class="flex items-start gap-3">
+                <span class="bg-blue-100 text-blue-700 rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm shrink-0">3</span>
+                <div>
+                    <h2 class="font-semibold text-gray-800">Create & Assign Avatars</h2>
+                    <p class="text-sm text-gray-600 mt-1">
+                        Go to <a href="/avatars-page" class="text-blue-600 hover:underline">Avatars</a> → create Reddit personas with unique voice profiles.
+                        Each avatar needs: a Reddit username, voice profile (how they talk), their "hill they die on" (core belief),
+                        and hobby subreddits for karma building. Then assign avatars to clients on the client page.
+                    </p>
+                    <div class="bg-yellow-50 border border-yellow-200 rounded p-3 mt-2 text-xs text-yellow-800">
+                        ⚠️ New avatars go through a 14-day warmup period where they can only post hobby comments. This protects them from bans.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="bg-white rounded-lg shadow-sm border p-5">
+            <div class="flex items-start gap-3">
+                <span class="bg-blue-100 text-blue-700 rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm shrink-0">4</span>
+                <div>
+                    <h2 class="font-semibold text-gray-800">Run the Pipeline</h2>
+                    <p class="text-sm text-gray-600 mt-1">
+                        On the client page, use the pipeline buttons:
+                    </p>
+                    <ul class="text-sm text-gray-600 mt-2 ml-4 list-disc space-y-1">
+                        <li><strong>🔍 Scrape</strong> — fetches new posts from monitored subreddits</li>
+                        <li><strong>📊 Score</strong> — AI evaluates each post for relevance and strategic value</li>
+                        <li><strong>✍️ Generate</strong> — AI writes comments for the best posts</li>
+                        <li><strong>🚀 Full Pipeline</strong> — runs all three steps in sequence</li>
+                    </ul>
+                    <p class="text-sm text-gray-600 mt-2">
+                        You can also view all scraped threads by clicking "View all threads" on the client page.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 5 -->
+        <div class="bg-white rounded-lg shadow-sm border p-5">
+            <div class="flex items-start gap-3">
+                <span class="bg-green-100 text-green-700 rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm shrink-0">5</span>
+                <div>
+                    <h2 class="font-semibold text-gray-800">Review & Approve Comments</h2>
+                    <p class="text-sm text-gray-600 mt-1">
+                        Go to <a href="/review" class="text-blue-600 hover:underline">Review</a> to see AI-generated comments.
+                        For each comment you can:
+                    </p>
+                    <ul class="text-sm text-gray-600 mt-2 ml-4 list-disc space-y-1">
+                        <li><strong>✓ Approve</strong> — ready to post</li>
+                        <li><strong>✗ Reject</strong> — not good enough</li>
+                        <li><strong>Edit</strong> — modify the text, then approve</li>
+                        <li><strong>Open on Reddit ↗</strong> — see the original thread</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 6 -->
+        <div class="bg-white rounded-lg shadow-sm border p-5">
+            <div class="flex items-start gap-3">
+                <span class="bg-green-100 text-green-700 rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm shrink-0">6</span>
+                <div>
+                    <h2 class="font-semibold text-gray-800">Post to Reddit (Manual)</h2>
+                    <p class="text-sm text-gray-600 mt-1">
+                        After approving a comment:
+                    </p>
+                    <ol class="text-sm text-gray-600 mt-2 ml-4 list-decimal space-y-1">
+                        <li>Log into Reddit with the avatar's account</li>
+                        <li>Open the thread link</li>
+                        <li>Copy the approved comment and post it</li>
+                        <li>Come back and click <strong>"📤 Mark as Posted"</strong></li>
+                    </ol>
+                    <div class="bg-blue-50 border border-blue-200 rounded p-3 mt-2 text-xs text-blue-800">
+                        💡 Manual posting is intentional — it protects avatars from automated detection and bans.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Safety -->
+        <div class="bg-white rounded-lg shadow-sm border p-5">
+            <div class="flex items-start gap-3">
+                <span class="bg-red-100 text-red-700 rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm shrink-0">!</span>
+                <div>
+                    <h2 class="font-semibold text-gray-800">Safety Rules</h2>
+                    <ul class="text-sm text-gray-600 mt-2 ml-4 list-disc space-y-1">
+                        <li>Max 8 comments per avatar per day</li>
+                        <li>Max 2 comments per subreddit per day per avatar</li>
+                        <li>At least 15 minutes between comments from the same avatar</li>
+                        <li>Max 30% of comments can be professional (brand-related)</li>
+                        <li>New avatars: hobby-only for first 14 days</li>
+                        <li>Never mention the client's brand name in comments</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

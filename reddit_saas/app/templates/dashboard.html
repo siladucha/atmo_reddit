@@ -1,23 +1,43 @@
 {% extends "base.html" %}
 {% block title %}Dashboard — Reddit SaaS{% endblock %}
+{% block nav_dashboard %}font-semibold text-gray-900{% endblock %}
 {% block content %}
-<div class="mb-8">
-    <h1 class="text-2xl font-bold text-gray-800">Dashboard</h1>
+<div class="mb-6 flex justify-between items-center">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-800">Dashboard</h1>
+        <p class="text-sm text-gray-500 mt-1">Overview of your Reddit marketing operations</p>
+    </div>
+    <a href="/guide" class="text-sm text-blue-600 hover:underline">📖 How does this work?</a>
 </div>
 
 <!-- Stats cards -->
 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
     <div class="bg-white p-4 rounded-lg shadow-sm border">
-        <div class="text-sm text-gray-500">Clients</div>
+        <div class="text-sm text-gray-500 flex items-center gap-1">
+            Clients
+            <span class="help-tip text-gray-400 text-xs">ⓘ
+                <span class="tip-text">Companies you're managing Reddit marketing for</span>
+            </span>
+        </div>
         <div class="text-2xl font-bold text-gray-800">{{ clients|length }}</div>
     </div>
     <div class="bg-white p-4 rounded-lg shadow-sm border">
-        <div class="text-sm text-gray-500">Active Avatars</div>
+        <div class="text-sm text-gray-500 flex items-center gap-1">
+            Active Avatars
+            <span class="help-tip text-gray-400 text-xs">ⓘ
+                <span class="tip-text">Reddit accounts used to post comments. Each has a unique persona.</span>
+            </span>
+        </div>
         <div class="text-2xl font-bold text-gray-800">{{ total_avatars }}</div>
     </div>
     <div class="bg-white p-4 rounded-lg shadow-sm border">
-        <div class="text-sm text-gray-500">Pending Comments</div>
-        <div class="text-2xl font-bold text-orange-600">{{ pending_comments }}</div>
+        <div class="text-sm text-gray-500 flex items-center gap-1">
+            Pending Review
+            <span class="help-tip text-gray-400 text-xs">ⓘ
+                <span class="tip-text">AI-generated comments waiting for your approval before posting</span>
+            </span>
+        </div>
+        <div class="text-2xl font-bold {{ 'text-orange-600' if pending_comments > 0 else 'text-gray-800' }}">{{ pending_comments }}</div>
     </div>
     <div class="bg-white p-4 rounded-lg shadow-sm border">
         <div class="text-sm text-gray-500">AI Cost (total)</div>
@@ -25,6 +45,22 @@
     </div>
 </div>
 
+{% if not clients %}
+<!-- Empty state with getting started guide -->
+<div class="bg-white rounded-lg shadow-sm border p-8 text-center mb-6">
+    <div class="text-4xl mb-3">🚀</div>
+    <h2 class="text-lg font-semibold text-gray-800 mb-2">Welcome! Let's get started.</h2>
+    <p class="text-gray-500 mb-4 max-w-md mx-auto">
+        Create your first client to begin monitoring Reddit and generating AI comments.
+    </p>
+    <a href="/clients/new" class="inline-block bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 transition">
+        + Create First Client
+    </a>
+    <p class="text-xs text-gray-400 mt-3">
+        Need help? Check the <a href="/guide" class="text-blue-500 hover:underline">step-by-step guide</a>.
+    </p>
+</div>
+{% else %}
 <!-- Clients list -->
 <div class="bg-white rounded-lg shadow-sm border">
     <div class="p-4 border-b flex justify-between items-center">
@@ -39,19 +75,22 @@
                     <div class="font-medium text-gray-800">{{ client.client_name }}</div>
                     <div class="text-sm text-gray-500">{{ client.brand_name }}</div>
                 </div>
-                <div class="text-sm text-gray-400">→</div>
+                <div class="text-gray-400">→</div>
             </div>
         </a>
-        {% else %}
-        <div class="p-8 text-center text-gray-400">No clients yet. Create one to get started.</div>
         {% endfor %}
     </div>
 </div>
+{% endif %}
 
 <!-- Quick links -->
-<div class="mt-6 flex gap-3">
-    <a href="/review" class="bg-white border px-4 py-2 rounded-lg text-sm hover:bg-gray-50">📝 Review Comments</a>
-    <a href="/avatars-page" class="bg-white border px-4 py-2 rounded-lg text-sm hover:bg-gray-50">👤 Avatars</a>
+<div class="mt-6 flex gap-3 flex-wrap">
+    {% if pending_comments > 0 %}
+    <a href="/review" class="bg-orange-50 border border-orange-200 px-4 py-2 rounded-lg text-sm hover:bg-orange-100 text-orange-700">
+        📝 Review {{ pending_comments }} pending comment{{ 's' if pending_comments != 1 }}
+    </a>
+    {% endif %}
+    <a href="/avatars-page" class="bg-white border px-4 py-2 rounded-lg text-sm hover:bg-gray-50">👤 Manage Avatars</a>
     <a href="/admin-page" class="bg-white border px-4 py-2 rounded-lg text-sm hover:bg-gray-50">📊 AI Costs</a>
 </div>
 {% endblock %}
