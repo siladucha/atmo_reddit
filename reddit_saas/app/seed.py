@@ -19,9 +19,23 @@ def seed():
             print("Database already seeded. Skipping.")
             return
 
-        # 1. Create admin user
-        admin = create_user(db, email="admin@reddit-saas.com", password="admin123", full_name="Admin")
-        print(f"Created admin user: {admin.email}")
+        # 1. Create admin user from config
+        from app.config import get_settings
+        settings = get_settings()
+        if settings.admin_password:
+            admin = create_user(
+                db,
+                email=settings.admin_email,
+                password=settings.admin_password,
+                full_name=settings.admin_name,
+            )
+            # Mark as superuser
+            admin.is_superuser = True
+            db.commit()
+            print(f"Created admin user: {admin.email}")
+        else:
+            admin = create_user(db, email="admin@reddit-saas.com", password="admin123", full_name="Admin")
+            print(f"Created default admin user: {admin.email} (change password!)")
 
         # 2. Create test client (XM Cyber as example)
         client = Client(

@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 1440
     algorithm: str = "HS256"
 
+    # Admin
+    admin_email: str = "max@admin.com"
+    admin_password: str = ""
+    admin_name: str = "Admin"
+
     # Reddit API
     reddit_client_id: str = ""
     reddit_client_secret: str = ""
