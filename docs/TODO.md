@@ -1,109 +1,116 @@
 # TODO — Reddit Marketing SaaS
 
+_Last updated: 2026-05-03_
+
 ## Current Status
-- 60 tests passing
-- UI: login, register, dashboard, client CRUD, avatar CRUD, review, threads, admin
-- Backend: auth, Reddit scraping, AI pipeline (scoring + generation + editing), safety layer
-- Server runs on localhost:8000
+- 60 unit tests passing across 9 test modules
+- 12 Jinja2 templates (login, register, dashboard, client list/detail/new, avatar list/new, review, threads, admin, guide)
+- Backend: auth (JWT cookie), Reddit scraping, AI pipeline (scoring + generation + editing), safety layer, avatar health
+- Middleware: auth (route protection) + global error handler
+- Celery Beat scheduler running 4 jobs (8am, 14:00, 10:00, every 12h)
+- Orchestrator tasks for batch client/avatar execution
+- Server runs on `localhost:8000`
+
+---
+
+## Recently Completed (May 2–3)
+- ✅ Celery Beat scheduler — `app/tasks/worker.py:24–41`
+- ✅ Auth middleware — `app/middleware/auth.py` (JWT cookie, redirect to /login)
+- ✅ Error handling middleware — `app/middleware/errors.py` (HTML error pages)
+- ✅ Orchestrator tasks — `app/tasks/orchestrator.py` (3 master tasks)
+- ✅ Avatar health checks — quarantine/karma tracking
+- ✅ Avatar creation form + CRUD routes — `app/routes/avatars.py`
+- ✅ User guide / onboarding template — `app/templates/guide.html`
+- ✅ Polished UI (12 templates, Tailwind responsive)
+- ✅ Daily log rotation (7-day history)
+- ✅ Documentation moved into `docs/` folder
 
 ---
 
 ## Priority 1 — Make Pipeline Actually Work End-to-End
 
-### Task 1.1: Celery Beat Scheduler
-**File:** `reddit_saas/app/tasks/scheduler.py`
-- Add Celery Beat schedule config
-- For each active client: scrape → score → generate at 8am and 2pm
-- For each active avatar: hobby scrape + generate at 10am
-- Config in `worker.py` using `celery_app.conf.beat_schedule`
-
-### Task 1.2: Wire Scraping Tasks to Save Threads Correctly
+### Task 1.1: Test Scrape Tasks Against Real Reddit API
 **File:** `reddit_saas/app/tasks/scraping.py`
-- Test with real Reddit API (need credentials in .env)
+- Set Reddit API credentials in `.env`
+- Run `scrape_professional_subreddits.delay(client_id)` manually
 - Verify threads save to DB with correct client_id
-- Verify deduplication works across runs
+- Verify deduplication by `reddit_native_id` works across runs
+- Confirm orchestrator chain (scrape → score → generate) completes
 
-### Task 1.3: Thread List/Detail API + UI
-**File:** `reddit_saas/app/routes/pages.py`
-- Client detail page already links to `/threads/{client_id}` — verify it works
-- Add thread detail page showing full post + comments + scoring
+### Task 1.2: Thread Detail Page
+**File:** `reddit_saas/app/routes/pages.py` + `templates/threads.html`
+- Thread list page exists (`/threads/{client_id}`)
+- Add thread detail page: full post body + comment tree + scoring breakdown
+- Show generated drafts linked to that thread
 
-### Task 1.4: Post Generation Pipeline
+### Task 1.3: Post Generation Pipeline
 **File:** `reddit_saas/app/services/generation.py`
-- Implement `generate_post()` function (currently stub)
-- Brief creation → post draft → save to post_drafts
-- Add post review UI (similar to comment review)
+- `generate_post()` is currently a stub
+- Brief creation → post draft → save to `post_drafts`
+- Source material picker (high-scoring threads or external feed)
+- Add post review UI parallel to comment review
 
 ---
 
 ## Priority 2 — Production Readiness
 
 ### Task 2.1: Alembic Initial Migration
-```bash
-cd reddit_saas
-alembic revision --autogenerate -m "initial schema"
-alembic upgrade head
-```
-- Currently using `Base.metadata.create_all()` in seed.py — need proper migrations
+- `alembic/versions/` is currently empty — using `Base.metadata.create_all()` in `seed.py`
+- Generate first migration: `alembic revision --autogenerate -m "initial schema"`
+- Verify all 11 models are picked up
+- Run `alembic upgrade head` against fresh DB
+- Document migration workflow in README
 
-### Task 2.2: Error Handling Middleware
-**File:** `reddit_saas/app/main.py`
-- Add global exception handler that logs errors and returns friendly HTML
-- Currently shows raw "Internal Server Error"
+### Task 2.2: Pagination
+- Thread list, comment review queue, avatar list — all hard-capped at 50/100 items
+- Add `?page=N&size=M` query params + page nav in templates
 
-### Task 2.3: Auth Middleware (Protect Routes)
-**File:** `reddit_saas/app/middleware/auth.py`
-- Currently all pages are accessible without login
-- Add middleware that checks JWT cookie on all routes except /login, /register, /health
-- Redirect to /login if not authenticated
-
-### Task 2.4: Pagination
-- Thread list, comment review, avatar list — all need pagination
-- Currently limited to 50/100 items
+### Task 2.3: Real Auth Tests (Currently Mocked)
+- 60 tests pass, but most use the fake auth middleware bypass
+- Add integration tests that actually exercise `/auth/login` → cookie → protected route
 
 ---
 
 ## Priority 3 — Missing Features
 
 ### Task 3.1: Persona CRUD
-- Model exists, no routes or UI
+- Model exists (`app/models/persona.py`), no routes or UI
 - Add persona management per client
 
-### Task 3.2: Keyword Management
-- Currently keywords are a JSON blob on client
-- Add UI to manage keywords with priority levels
+### Task 3.2: Keyword Management UI
+- Currently keywords are a JSONB blob on `clients`
+- Add UI to manage keywords with priority levels (HIGH/MEDIUM/LOW)
 
 ### Task 3.3: Redraft Endpoint
 - "Regenerate this comment" button on review page
-- Calls generate_comment again with same thread/avatar
+- Calls `generate_comment` again with same thread/avatar; new draft replaces or appends
 
 ### Task 3.4: Tracking Page
-- Published comments history
-- Filter by client, avatar, date
-- Basic stats (comments/day, karma gained)
+- Published comments/posts history (filter by client, avatar, date)
+- Basic stats: comments/day, karma gained
 
-### Task 3.5: Shadowban Checker
-- Periodic task that checks if avatars are shadowbanned
-- Use Reddit API or HTTP check
-- Auto-quarantine if detected
+### Task 3.5: Shadowban Auto-Detection
+- `check_all_avatars_health` runs every 12h but only logs warnings
+- Wire to `services/safety.quarantine_avatar()` when shadowban detected
+- Notify human reviewer (email/Slack)
 
 ---
 
 ## Priority 4 — DevOps
 
 ### Task 4.1: Docker Build Verification
-- Test `docker compose up` works end-to-end
-- Fix any issues with Dockerfile
+- `docker compose up` end-to-end smoke test
+- Confirm worker + beat + web all start
 
 ### Task 4.2: GitHub Actions CI
-- Run tests on push
-- Lint with ruff
+- Run `pytest tests/` on push
+- Lint with `ruff`
 
 ### Task 4.3: AWS Deployment
 - EC2 setup
 - RDS PostgreSQL
 - ElastiCache Redis
-- Bedrock access
+- Bedrock access (LLM)
 
 ---
 
@@ -117,8 +124,8 @@ Copy a task block above and paste it to Claude with:
 
 Example prompt:
 ```
-Read reddit_saas/app/tasks/worker.py and reddit_saas/app/tasks/scraping.py.
-Then implement Task 1.1: Add Celery Beat scheduler config.
+Read reddit_saas/app/tasks/scraping.py and reddit_saas/app/tasks/orchestrator.py.
+Then implement Task 1.1: smoke-test scrape against real Reddit API.
 After implementing, run: python -m pytest tests/ -v
 Make sure all tests pass. Commit the changes.
 ```

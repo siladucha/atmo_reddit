@@ -353,24 +353,43 @@ audit_log
 
 ## Scheduling
 
-| Job | Frequency | What it does |
-|-----|-----------|-------------|
-| `scrape_professional` | 2x daily (8am, 2pm) | Scrape professional subreddits |
-| `scrape_hobby` | 1x daily (10am) | Scrape hobby subreddits |
-| `score_threads` | After each scrape | Score new threads with AI |
-| `generate_comments` | After scoring | Generate comments for 'engage' threads |
-| `generate_hobby_comments` | After hobby scrape | Generate hobby comments |
-| `generate_posts` | 2x daily (9am, 3pm) | Generate post drafts |
-| `health_check_avatars` | 2x daily | Check shadowban status, update karma |
+Implemented via Celery Beat — see [`reddit_saas/app/tasks/worker.py`](../reddit_saas/app/tasks/worker.py) lines 24–41.
+
+| Beat job | Schedule (UTC) | Task |
+|----------|----------------|------|
+| `scrape-and-generate-morning` | 08:00 daily | `run_full_pipeline_all_clients` |
+| `scrape-and-generate-afternoon` | 14:00 daily | `run_full_pipeline_all_clients` |
+| `hobby-pipeline-daily` | 10:00 daily | `run_hobby_pipeline_all_avatars` |
+| `avatar-health-check` | every 12h at :30 | `check_all_avatars_health` |
+
+Post generation is currently triggered manually via `/pipeline/*` routes (see TODO.md Task 1.3).
+
+### Orchestrator
+
+All Beat jobs dispatch through orchestrator tasks in [`reddit_saas/app/tasks/orchestrator.py`](../reddit_saas/app/tasks/orchestrator.py). Each orchestrator queries DB for active clients/avatars and queues per-tenant Celery chains:
+
+- **`run_full_pipeline_all_clients()`** — for each active `Client`, queues a chain `scrape_professional_subreddits → score_threads → generate_comments`
+- **`run_hobby_pipeline_all_avatars()`** — for each active `Avatar`, queues a chain `scrape_hobby_subreddits → generate_hobby_comments`
+- **`check_all_avatars_health()`** — for each active avatar, runs `services.safety.get_avatar_health()`, logs warnings for high brand ratio, updates `last_health_check`
+
+Per-client/avatar chains run in parallel via Celery's queue; failures in one tenant don't block others.
 
 ---
+
+## Middleware
+
+Two middleware layers in [`reddit_saas/app/middleware/`](../reddit_saas/app/middleware/):
+
+- **`auth.py`** — JWT cookie auth check on every request. Bypasses: `/login`, `/register`, `/logout`, `/health`, `/docs`, `/auth/*`, `/static/*`. Unauthenticated requests are redirected to `/login`.
+- **`errors.py`** — Global exception handler. Catches unhandled exceptions, logs them, and returns a friendly HTML error page (instead of FastAPI's raw "Internal Server Error").
 
 ## Security
 
 - All passwords hashed (bcrypt)
-- JWT tokens for API auth
-- HTTPS only (ACM certificate)
+- JWT tokens stored in HttpOnly cookies (not localStorage)
+- HTTPS only (ACM certificate, AWS deploy)
 - Reddit avatar credentials encrypted in DB
-- No client data exposed between tenants (client_id filtering on every query)
+- No client data exposed between tenants (`client_id` filtering on every query)
 - Audit log for all human actions
 - AI usage log for cost tracking
+- Auth middleware enforces login on all protected routes

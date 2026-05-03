@@ -1,69 +1,157 @@
-# Индекс файлов проекта
+# File Index — Reddit Marketing SaaS
 
-## Документация (создана Ori)
+_Last updated: 2026-05-03_
 
-| Файл | Что это | Для чего нужно |
-|------|---------|---------------|
-| `claude.md` | Главный документ проекта — полная карта системы, порядок настройки, архитектура, описание всех 9 workflows, 3 миграционных фикса, чеклист credentials | **Основной справочник.** Читать первым. Содержит всё что нужно для понимания и деплоя |
-| `database_schema.md` | Схема базы данных — 10 таблиц PostgreSQL с описанием полей и связей | **Для создания БД.** Берём структуру и адаптируем под наш SaaS |
-| `airtable_interfaces.md` | Инструкция по созданию UI в Airtable — 4 страницы: комменты, посты, трекинг | **Для понимания UI.** Мы не будем использовать Airtable, но это описание того какой интерфейс нужен — по сути ТЗ на наш веб-интерфейс |
-| `airtable_automation.md` | Инструкция по настройке Airtable automation — webhook при отметке "comment_sent" | **Для понимания логики.** Один простой webhook — заменим на эндпоинт в нашем API |
-| `Reddit Project Handoff - April 15.txt` | Конспект 24-минутного созвона Ori с Цви — архитектура, стратегия, next steps | **Контекст.** Полезно для понимания намерений, но вся техническая инфа уже в `claude.md` |
+This is a map of the repo. The actual application lives under [reddit_saas/](../reddit_saas/); everything else is documentation, legacy data, and Ori's original PoC artifacts.
 
-## n8n Workflows (JSON экспорты)
+---
 
-Это не код — это конфиги визуального конструктора n8n. **Мы не будем их импортировать.** Ценность — в логике и промптах внутри них.
+## Application — `reddit_saas/`
 
-| Файл | Что делает | Что берём из него |
-|------|-----------|-------------------|
-| `Run subreddits - Cyber copy.json` | Оркестратор: перебирает сабреддиты, вызывает скрейпер, AI скорит посты | Список сабреддитов, логику скоринга, промпты для оценки постов |
-| `Scrape subreddit copy.json` | Скрейпит один сабреддит через Reddit API, фильтрует по дате | Структуру данных поста (какие поля забираем из Reddit) |
-| `Reddit _ Comments _ Official copy.json` | Рекурсивно разворачивает дерево комментариев Reddit в плоский массив | Логику обхода вложенных комментариев |
-| `XM Cyber _ Write comments copy.json` | Выбирает аватар, генерирует AI-комментарий, отправляет на ревью | **Самое ценное** — промпты для генерации комментариев, логику выбора аватара, стратегию fallback |
-| `Hobby Comment Writing copy.json` | То же для hobby-комментариев — набор кармы | Промпты для hobby-комментариев (другой стиль, без продвижения) |
-| `Run hobby subreddits [1] copy.json` | Оркестратор hobby: берёт аватаров из БД, запускает скрейпинг их хобби-сабреддитов | Логику привязки аватар → хобби-сабреддиты |
-| `Scrape hoby subreddit [2] copy.json` | Скрейпит один hobby-сабреддит | Аналогично основному скрейперу |
-| `XM Cyber — Reddit Post Creation (draft) copy.json` | Создаёт оригинальные Reddit-посты из новостей/контента | Промпты для генерации постов, структуру brief |
-| `XM Cyber — Reddit Post Creation (draft).json` | Дубль предыдущего (без "copy") | Тот же файл |
-| `Update comment sent copy.json` | Webhook: перемещает опубликованный коммент из очереди в трекинг | Логику статусов (pending → approved → posted) |
-
-## CSV файлы (данные для Airtable / seeding)
-
-| Файл | Что содержит | Для чего нужно |
-|------|-------------|---------------|
-| `Reddit Personas-Grid view.csv` | 7 аватаров с полными профилями: имя, должность, voice profile, tone, speech patterns, constraints, vocabulary | **Критически важно.** Это "души" аватаров — берём целиком для seeding БД |
-| `keywords-Grid view.csv` | 120+ ключевых слов с уровнем приоритета (HIGH/MEDIUM/LOW) и категориями | **Важно.** Используется для скоринга постов — какие темы релевантны клиенту |
-| `Reddit Comments-Grid view.csv` | Примеры сгенерированных AI-комментариев с полным контекстом (пост, тред, скоринг, выбранный аватар) | **Для понимания качества.** Образцы того что система генерирует — используем как few-shot examples для промптов |
-| `Reddit Comments Tracking-Grid view.csv` | История опубликованных комментариев (8000+ строк) | **Для аналитики.** Показывает что реально постилось и работало |
-| `XM Cyber Reddit Posts-Grid view.csv` | AI-сгенерированные посты с полными brief'ами и стратегией | **Для понимания.** Образцы постов — берём как примеры для промптов |
-| `Reddit Posts-Grid view.csv` | Пустой файл (только заголовки) | Не нужен |
-| `Reddit Posts tracking-Grid view.csv` | Пустой файл (только заголовки) | Не нужен |
-| `Scrape-Grid view.csv` | Сырые скрейпнутые посты (24000+ строк) с тегами и скорингом | **Для понимания.** Показывает как выглядят данные после скрейпинга и скоринга |
-| `Influencers list-Grid view.csv` | Пустой файл (только заголовки) | Не нужен — видимо планировалась фича |
-
-## Прочие файлы
-
-| Файл | Что это | Нужно? |
-|------|---------|--------|
-| `untitled text.txt` | Инструкция по TestFlight для iOS-приложения ATMO Pulse | **Не относится к проекту.** Попал случайно |
-| `.DS_Store` | Системный файл macOS | Игнорируем |
-
-## Файлы созданные нами
-
-| Файл | Что это |
+### Top level
+| File | Purpose |
 |------|---------|
-| `memory.md` | Ключевая информация по проекту — стек, аватары, таблицы, workflows |
-| `session.md` | Лог сессий работы |
-| `decisions.md` | Решения, открытые вопросы, риски |
-| `letter_to_tzvi.md` | Письмо Цви с анализом и планом |
-| `file_index.md` | Этот файл |
+| `pyproject.toml` | Python deps + project config |
+| `Dockerfile` | App image (FastAPI + workers) |
+| `docker-compose.yml` | Local stack: web + worker + db + redis |
+| `alembic.ini` + `alembic/` | DB migrations (initial migration not yet generated — see TODO 2.1) |
+| `.env.example` | Required environment vars template |
+| `README.md` | Quick start instructions |
+| `logs/` | Daily-rotated app logs (7-day retention) |
+| `tests/` | 60 unit tests across 9 modules |
 
-## Резюме: что реально ценно
+### `reddit_saas/app/`
 
-1. **`claude.md`** — карта всего проекта
-2. **`Reddit Personas-Grid view.csv`** — аватары с профилями
-3. **`keywords-Grid view.csv`** — ключевые слова для скоринга
-4. **`XM Cyber _ Write comments copy.json`** — промпты для генерации комментариев
-5. **`Reddit Comments-Grid view.csv`** + **`Reddit Comments Tracking-Grid view.csv`** — примеры реальных комментариев
-6. **`database_schema.md`** — схема БД
-7. **`airtable_interfaces.md`** — ТЗ на интерфейс ревью
+#### Bootstrap
+- [`main.py`](../reddit_saas/app/main.py) — FastAPI app init, mounts middleware, includes routers, mounts static
+- [`config.py`](../reddit_saas/app/config.py) — `pydantic-settings` config from `.env`
+- [`database.py`](../reddit_saas/app/database.py) — SQLAlchemy engine + `SessionLocal` + `Base`
+- [`logging_config.py`](../reddit_saas/app/logging_config.py) — daily-rotated file handler, 7-day retention
+- [`seed.py`](../reddit_saas/app/seed.py) — `Base.metadata.create_all()` + test data seed
+
+#### `routes/` — HTTP endpoints
+| File | Purpose |
+|------|---------|
+| `auth.py` | `/auth/login`, `/auth/register`, `/auth/logout` |
+| `clients.py` | Client CRUD |
+| `avatars.py` | Avatar CRUD + health endpoints |
+| `dashboard.py` | Admin stats + AI cost breakdown |
+| `review.py` | Comment/post approval queue |
+| `pipeline.py` | Manual pipeline triggers (scrape/score/generate) |
+| `pages.py` | Jinja2 HTML page renders |
+
+#### `models/` — SQLAlchemy ORM
+See [database_schema.md](database_schema.md) for full field lists. Files:
+`user.py`, `client.py`, `persona.py`, `subreddit.py`, `avatar.py`,
+`thread.py`, `comment_draft.py`, `post_draft.py`, `hobby.py`,
+`ai_usage.py`, `audit.py`.
+
+#### `services/` — Business logic
+| File | Purpose |
+|------|---------|
+| `auth.py` | Password hashing + JWT issue/verify |
+| `reddit.py` | PRAW wrapper, scraping, comment-tree flattening |
+| `ai.py` | LLM calls (Bedrock/LiteLLM) with cost logging |
+| `scoring.py` | Thread relevance/quality/strategic scoring |
+| `generation.py` | Comment + post draft generation |
+| `safety.py` | Brand-ratio checks, avatar quarantine, health |
+
+#### `tasks/` — Celery
+| File | Purpose |
+|------|---------|
+| `worker.py` | Celery app + Beat schedule (4 jobs: 8am, 14:00, 10:00, every 12h) |
+| `orchestrator.py` | `run_full_pipeline_all_clients`, `run_hobby_pipeline_all_avatars`, `check_all_avatars_health` |
+| `scraping.py` | Per-client and per-avatar scrape tasks |
+| `ai_pipeline.py` | Score → generate task chain |
+
+#### `middleware/`
+| File | Purpose |
+|------|---------|
+| `auth.py` | JWT cookie check; redirect to `/login` if not authenticated. Bypasses: `/login`, `/register`, `/logout`, `/health`, `/docs`, `/auth/*`, `/static/*` |
+| `errors.py` | Global exception handler with friendly HTML error pages |
+
+#### `templates/` — Jinja2 + HTMX + Tailwind
+12 templates: `base.html`, `login.html`, `register.html`, `dashboard.html`,
+`client_detail.html`, `client_new.html`, `avatars.html`, `avatar_new.html`,
+`review.html`, `threads.html`, `admin.html`, `guide.html`.
+
+---
+
+## Documentation — `docs/`
+
+### Living documents (kept in sync with code)
+| File | Purpose |
+|------|---------|
+| [`TODO.md`](TODO.md) | Open tasks by priority, with file pointers |
+| [`architecture.md`](architecture.md) | System design, data flows, scheduling |
+| [`database_schema.md`](database_schema.md) | All tables — single source-of-truth view |
+| [`file_index.md`](file_index.md) | This file |
+| [`memory.md`](memory.md) | High-level project knowledge base |
+| [`decisions.md`](decisions.md) | Decisions made + open questions |
+| [`session.md`](session.md) | Work session log |
+
+### Status / cost analyses (point-in-time snapshots)
+| File | Purpose |
+|------|---------|
+| [`status_report_may1.md`](status_report_may1.md) | Day-1 status (RU) |
+| [`status_report_may1_en.md`](status_report_may1_en.md) | Day-1 status (EN) |
+| [`ai_cost_benchmark.md`](ai_cost_benchmark.md) | Per-client LLM cost projection |
+| [`aws_cost_estimate.md`](aws_cost_estimate.md) | Infra cost projection |
+
+### Historical / context
+| File | Purpose |
+|------|---------|
+| [`call_notes_tzvi.md`](call_notes_tzvi.md) | Prep notes for May 1 call with Tzvi |
+| [`letter_to_tzvi.md`](letter_to_tzvi.md) | Initial analysis sent to Tzvi |
+| [`Reddit Project Handoff - April 15.txt`](Reddit%20Project%20Handoff%20-%20April%2015.txt) | Notes from Ori's 24-min handoff call |
+
+### Legacy reference (Ori's PoC, pre-rewrite)
+These describe the original n8n + Airtable + Supabase setup. We are replacing all of it with the FastAPI codebase. Keep for context only.
+
+| File | Purpose |
+|------|---------|
+| [`airtable_interfaces.md`](airtable_interfaces.md) | UI requirements as Airtable interfaces — implemented now in `app/templates/` |
+| [`airtable_automation.md`](airtable_automation.md) | Single Airtable webhook — replaced by direct API endpoints |
+| [`untitled text.txt`](untitled%20text.txt) | Unrelated TestFlight note (different project), kept as-is |
+
+---
+
+## Root — Ori's PoC Artifacts
+
+These files at repo root are kept as reference. They are **not** imported, executed, or deployed; they are sources to extract prompts, voice profiles, and keyword data from.
+
+### n8n workflow JSON exports
+`Run subreddits - Cyber copy.json`, `Scrape subreddit copy.json`,
+`Reddit _ Comments _ Official copy.json`,
+`XM Cyber _ Write comments copy.json`, `Hobby Comment Writing copy.json`,
+`Run hobby subreddits [1] copy.json`, `Scrape hoby subreddit [2] copy.json`,
+`XM Cyber — Reddit Post Creation (draft) copy.json`,
+`XM Cyber — Reddit Post Creation (draft).json`,
+`Update comment sent copy.json`.
+
+The valuable parts inside these are the **prompts** and **scoring logic** — already ported into `app/services/ai.py`, `services/scoring.py`, `services/generation.py`.
+
+### Airtable CSV exports (reference data)
+| File | Use |
+|------|-----|
+| `Reddit Personas-Grid view.csv` | 7 fully-defined avatars — seed data for `avatars` table |
+| `keywords-Grid view.csv` | ~120 keywords with HIGH/MEDIUM/LOW priority — seed for `clients.keywords` JSONB |
+| `Reddit Comments-Grid view.csv` | Sample AI comments — useful as few-shot examples |
+| `Reddit Comments Tracking-Grid view.csv` | 8000+ historical posted comments |
+| `XM Cyber Reddit Posts-Grid view.csv` | Sample AI posts with full briefs |
+| `Scrape-Grid view.csv` | 24000+ raw scraped posts (large) |
+| `Reddit Posts-Grid view.csv`, `Reddit Posts tracking-Grid view.csv`, `Influencers list-Grid view.csv` | Empty (just headers) |
+
+### Project root
+- [`CLAUDE.md`](../CLAUDE.md) — Claude Code project instructions (legacy n8n migration guide; superseded by this codebase but kept for the migration-step docs)
+- `.gitignore`, `.venv/`, `.kiro/`, `.vscode/` — standard tooling
+
+---
+
+## What to read first (recommended order)
+
+1. [`reddit_saas/README.md`](../reddit_saas/README.md) — get the app running
+2. [`architecture.md`](architecture.md) — understand the system
+3. [`database_schema.md`](database_schema.md) — understand the data
+4. [`TODO.md`](TODO.md) — what to work on
+5. [`memory.md`](memory.md) — high-level project context

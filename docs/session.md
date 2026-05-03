@@ -23,3 +23,27 @@
 2. Написать functional requirements (UI/UX, фичи)
 3. Подготовить стратегию onboarding pilot client
 4. Исследовать юридическую структуру (Кипр)
+
+## Session 3 — Core MVP build (May 1–2, 2026)
+Коммиты: `f839133`, `73b6c07`, `ef05063`, `e165be4`
+- FastAPI скелет, БД, модели (11 таблиц), seed
+- Auth: register/login/JWT cookie
+- Reddit service (PRAW), AI service (Bedrock/LiteLLM), scoring/generation/safety
+- Все шаблоны Jinja2 + HTMX (login, register, dashboard, clients, avatars, review, threads, admin, guide)
+- Avatar creation form + CRUD
+- 55 → 60 unit-тестов
+- Daily log rotation, 7 дней истории
+- Quiet debug logs, фикс TemplateResponse, фикс /clients/new
+
+## Session 4 — Production glue (May 3, 2026)
+Коммит: `70e8798`
+- Auth middleware — защита всех роутов кроме whitelist (`app/middleware/auth.py`)
+- Error handling middleware — friendly HTML (`app/middleware/errors.py`)
+- Celery Beat scheduler — 4 задачи в `app/tasks/worker.py`
+- Orchestrator tasks — `run_full_pipeline_all_clients`, `run_hobby_pipeline_all_avatars`, `check_all_avatars_health`
+- Документация перенесена в `docs/`, обновлена под реальное состояние кода
+
+### Next Steps
+1. Smoke-test пайплайна на реальном Reddit API (Task 1.1 в TODO)
+2. Alembic initial migration (Task 2.1)
+3. Pagination + Persona CRUD UI

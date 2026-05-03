@@ -29,6 +29,17 @@
 - Hobby karma pipeline
 - Cost-efficient AI architecture
 
+## Сделано на 2026-05-03
+- Auth middleware (JWT cookie, защита всех роутов)
+- Error handling middleware (HTML страницы ошибок)
+- Celery Beat scheduler с 4 задачами (8:00, 14:00, 10:00, каждые 12ч)
+- Orchestrator tasks — пакетный прогон по всем clients/avatars
+- Avatar health checks (shadowban + karma)
+- 12 шаблонов Jinja2 + HTMX + Tailwind
+- 60 unit-тестов (9 модулей) — проходят
+- Avatar creation, user guide, daily log rotation
+- Документация в `docs/`
+
 ## Конкуренты
 - **ReddGrow** ($59-299/мес) — self-service, mass market, AI visibility tracking
 - **Мы** ($2K+/мес) — premium managed service, глубокие персоны, стратегия

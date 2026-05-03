@@ -1,5 +1,8 @@
 # Status Report — May 1, 2026 (Day 1)
 
+> **Update 2026-05-03:** см. секцию [«Changes since May 1»](#changes-since-may-1) в конце.
+
+
 ## Partnership
 
 - **Формат:** 50/50 partnership
@@ -140,3 +143,44 @@ $1.19 × 30 дней = ~$36/мес
 ---
 
 *Next update: после получения brief от Tzvi на первого клиента.*
+
+---
+
+## Changes since May 1
+
+_Snapshot as of 2026-05-03._
+
+### Сделано (commits 73b6c07 → 70e8798)
+
+**Этап 1A — Core Pipeline:** ✅ закрыт
+- ✅ Auth middleware — JWT cookie, редирект на `/login` для всех защищённых роутов (`app/middleware/auth.py`)
+- ✅ Error handling middleware — friendly HTML на неперехваченные исключения (`app/middleware/errors.py`)
+- ✅ Celery Beat scheduler — 4 задания (8:00, 14:00, 10:00, каждые 12ч) (`app/tasks/worker.py:24–41`)
+- ✅ Orchestrator tasks — пакетный прогон по всем активным clients/avatars (`app/tasks/orchestrator.py`)
+- ✅ Avatar health checks — мониторинг shadowban + karma
+- ✅ Avatar creation form + полный CRUD (`app/routes/avatars.py`)
+- ✅ User guide / onboarding template
+- ✅ Полный UI-полиш — 12 шаблонов Jinja2 + HTMX + Tailwind
+- ✅ 60 unit-тестов проходят (9 модулей)
+- ✅ Daily log rotation, 7 дней истории
+- ✅ Документация переехала в `docs/`
+
+### Осталось (см. [TODO.md](TODO.md))
+
+**Phase 1A:** только smoke-test пайплайна на реальном Reddit API (Task 1.1)
+
+**Phase 1B (Polish + Reliability):**
+- Alembic initial migration (Task 2.1)
+- Pagination на длинных списках (Task 2.2)
+- Persona CRUD UI (Task 3.1)
+- Tracking/аналитика (Task 3.4)
+- Auto-quarantine при shadowban (Task 3.5)
+
+### Roadmap-статус
+
+| Этап | Было на 1 мая | Сейчас |
+|------|---------------|--------|
+| 1A — Core pipeline | 🔄 Начато | ✅ Готово (модулю не хватает прогона на реальном Reddit) |
+| 1B — Polish + Reliability | ⬜ | 🔄 ~50% (auth/errors/scheduler — done; pagination/migrations/tracking — pending) |
+| 2 — Multi-tenant + 2 клиента | ⬜ | ⬜ (multi-tenant архитектура заложена, второго клиента нет) |
+
