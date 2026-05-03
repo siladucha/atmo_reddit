@@ -37,11 +37,16 @@ def db():
 
 @pytest.fixture
 def client(db):
-    """Provide a FastAPI test client with DB override."""
+    """Provide a FastAPI test client with DB override and auth cookie."""
     def override_get_db():
         yield db
 
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as c:
+        # Register and login to get auth cookie
+        c.post("/auth/register", json={"email": "test@fixture.com", "password": "testpass"})
+        r = c.post("/login", data={"email": "test@fixture.com", "password": "testpass"}, follow_redirects=False)
+        if "access_token" in r.cookies:
+            c.cookies.set("access_token", r.cookies["access_token"])
         yield c
     app.dependency_overrides.clear()

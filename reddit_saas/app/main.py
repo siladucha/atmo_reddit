@@ -6,6 +6,8 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import get_settings
 from app.logging_config import setup_logging
+from app.middleware.auth import AuthMiddleware
+from app.middleware.errors import ErrorMiddleware
 from app.routes import auth, dashboard, review, pipeline, avatars, clients, pages
 
 settings = get_settings()
@@ -18,11 +20,14 @@ app = FastAPI(
     docs_url="/docs" if settings.app_env == "development" else None,
 )
 
+# Middleware (order matters: error handler wraps auth which wraps routes)
+app.add_middleware(ErrorMiddleware, debug=(settings.app_env == "development"))
+app.add_middleware(AuthMiddleware)
+
 # Static files & templates
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
-# Routes
 # API Routes
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(clients.router, prefix="/clients-api", tags=["clients-api"])
