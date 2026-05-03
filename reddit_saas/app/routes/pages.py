@@ -95,6 +95,38 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     })
 
 
+# --- Client Create ---
+
+@router.get("/clients/new", response_class=HTMLResponse)
+def client_new_page(request: Request):
+    return _render(request, "client_new.html")
+
+
+@router.post("/clients/new", response_class=HTMLResponse)
+def client_create_submit(
+    request: Request,
+    client_name: str = Form(...),
+    brand_name: str = Form(...),
+    company_profile: str = Form(""),
+    company_worldview: str = Form(""),
+    company_problem: str = Form(""),
+    competitive_landscape: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    client = Client(
+        client_name=client_name,
+        brand_name=brand_name,
+        company_profile=company_profile or None,
+        company_worldview=company_worldview or None,
+        company_problem=company_problem or None,
+        competitive_landscape=competitive_landscape or None,
+    )
+    db.add(client)
+    db.commit()
+    db.refresh(client)
+    return RedirectResponse(url=f"/clients/{client.id}", status_code=303)
+
+
 # --- Client Detail ---
 
 @router.get("/clients/{client_id}", response_class=HTMLResponse)
