@@ -1,4 +1,8 @@
-"""Logging configuration with daily rotation, 7 days history."""
+"""Logging configuration with daily rotation, 7 days history.
+
+Full observability: all Reddit API calls, LLM calls, user actions,
+and system events are logged for complete audit trail.
+"""
 
 import os
 import logging
@@ -38,10 +42,19 @@ def setup_logging(level: str = "INFO") -> None:
     file_handler.suffix = "%Y-%m-%d"
     root.addHandler(file_handler)
 
-    # Quiet noisy libraries
-    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-    logging.getLogger("httpx").setLevel(logging.WARNING)
+    # --- Library log levels ---
+    # Reddit API: log all HTTP requests to Reddit (INFO level shows requests)
+    logging.getLogger("prawcore").setLevel(logging.DEBUG)
+    logging.getLogger("praw").setLevel(logging.DEBUG)
+
+    # HTTP access logs: see all incoming requests
+    logging.getLogger("uvicorn.access").setLevel(logging.INFO)
+
+    # LiteLLM: keep at WARNING (our ai.py handles detailed logging)
     logging.getLogger("litellm").setLevel(logging.WARNING)
-    logging.getLogger("praw").setLevel(logging.WARNING)
+
+    # Quiet truly noisy libraries that add no value
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("multipart").setLevel(logging.WARNING)
     logging.getLogger("passlib").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.INFO)  # Shows Reddit HTTP connections

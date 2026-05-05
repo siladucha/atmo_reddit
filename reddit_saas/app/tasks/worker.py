@@ -9,6 +9,12 @@ celery_app = Celery(
     "reddit_saas",
     broker=settings.redis_url,
     backend=settings.redis_url,
+    include=[
+        "app.tasks.queue_ticker",
+        "app.tasks.scraping",
+        "app.tasks.orchestrator",
+        "app.tasks.ai_pipeline",
+    ],
 )
 
 celery_app.conf.update(
@@ -22,11 +28,11 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     # Beat schedule — automated pipeline runs
     beat_schedule={
-        "scrape-and-generate-morning": {
+        "ai-pipeline-morning": {
             "task": "run_full_pipeline_all_clients",
             "schedule": crontab(hour=8, minute=0),
         },
-        "scrape-and-generate-afternoon": {
+        "ai-pipeline-afternoon": {
             "task": "run_full_pipeline_all_clients",
             "schedule": crontab(hour=14, minute=0),
         },
@@ -38,8 +44,14 @@ celery_app.conf.update(
             "task": "check_all_avatars_health",
             "schedule": crontab(hour="*/12", minute=30),
         },
+        "scrape-queue-tick": {
+            "task": "queue_tick",
+            "schedule": 60.0,  # Fires every 60s; actual interval gated by DB setting
+        },
+        "evaluate-avatar-phases-daily": {
+            "task": "evaluate_all_avatar_phases",
+            "schedule": crontab(hour=6, minute=0),
+        },
     },
 )
 
-# Import tasks so Celery discovers them
-celery_app.autodiscover_tasks(["app.tasks"])

@@ -19,10 +19,13 @@ def test_register_page(client):
     assert "Register" in r.text or "register" in r.text
 
 
-def test_dashboard(client):
-    r = client.get("/")
-    assert r.status_code == 200
-    assert "Dashboard" in r.text
+def test_dashboard_redirects(client):
+    """Root `/` redirects: superuser -> /admin/, client user -> /clients/{id},
+    orphaned user -> /login. The test fixture user has no client, so they land
+    on /login."""
+    r = client.get("/", follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers.get("location") in ("/login", "/admin/")
 
 
 def test_review_page(client):
@@ -56,15 +59,15 @@ def test_guide_page(client):
 
 
 def test_client_new_page(client):
+    """Non-superuser gets 403 on client creation (admin-only)."""
     r = client.get("/clients/new")
-    assert r.status_code == 200
-    assert "New Client" in r.text
+    assert r.status_code == 403
 
 
 def test_client_new_submit(client):
+    """Non-superuser gets 403 on client creation POST (admin-only)."""
     r = client.post("/clients/new", data={"client_name": "UI Test", "brand_name": "UIB"}, follow_redirects=False)
-    assert r.status_code == 303
-    assert "/clients/" in r.headers.get("location", "")
+    assert r.status_code == 403
 
 
 def test_avatar_new_page(client):

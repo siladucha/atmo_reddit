@@ -2,7 +2,7 @@
 
 
 def test_admin_stats(client):
-    r = client.get("/admin/stats")
+    r = client.get("/api/admin/stats")
     assert r.status_code == 200
     data = r.json()
     assert "clients" in data
@@ -13,6 +13,6 @@ def test_admin_stats(client):
 
 
 def test_admin_ai_usage(client):
-    r = client.get("/admin/ai-usage")
+    r = client.get("/api/admin/ai-usage")
     assert r.status_code == 200
     assert isinstance(r.json(), list)

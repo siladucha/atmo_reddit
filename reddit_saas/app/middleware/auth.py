@@ -52,4 +52,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         request.state.user_id = payload.get("sub")
         request.state.user_email = payload.get("email")
 
+        logger.debug(
+            "AUTH_REQUEST | method=%s | path=%s | user=%s",
+            request.method, path, payload.get("email"),
+        )
+
         return await call_next(request)

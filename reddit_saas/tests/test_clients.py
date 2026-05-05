@@ -51,11 +51,17 @@ def test_deactivate_client(client):
 
 
 def test_add_subreddit(client):
+    import uuid as _uuid
+
     r = client.post("/clients-api/", json={"client_name": "Sub", "brand_name": "Sub"})
     cid = r.json()["id"]
-    r = client.post(f"/clients-api/{cid}/subreddits", json={"subreddit_name": "cybersecurity"})
+    # Subreddit names are globally unique per active monitor, so use a fresh
+    # name for each run rather than something like "cybersecurity" that may
+    # already be in the dev DB.
+    name = f"test_{_uuid.uuid4().hex[:10]}"
+    r = client.post(f"/clients-api/{cid}/subreddits", json={"subreddit_name": name})
     assert r.status_code == 200
-    assert r.json()["subreddit_name"] == "cybersecurity"
+    assert r.json()["subreddit_name"] == name
 
 
 def test_client_not_found(client):

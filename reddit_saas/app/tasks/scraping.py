@@ -1,14 +1,18 @@
 """Celery tasks for Reddit scraping."""
 
 import logging
+import time
+import uuid
 from datetime import datetime, timezone
 
 from app.tasks.worker import celery_app
 from app.database import SessionLocal
 from app.models.client import Client
+from app.models.scrape_log import ScrapeLog
 from app.models.subreddit import ClientSubreddit
 from app.models.thread import RedditThread
 from app.services.reddit import scrape_subreddit, deduplicate_posts
+from app.services.transparency import record_activity_event
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +46,14 @@ def scrape_professional_subreddits(client_id: str):
         )
 
         total_new = 0
+        client_uuid = uuid.UUID(client_id)
         for sub in subreddits:
             try:
+                start = time.time()
                 posts = scrape_subreddit(sub.subreddit_name, limit=50, max_age_hours=24)
                 new_posts = deduplicate_posts(posts, existing_ids)
+                end = time.time()
+                duration_ms = int((end - start) * 1000)
 
                 for post in new_posts:
                     thread = RedditThread(
@@ -70,8 +78,60 @@ def scrape_professional_subreddits(client_id: str):
                 total_new += len(new_posts)
                 logger.info(f"r/{sub.subreddit_name}: {len(new_posts)} new posts")
 
+                # Record transparency data (never crash the pipeline)
+                try:
+                    scrape_log = ScrapeLog(
+                        client_id=client_uuid,
+                        subreddit_name=sub.subreddit_name,
+                        posts_found=len(posts),
+                        posts_new=len(new_posts),
+                        duration_ms=duration_ms,
+                        errors=None,
+                    )
+                    db.add(scrape_log)
+                    sub.last_scraped_at = datetime.now(timezone.utc)
+                    db.commit()
+
+                    message = f"Scraped {len(posts)} posts from r/{sub.subreddit_name} ({len(new_posts)} new)"
+                    metadata = {
+                        "subreddit_name": sub.subreddit_name,
+                        "posts_found": len(posts),
+                        "posts_new": len(new_posts),
+                        "duration_ms": duration_ms,
+                    }
+                    record_activity_event(db, "scrape", message, client_uuid, metadata)
+                except Exception as te:
+                    logger.warning(f"Failed to record transparency for r/{sub.subreddit_name}: {te}")
+
             except Exception as e:
                 logger.error(f"Failed to scrape r/{sub.subreddit_name}: {e}")
+                # Record error transparency data (never crash the pipeline).
+                # Stamp last_scraped_at so admin UI reflects the attempt; the error
+                # itself is preserved in scrape_log.errors and activity_events.
+                try:
+                    db.rollback()
+                    sub.last_scraped_at = datetime.now(timezone.utc)
+                    error_log = ScrapeLog(
+                        client_id=client_uuid,
+                        subreddit_name=sub.subreddit_name,
+                        posts_found=0,
+                        posts_new=0,
+                        duration_ms=0,
+                        errors=str(e),
+                    )
+                    db.add(error_log)
+                    db.commit()
+
+                    record_activity_event(
+                        db,
+                        "system",
+                        f"Scrape failed for r/{sub.subreddit_name}: {e}",
+                        client_uuid,
+                        {"subreddit_name": sub.subreddit_name, "error": str(e)},
+                    )
+                except Exception as te:
+                    logger.warning(f"Failed to record error transparency for r/{sub.subreddit_name}: {te}")
+                    db.rollback()
                 continue
 
         logger.info(f"Scraping complete for {client.client_name}: {total_new} new posts total")
@@ -94,19 +154,31 @@ def scrape_hobby_subreddits(avatar_id: str):
             logger.error(f"Avatar {avatar_id} not found")
             return
 
-        hobby_subs = avatar.hobby_subreddits or []
-        if isinstance(hobby_subs, str):
-            hobby_subs = [s.strip() for s in hobby_subs.split(",")]
+        hobby_subs_raw = avatar.hobby_subreddits or []
+        if isinstance(hobby_subs_raw, str):
+            hobby_subs_raw = [s.strip() for s in hobby_subs_raw.split(",")]
+
+        # Normalize: handle both list of strings and list of dicts (Ori format)
+        hobby_sub_names = []
+        for item in hobby_subs_raw:
+            if isinstance(item, dict):
+                name = item.get("subreddit") or item.get("name") or item.get("display_name") or ""
+            else:
+                name = str(item)
+            name = name.strip().replace("r/", "")
+            if name:
+                hobby_sub_names.append(name)
 
         total_new = 0
-        for sub_name in hobby_subs:
-            sub_name = sub_name.strip().replace("r/", "")
+        for sub_name in hobby_sub_names:
             if not sub_name:
                 continue
 
             try:
+                start = time.time()
                 posts = scrape_subreddit(sub_name, limit=20, max_age_hours=24, sort="hot")
 
+                total_new_for_sub = 0
                 for post in posts:
                     # Check if already exists
                     exists = (
@@ -131,12 +203,39 @@ def scrape_hobby_subreddits(avatar_id: str):
                         status="new",
                     )
                     db.add(hobby)
-                    total_new += 1
+                    total_new_for_sub += 1
 
                 db.commit()
+                total_new += total_new_for_sub
+                end = time.time()
+                duration_ms = int((end - start) * 1000)
+
+                # Record activity event (no ScrapeLog — hobby scrapes have no client_id)
+                try:
+                    message = f"Scraped hobby r/{sub_name}: {total_new_for_sub} new posts for {avatar.reddit_username}"
+                    metadata = {
+                        "subreddit_name": sub_name,
+                        "posts_new": total_new_for_sub,
+                        "duration_ms": duration_ms,
+                        "avatar_username": avatar.reddit_username,
+                    }
+                    record_activity_event(db, "scrape", message, client_id=None, metadata=metadata)
+                except Exception as te:
+                    logger.warning(f"Failed to record transparency for hobby r/{sub_name}: {te}")
 
             except Exception as e:
                 logger.error(f"Failed to scrape hobby r/{sub_name}: {e}")
+                # Record error activity event (never crash the pipeline)
+                try:
+                    record_activity_event(
+                        db,
+                        "system",
+                        f"Hobby scrape failed for r/{sub_name}: {e}",
+                        client_id=None,
+                        metadata={"subreddit_name": sub_name, "error": str(e), "avatar_username": avatar.reddit_username},
+                    )
+                except Exception as te:
+                    logger.warning(f"Failed to record error transparency for hobby r/{sub_name}: {te}")
                 continue
 
         logger.info(f"Hobby scraping for {avatar.reddit_username}: {total_new} new posts")

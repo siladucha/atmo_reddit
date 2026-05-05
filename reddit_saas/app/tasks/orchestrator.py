@@ -15,28 +15,30 @@ logger = logging.getLogger(__name__)
 
 @celery_app.task(name="run_full_pipeline_all_clients")
 def run_full_pipeline_all_clients():
-    """Run scrape → score → generate for all active clients."""
-    from app.tasks.scraping import scrape_professional_subreddits
+    """Run score → generate for all active clients.
+
+    Scraping is handled separately by the queue_tick task (continuous,
+    priority-based). This task only processes already-scraped threads.
+    """
     from app.tasks.ai_pipeline import score_threads, generate_comments
 
     db = SessionLocal()
     try:
         clients = db.query(Client).filter(Client.is_active.is_(True)).all()
-        logger.info(f"Running full pipeline for {len(clients)} active clients")
+        logger.info(f"Running AI pipeline (score+generate) for {len(clients)} active clients")
 
         for client in clients:
             cid = str(client.id)
             try:
-                # Chain: scrape → score → generate
+                # Chain: score → generate (scraping removed — handled by queue_tick)
                 chain = (
-                    scrape_professional_subreddits.si(cid)
-                    | score_threads.si(cid)
+                    score_threads.si(cid)
                     | generate_comments.si(cid)
                 )
                 chain.apply_async()
-                logger.info(f"Pipeline queued for {client.client_name}")
+                logger.info(f"AI pipeline queued for {client.client_name}")
             except Exception as e:
-                logger.error(f"Failed to queue pipeline for {client.client_name}: {e}")
+                logger.error(f"Failed to queue AI pipeline for {client.client_name}: {e}")
 
     finally:
         db.close()
