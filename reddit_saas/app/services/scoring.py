@@ -8,13 +8,12 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
+from app.config import get_config
 from app.models.client import Client
 from app.models.thread import RedditThread
 from app.services.ai import call_llm_json, log_ai_usage
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
 
 SCORING_PROMPT = """You are a content analyst expert and online discussions thread Classifier.
 
@@ -105,18 +104,12 @@ Return JSON only:
 }}"""
 
 
-def score_thread(db: Session, thread: RedditThread, client: Client) -> dict:
-    """Score a single thread using AI.
+def build_scoring_messages(thread: RedditThread, client: Client) -> list[dict]:
+    """Render the full system+user message pair for thread scoring.
 
-    Args:
-        db: Database session
-        thread: The thread to score
-        client: The client context for scoring
-
-    Returns:
-        Scoring result dict
+    Pure function: no LLM call, no DB writes. Used by both the live pipeline
+    (score_thread) and the dry-run preview UI.
     """
-    # Build the thread content for the prompt
     thread_content = f"""<subreddit>
 r/{thread.subreddit}
 </subreddit>
@@ -138,23 +131,17 @@ Comments: {thread.comments_json or '(no comments)'}
         keywords=str(client.keywords or []),
     )
 
-    messages = [
+    return [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": thread_content},
     ]
 
-    result = call_llm_json(
-        messages=messages,
-        model=settings.litellm_scoring_model,
-        temperature=0.2,
-        max_tokens=256,
-    )
 
-    # Log AI usage
-    log_ai_usage(db, str(client.id), "scoring", result)
+def apply_scoring_result(db: Session, thread: RedditThread, data: dict) -> None:
+    """Apply parsed scoring JSON to a thread and commit.
 
-    # Update thread with scores
-    data = result["data"]
+    Used by both live scoring and dry-run paste-back.
+    """
     thread.tag = data.get("tag", "skip")
     thread.alert = data.get("alert", False)
     thread.relevance = data.get("relevance", 0)
@@ -163,8 +150,33 @@ Comments: {thread.comments_json or '(no comments)'}
     thread.composite = data.get("composite", 0)
     thread.intent = data.get("intent", "other")
     thread.scoring_reasoning = data.get("reason", "")
-
     db.commit()
+
+
+def score_thread(db: Session, thread: RedditThread, client: Client) -> dict:
+    """Score a single thread using AI.
+
+    Args:
+        db: Database session
+        thread: The thread to score
+        client: The client context for scoring
+
+    Returns:
+        Scoring result dict
+    """
+    messages = build_scoring_messages(thread, client)
+
+    result = call_llm_json(
+        messages=messages,
+        model=get_config("llm_scoring_model"),
+        temperature=0.2,
+        max_tokens=256,
+    )
+
+    log_ai_usage(db, str(client.id), "scoring", result)
+
+    data = result["data"]
+    apply_scoring_result(db, thread, data)
 
     logger.info(
         f"Scored thread '{thread.post_title[:50]}' → "

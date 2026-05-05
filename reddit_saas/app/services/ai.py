@@ -11,11 +11,10 @@ from decimal import Decimal
 import litellm
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
+from app.config import get_config
 from app.models.ai_usage import AIUsageLog
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
 
 # Disable LiteLLM's verbose logging
 litellm.set_verbose = False
@@ -25,6 +24,8 @@ MODEL_COSTS = {
     "anthropic/claude-sonnet-4-20250514": {"input": 3.00, "output": 15.00},
     "anthropic/claude-3-5-haiku-20241022": {"input": 0.80, "output": 4.00},
     "gemini/gemini-2.0-flash": {"input": 0.075, "output": 0.30},
+    "gemini/gemini-2.5-flash-lite": {"input": 0.0, "output": 0.0},  # Free tier
+    "gemini/gemini-2.5-flash": {"input": 0.15, "output": 0.60},
     # Bedrock variants
     "bedrock/anthropic.claude-sonnet-4-20250514-v1:0": {"input": 3.00, "output": 15.00},
     "bedrock/anthropic.claude-3-5-haiku-20241022-v1:0": {"input": 0.80, "output": 4.00},
@@ -50,19 +51,49 @@ def call_llm(
     Returns:
         Dict with keys: content, input_tokens, output_tokens, cost_usd, duration_ms, model
     """
-    model = model or settings.litellm_generation_model
+    model = model or get_config("llm_generation_model")
     start = time.time()
 
+    # Route API key based on model provider
+    api_key = _resolve_api_key(model)
     kwargs = {
         "model": model,
         "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
+    if api_key:
+        kwargs["api_key"] = api_key
     if response_format:
         kwargs["response_format"] = response_format
 
-    response = litellm.completion(**kwargs)
+    # Log the outgoing LLM request
+    total_prompt_chars = sum(len(m.get("content", "")) for m in messages)
+    logger.info(
+        "LLM_CALL | model=%s | temperature=%.2f | max_tokens=%d | "
+        "messages_count=%d | prompt_chars=%d | response_format=%s",
+        model, temperature, max_tokens, len(messages),
+        total_prompt_chars, "json" if response_format else "text",
+    )
+
+    # Call with automatic fallback: if primary model fails (rate limit, auth),
+    # fall back to generation model (Anthropic Sonnet)
+    try:
+        response = litellm.completion(**kwargs)
+    except (litellm.exceptions.RateLimitError, litellm.exceptions.AuthenticationError) as e:
+        fallback_model = get_config("llm_generation_model")
+        if model != fallback_model:
+            logger.warning(
+                "LLM_FALLBACK | model=%s failed (%s), falling back to %s",
+                model, type(e).__name__, fallback_model,
+            )
+            kwargs["model"] = fallback_model
+            kwargs["api_key"] = _resolve_api_key(fallback_model)
+            model = fallback_model
+            start = time.time()  # reset timer
+            response = litellm.completion(**kwargs)
+        else:
+            raise
 
     duration_ms = int((time.time() - start) * 1000)
     content = response.choices[0].message.content
@@ -74,6 +105,18 @@ def call_llm(
 
     # Calculate cost
     cost_usd = _calculate_cost(model, input_tokens, output_tokens)
+
+    # Log the response
+    logger.info(
+        "LLM_RESULT | model=%s | input_tokens=%d | output_tokens=%d | "
+        "cost_usd=%.6f | duration_ms=%d | response_chars=%d",
+        model, input_tokens, output_tokens, cost_usd, duration_ms,
+        len(content) if content else 0,
+    )
+    logger.debug(
+        "LLM_RESPONSE_BODY | model=%s | content=%s",
+        model, (content[:500] + "...") if content and len(content) > 500 else content,
+    )
 
     return {
         "content": content,
@@ -144,6 +187,38 @@ def log_ai_usage(
     )
     db.add(log)
     db.commit()
+
+
+def _resolve_api_key(model: str) -> str | None:
+    """Route API key based on model provider.
+
+    Ori's workflow used different providers per step:
+    - Gemini Flash for scoring/classification (cheap, fast)
+    - Claude Opus/Sonnet for generation (quality)
+    - GPT for fallback
+
+    We mirror this by resolving the correct key per provider prefix.
+    """
+    if model.startswith("gemini/"):
+        return get_config("gemini_api_key")
+    elif model.startswith("anthropic/"):
+        return get_config("llm_api_key")
+    elif model.startswith("bedrock/"):
+        return None  # Uses AWS credentials from env
+    elif model.startswith("openai/") or model.startswith("gpt"):
+        return get_config("openai_api_key") if _setting_exists("openai_api_key") else None
+    else:
+        # Fallback: try the main llm_api_key
+        return get_config("llm_api_key")
+
+
+def _setting_exists(key: str) -> bool:
+    """Check if a setting exists and is non-empty."""
+    try:
+        val = get_config(key)
+        return bool(val and val.strip())
+    except Exception:
+        return False
 
 
 def _calculate_cost(model: str, input_tokens: int, output_tokens: int) -> float:

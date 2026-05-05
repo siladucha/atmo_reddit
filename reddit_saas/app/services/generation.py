@@ -9,7 +9,7 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
+from app.config import get_config
 from app.models.client import Client
 from app.models.thread import RedditThread
 from app.models.avatar import Avatar
@@ -17,7 +17,6 @@ from app.models.comment_draft import CommentDraft
 from app.services.ai import call_llm, call_llm_json, log_ai_usage
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
 
 
 # --- Persona Selection ---
@@ -98,7 +97,7 @@ Alert: {thread.alert}
 
     result = call_llm_json(
         messages=messages,
-        model=settings.litellm_generation_model,
+        model=get_config("llm_generation_model"),
         temperature=0.4,
         max_tokens=512,
     )
@@ -204,7 +203,7 @@ def generate_comment(
 
     result = call_llm_json(
         messages=messages,
-        model=settings.litellm_generation_model,
+        model=get_config("llm_generation_model"),
         temperature=0.7,
         max_tokens=512,
     )
@@ -292,11 +291,15 @@ def edit_comment(
                 post_body=(thread.post_body or "")[:1000],
             ),
         },
+        {
+            "role": "user",
+            "content": f"Edit this comment:\n\n{draft.ai_draft}",
+        },
     ]
 
     result = call_llm(
         messages=messages,
-        model=settings.litellm_generation_model,
+        model=get_config("llm_generation_model"),
         temperature=0.3,
         max_tokens=256,
     )

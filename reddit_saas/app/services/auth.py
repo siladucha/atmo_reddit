@@ -1,14 +1,18 @@
 from datetime import datetime, timedelta, timezone
+import logging
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
+from app.config import get_config
 from app.models.user import User
 
-settings = get_settings()
+logger = logging.getLogger(__name__)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Algorithm is a fixed constant, not a user-configurable setting
+_JWT_ALGORITHM = "HS256"
 
 
 def hash_password(password: str) -> str:
@@ -21,14 +25,15 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=settings.access_token_expire_minutes))
+    expire_minutes = int(get_config("access_token_expire_minutes"))
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=expire_minutes))
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
+    return jwt.encode(to_encode, get_config("secret_key"), algorithm=_JWT_ALGORITHM)
 
 
 def decode_access_token(token: str) -> dict | None:
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        payload = jwt.decode(token, get_config("secret_key"), algorithms=[_JWT_ALGORITHM])
         return payload
     except JWTError:
         return None
@@ -53,5 +58,7 @@ def create_user(db: Session, email: str, password: str, full_name: str | None = 
 def authenticate_user(db: Session, email: str, password: str) -> User | None:
     user = get_user_by_email(db, email)
     if not user or not verify_password(password, user.hashed_password):
+        logger.warning("AUTH_FAILED | email=%s | reason=%s", email, "user_not_found" if not user else "bad_password")
         return None
+    logger.info("AUTH_SUCCESS | email=%s | user_id=%s | is_superuser=%s", email, user.id, user.is_superuser)
     return user

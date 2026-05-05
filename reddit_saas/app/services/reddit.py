@@ -1,28 +1,58 @@
 """Reddit API service using PRAW.
 
 Handles subreddit scraping, comment tree flattening, and deduplication.
+Full logging of all Reddit API interactions for audit trail.
 """
 
 import json
 import logging
+import time
 from datetime import datetime, timezone, timedelta
 
 import praw
 from praw.models import Submission
+from prawcore.exceptions import (
+    NotFound, Forbidden, TooManyRequests,
+    RequestException, ResponseException, ServerError,
+)
 
-from app.config import get_settings
+from app.config import get_config
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
 
 
 def get_reddit_client() -> praw.Reddit:
     """Create a read-only Reddit client."""
-    return praw.Reddit(
-        client_id=settings.reddit_client_id,
-        client_secret=settings.reddit_client_secret,
-        user_agent=settings.reddit_user_agent,
+    client_id = get_config("reddit_client_id")
+    client_secret = get_config("reddit_client_secret")
+    user_agent = get_config("reddit_user_agent")
+    client = praw.Reddit(
+        client_id=client_id,
+        client_secret=client_secret,
+        user_agent=user_agent,
     )
+    logger.debug(
+        "Reddit client created | user_agent=%s | read_only=%s",
+        user_agent, client.read_only,
+    )
+    return client
+
+
+def _log_rate_limit(reddit: praw.Reddit) -> None:
+    """Log Reddit API rate limit status from the auth object."""
+    try:
+        auth = reddit._core._authorizer
+        if hasattr(auth, "_rate_limiter"):
+            rl = auth._rate_limiter
+            remaining = getattr(rl, "remaining", "?")
+            reset_ts = getattr(rl, "reset_timestamp", "?")
+            used = getattr(rl, "used", "?")
+            logger.info(
+                "Reddit rate limit status | remaining=%s | used=%s | reset_ts=%s",
+                remaining, used, reset_ts,
+            )
+    except Exception:
+        pass  # Rate limit info not critical
 
 
 def scrape_subreddit(
@@ -42,36 +72,95 @@ def scrape_subreddit(
     Returns:
         List of post dicts with standardized keys.
     """
+    logger.info(
+        "REDDIT_API_CALL | action=scrape_subreddit | subreddit=r/%s | sort=%s | limit=%d | max_age_hours=%d",
+        subreddit_name, sort, limit, max_age_hours,
+    )
+    start_time = time.time()
+
     reddit = get_reddit_client()
     subreddit = reddit.subreddit(subreddit_name)
 
     cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
 
-    if sort == "hot":
-        submissions = subreddit.hot(limit=limit)
-    elif sort == "new":
-        submissions = subreddit.new(limit=limit)
-    elif sort == "top":
-        submissions = subreddit.top(limit=limit, time_filter="day")
-    else:
-        submissions = subreddit.hot(limit=limit)
+    try:
+        if sort == "hot":
+            submissions = subreddit.hot(limit=limit)
+        elif sort == "new":
+            submissions = subreddit.new(limit=limit)
+        elif sort == "top":
+            submissions = subreddit.top(limit=limit, time_filter="day")
+        else:
+            submissions = subreddit.hot(limit=limit)
 
-    posts = []
-    for submission in submissions:
-        # Skip stickied posts
-        if submission.stickied:
-            continue
+        posts = []
+        skipped_stickied = 0
+        skipped_old = 0
+        api_calls_estimate = 1  # Initial listing request
 
-        # Skip posts older than cutoff
-        created_utc = datetime.fromtimestamp(submission.created_utc, tz=timezone.utc)
-        if created_utc < cutoff:
-            continue
+        for submission in submissions:
+            # Skip stickied posts
+            if submission.stickied:
+                skipped_stickied += 1
+                continue
 
-        post = _submission_to_dict(submission)
-        posts.append(post)
+            # Skip posts older than cutoff
+            created_utc = datetime.fromtimestamp(submission.created_utc, tz=timezone.utc)
+            if created_utc < cutoff:
+                skipped_old += 1
+                continue
 
-    logger.info(f"Scraped {len(posts)} posts from r/{subreddit_name} ({sort}, last {max_age_hours}h)")
-    return posts
+            post = _submission_to_dict(submission)
+            api_calls_estimate += 1  # Each submission's comments = 1 API call
+            posts.append(post)
+
+        duration_ms = int((time.time() - start_time) * 1000)
+        _log_rate_limit(reddit)
+
+        logger.info(
+            "REDDIT_API_RESULT | action=scrape_subreddit | subreddit=r/%s | "
+            "posts_returned=%d | skipped_stickied=%d | skipped_old=%d | "
+            "est_api_calls=%d | duration_ms=%d",
+            subreddit_name, len(posts), skipped_stickied, skipped_old,
+            api_calls_estimate, duration_ms,
+        )
+        return posts
+
+    except TooManyRequests as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            "REDDIT_API_ERROR | action=scrape_subreddit | subreddit=r/%s | "
+            "error=RATE_LIMITED | duration_ms=%d | details=%s",
+            subreddit_name, duration_ms, str(e),
+        )
+        raise
+
+    except (NotFound, Forbidden) as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            "REDDIT_API_ERROR | action=scrape_subreddit | subreddit=r/%s | "
+            "error=%s | duration_ms=%d | details=%s",
+            subreddit_name, type(e).__name__, duration_ms, str(e),
+        )
+        raise
+
+    except (RequestException, ResponseException, ServerError) as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            "REDDIT_API_ERROR | action=scrape_subreddit | subreddit=r/%s | "
+            "error=%s | duration_ms=%d | details=%s",
+            subreddit_name, type(e).__name__, duration_ms, str(e),
+        )
+        raise
+
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.exception(
+            "REDDIT_API_ERROR | action=scrape_subreddit | subreddit=r/%s | "
+            "error=UNEXPECTED | duration_ms=%d",
+            subreddit_name, duration_ms,
+        )
+        raise
 
 
 def fetch_comments(submission_id: str, max_comments: int = 100) -> list[dict]:
@@ -84,16 +173,30 @@ def fetch_comments(submission_id: str, max_comments: int = 100) -> list[dict]:
     Returns:
         Flat list of comment dicts with depth info.
     """
+    logger.info(
+        "REDDIT_API_CALL | action=fetch_comments | submission_id=%s | max_comments=%d",
+        submission_id, max_comments,
+    )
+    start_time = time.time()
+
     reddit = get_reddit_client()
     submission = reddit.submission(id=submission_id)
 
     # Replace "more comments" placeholders (limit to avoid too many API calls)
-    submission.comments.replace_more(limit=3)
+    replace_more_count = 3
+    submission.comments.replace_more(limit=replace_more_count)
 
     comments = []
     _flatten_comments(submission.comments.list(), comments, max_comments)
 
-    logger.info(f"Fetched {len(comments)} comments for submission {submission_id}")
+    duration_ms = int((time.time() - start_time) * 1000)
+    _log_rate_limit(reddit)
+
+    logger.info(
+        "REDDIT_API_RESULT | action=fetch_comments | submission_id=%s | "
+        "comments_fetched=%d | replace_more_limit=%d | duration_ms=%d",
+        submission_id, len(comments), replace_more_count, duration_ms,
+    )
     return comments
 
 
@@ -143,6 +246,13 @@ def _submission_to_dict(submission: Submission) -> dict:
                 post_image = images[0]["source"]["url"]
         except (KeyError, IndexError):
             pass
+
+    logger.debug(
+        "REDDIT_DATA | action=submission_to_dict | id=%s | subreddit=r/%s | "
+        "title=%s | score=%d | num_comments=%d | comments_loaded=%d",
+        submission.id, submission.subreddit.display_name,
+        submission.title[:80], submission.score, submission.num_comments, len(comments),
+    )
 
     return {
         "reddit_native_id": submission.id,
@@ -203,5 +313,8 @@ def deduplicate_posts(posts: list[dict], existing_ids: set[str]) -> list[dict]:
         seen.add(native_id)
         new_posts.append(post)
 
-    logger.info(f"Dedup: {len(posts)} → {len(new_posts)} new posts")
+    logger.info(
+        "REDDIT_DEDUP | total_scraped=%d | already_in_db=%d | new_posts=%d",
+        len(posts), len(posts) - len(new_posts), len(new_posts),
+    )
     return new_posts
