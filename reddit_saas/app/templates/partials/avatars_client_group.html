@@ -1,0 +1,43 @@
+{# One client section, collapsible. Expects: g (dict from _build_results_context). #}
+<details class="bg-white border rounded-lg shadow-sm group" open>
+    <summary class="cursor-pointer list-none p-4 flex flex-wrap items-center gap-3 hover:bg-gray-50 rounded-t-lg">
+        <span class="text-gray-400 text-xs transition-transform group-open:rotate-90 inline-block w-3">▶</span>
+
+        <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+                {% if g.client_id %}
+                <a href="/clients/{{ g.client_id }}" class="font-semibold text-gray-800 hover:text-blue-600" onclick="event.stopPropagation()">
+                    {{ g.title }}
+                </a>
+                {% else %}
+                <span class="font-semibold text-gray-500">{{ g.title }}</span>
+                {% endif %}
+
+                {% if g.brand %}
+                <span class="text-xs text-gray-500">· {{ g.brand }}</span>
+                {% endif %}
+
+                <span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{{ g.counts.total }} avatar{% if g.counts.total != 1 %}s{% endif %}</span>
+            </div>
+        </div>
+
+        {# Status mini-bar #}
+        <div class="flex items-center gap-1 text-[11px]">
+            {% if g.counts.active %}<span class="bg-green-100 text-green-700 px-1.5 py-0.5 rounded" title="Active">✓ {{ g.counts.active }}</span>{% endif %}
+            {% if g.counts.suspended %}<span class="bg-red-100 text-red-700 px-1.5 py-0.5 rounded" title="Suspended">⚠ {{ g.counts.suspended }}</span>{% endif %}
+            {% if g.counts.not_found %}<span class="bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded" title="Not Found">✗ {{ g.counts.not_found }}</span>{% endif %}
+            {% if g.counts.unknown %}<span class="bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded" title="Unknown">? {{ g.counts.unknown }}</span>{% endif %}
+            {% if g.counts.stale %}<span class="bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded" title="Stale (&gt;24h)">stale {{ g.counts.stale }}</span>{% endif %}
+        </div>
+    </summary>
+
+    <div class="p-4 pt-0 border-t">
+        {% if f.view == "table" %}
+        {% with avatars = g.avatars %}{% include "partials/avatars_table.html" %}{% endwith %}
+        {% else %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+            {% for a in g.avatars %}{% include "partials/avatar_card.html" %}{% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</details>

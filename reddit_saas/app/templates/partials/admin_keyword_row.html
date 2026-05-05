@@ -1,0 +1,25 @@
+<tr class="border-b border-slate-700 hover:bg-slate-700/30">
+    <td class="px-4 py-3 text-gray-500 font-mono text-xs">{{ index }}</td>
+    <td class="px-4 py-3 text-gray-300">{{ keyword.name }}</td>
+    <td class="px-4 py-3">
+        <span class="px-2 py-0.5 rounded text-xs font-medium
+              {% if keyword.priority == 'HIGH' %}bg-red-900/50 text-red-400 border border-red-700
+              {% elif keyword.priority == 'MEDIUM' %}bg-amber-900/50 text-amber-400 border border-amber-700
+              {% else %}bg-emerald-900/50 text-emerald-400 border border-emerald-700{% endif %}">
+            {{ keyword.priority }}
+        </span>
+    </td>
+    <td class="px-4 py-3 flex gap-2">
+        <form method="post" action="/admin/keywords/{{ client_id }}/{{ index }}/update" class="inline flex gap-1">
+            <select name="priority" class="bg-slate-night border border-slate-600 text-white rounded px-2 py-1 text-xs">
+                <option value="HIGH" {% if keyword.priority == 'HIGH' %}selected{% endif %}>HIGH</option>
+                <option value="MEDIUM" {% if keyword.priority == 'MEDIUM' %}selected{% endif %}>MEDIUM</option>
+                <option value="LOW" {% if keyword.priority == 'LOW' %}selected{% endif %}>LOW</option>
+            </select>
+            <button type="submit" class="text-indigo-400 hover:text-indigo-300 text-xs">Update</button>
+        </form>
+        <form method="post" action="/admin/keywords/{{ client_id }}/{{ index }}/remove" class="inline">
+            <button type="submit" class="text-red-400 hover:text-red-300 text-xs">Remove</button>
+        </form>
+    </td>
+</tr>

@@ -10,6 +10,7 @@ from app.database import get_db
 from app.models.client import Client
 from app.models.avatar import Avatar
 from app.models.subreddit import ClientSubreddit
+from app.services import admin as admin_service
 
 router = APIRouter()
 
@@ -131,34 +132,22 @@ def deactivate_client(client_id: UUID, db: Session = Depends(get_db)):
 
 @router.post("/{client_id}/subreddits")
 def add_subreddit(client_id: UUID, data: SubredditAdd, db: Session = Depends(get_db)):
-    """Add a subreddit to monitor for a client."""
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
+    """Add a subreddit to monitor for a client.
 
-    # Check if already exists
-    existing = (
-        db.query(ClientSubreddit)
-        .filter(
-            ClientSubreddit.client_id == client_id,
-            ClientSubreddit.subreddit_name == data.subreddit_name,
+    Validates the name and enforces global uniqueness across all clients via
+    ``admin_service.add_subreddit``.
+    """
+    valid, err = admin_service.validate_subreddit_name(data.subreddit_name)
+    if not valid:
+        raise HTTPException(status_code=400, detail=err)
+    try:
+        return admin_service.add_subreddit(
+            db, client_id, data.subreddit_name, data.type, current_user_id=None
         )
-        .first()
-    )
-    if existing:
-        existing.is_active = True
-        db.commit()
-        return existing
-
-    sub = ClientSubreddit(
-        client_id=client_id,
-        subreddit_name=data.subreddit_name,
-        type=data.type,
-    )
-    db.add(sub)
-    db.commit()
-    db.refresh(sub)
-    return sub
+    except ValueError as e:
+        msg = str(e)
+        status = 404 if "Client not found" in msg else 409
+        raise HTTPException(status_code=status, detail=msg)
 
 
 @router.delete("/{client_id}/subreddits/{subreddit_id}")

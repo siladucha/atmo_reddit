@@ -1,0 +1,100 @@
+<!-- Scrape Queue Status Cards Partial -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <!-- Queue Depth -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
+        <div class="flex items-center justify-between">
+            <span class="text-sm text-gray-400">Queue Depth</span>
+            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z"/>
+            </svg>
+        </div>
+        <p class="text-2xl font-semibold text-white mt-2">{{ status.queue_depth }}</p>
+        <p class="text-xs text-gray-500 mt-1">total active subreddits</p>
+    </div>
+
+    <!-- Stale Count -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
+        <div class="flex items-center justify-between">
+            <span class="text-sm text-gray-400">Stale</span>
+            {% if status.stale_count > 0 %}
+            <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+            {% else %}
+            <span class="w-2 h-2 rounded-full bg-green-400"></span>
+            {% endif %}
+        </div>
+        <p class="text-2xl font-semibold {% if status.stale_count > 0 %}text-amber-400{% else %}text-green-400{% endif %} mt-2">
+            {{ status.stale_count }}
+        </p>
+        <p class="text-xs text-gray-500 mt-1">
+            {% if status.all_fresh %}all subreddits are fresh{% else %}need scraping{% endif %}
+        </p>
+    </div>
+
+    <!-- Processing Speed -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
+        <div class="flex items-center justify-between">
+            <span class="text-sm text-gray-400">Speed</span>
+            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/>
+            </svg>
+        </div>
+        <p class="text-2xl font-semibold text-white mt-2">{{ status.processing_speed }}</p>
+        <p class="text-xs text-gray-500 mt-1">req/min (last 5 min)</p>
+    </div>
+
+    <!-- ETA -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
+        <div class="flex items-center justify-between">
+            <span class="text-sm text-gray-400">ETA to Fresh</span>
+            <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+        </div>
+        <p class="text-2xl font-semibold text-white mt-2">
+            {% if status.eta_minutes is none %}
+                N/A
+            {% elif status.eta_minutes == 0 %}
+                —
+            {% else %}
+                {{ status.eta_minutes }} min
+            {% endif %}
+        </p>
+        <p class="text-xs text-gray-500 mt-1">estimated time to empty</p>
+    </div>
+</div>
+
+<!-- Rate Limiter Bar -->
+<div class="mt-4 bg-dark-steel rounded-lg border border-slate-700 p-4">
+    <div class="flex items-center justify-between mb-2">
+        <span class="text-sm text-gray-400">Rate Limiter Utilization</span>
+        <span class="text-sm font-mono text-gray-300">
+            {{ status.rate_limiter.current_count }}/{{ status.rate_limiter.effective_limit }} rpm
+            {% if status.rate_limiter.in_backoff %}
+            <span class="ml-2 px-2 py-0.5 text-xs bg-amber-900 text-amber-300 rounded">BACKOFF</span>
+            {% endif %}
+        </span>
+    </div>
+    <div class="w-full bg-slate-700 rounded-full h-2.5">
+        <div class="h-2.5 rounded-full transition-all duration-500
+                    {% if status.rate_limiter.utilization_pct > 80 %}bg-red-500
+                    {% elif status.rate_limiter.utilization_pct > 50 %}bg-amber-500
+                    {% else %}bg-green-500{% endif %}"
+             style="width: {{ status.rate_limiter.utilization_pct }}%"></div>
+    </div>
+    <p class="text-xs text-gray-500 mt-1">{{ status.rate_limiter.utilization_pct }}% utilized</p>
+</div>
+
+<!-- Currently Processing -->
+{% if status.currently_processing %}
+<div class="mt-4 bg-dark-steel rounded-lg border border-slate-700 p-4">
+    <span class="text-sm text-gray-400">Currently Processing:</span>
+    <div class="flex flex-wrap gap-2 mt-2">
+        {% for sub in status.currently_processing %}
+        <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-900/50 border border-indigo-700 rounded text-xs text-indigo-300">
+            <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
+            r/{{ sub }}
+        </span>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}

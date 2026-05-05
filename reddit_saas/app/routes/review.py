@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -8,6 +9,9 @@ from pydantic import BaseModel
 from app.database import get_db
 from app.models.comment_draft import CommentDraft
 from app.models.post_draft import PostDraft
+from app.services.transparency import record_activity_event
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -53,6 +57,45 @@ def update_comment(comment_id: UUID, data: UpdateCommentRequest, db: Session = D
 
     db.commit()
     db.refresh(comment)
+
+    if data.status:
+        try:
+            thread_title = comment.thread.post_title if comment.thread else "Unknown"
+            avatar_username = comment.avatar.reddit_username if comment.avatar else "Unknown"
+            action = data.status
+            message = f"Comment {action} for '{thread_title}' by {avatar_username}"
+            metadata = {
+                "draft_id": str(comment.id),
+                "thread_title": thread_title,
+                "action": action,
+                "avatar_username": avatar_username,
+            }
+            record_activity_event(db, "review", message, comment.client_id, metadata)
+        except Exception:
+            logger.warning("Failed to record activity event for comment %s", comment_id, exc_info=True)
+
+    # Piggyback phase evaluation after posting
+    if data.status == "posted":
+        try:
+            from app.services.phase import PhaseEvaluator, PhaseTransitionManager
+            from app.services.phase_lock import PhaseTransitionLock
+            from app.config import get_settings
+            import redis
+
+            avatar = comment.avatar
+            if avatar and PhaseEvaluator().should_piggyback(avatar):
+                result = PhaseEvaluator().evaluate(db, avatar)
+                if result.action == "promote":
+                    redis_client = redis.from_url(get_settings().redis_url)
+                    lock = PhaseTransitionLock(redis_client)
+                    PhaseTransitionManager(lock).promote(db, avatar, result.criteria_values)
+                elif result.action == "demote":
+                    redis_client = redis.from_url(get_settings().redis_url)
+                    lock = PhaseTransitionLock(redis_client)
+                    PhaseTransitionManager(lock).demote(db, avatar, result.target_phase, result.trigger_reason)
+        except Exception:
+            logger.warning("Phase evaluation failed for comment %s", comment_id, exc_info=True)
+
     return comment
 
 

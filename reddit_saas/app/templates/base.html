@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Reddit SaaS{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <style>
@@ -23,14 +24,33 @@
                 <span class="text-xl">📡</span> Reddit SaaS
             </a>
             <div class="flex gap-5 text-sm text-gray-600 items-center">
+                {% if current_user_role == 'Client' and current_client_id %}
+                <a href="/clients/{{ current_client_id }}?tab=overview" class="hover:text-gray-900">Overview</a>
+                <a href="/clients/{{ current_client_id }}?tab=subreddits" class="hover:text-gray-900">Subreddits</a>
+                <a href="/clients/{{ current_client_id }}?tab=avatars" class="hover:text-gray-900">Avatars</a>
+                <a href="/clients/{{ current_client_id }}?tab=threads" class="hover:text-gray-900">Threads</a>
+                <a href="/clients/{{ current_client_id }}?tab=review" class="hover:text-gray-900">Review</a>
+                <a href="/clients/{{ current_client_id }}?tab=reports" class="hover:text-gray-900">Reports</a>
+                {% else %}
                 <a href="/" class="hover:text-gray-900 {% block nav_dashboard %}{% endblock %}">Dashboard</a>
-                <a href="/review" class="hover:text-gray-900 {% block nav_review %}{% endblock %}">
-                    Review
-                </a>
+                <a href="/review" class="hover:text-gray-900 {% block nav_review %}{% endblock %}">Review</a>
                 <a href="/avatars-page" class="hover:text-gray-900 {% block nav_avatars %}{% endblock %}">Avatars</a>
+                {% if is_superuser %}
                 <a href="/admin-page" class="hover:text-gray-900 {% block nav_admin %}{% endblock %}">AI Costs</a>
+                <a href="/admin/" class="hover:text-gray-900 {% block nav_admin_panel %}{% endblock %}">🛡️ Admin</a>
+                <a href="/settings" class="hover:text-gray-900 {% block nav_settings %}{% endblock %}">⚙️ Settings</a>
+                {% endif %}
+                {% endif %}
                 <span class="text-gray-300">|</span>
-                <a href="/guide" class="hover:text-gray-900 text-blue-600">📖 Guide</a>
+                <!-- Role badge -->
+                {% if current_user_role == 'Admin' %}
+                <span class="px-2 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700 border border-violet-200">🛡️ Admin</span>
+                {% elif current_user_role == 'Client' %}
+                <span class="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">👤 {{ current_client_name or 'Client' }}</span>
+                {% endif %}
+                {% if current_user_name %}
+                <span class="text-gray-500 text-xs">{{ current_user_name }}</span>
+                {% endif %}
                 <a href="/logout" class="hover:text-red-600 text-gray-400">Logout</a>
             </div>
         </div>

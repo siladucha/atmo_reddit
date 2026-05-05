@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}{{ client.client_name }} — Client Hub{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <!-- Client Header -->
+  <div class="mb-6">
+    {% if is_superuser %}
+    <a href="/" class="text-sm text-blue-600 hover:underline">&larr; Back to Dashboard</a>
+    {% endif %}
+    <h1 class="text-2xl font-bold text-gray-900 mt-2">{{ client.client_name }}</h1>
+    {% if client.brand_name %}
+    <p class="text-gray-500">{{ client.brand_name }}</p>
+    {% endif %}
+  </div>
+
+  <!-- Tab Bar -->
+  {% include "partials/client_hub_tabs.html" %}
+
+  <!-- Tab Content (eagerly loaded via HTMX) -->
+  <div id="tab-content"
+       hx-get="/clients/{{ client.id }}/tab/{{ active_tab }}"
+       hx-trigger="load"
+       hx-swap="innerHTML">
+    <p class="text-gray-400 py-8 text-center">Loading...</p>
+  </div>
+</div>
+{% endblock %}

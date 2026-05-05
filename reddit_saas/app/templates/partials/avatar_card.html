@@ -1,0 +1,179 @@
+{# Single avatar card. Used by avatars.html and as HTMX swap target. #}
+{# Expects context: a (enriched avatar dict), is_admin (bool, optional). #}
+<div id="avatar-card-{{ a.id }}" class="bg-white rounded-lg shadow-sm border p-4">
+    <div class="flex justify-between items-start mb-3">
+        <div class="flex items-start gap-3">
+            {% if a.reddit_icon_url %}
+            <img src="{{ a.reddit_icon_url }}" alt="" class="w-10 h-10 rounded-full border" loading="lazy">
+            {% else %}
+            <div class="w-10 h-10 rounded-full bg-gray-100 border flex items-center justify-center text-gray-400 text-sm">
+                {{ a.username[:2]|upper }}
+            </div>
+            {% endif %}
+            <div>
+                <div class="font-medium text-gray-800">u/{{ a.username }}</div>
+                <div class="text-xs text-gray-500">
+                    {% if a.email_address %}<span title="Email">{{ a.email_address }}</span> · {% endif %}
+                    {% if a.reddit_account_age_days is not none %}
+                    Reddit acct: {{ a.reddit_account_age_days }}d
+                    {% else %}
+                    {{ a.account_age_days }}d (internal)
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="flex flex-col items-end gap-1">
+            {# Reddit status badge #}
+            {% if a.reddit_status == "active" %}
+            <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">✓ Active</span>
+            {% elif a.reddit_status == "suspended" %}
+            <span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">⚠ Suspended</span>
+            {% elif a.reddit_status == "not_found" %}
+            <span class="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded">Not Found</span>
+            {% else %}
+            <span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">Unknown</span>
+            {% endif %}
+
+            {% if a.reddit_status_stale %}
+            <span class="text-[10px] bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded" title="Last check &gt; 24h ago">stale</span>
+            {% endif %}
+
+            {% if not a.active_flag %}
+            <span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">Inactive</span>
+            {% elif a.in_warmup and a.reddit_status == "active" %}
+            <span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">🔥 Warmup</span>
+            {% endif %}
+        </div>
+    </div>
+
+    {# Affiliation: clients #}
+    {% if a.clients %}
+    <div class="mb-3 space-y-1.5">
+        <div class="flex items-start gap-2 text-xs">
+            <span class="text-gray-500 mt-0.5 shrink-0">Client{% if a.clients|length > 1 %}s{% endif %}:</span>
+            <div class="flex flex-wrap gap-1">
+                {% for c in a.clients %}
+                <a href="/clients/{{ c.id }}" class="bg-blue-50 text-blue-700 hover:bg-blue-100 px-1.5 py-0.5 rounded">
+                    {{ c.name }}{% if c.brand and c.brand != c.name %} <span class="text-blue-500">· {{ c.brand }}</span>{% endif %}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="mb-3 text-xs text-gray-400 italic">No client assigned</div>
+    {% endif %}
+
+    {# Karma & activity grid #}
+    <div class="grid grid-cols-2 gap-2 text-sm">
+        <div class="bg-gray-50 p-2 rounded">
+            <div class="text-xs text-gray-500">Reddit Comment Karma</div>
+            <div class="font-medium {{ 'text-orange-600' if a.karma_discrepancy else '' }}">
+                {{ a.reddit_karma_comment }}
+                {% if a.karma_discrepancy %}
+                <span class="text-xs text-gray-400" title="Differs from internal {{ a.karma_comment }}">
+                    (int: {{ a.karma_comment }})
+                </span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="bg-gray-50 p-2 rounded">
+            <div class="text-xs text-gray-500">Reddit Post Karma</div>
+            <div class="font-medium">{{ a.reddit_karma_post }}</div>
+        </div>
+        <div class="bg-gray-50 p-2 rounded">
+            <div class="text-xs text-gray-500">Week Comments</div>
+            <div class="font-medium">{{ a.week_comments }}</div>
+        </div>
+        <div class="bg-gray-50 p-2 rounded">
+            <div class="text-xs text-gray-500">Brand Ratio</div>
+            <div class="font-medium {{ 'text-red-600' if not a.brand_ratio_ok else 'text-green-600' }}">
+                {{ (a.brand_ratio * 100)|int }}%
+                <span class="text-xs text-gray-400">(max 30%)</span>
+            </div>
+        </div>
+    </div>
+
+    {# Subreddits summary #}
+    {% if a.hobby_subreddits or a.business_subreddits %}
+    <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+        <div>
+            <div class="text-gray-500 mb-0.5">Hobby subs ({{ a.hobby_subreddits|length }})</div>
+            <div class="flex flex-wrap gap-1">
+                {% for s in a.hobby_subreddits[:6] %}
+                <span class="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">r/{{ s }}</span>
+                {% endfor %}
+                {% if a.hobby_subreddits|length > 6 %}
+                <span class="text-gray-400">+{{ a.hobby_subreddits|length - 6 }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div>
+            <div class="text-gray-500 mb-0.5">Business subs ({{ a.business_subreddits|length }})</div>
+            <div class="flex flex-wrap gap-1">
+                {% for s in a.business_subreddits[:6] %}
+                <span class="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded">r/{{ s }}</span>
+                {% endfor %}
+                {% if a.business_subreddits|length > 6 %}
+                <span class="text-gray-400">+{{ a.business_subreddits|length - 6 }}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {# Voice / persona meta — collapsible #}
+    {% if a.voice_profile_md or a.tone_principles or a.speech_patterns or a.hill_i_die_on or a.helpful_mode_topics or a.constraints or a.vocabulary_lean %}
+    <details class="mt-3 text-xs">
+        <summary class="cursor-pointer text-gray-600 hover:text-gray-800">Voice & persona meta</summary>
+        <dl class="mt-2 space-y-1.5 bg-gray-50 rounded p-2">
+            {% if a.voice_profile_md %}
+            <div><dt class="text-gray-500">Voice profile</dt><dd class="text-gray-800 whitespace-pre-wrap">{{ a.voice_profile_md }}</dd></div>
+            {% endif %}
+            {% if a.tone_principles %}
+            <div><dt class="text-gray-500">Tone principles</dt><dd class="text-gray-800 whitespace-pre-wrap">{{ a.tone_principles }}</dd></div>
+            {% endif %}
+            {% if a.speech_patterns %}
+            <div><dt class="text-gray-500">Speech patterns</dt><dd class="text-gray-800 whitespace-pre-wrap">{{ a.speech_patterns }}</dd></div>
+            {% endif %}
+            {% if a.hill_i_die_on %}
+            <div><dt class="text-gray-500">Hill to die on</dt><dd class="text-gray-800 whitespace-pre-wrap">{{ a.hill_i_die_on }}</dd></div>
+            {% endif %}
+            {% if a.helpful_mode_topics %}
+            <div><dt class="text-gray-500">Helpful-mode topics</dt><dd class="text-gray-800 whitespace-pre-wrap">{{ a.helpful_mode_topics }}</dd></div>
+            {% endif %}
+            {% if a.constraints %}
+            <div><dt class="text-gray-500">Constraints</dt><dd class="text-gray-800 whitespace-pre-wrap">{{ a.constraints }}</dd></div>
+            {% endif %}
+            {% if a.vocabulary_lean %}
+            <div><dt class="text-gray-500">Vocabulary lean</dt><dd class="text-gray-800 whitespace-pre-wrap">{{ a.vocabulary_lean }}</dd></div>
+            {% endif %}
+        </dl>
+    </details>
+    {% endif %}
+
+    {# IDs / footer #}
+    <div class="mt-3 flex items-center justify-between gap-2">
+        <div class="text-xs text-gray-500 truncate">
+            {% if a.reddit_status_checked_relative %}
+            Checked {{ a.reddit_status_checked_relative }}
+            {% else %}
+            Never checked
+            {% endif %}
+            {% if is_admin %}
+            · <span class="text-gray-400 font-mono" title="Avatar ID">{{ a.id[:8] }}</span>
+            {% endif %}
+        </div>
+        <button
+            type="button"
+            class="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-2 py-1 rounded shrink-0"
+            hx-post="/avatars/{{ a.id }}/check-reddit-status"
+            hx-target="#avatar-card-{{ a.id }}"
+            hx-swap="outerHTML"
+            hx-indicator="#avatar-card-{{ a.id }} .htmx-loading"
+        >
+            <span class="htmx-loading hidden">⏳</span>
+            <span>Check Status</span>
+        </button>
+    </div>
+</div>

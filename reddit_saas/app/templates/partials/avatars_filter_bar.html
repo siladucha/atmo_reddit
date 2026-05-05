@@ -1,0 +1,95 @@
+{# Filter toolbar. Submits to /avatars-page with HTMX, swaps #avatars-results.
+   Pushes URL so filters are shareable & reload-safe. #}
+<form
+    id="avatars-filter-form"
+    class="sticky top-0 z-10 bg-white/95 backdrop-blur border rounded-lg shadow-sm mb-4 p-3"
+    hx-get="/avatars-page"
+    hx-target="#avatars-results"
+    hx-swap="innerHTML"
+    hx-push-url="true"
+    hx-trigger="change, keyup delay:300ms from:input[name='q']"
+    hx-include="this"
+>
+    <div class="flex flex-wrap items-center gap-2">
+        {# Search #}
+        <label class="relative flex-1 min-w-[200px]">
+            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+            <input
+                type="search"
+                name="q"
+                value="{{ f.q }}"
+                placeholder="Search by username or email…"
+                autocomplete="off"
+                class="w-full pl-7 pr-3 py-1.5 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-300"
+            >
+        </label>
+
+        {# Client filter — only when viewer can see >1 client #}
+        {% if is_admin or page_obj.available_clients|length > 1 %}
+        <select name="client_id" class="text-sm border rounded px-2 py-1.5 bg-white">
+            <option value="">All clients</option>
+            {% for c in page_obj.available_clients %}
+            <option value="{{ c.id }}" {% if f.client_id == (c.id|string) %}selected{% endif %}>{{ c.client_name }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+
+        {# Status filter #}
+        <select name="status" class="text-sm border rounded px-2 py-1.5 bg-white">
+            {% for value, label in status_options %}
+            <option value="{{ value }}" {% if f.status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+
+        {# Sort #}
+        <select name="sort" class="text-sm border rounded px-2 py-1.5 bg-white">
+            {% for value, label in sort_options %}
+            <option value="{{ value }}" {% if f.sort == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+
+        {# Group toggle #}
+        <div class="inline-flex rounded border overflow-hidden text-sm">
+            {% for value, label in group_options %}
+            <label class="cursor-pointer">
+                <input type="radio" name="group" value="{{ value }}" {% if f.group == value %}checked{% endif %} class="peer sr-only">
+                <span class="block px-2 py-1.5 peer-checked:bg-gray-800 peer-checked:text-white text-gray-600 hover:bg-gray-100">{{ label }}</span>
+            </label>
+            {% endfor %}
+        </div>
+
+        {# View toggle #}
+        <div class="inline-flex rounded border overflow-hidden text-sm">
+            {% for value, label in view_options %}
+            <label class="cursor-pointer">
+                <input type="radio" name="view" value="{{ value }}" {% if f.view == value %}checked{% endif %} class="peer sr-only">
+                <span class="block px-2 py-1.5 peer-checked:bg-gray-800 peer-checked:text-white text-gray-600 hover:bg-gray-100" title="{{ label }}">
+                    {% if value == 'grid' %}▦{% else %}≣{% endif %} {{ label }}
+                </span>
+            </label>
+            {% endfor %}
+        </div>
+
+        <input type="hidden" name="page" value="{{ f.page }}">
+
+        {# Reset (only shown if filters applied) #}
+        {% if f.has_active_filters %}
+        <a href="/avatars-page" class="text-xs text-gray-500 hover:text-gray-800 px-2 py-1">Reset</a>
+        {% endif %}
+
+        {# Check All visible — scoped to current filter/page #}
+        <button
+            type="button"
+            class="ml-auto text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded"
+            hx-post="/avatars/check-reddit-status-all"
+            hx-include="#avatars-filter-form"
+            hx-target="#avatars-results"
+            hx-swap="innerHTML"
+            hx-indicator="#check-all-spinner"
+            title="Re-checks all avatars matching the current filter (and current page if not grouped)"
+        >
+            <span id="check-all-spinner" class="htmx-indicator">⏳</span>
+            Check visible
+        </button>
+    </div>
+</form>

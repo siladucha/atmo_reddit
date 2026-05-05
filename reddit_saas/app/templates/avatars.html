@@ -2,66 +2,22 @@
 {% block title %}Avatars — Reddit SaaS{% endblock %}
 {% block nav_avatars %}font-semibold text-gray-900{% endblock %}
 {% block content %}
-<div class="mb-6 flex justify-between items-center">
+<div class="mb-6 flex justify-between items-start gap-4">
     <div>
         <h1 class="text-2xl font-bold text-gray-800">Avatars</h1>
-        <p class="text-sm text-gray-500 mt-1">Reddit accounts used to post comments. Monitor their health here.</p>
+        <p class="text-sm text-gray-500 mt-1">
+            {{ page_obj.total_in_scope }} total ·
+            <span class="text-green-600">{{ page_obj.counts.active }} active</span> ·
+            <span class="text-red-600">{{ page_obj.counts.suspended }} suspended</span> ·
+            <span class="text-orange-600">{{ page_obj.counts.stale }} stale</span>
+        </p>
     </div>
-    <a href="/avatars/new" class="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700">+ New Avatar</a>
+    <a href="/avatars/new" class="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 shrink-0">+ New Avatar</a>
 </div>
 
-{% if not avatars %}
-<div class="bg-white rounded-lg shadow-sm border p-8 text-center">
-    <div class="text-3xl mb-3">👤</div>
-    <h2 class="text-lg font-semibold text-gray-800 mb-2">No avatars yet</h2>
-    <p class="text-gray-500 mb-4">Create Reddit personas to start engaging.</p>
-    <a href="/avatars/new" class="inline-block bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700">Create First Avatar</a>
-</div>
-{% else %}
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-    {% for a in avatars %}
-    <div class="bg-white rounded-lg shadow-sm border p-4">
-        <div class="flex justify-between items-start mb-3">
-            <div>
-                <div class="font-medium text-gray-800">u/{{ a.username }}</div>
-                <div class="text-xs text-gray-500">{{ a.account_age_days }} days old</div>
-            </div>
-            <div class="flex gap-1">
-                {% if a.shadowbanned %}
-                <span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">⚠ Shadowbanned</span>
-                {% elif not a.active %}
-                <span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">Inactive</span>
-                {% elif a.in_warmup %}
-                <span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">🔥 Warmup</span>
-                {% else %}
-                <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">✓ Active</span>
-                {% endif %}
-            </div>
-        </div>
+{% include "partials/avatars_filter_bar.html" %}
 
-        <div class="grid grid-cols-2 gap-2 text-sm">
-            <div class="bg-gray-50 p-2 rounded">
-                <div class="text-xs text-gray-500">Comment Karma</div>
-                <div class="font-medium">{{ a.karma_comment }}</div>
-            </div>
-            <div class="bg-gray-50 p-2 rounded">
-                <div class="text-xs text-gray-500">Post Karma</div>
-                <div class="font-medium">{{ a.karma_post }}</div>
-            </div>
-            <div class="bg-gray-50 p-2 rounded">
-                <div class="text-xs text-gray-500">Week Comments</div>
-                <div class="font-medium">{{ a.week_comments }}</div>
-            </div>
-            <div class="bg-gray-50 p-2 rounded">
-                <div class="text-xs text-gray-500">Brand Ratio</div>
-                <div class="font-medium {{ 'text-red-600' if not a.brand_ratio_ok else 'text-green-600' }}">
-                    {{ (a.brand_ratio * 100)|int }}%
-                    <span class="text-xs text-gray-400">(max 30%)</span>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endfor %}
+<div id="avatars-results">
+    {% include "partials/avatars_results.html" %}
 </div>
-{% endif %}
 {% endblock %}

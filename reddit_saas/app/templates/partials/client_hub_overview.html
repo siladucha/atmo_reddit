@@ -1,0 +1,57 @@
+<!-- Overview Tab Partial -->
+<div>
+  <!-- Metric Cards -->
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+    <div class="bg-white rounded-lg shadow p-4">
+      <p class="text-sm text-gray-500">Subreddits</p>
+      <p class="text-2xl font-bold">{{ subreddits_count }}</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+      <p class="text-sm text-gray-500">Avatars</p>
+      <p class="text-2xl font-bold">{{ avatars_count }}</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+      <p class="text-sm text-gray-500">Threads</p>
+      <p class="text-2xl font-bold">{{ threads_count }}</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+      <p class="text-sm text-gray-500">Engage</p>
+      <p class="text-2xl font-bold">{{ engage_count }}</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+      <p class="text-sm text-gray-500">Pending Comments</p>
+      <p class="text-2xl font-bold">{{ pending_comments }}</p>
+    </div>
+  </div>
+
+  <!-- Company Profile (Collapsible) -->
+  {% if company_worldview or company_problem or competitive_landscape %}
+  <details class="mb-6">
+    <summary class="cursor-pointer text-sm font-medium text-gray-700">Company Profile</summary>
+    <div class="mt-2 space-y-2 text-sm text-gray-600">
+      {% if company_worldview %}
+      <div><strong>Worldview:</strong> {{ company_worldview }}</div>
+      {% endif %}
+      {% if company_problem %}
+      <div><strong>Problem:</strong> {{ company_problem }}</div>
+      {% endif %}
+      {% if competitive_landscape %}
+      <div><strong>Competitive Landscape:</strong> {{ competitive_landscape }}</div>
+      {% endif %}
+    </div>
+  </details>
+  {% endif %}
+
+  <!-- Pipeline Controls -->
+  <div class="flex space-x-3 mb-4">
+    <button hx-post="/pipeline/scrape/{{ client.id }}" hx-target="#pipeline-status" hx-swap="innerHTML"
+            class="px-4 py-2 bg-gray-100 rounded text-sm hover:bg-gray-200">🔍 Scrape</button>
+    <button hx-post="/pipeline/score/{{ client.id }}" hx-target="#pipeline-status" hx-swap="innerHTML"
+            class="px-4 py-2 bg-gray-100 rounded text-sm hover:bg-gray-200">📊 Score</button>
+    <button hx-post="/pipeline/generate/{{ client.id }}" hx-target="#pipeline-status" hx-swap="innerHTML"
+            class="px-4 py-2 bg-gray-100 rounded text-sm hover:bg-gray-200">✍️ Generate</button>
+    <button hx-post="/pipeline/full-pipeline/{{ client.id }}" hx-target="#pipeline-status" hx-swap="innerHTML"
+            class="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">🚀 Full Pipeline</button>
+  </div>
+  <div id="pipeline-status"></div>
+</div>

@@ -1,0 +1,30 @@
+{# Pagination control. Only renders when grouped=none and >1 page. #}
+{% if page_obj.total_pages > 1 %}
+<nav class="mt-4 flex items-center justify-between text-sm">
+    <div class="text-gray-500">
+        Page {{ page_obj.page }} of {{ page_obj.total_pages }}
+    </div>
+    <div class="inline-flex gap-1">
+        <button
+            type="button"
+            class="px-2 py-1 border rounded {{ 'bg-white hover:bg-gray-50' if page_obj.has_prev else 'bg-gray-100 text-gray-400 cursor-not-allowed' }}"
+            {% if page_obj.has_prev %}
+            hx-get="/avatars-page?{{ f.query_string(page=page_obj.page - 1) }}"
+            hx-target="#avatars-results"
+            hx-swap="innerHTML"
+            hx-push-url="true"
+            {% else %}disabled{% endif %}
+        >‹ Prev</button>
+        <button
+            type="button"
+            class="px-2 py-1 border rounded {{ 'bg-white hover:bg-gray-50' if page_obj.has_next else 'bg-gray-100 text-gray-400 cursor-not-allowed' }}"
+            {% if page_obj.has_next %}
+            hx-get="/avatars-page?{{ f.query_string(page=page_obj.page + 1) }}"
+            hx-target="#avatars-results"
+            hx-swap="innerHTML"
+            hx-push-url="true"
+            {% else %}disabled{% endif %}
+        >Next ›</button>
+    </div>
+</nav>
+{% endif %}

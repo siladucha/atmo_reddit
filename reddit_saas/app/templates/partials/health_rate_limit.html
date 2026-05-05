@@ -1,0 +1,62 @@
+{% set status = rate_limit.status %}
+{% set usage_pct = rate_limit.usage_pct %}
+{% set border_class = {
+    'green': 'border-emerald-500/30',
+    'yellow': 'border-amber-500/30',
+    'red': 'border-red-500/30',
+    'gray': 'border-slate-700',
+}[color] %}
+{% set fill_class = {
+    'green': 'bg-emerald-500',
+    'yellow': 'bg-amber-500',
+    'red': 'bg-red-500',
+    'gray': 'bg-slate-600',
+}[color] %}
+{% set dot_class = {
+    'green': 'bg-emerald-500 shadow-emerald-500/30',
+    'yellow': 'bg-amber-500 shadow-amber-500/30',
+    'red': 'bg-red-500 shadow-red-500/30 animate-pulse',
+    'gray': 'bg-slate-600',
+}[color] %}
+<div id="widget-rate-limit"
+     class="bg-dark-steel rounded-lg p-5 border {{ border_class }}">
+    <div class="flex items-center justify-between mb-3">
+        <span class="text-sm text-gray-400 uppercase tracking-wide">Reddit Rate Limit</span>
+        <span class="w-3 h-3 rounded-full shadow-lg {{ dot_class }}"></span>
+    </div>
+    {% if usage_pct is none %}
+    <div class="text-gray-500 italic mb-2">No data — no Reddit API calls yet</div>
+    <div class="w-full bg-slate-800 rounded-full h-2.5 mb-3">
+        <div class="bg-slate-600 h-2.5 rounded-full" style="width: 0%"></div>
+    </div>
+    <div class="text-xs text-gray-500 font-mono">remaining=? · used=? · reset=?</div>
+    {% else %}
+    <div class="flex items-end gap-2 mb-3">
+        <span class="text-3xl font-mono font-semibold text-white">{{ '%.0f' | format(usage_pct) }}%</span>
+        <span class="text-sm text-gray-400 mb-1">consumed</span>
+    </div>
+    <div class="w-full bg-slate-800 rounded-full h-2.5 mb-3 overflow-hidden">
+        <div class="{{ fill_class }} h-2.5 rounded-full transition-all"
+             style="width: {{ usage_pct | round(1) }}%"></div>
+    </div>
+    <div class="grid grid-cols-3 gap-2 text-xs font-mono">
+        <div>
+            <div class="text-gray-500">remaining</div>
+            <div class="text-white">{{ rate_limit.remaining if rate_limit.remaining is not none else '—' }}</div>
+        </div>
+        <div>
+            <div class="text-gray-500">used</div>
+            <div class="text-white">{{ rate_limit.used if rate_limit.used is not none else '—' }}</div>
+        </div>
+        <div>
+            <div class="text-gray-500">reset in</div>
+            <div class="text-white">
+                {% if rate_limit.seconds_until_reset is not none %}{{ rate_limit.seconds_until_reset }}s{% else %}—{% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% if rate_limit.captured_at %}
+    <div class="text-[10px] text-gray-600 mt-2">last updated: {{ rate_limit.captured_at.strftime('%H:%M:%S UTC') }}</div>
+    {% endif %}
+</div>

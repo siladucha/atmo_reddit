@@ -1,0 +1,57 @@
+<tr class="border-b border-slate-700 hover:bg-slate-700/30 {% if not sub.is_active %}opacity-60{% endif %}">
+    <td class="px-4 py-3">
+        {% if sub.is_active %}
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-900/50 text-green-400 border border-green-700">
+            <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>Active
+        </span>
+        {% else %}
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-900/50 text-amber-400 border border-amber-700">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>Paused
+        </span>
+        {% endif %}
+    </td>
+    <td class="px-4 py-3 text-gray-300">r/{{ sub.subreddit_name }}</td>
+    <td class="px-4 py-3">
+        <span class="px-2 py-0.5 rounded text-xs font-medium
+              {% if sub.type == 'professional' %}bg-indigo-900/50 text-indigo-400 border border-indigo-700{% else %}bg-amber-900/50 text-amber-400 border border-amber-700{% endif %}">
+            {{ sub.type }}
+        </span>
+    </td>
+    <td class="px-4 py-3">
+        {% if sub.last_scraped_at %}
+            {% set hours_ago = ((now_utc - sub.last_scraped_at).total_seconds() / 3600) if now_utc is defined else 0 %}
+            <span class="text-xs font-mono {% if now_utc is defined and hours_ago > 24 %}text-amber-400{% else %}text-gray-400{% endif %}">
+                {{ sub.last_scraped_at.strftime('%b %d, %H:%M') }}
+            </span>
+            {% if now_utc is defined and hours_ago > 24 %}
+            <span class="ml-1 px-1.5 py-0.5 rounded text-xs bg-amber-900/50 text-amber-400 border border-amber-700">Stale</span>
+            {% endif %}
+        {% else %}
+            <span class="text-xs text-amber-400">Never</span>
+        {% endif %}
+    </td>
+    <td class="px-4 py-3 text-gray-500 text-xs font-mono">
+        {{ sub.created_at.strftime('%Y-%m-%d %H:%M') if sub.created_at else '—' }}
+    </td>
+    <td class="px-4 py-3">
+        <div class="flex items-center gap-2">
+            <form method="post" action="/admin/subreddits/{{ sub.id }}/toggle-active" class="inline">
+                {% if sub.is_active %}
+                <button type="submit" class="text-amber-400 hover:text-amber-300 text-xs" title="Pause scraping">
+                    Pause
+                </button>
+                {% else %}
+                <button type="submit" class="text-green-400 hover:text-green-300 text-xs" title="Resume scraping">
+                    Resume
+                </button>
+                {% endif %}
+            </form>
+            <form method="post" action="/admin/subreddits/{{ client.id }}/{{ sub.id }}/remove" class="inline">
+                <button type="submit" class="text-red-400 hover:text-red-300 text-xs"
+                        onclick="return confirm('Remove this subreddit?')">
+                    Remove
+                </button>
+            </form>
+        </div>
+    </td>
+</tr>

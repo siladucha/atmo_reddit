@@ -1,0 +1,59 @@
+{% set status = metrics.status %}
+{% set border_class = {
+    'ok': 'border-emerald-500/30',
+    'warning': 'border-amber-500/30',
+    'critical': 'border-red-500/30',
+}[status] %}
+{% set dot_class = {
+    'ok': 'bg-emerald-500 shadow-emerald-500/30',
+    'warning': 'bg-amber-500 shadow-amber-500/30',
+    'critical': 'bg-red-500 shadow-red-500/30 animate-pulse',
+}[status] %}
+<div id="widget-llm-metrics"
+     class="bg-dark-steel rounded-lg p-5 border {{ border_class }}">
+    <div class="flex items-center justify-between mb-4">
+        <span class="text-sm text-gray-400 uppercase tracking-wide">LLM API · last {{ metrics.window_minutes }}m</span>
+        <span class="w-3 h-3 rounded-full shadow-lg {{ dot_class }}"></span>
+    </div>
+    <div class="grid grid-cols-3 gap-4 mb-4">
+        <div>
+            <div class="text-xs text-gray-500 mb-1">total calls</div>
+            <div class="text-2xl font-mono font-semibold text-white">{{ metrics.total_calls }}</div>
+        </div>
+        <div>
+            <div class="text-xs text-gray-500 mb-1">total cost</div>
+            <div class="text-2xl font-mono font-semibold text-white">${{ '%.4f' | format(metrics.total_cost_usd) }}</div>
+        </div>
+        <div>
+            <div class="text-xs text-gray-500 mb-1">avg latency</div>
+            <div class="text-2xl font-mono font-semibold
+                {% if metrics.avg_latency_ms > 5000 %}text-amber-400
+                {% else %}text-white{% endif %}">
+                {{ '%.0f' | format(metrics.avg_latency_ms) }}ms
+            </div>
+        </div>
+    </div>
+    {% if metrics.error_count > 0 %}
+    <div class="mb-3 text-xs text-amber-400">
+        ⚠ {{ metrics.error_count }} error{{ 's' if metrics.error_count != 1 }} (zero-token completions) in window
+    </div>
+    {% endif %}
+    <div>
+        <div class="text-xs text-gray-500 uppercase tracking-wide mb-2">by model</div>
+        {% if metrics.by_model %}
+        <div class="space-y-1.5">
+            {% for entry in metrics.by_model %}
+            <div class="flex items-center justify-between text-xs font-mono bg-slate-800/50 rounded px-3 py-1.5">
+                <span class="text-gray-300 truncate">{{ entry.model }}</span>
+                <span class="flex gap-3 text-gray-400">
+                    <span>{{ entry.calls }} call{{ 's' if entry.calls != 1 }}</span>
+                    <span class="text-white">${{ '%.4f' | format(entry.cost_usd) }}</span>
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-xs text-gray-500 italic">No LLM calls in window</div>
+        {% endif %}
+    </div>
+</div>

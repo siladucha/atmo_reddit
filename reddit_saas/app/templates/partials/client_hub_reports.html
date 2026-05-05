@@ -1,0 +1,42 @@
+<!-- Reports Tab Partial -->
+<div>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Drafts by Status -->
+    <div class="bg-white rounded-lg shadow p-4">
+      <h3 class="font-semibold mb-3">Comment Drafts by Status</h3>
+      <dl class="space-y-1 text-sm">
+        {% for status in ["pending", "approved", "rejected", "posted"] %}
+        <div class="flex justify-between">
+          <dt class="text-gray-500">{{ status|capitalize }}</dt>
+          <dd class="font-medium">{{ drafts_by_status.get(status, 0) }}</dd>
+        </div>
+        {% endfor %}
+      </dl>
+    </div>
+
+    <!-- Threads by Tag -->
+    <div class="bg-white rounded-lg shadow p-4">
+      <h3 class="font-semibold mb-3">Threads by Tag</h3>
+      <dl class="space-y-1 text-sm">
+        {% for tag in ["engage", "monitor", "skip"] %}
+        <div class="flex justify-between">
+          <dt class="text-gray-500">{{ tag|capitalize }}</dt>
+          <dd class="font-medium">{{ threads_by_tag.get(tag, 0) }}</dd>
+        </div>
+        {% endfor %}
+      </dl>
+    </div>
+
+    <!-- AI Cost -->
+    <div class="bg-white rounded-lg shadow p-4">
+      <h3 class="font-semibold mb-3">AI Cost</h3>
+      <p class="text-2xl font-bold">${{ "%.2f"|format(total_ai_cost) }}</p>
+    </div>
+
+    <!-- Active Avatars -->
+    <div class="bg-white rounded-lg shadow p-4">
+      <h3 class="font-semibold mb-3">Active Avatars</h3>
+      <p class="text-2xl font-bold">{{ active_avatars }}</p>
+    </div>
+  </div>
+</div>

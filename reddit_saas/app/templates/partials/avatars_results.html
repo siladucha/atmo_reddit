@@ -1,0 +1,47 @@
+{# Results region. HTMX target for filter changes & bulk-check. #}
+<div class="flex justify-between items-center mb-3 text-xs text-gray-500">
+    <div>
+        {% if page_obj.filtered_total == 0 %}
+        No avatars match the current filters.
+        {% elif f.group == "client" %}
+        Showing {{ page_obj.filtered_total }} of {{ page_obj.total_in_scope }} avatars in {{ page_obj.groups|length }} group{% if page_obj.groups|length != 1 %}s{% endif %}
+        {% else %}
+        Showing {{ page_obj.range_from }}–{{ page_obj.range_to }} of {{ page_obj.filtered_total }}
+        {% endif %}
+    </div>
+    {% if f.has_active_filters %}
+    <div class="text-blue-600">filters active</div>
+    {% endif %}
+</div>
+
+{% if page_obj.filtered_total == 0 %}
+<div class="bg-white rounded-lg shadow-sm border p-8 text-center">
+    {% if page_obj.total_in_scope == 0 %}
+    <div class="text-3xl mb-3">👤</div>
+    <h2 class="text-lg font-semibold text-gray-800 mb-2">No avatars yet</h2>
+    <p class="text-gray-500 mb-4">Create Reddit avatars to start engaging.</p>
+    <a href="/avatars/new" class="inline-block bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700">Create First Avatar</a>
+    {% else %}
+    <div class="text-3xl mb-3">🔍</div>
+    <h2 class="text-lg font-semibold text-gray-800 mb-2">No matches</h2>
+    <p class="text-gray-500 mb-4">Try changing or clearing the filters.</p>
+    <a href="/avatars-page" class="inline-block bg-gray-100 text-gray-700 px-4 py-1.5 rounded hover:bg-gray-200 text-sm">Clear filters</a>
+    {% endif %}
+</div>
+{% elif f.group == "client" %}
+<div class="space-y-3">
+    {% for g in groups %}
+        {% include "partials/avatars_client_group.html" %}
+    {% endfor %}
+</div>
+{% else %}
+{# Flat list, paginated #}
+{% if f.view == "table" %}
+    {% include "partials/avatars_table.html" %}
+{% else %}
+<div id="avatars-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for a in avatars %}{% include "partials/avatar_card.html" %}{% endfor %}
+</div>
+{% endif %}
+    {% include "partials/avatars_pagination.html" %}
+{% endif %}

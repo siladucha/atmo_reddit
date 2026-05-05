@@ -1,0 +1,52 @@
+<!-- Subreddits Tab Partial -->
+<div>
+  {% if flash %}
+  <div class="mb-4 px-3 py-2 rounded text-sm
+    {% if flash.level == 'error' %}bg-red-50 text-red-700 border border-red-200
+    {% elif flash.level == 'warning' %}bg-yellow-50 text-yellow-800 border border-yellow-200
+    {% else %}bg-green-50 text-green-700 border border-green-200{% endif %}">
+    {{ flash.message }}
+  </div>
+  {% endif %}
+
+  {% if subreddits %}
+  <ul class="divide-y divide-gray-200 mb-6">
+    {% for sub in subreddits %}
+    <li class="py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <span class="inline-block w-3 h-3 rounded-full
+          {% if sub.freshness == 'green' %}bg-green-500
+          {% elif sub.freshness == 'yellow' %}bg-yellow-500
+          {% else %}bg-red-500{% endif %}"></span>
+        <span class="font-medium">r/{{ sub.name }}</span>
+        <span class="text-xs text-gray-400">{{ sub.type }}</span>
+      </div>
+      <span class="text-xs text-gray-400">
+        {% if sub.last_scraped_at %}
+          Last scraped: {{ sub.last_scraped_at.strftime('%Y-%m-%d %H:%M') }}
+        {% else %}
+          Never scraped
+        {% endif %}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-gray-400 py-8 text-center">No subreddits yet.</p>
+  {% endif %}
+
+  <!-- Inline Add Form -->
+  <form hx-post="/clients/{{ client.id }}/subreddits"
+        hx-target="#tab-content"
+        hx-swap="innerHTML"
+        hx-disabled-elt="find button"
+        class="flex gap-2 mt-4">
+    <input type="text" name="subreddit_name" placeholder="subreddit name (e.g. cybersecurity)"
+           class="flex-1 px-3 py-1.5 border rounded text-sm" required>
+    <select name="type" class="px-2 py-1.5 border rounded text-sm">
+      <option value="professional">Professional</option>
+      <option value="hobby">Hobby</option>
+    </select>
+    <button type="submit" class="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 disabled:opacity-50">Add</button>
+  </form>
+</div>

@@ -1,0 +1,92 @@
+{# Renders one client's keyword section (add form + table).
+   Required context: client, keywords, error (optional).
+   Used by both admin_keywords.html and admin_keywords_global.html so they can
+   be updated inline via HTMX without a full page reload. #}
+<div id="kw-section-{{ client.id }}" class="bg-dark-steel border-t border-slate-700">
+    {% if error %}
+    <div class="px-5 py-3 bg-red-900/40 border-b border-red-700 text-red-300 text-sm">{{ error }}</div>
+    {% endif %}
+
+    <!-- Add keyword form -->
+    <form method="post"
+          action="/admin/keywords/{{ client.id }}/add"
+          hx-post="/admin/keywords/{{ client.id }}/add"
+          hx-target="#kw-section-{{ client.id }}"
+          hx-swap="outerHTML"
+          class="px-5 py-3 border-b border-slate-700 flex flex-wrap gap-2 items-end bg-slate-800/40">
+        <div class="flex-1 min-w-[200px]">
+            <label class="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">Keyword</label>
+            <input type="text" name="name" required placeholder="e.g. xmcyber"
+                   class="w-full bg-slate-night border border-slate-600 text-white rounded px-3 py-1.5 text-sm focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+            <label class="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">Priority</label>
+            <select name="priority"
+                    class="bg-slate-night border border-slate-600 text-white rounded px-3 py-1.5 text-sm focus:outline-none focus:border-indigo-500">
+                <option value="HIGH">HIGH</option>
+                <option value="MEDIUM" selected>MEDIUM</option>
+                <option value="LOW">LOW</option>
+            </select>
+        </div>
+        <button type="submit"
+                class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded text-sm font-medium">
+            Add
+        </button>
+    </form>
+
+    <table class="w-full text-sm text-left">
+        <thead>
+            <tr class="border-b border-slate-700">
+                <th class="px-5 py-2 text-gray-400 uppercase text-[10px] tracking-wider font-medium w-12">#</th>
+                <th class="px-5 py-2 text-gray-400 uppercase text-[10px] tracking-wider font-medium">Keyword</th>
+                <th class="px-5 py-2 text-gray-400 uppercase text-[10px] tracking-wider font-medium w-32">Priority</th>
+                <th class="px-5 py-2 text-gray-400 uppercase text-[10px] tracking-wider font-medium w-48">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for kw in keywords %}
+            <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
+                <td class="px-5 py-2 text-gray-500 font-mono text-xs">{{ loop.index0 }}</td>
+                <td class="px-5 py-2 text-gray-200">{{ kw.name }}</td>
+                <td class="px-5 py-2">
+                    <span class="px-2 py-0.5 rounded text-xs font-medium
+                          {% if kw.priority == 'HIGH' %}bg-red-900/50 text-red-400 border border-red-700
+                          {% elif kw.priority == 'MEDIUM' %}bg-amber-900/50 text-amber-400 border border-amber-700
+                          {% else %}bg-emerald-900/50 text-emerald-400 border border-emerald-700{% endif %}">
+                        {{ kw.priority }}
+                    </span>
+                </td>
+                <td class="px-5 py-2">
+                    <div class="flex gap-2 items-center">
+                        <form method="post"
+                              action="/admin/keywords/{{ client.id }}/{{ loop.index0 }}/update"
+                              hx-post="/admin/keywords/{{ client.id }}/{{ loop.index0 }}/update"
+                              hx-target="#kw-section-{{ client.id }}"
+                              hx-swap="outerHTML"
+                              class="flex gap-1 items-center">
+                            <select name="priority" class="bg-slate-night border border-slate-600 text-white rounded px-2 py-0.5 text-xs">
+                                <option value="HIGH" {% if kw.priority == 'HIGH' %}selected{% endif %}>HIGH</option>
+                                <option value="MEDIUM" {% if kw.priority == 'MEDIUM' %}selected{% endif %}>MEDIUM</option>
+                                <option value="LOW" {% if kw.priority == 'LOW' %}selected{% endif %}>LOW</option>
+                            </select>
+                            <button type="submit" class="text-indigo-400 hover:text-indigo-300 text-xs">Update</button>
+                        </form>
+                        <form method="post"
+                              action="/admin/keywords/{{ client.id }}/{{ loop.index0 }}/remove"
+                              hx-post="/admin/keywords/{{ client.id }}/{{ loop.index0 }}/remove"
+                              hx-target="#kw-section-{{ client.id }}"
+                              hx-swap="outerHTML">
+                            <button type="submit" class="text-red-400 hover:text-red-300 text-xs">Remove</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not keywords %}
+            <tr>
+                <td colspan="4" class="px-5 py-6 text-center text-gray-500 text-sm">No keywords yet</td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>

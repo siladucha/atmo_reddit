@@ -1,0 +1,6 @@
+{# Full avatars grid. Used as HTMX swap target for the "Check All" button. #}
+<div id="avatars-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for a in avatars %}
+        {% include "partials/avatar_card.html" %}
+    {% endfor %}
+</div>

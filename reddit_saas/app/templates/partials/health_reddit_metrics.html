@@ -1,0 +1,70 @@
+{% set status = metrics.status %}
+{% set border_class = {
+    'ok': 'border-emerald-500/30',
+    'warning': 'border-amber-500/30',
+    'critical': 'border-red-500/30',
+}[status] %}
+{% set dot_class = {
+    'ok': 'bg-emerald-500 shadow-emerald-500/30',
+    'warning': 'bg-amber-500 shadow-amber-500/30',
+    'critical': 'bg-red-500 shadow-red-500/30 animate-pulse',
+}[status] %}
+<div id="widget-reddit-metrics"
+     class="bg-dark-steel rounded-lg p-5 border {{ border_class }}">
+    <div class="flex items-center justify-between mb-4">
+        <span class="text-sm text-gray-400 uppercase tracking-wide">Reddit API · last {{ metrics.window_minutes }}m</span>
+        <span class="w-3 h-3 rounded-full shadow-lg {{ dot_class }}"></span>
+    </div>
+    <div class="grid grid-cols-2 gap-4 mb-4">
+        <div>
+            <div class="text-xs text-gray-500 mb-1">total calls</div>
+            <div class="text-2xl font-mono font-semibold text-white">{{ metrics.total_calls }}</div>
+            <div class="text-[11px] text-gray-500 mt-0.5">{{ '%.2f' | format(metrics.calls_per_minute) }}/min</div>
+        </div>
+        <div>
+            <div class="text-xs text-gray-500 mb-1">errors</div>
+            <div class="text-2xl font-mono font-semibold
+                {% if metrics.error_rate_pct > 20 %}text-red-400
+                {% elif metrics.error_rate_pct > 5 %}text-amber-400
+                {% else %}text-white{% endif %}">
+                {{ metrics.error_count }}
+            </div>
+            <div class="text-[11px] text-gray-500 mt-0.5">{{ '%.1f' | format(metrics.error_rate_pct) }}% error rate</div>
+        </div>
+        <div>
+            <div class="text-xs text-gray-500 mb-1">avg response</div>
+            <div class="text-2xl font-mono font-semibold
+                {% if metrics.avg_response_ms > 3000 %}text-amber-400
+                {% else %}text-white{% endif %}">
+                {{ '%.0f' | format(metrics.avg_response_ms) }}ms
+            </div>
+        </div>
+        <div>
+            <div class="text-xs text-gray-500 mb-1">p95 response</div>
+            <div class="text-2xl font-mono font-semibold text-white">
+                {{ '%.0f' | format(metrics.p95_response_ms) }}ms
+            </div>
+        </div>
+    </div>
+    <div>
+        <div class="text-xs text-gray-500 uppercase tracking-wide mb-2">errors by type</div>
+        <div class="grid grid-cols-4 gap-2 text-xs font-mono">
+            <div class="bg-slate-800/50 rounded px-2 py-1">
+                <div class="text-gray-500">429</div>
+                <div class="text-white">{{ metrics.errors_by_type.rate_limited }}</div>
+            </div>
+            <div class="bg-slate-800/50 rounded px-2 py-1">
+                <div class="text-gray-500">403</div>
+                <div class="text-white">{{ metrics.errors_by_type.forbidden }}</div>
+            </div>
+            <div class="bg-slate-800/50 rounded px-2 py-1">
+                <div class="text-gray-500">timeout</div>
+                <div class="text-white">{{ metrics.errors_by_type.timeout }}</div>
+            </div>
+            <div class="bg-slate-800/50 rounded px-2 py-1">
+                <div class="text-gray-500">other</div>
+                <div class="text-white">{{ metrics.errors_by_type.other }}</div>
+            </div>
+        </div>
+    </div>
+</div>

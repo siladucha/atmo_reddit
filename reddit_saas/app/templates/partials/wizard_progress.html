@@ -1,0 +1,30 @@
+<!-- Wizard Progress Bar -->
+<div class="mb-8">
+    <div class="flex items-center gap-1">
+        {% for s in range(1, 8) %}
+        <div class="flex items-center">
+            <div class="flex flex-col items-center">
+                <div class="w-9 h-9 rounded-full flex items-center justify-center text-sm font-medium
+                            {% if s < step %}bg-emerald-600 text-white
+                            {% elif s == step %}bg-indigo-600 text-white ring-2 ring-indigo-400 ring-offset-2 ring-offset-slate-night
+                            {% else %}bg-slate-700 text-gray-500{% endif %}">
+                    {% if s < step %}
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    {% else %}
+                    {{ s }}
+                    {% endif %}
+                </div>
+                <span class="text-xs mt-1.5 whitespace-nowrap
+                             {% if s == step %}text-white font-medium{% elif s < step %}text-emerald-400{% else %}text-gray-500{% endif %}">
+                    {{ step_names[s] }}
+                </span>
+            </div>
+            {% if s < 7 %}
+            <div class="w-10 h-0.5 mb-5 mx-1 {% if s < step %}bg-emerald-600{% else %}bg-slate-700{% endif %}"></div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>

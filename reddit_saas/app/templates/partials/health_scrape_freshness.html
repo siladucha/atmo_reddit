@@ -1,0 +1,71 @@
+{% set has_critical = freshness.never_scraped_count > 0 %}
+{% set has_warning = freshness.stale_count > freshness.never_scraped_count %}
+{% set border_class = 'border-red-500/30' if has_critical else ('border-amber-500/30' if has_warning else 'border-emerald-500/30') %}
+{% set dot_class = ('bg-red-500 shadow-red-500/30 animate-pulse' if has_critical else ('bg-amber-500 shadow-amber-500/30' if has_warning else 'bg-emerald-500 shadow-emerald-500/30')) %}
+<div id="widget-scrape-freshness"
+     class="bg-dark-steel rounded-lg p-5 border {{ border_class }}">
+    <div class="flex items-center justify-between mb-4">
+        <span class="text-sm text-gray-400 uppercase tracking-wide">Scrape Freshness</span>
+        <span class="w-3 h-3 rounded-full shadow-lg {{ dot_class }}"></span>
+    </div>
+    <div class="grid grid-cols-3 gap-3 mb-4">
+        <div>
+            <div class="text-xs text-gray-500 mb-1">active subs</div>
+            <div class="text-xl font-mono font-semibold text-white">{{ freshness.total_active }}</div>
+        </div>
+        <div>
+            <div class="text-xs text-gray-500 mb-1">stale (&gt;{{ freshness.stale_hours }}h)</div>
+            <div class="text-xl font-mono font-semibold {% if freshness.stale_count > 0 %}text-amber-400{% else %}text-white{% endif %}">
+                {{ freshness.stale_count }}
+            </div>
+        </div>
+        <div>
+            <div class="text-xs text-gray-500 mb-1">never scraped</div>
+            <div class="text-xl font-mono font-semibold {% if freshness.never_scraped_count > 0 %}text-red-400{% else %}text-white{% endif %}">
+                {{ freshness.never_scraped_count }}
+            </div>
+        </div>
+    </div>
+    {% if freshness.subreddits %}
+    <div class="max-h-64 overflow-y-auto -mx-2">
+        <table class="w-full text-xs">
+            <thead class="text-gray-500 uppercase tracking-wide">
+                <tr>
+                    <th class="text-left px-2 py-1 font-normal">subreddit</th>
+                    <th class="text-left px-2 py-1 font-normal">client</th>
+                    <th class="text-left px-2 py-1 font-normal">last scraped</th>
+                    <th class="text-left px-2 py-1 font-normal">status</th>
+                </tr>
+            </thead>
+            <tbody class="font-mono">
+                {% for sub in freshness.subreddits %}
+                <tr class="border-t border-slate-800">
+                    <td class="px-2 py-1 text-white">r/{{ sub.subreddit_name }}</td>
+                    <td class="px-2 py-1 text-gray-400">{{ sub.client_name }}</td>
+                    <td class="px-2 py-1 text-gray-400">
+                        {% if sub.last_scraped_at %}{{ sub.last_scraped_at.strftime('%Y-%m-%d %H:%M UTC') }}{% else %}never{% endif %}
+                    </td>
+                    <td class="px-2 py-1">
+                        {% if sub.is_never_scraped %}
+                        <span class="inline-flex items-center gap-1 text-red-400">
+                            <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> never
+                        </span>
+                        {% elif sub.is_stale %}
+                        <span class="inline-flex items-center gap-1 text-amber-400">
+                            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> stale
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center gap-1 text-emerald-400">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> fresh
+                        </span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-xs text-gray-500 italic">No active subreddits</div>
+    {% endif %}
+</div>

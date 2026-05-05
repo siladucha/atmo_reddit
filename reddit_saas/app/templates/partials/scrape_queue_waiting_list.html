@@ -1,0 +1,64 @@
+<!-- Scrape Queue Waiting List Partial -->
+{% if waiting_list %}
+<div class="overflow-x-auto">
+    <table class="w-full text-sm">
+        <thead>
+            <tr class="text-left text-gray-400 border-b border-slate-700">
+                <th class="px-5 py-3 font-medium">Status</th>
+                <th class="px-5 py-3 font-medium">Subreddit</th>
+                <th class="px-5 py-3 font-medium">Client</th>
+                <th class="px-5 py-3 font-medium">Last Scraped</th>
+                <th class="px-5 py-3 font-medium">Staleness</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-700/50">
+            {% for item in waiting_list %}
+            <tr class="hover:bg-slate-700/30 transition-colors">
+                <td class="px-5 py-3">
+                    {% if item.is_locked %}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-900/50 border border-indigo-700 rounded text-xs text-indigo-300">
+                        <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
+                        Processing
+                    </span>
+                    {% elif item.is_stale %}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-900/50 border border-amber-700 rounded text-xs text-amber-300">
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                        Stale
+                    </span>
+                    {% else %}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-green-900/50 border border-green-700 rounded text-xs text-green-300">
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+                        Fresh
+                    </span>
+                    {% endif %}
+                </td>
+                <td class="px-5 py-3">
+                    <span class="text-white font-medium">r/{{ item.subreddit_name }}</span>
+                </td>
+                <td class="px-5 py-3 text-gray-400">{{ item.client_name }}</td>
+                <td class="px-5 py-3 text-gray-400 font-mono text-xs">
+                    {% if item.last_scraped_at %}
+                        {{ item.last_scraped_at.strftime('%Y-%m-%d %H:%M') }} UTC
+                    {% else %}
+                        <span class="text-amber-400">Never</span>
+                    {% endif %}
+                </td>
+                <td class="px-5 py-3">
+                    <span class="font-mono text-xs {% if item.is_stale %}text-amber-400{% else %}text-gray-400{% endif %}">
+                        {{ item.staleness_display }}
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="px-5 py-8 text-center">
+    <svg class="w-12 h-12 text-green-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <p class="text-green-400 font-medium">All subreddits are fresh</p>
+    <p class="text-sm text-gray-500 mt-1">No subreddits need scraping right now</p>
+</div>
+{% endif %}

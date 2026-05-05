@@ -1,0 +1,60 @@
+{# One avatar table row. Used in compact view + as HTMX swap target. #}
+<tr id="avatar-row-{{ a.id }}" class="hover:bg-gray-50 align-top">
+    <td class="px-3 py-2">
+        <div class="flex items-center gap-2">
+            {% if a.reddit_icon_url %}
+            <img src="{{ a.reddit_icon_url }}" class="w-6 h-6 rounded-full border" loading="lazy" alt="">
+            {% else %}
+            <div class="w-6 h-6 rounded-full bg-gray-100 border text-[10px] flex items-center justify-center text-gray-400">{{ a.username[:2]|upper }}</div>
+            {% endif %}
+            <div>
+                <div class="font-medium text-gray-800">u/{{ a.username }}</div>
+                <div class="text-xs text-gray-500">
+                    {% if a.email_address %}{{ a.email_address }}{% endif %}
+                    {% if a.reddit_account_age_days is not none %} · acct {{ a.reddit_account_age_days }}d{% endif %}
+                </div>
+            </div>
+        </div>
+    </td>
+    <td class="px-3 py-2 whitespace-nowrap">
+        {% if a.reddit_status == "active" %}
+            <span class="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">✓ Active</span>
+        {% elif a.reddit_status == "suspended" %}
+            <span class="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded">⚠ Suspended</span>
+        {% elif a.reddit_status == "not_found" %}
+            <span class="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded">Not Found</span>
+        {% else %}
+            <span class="text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded">Unknown</span>
+        {% endif %}
+        {% if a.reddit_status_stale %}<span class="ml-1 text-[10px] bg-orange-50 text-orange-600 px-1 rounded">stale</span>{% endif %}
+        {% if not a.active_flag %}<span class="ml-1 text-[10px] bg-gray-100 text-gray-500 px-1 rounded">inactive</span>{% endif %}
+        {% if a.in_warmup %}<span class="ml-1 text-[10px] bg-yellow-50 text-yellow-700 px-1 rounded">warmup</span>{% endif %}
+    </td>
+    <td class="px-3 py-2 text-xs">
+        <div class="flex flex-wrap gap-1">
+            {% for c in a.clients %}
+            <a href="/clients/{{ c.id }}" class="bg-blue-50 text-blue-700 hover:bg-blue-100 px-1.5 py-0.5 rounded">{{ c.name }}</a>
+            {% endfor %}
+        </div>
+    </td>
+    <td class="px-3 py-2 text-right whitespace-nowrap {{ 'text-orange-600' if a.karma_discrepancy else '' }}">
+        <div>{{ a.reddit_karma_comment }}<span class="text-gray-400">c</span> / {{ a.reddit_karma_post }}<span class="text-gray-400">p</span></div>
+        {% if a.karma_discrepancy %}<div class="text-[10px] text-gray-400">int: {{ a.karma_comment }}c</div>{% endif %}
+    </td>
+    <td class="px-3 py-2 text-right">{{ a.week_comments }}</td>
+    <td class="px-3 py-2 text-right {{ 'text-red-600' if not a.brand_ratio_ok else 'text-green-600' }}">
+        {{ (a.brand_ratio * 100)|int }}%
+    </td>
+    <td class="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+        {% if a.reddit_status_checked_relative %}{{ a.reddit_status_checked_relative }}{% else %}<span class="text-gray-400">never</span>{% endif %}
+    </td>
+    <td class="px-3 py-2 whitespace-nowrap">
+        <button
+            type="button"
+            class="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-2 py-1 rounded"
+            hx-post="/avatars/{{ a.id }}/check-reddit-status?view=table"
+            hx-target="#avatar-row-{{ a.id }}"
+            hx-swap="outerHTML"
+        >Check</button>
+    </td>
+</tr>
