@@ -22,9 +22,9 @@ class Client(Base):
     case_studies: Mapped[str | None] = mapped_column(Text, nullable=True)
     icp_profiles: Mapped[str | None] = mapped_column(Text, nullable=True)
     keywords: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    brand_domain: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
-    personas = relationship("Persona", back_populates="client")
     subreddits = relationship("ClientSubreddit", back_populates="client")

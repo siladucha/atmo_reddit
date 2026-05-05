@@ -36,4 +36,21 @@ class Avatar(Base):
     is_shadowbanned: Mapped[bool] = mapped_column(Boolean, default=False)
     last_health_check: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Reddit status cache (populated by services/reddit_status.py)
+    reddit_status: Mapped[str] = mapped_column(String(20), default="unknown", server_default="unknown")
+    reddit_karma_comment: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    reddit_karma_post: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    reddit_account_created: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reddit_icon_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    reddit_status_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Warming phase
+    warming_phase: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
+    phase_changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    last_phase_evaluated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

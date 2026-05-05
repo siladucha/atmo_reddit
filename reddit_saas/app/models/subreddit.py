@@ -17,5 +17,6 @@ class ClientSubreddit(Base):
     type: Mapped[str] = mapped_column(String(50), default="professional")  # professional | hobby
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_scraped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     client = relationship("Client", back_populates="subreddits")
