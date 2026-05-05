@@ -1,0 +1,83 @@
+{% extends "admin_base.html" %}
+{% block title %}Onboarding — Step 1: Profile{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> / <a href="/admin/clients" class="hover:text-white">Clients</a> /
+    <span class="text-white">Onboarding — Step {{ step }}</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <h1 class="text-2xl font-semibold text-white mb-2">Client Onboarding</h1>
+    <p class="text-gray-400 text-sm mb-6">Step {{ step }} of {{ total_steps }} — Client Profile</p>
+
+    {% include "partials/wizard_progress.html" %}
+
+    {% if error %}
+    <div class="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-300 text-sm">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/admin/clients/{{ client.id if client else 'new' }}/onboard/step/1"
+          class="bg-dark-steel rounded-lg border border-slate-700 p-6 space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Client Name *</label>
+                <input type="text" name="client_name" value="{{ client.client_name if client else '' }}" required
+                       class="w-full bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Brand Name *</label>
+                <input type="text" name="brand_name" value="{{ client.brand_name if client else '' }}" required
+                       class="w-full bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">Company Profile</label>
+            <textarea name="company_profile" rows="3"
+                      class="w-full bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">{{ client.company_profile or '' if client else '' }}</textarea>
+        </div>
+
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">Company Worldview</label>
+            <textarea name="company_worldview" rows="3"
+                      class="w-full bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">{{ client.company_worldview or '' if client else '' }}</textarea>
+        </div>
+
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">Company Problem</label>
+            <textarea name="company_problem" rows="3"
+                      class="w-full bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">{{ client.company_problem or '' if client else '' }}</textarea>
+        </div>
+
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">Competitive Landscape</label>
+            <textarea name="competitive_landscape" rows="3"
+                      class="w-full bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">{{ client.competitive_landscape or '' if client else '' }}</textarea>
+        </div>
+
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">Brand Voice</label>
+            <textarea name="brand_voice" rows="3"
+                      class="w-full bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">{{ client.brand_voice or '' if client else '' }}</textarea>
+        </div>
+
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">ICP Profiles</label>
+            <textarea name="icp_profiles" rows="3"
+                      class="w-full bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">{{ client.icp_profiles or '' if client else '' }}</textarea>
+        </div>
+
+        <div class="flex justify-between items-center pt-2">
+            <a href="/admin/clients"
+               class="bg-slate-700 hover:bg-slate-600 text-gray-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                Cancel
+            </a>
+            <button type="submit"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors">
+                Next →
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,138 @@
+{% extends "admin_base.html" %}
+{% block title %}Onboarding — Step {{ step }}: Review{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> / <a href="/admin/clients" class="hover:text-white">Clients</a> /
+    <a href="/admin/clients/{{ client.id }}" class="hover:text-white">{{ client.client_name }}</a> /
+    <span class="text-white">Onboarding — Step {{ step }}</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <h1 class="text-2xl font-semibold text-white mb-2">Client Onboarding</h1>
+    <p class="text-gray-400 text-sm mb-6">Step {{ step }} of {{ total_steps }} — Review Configuration</p>
+
+    {% include "partials/wizard_progress.html" %}
+
+    <!-- Client Profile Summary -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-4">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="text-lg font-medium text-white">Client Profile</h2>
+            <a href="/admin/clients/{{ client.id }}/onboard/step/1" class="text-indigo-400 hover:text-indigo-300 text-sm">Edit</a>
+        </div>
+        <div class="grid grid-cols-2 gap-3 text-sm">
+            <div>
+                <span class="text-gray-400">Client Name:</span>
+                <span class="text-white ml-1">{{ client.client_name }}</span>
+            </div>
+            <div>
+                <span class="text-gray-400">Brand Name:</span>
+                <span class="text-white ml-1">{{ client.brand_name }}</span>
+            </div>
+        </div>
+        {% if client.company_profile %}
+        <div class="mt-2 text-sm">
+            <span class="text-gray-400">Company Profile:</span>
+            <p class="text-gray-300 mt-1">{{ client.company_profile[:200] }}{% if client.company_profile|length > 200 %}...{% endif %}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Subreddits Summary -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-4">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="text-lg font-medium text-white">
+                Subreddits
+                <span class="text-sm text-gray-400 font-normal">({{ subreddits|length }})</span>
+            </h2>
+            <a href="/admin/clients/{{ client.id }}/onboard/step/2" class="text-indigo-400 hover:text-indigo-300 text-sm">Edit</a>
+        </div>
+        {% if subreddits %}
+        <div class="flex flex-wrap gap-2">
+            {% for sub in subreddits %}
+            <span class="px-3 py-1 rounded-full text-sm
+                  {% if sub.type == 'professional' %}bg-indigo-900/50 text-indigo-400 border border-indigo-700{% else %}bg-amber-900/50 text-amber-400 border border-amber-700{% endif %}">
+                r/{{ sub.subreddit_name }}
+            </span>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500 text-sm">No subreddits configured.</p>
+        {% endif %}
+    </div>
+
+    <!-- Keywords Summary -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-4">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="text-lg font-medium text-white">
+                Keywords
+                <span class="text-sm text-gray-400 font-normal">({{ keywords|length }})</span>
+            </h2>
+            <a href="/admin/clients/{{ client.id }}/onboard/step/3" class="text-indigo-400 hover:text-indigo-300 text-sm">Edit</a>
+        </div>
+        {% if keywords %}
+        {% set high_kws = keywords|selectattr("priority", "equalto", "HIGH")|list %}
+        {% set medium_kws = keywords|selectattr("priority", "equalto", "MEDIUM")|list %}
+        {% set low_kws = keywords|selectattr("priority", "equalto", "LOW")|list %}
+        <div class="space-y-2 text-sm">
+            {% if high_kws %}
+            <div>
+                <span class="text-red-400 font-medium">HIGH ({{ high_kws|length }}):</span>
+                <span class="text-gray-300">{{ high_kws|map(attribute='name')|join(', ') }}</span>
+            </div>
+            {% endif %}
+            {% if medium_kws %}
+            <div>
+                <span class="text-amber-400 font-medium">MEDIUM ({{ medium_kws|length }}):</span>
+                <span class="text-gray-300">{{ medium_kws|map(attribute='name')|join(', ') }}</span>
+            </div>
+            {% endif %}
+            {% if low_kws %}
+            <div>
+                <span class="text-gray-400 font-medium">LOW ({{ low_kws|length }}):</span>
+                <span class="text-gray-300">{{ low_kws|map(attribute='name')|join(', ') }}</span>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <p class="text-gray-500 text-sm">No keywords configured.</p>
+        {% endif %}
+    </div>
+
+    <!-- Avatars Summary -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-4">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="text-lg font-medium text-white">
+                Avatars
+                <span class="text-sm text-gray-400 font-normal">({{ avatars|length }})</span>
+            </h2>
+            <a href="/admin/clients/{{ client.id }}/onboard/step/4" class="text-indigo-400 hover:text-indigo-300 text-sm">Edit</a>
+        </div>
+        {% if avatars %}
+        <div class="flex flex-wrap gap-2">
+            {% for avatar in avatars %}
+            <span class="px-3 py-1 rounded-full text-sm bg-emerald-900/50 text-emerald-400 border border-emerald-700">
+                u/{{ avatar.reddit_username }}
+            </span>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500 text-sm">No avatars assigned.</p>
+        {% endif %}
+    </div>
+
+    <!-- Navigation -->
+    <div class="flex justify-between items-center">
+        <a href="/admin/clients/{{ client.id }}/onboard/step/4"
+           class="bg-slate-700 hover:bg-slate-600 text-gray-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            ← Back
+        </a>
+        <form method="post" action="/admin/clients/{{ client.id }}/onboard/step/5">
+            <button type="submit"
+                    class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors">
+                Launch Test Run →
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

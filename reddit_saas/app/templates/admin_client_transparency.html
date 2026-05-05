@@ -1,0 +1,220 @@
+{% extends "admin_base.html" %}
+{% block title %}{{ client.client_name }} — Transparency{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> /
+    <a href="/admin/clients" class="hover:text-white">Clients</a> /
+    <a href="/admin/clients/{{ client.id }}" class="hover:text-white">{{ client.client_name }}</a> /
+    <span class="text-white">Transparency</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-semibold text-white">{{ client.client_name }} — Transparency</h1>
+        <a href="/admin/clients/{{ client.id }}"
+           class="text-sm text-gray-400 hover:text-white transition-colors flex items-center gap-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/>
+            </svg>
+            Back to Client
+        </a>
+    </div>
+
+    <!-- Pipeline Statistics -->
+    <h2 class="text-lg font-medium text-gray-300 mb-4">Pipeline Statistics</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Total Threads</div>
+            <div class="text-3xl font-mono font-semibold text-white">{{ stats.threads.total }}</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Last 24 Hours</div>
+            <div class="text-3xl font-mono font-semibold text-white">{{ stats.threads.last_24h }}</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Last 7 Days</div>
+            <div class="text-3xl font-mono font-semibold text-white">{{ stats.threads.last_7d }}</div>
+        </div>
+    </div>
+
+    <!-- Tag Distribution -->
+    {% set tag_total = stats.tags.engage + stats.tags.monitor + stats.tags.skip + stats.tags.unscored %}
+    <h2 class="text-lg font-medium text-gray-300 mb-4">Tag Distribution</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+        <!-- Engage -->
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-emerald-400 mb-1">Engage</div>
+            <div class="text-2xl font-mono font-semibold text-white">{{ stats.tags.engage }}</div>
+            <div class="text-xs text-gray-500 mt-1 font-mono">
+                {% if tag_total > 0 %}{{ "%.1f"|format(stats.tags.engage / tag_total * 100) }}%{% else %}0.0%{% endif %}
+            </div>
+            <div class="mt-2 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                <div class="h-full bg-emerald-500 rounded-full" style="width: {% if tag_total > 0 %}{{ (stats.tags.engage / tag_total * 100)|round(1) }}%{% else %}0%{% endif %}"></div>
+            </div>
+        </div>
+        <!-- Monitor -->
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-blue-400 mb-1">Monitor</div>
+            <div class="text-2xl font-mono font-semibold text-white">{{ stats.tags.monitor }}</div>
+            <div class="text-xs text-gray-500 mt-1 font-mono">
+                {% if tag_total > 0 %}{{ "%.1f"|format(stats.tags.monitor / tag_total * 100) }}%{% else %}0.0%{% endif %}
+            </div>
+            <div class="mt-2 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                <div class="h-full bg-blue-500 rounded-full" style="width: {% if tag_total > 0 %}{{ (stats.tags.monitor / tag_total * 100)|round(1) }}%{% else %}0%{% endif %}"></div>
+            </div>
+        </div>
+        <!-- Skip -->
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Skip</div>
+            <div class="text-2xl font-mono font-semibold text-white">{{ stats.tags.skip }}</div>
+            <div class="text-xs text-gray-500 mt-1 font-mono">
+                {% if tag_total > 0 %}{{ "%.1f"|format(stats.tags.skip / tag_total * 100) }}%{% else %}0.0%{% endif %}
+            </div>
+            <div class="mt-2 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                <div class="h-full bg-gray-500 rounded-full" style="width: {% if tag_total > 0 %}{{ (stats.tags.skip / tag_total * 100)|round(1) }}%{% else %}0%{% endif %}"></div>
+            </div>
+        </div>
+        <!-- Unscored -->
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-amber-400 mb-1">Unscored</div>
+            <div class="text-2xl font-mono font-semibold text-white">{{ stats.tags.unscored }}</div>
+            <div class="text-xs text-gray-500 mt-1 font-mono">
+                {% if tag_total > 0 %}{{ "%.1f"|format(stats.tags.unscored / tag_total * 100) }}%{% else %}0.0%{% endif %}
+            </div>
+            <div class="mt-2 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                <div class="h-full bg-amber-500 rounded-full" style="width: {% if tag_total > 0 %}{{ (stats.tags.unscored / tag_total * 100)|round(1) }}%{% else %}0%{% endif %}"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Draft Status Breakdown -->
+    <h2 class="text-lg font-medium text-gray-300 mb-4">Draft Status Breakdown</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-amber-400 mb-1">Pending</div>
+            <div class="text-2xl font-mono font-semibold text-white">{{ stats.drafts.pending }}</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-emerald-400 mb-1">Approved</div>
+            <div class="text-2xl font-mono font-semibold text-white">{{ stats.drafts.approved }}</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-red-400 mb-1">Rejected</div>
+            <div class="text-2xl font-mono font-semibold text-white">{{ stats.drafts.rejected }}</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-blue-400 mb-1">Posted</div>
+            <div class="text-2xl font-mono font-semibold text-white">{{ stats.drafts.posted }}</div>
+        </div>
+    </div>
+
+    <!-- AI Costs -->
+    <h2 class="text-lg font-medium text-gray-300 mb-4">AI Costs</h2>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-8">
+        <!-- Total Cost Card -->
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Total AI Cost</div>
+            <div class="text-3xl font-mono font-semibold text-white">${{ "%.4f"|format(stats.ai_costs.total) }}</div>
+        </div>
+        <!-- Cost by Operation Table -->
+        <div class="lg:col-span-2 bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-slate-700">
+                        <th class="text-left px-5 py-3 text-gray-400 font-medium">Operation</th>
+                        <th class="text-right px-5 py-3 text-gray-400 font-medium">Cost</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for operation, cost in stats.ai_costs.by_operation.items() %}
+                    <tr class="border-b border-slate-700/50">
+                        <td class="px-5 py-3 text-white capitalize">{{ operation }}</td>
+                        <td class="px-5 py-3 text-right font-mono text-gray-300">${{ "%.4f"|format(cost) }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="2" class="px-5 py-3 text-gray-500 text-center">No AI usage recorded</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Scrape Freshness -->
+    <h2 class="text-lg font-medium text-gray-300 mb-4">Scrape Freshness</h2>
+    <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden mb-8">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="border-b border-slate-700">
+                    <th class="text-left px-5 py-3 text-gray-400 font-medium">Subreddit</th>
+                    <th class="text-left px-5 py-3 text-gray-400 font-medium">Last Scraped</th>
+                    <th class="text-right px-5 py-3 text-gray-400 font-medium">Total Posts</th>
+                    <th class="text-right px-5 py-3 text-gray-400 font-medium">Avg New/Scrape</th>
+                    <th class="text-center px-5 py-3 text-gray-400 font-medium">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in freshness %}
+                <tr class="border-b border-slate-700/50">
+                    <td class="px-5 py-3 font-medium {% if row.is_stale %}text-amber-400{% else %}text-white{% endif %}">r/{{ row.subreddit_name }}</td>
+                    <td class="px-5 py-3 font-mono text-xs {% if row.is_stale %}text-amber-400{% else %}text-gray-300{% endif %}" title="{{ row.last_scraped_at.strftime('%Y-%m-%d %H:%M:%S UTC') if row.last_scraped_at else 'Never scraped' }}">
+                        {% if row.last_scraped_at and now_utc is defined %}
+                            {% set delta = now_utc - row.last_scraped_at %}
+                            {% set total_seconds = delta.total_seconds() | int %}
+                            {% if total_seconds < 60 %}
+                                just now
+                            {% elif total_seconds < 3600 %}
+                                {{ (total_seconds // 60) | int }} min ago
+                            {% elif total_seconds < 86400 %}
+                                {{ (total_seconds // 3600) | int }}h ago
+                            {% elif total_seconds < 604800 %}
+                                {{ (total_seconds // 86400) | int }}d ago
+                            {% else %}
+                                {{ row.last_scraped_at.strftime('%b %d, %H:%M') }}
+                            {% endif %}
+                        {% elif row.last_scraped_at %}
+                            {{ row.last_scraped_at.strftime('%b %d, %Y %H:%M') }}
+                        {% else %}
+                            <span class="text-amber-400">Never</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-5 py-3 text-right font-mono text-gray-300">{{ row.total_posts_found }}</td>
+                    <td class="px-5 py-3 text-right font-mono text-gray-300">{{ "%.1f"|format(row.avg_posts_new) }}</td>
+                    <td class="px-5 py-3 text-center">
+                        {% if row.is_stale %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-900/50 text-amber-400 border border-amber-700">
+                                Stale
+                            </span>
+                        {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-900/50 text-emerald-400 border border-emerald-700">
+                                Fresh
+                            </span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="px-5 py-6 text-gray-500 text-center">No subreddits configured for this client</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Activity History -->
+    <h2 class="text-lg font-medium text-gray-300 mb-4">Activity History</h2>
+    <div id="activity-feed-container"
+         hx-get="/admin/clients/{{ client.id }}/activity-feed"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <div class="bg-dark-steel rounded-lg p-8 border border-slate-700 text-center">
+            <p class="text-gray-500 text-sm">Loading activity...</p>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

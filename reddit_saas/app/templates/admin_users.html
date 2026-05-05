@@ -1,0 +1,112 @@
+{% extends "admin_base.html" %}
+{% block title %}Users{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> / <span class="text-white">Users</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <h1 class="text-2xl font-semibold text-white mb-6">User Management</h1>
+
+    {% set guide_title = "📖 Managing Users" %}
+    {% set guide_content %}
+    <p><strong class="text-white">Users</strong> are people who log into the platform. Each user has a role:</p>
+    <p>🛡️ <strong class="text-violet-400">Superuser (Admin)</strong> — sees all clients, manages the entire system. Only you should have this role.</p>
+    <p>👤 <strong class="text-indigo-400">Client user</strong> — linked to one client, sees only their own data (threads, comments, avatars).</p>
+    <p><strong class="text-gray-300">To create a client user:</strong> Fill in email + password, select the client from the dropdown, leave "Superuser" unchecked. Share the credentials with the client.</p>
+    <p><strong class="text-gray-300">Reset password:</strong> Type a new password in the "New pwd" field next to any user and click Reset.</p>
+    {% endset %}
+    {% include "partials/page_guide.html" %}
+
+    {% if error %}
+    <div class="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-300 text-sm">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <!-- Create User Form -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-6">
+        <h2 class="text-lg font-medium text-white mb-4">Create User</h2>
+        <form method="post" action="/admin/users" class="flex flex-wrap gap-3 items-end">
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-xs text-gray-400 mb-1">Email</label>
+                <input type="email" name="email" required
+                       class="w-full bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+            </div>
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-xs text-gray-400 mb-1">Password</label>
+                <input type="password" name="password" required
+                       class="w-full bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+            </div>
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-xs text-gray-400 mb-1">Full Name</label>
+                <input type="text" name="full_name"
+                       class="w-full bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+            </div>
+            <div class="flex items-center gap-2 pb-1">
+                <input type="checkbox" name="is_superuser" value="true" id="is_superuser"
+                       class="rounded border-slate-600 bg-slate-night text-indigo-600">
+                <label for="is_superuser" class="text-sm text-gray-400">Superuser</label>
+            </div>
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-xs text-gray-400 mb-1">Client (for non-admin users)</label>
+                <select name="user_client_id"
+                        class="w-full bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                    <option value="">— No client (admin) —</option>
+                    {% for c in clients %}
+                    <option value="{{ c.id }}">{{ c.client_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                Create User
+            </button>
+        </form>
+    </div>
+
+    <!-- Users Table -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+        <table class="w-full text-sm text-left">
+            <thead>
+                <tr class="border-b border-slate-700">
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Email</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Full Name</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Client</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Active</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Superuser</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Created</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                {% include "partials/admin_user_row.html" %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if pagination.total_pages > 1 %}
+    <div class="flex justify-center gap-2 mt-6">
+        {% if pagination.has_prev %}
+        <a href="/admin/users?page={{ pagination.page - 1 }}"
+           class="px-3 py-1 bg-dark-steel border border-slate-700 rounded text-sm text-gray-400 hover:text-white hover:border-slate-500">
+            Previous
+        </a>
+        {% endif %}
+        <span class="px-3 py-1 text-sm text-gray-400">
+            Page {{ pagination.page }} of {{ pagination.total_pages }}
+        </span>
+        {% if pagination.has_next %}
+        <a href="/admin/users?page={{ pagination.page + 1 }}"
+           class="px-3 py-1 bg-dark-steel border border-slate-700 rounded text-sm text-gray-400 hover:text-white hover:border-slate-500">
+            Next
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

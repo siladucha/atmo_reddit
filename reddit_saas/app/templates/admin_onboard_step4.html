@@ -1,0 +1,74 @@
+{% extends "admin_base.html" %}
+{% block title %}Onboarding — Step 4: Avatars{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> / <a href="/admin/clients" class="hover:text-white">Clients</a> /
+    <a href="/admin/clients/{{ client.id }}" class="hover:text-white">{{ client.client_name }}</a> /
+    <span class="text-white">Onboarding — Step {{ step }}</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <h1 class="text-2xl font-semibold text-white mb-2">Client Onboarding</h1>
+    <p class="text-gray-400 text-sm mb-6">Step {{ step }} of {{ total_steps }} — Avatar Assignment</p>
+
+    {% include "partials/wizard_progress.html" %}
+
+    {% if error %}
+    <div class="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-300 text-sm">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/admin/clients/{{ client.id }}/onboard/step/4/avatars">
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-6">
+            <h2 class="text-lg font-medium text-white mb-3">
+                Available Avatars
+                <span class="text-sm text-gray-400 font-normal">({{ avatars|length }} total)</span>
+            </h2>
+            <p class="text-gray-400 text-sm mb-4">Select the avatars to assign to this client.</p>
+
+            {% if avatars %}
+            <div class="space-y-2">
+                {% for avatar in avatars %}
+                <label class="flex items-start gap-3 p-3 rounded bg-slate-night hover:bg-slate-800 cursor-pointer transition-colors">
+                    <input type="checkbox" name="avatar_ids" value="{{ avatar.id }}"
+                           {% if avatar.id|string in assigned_ids %}checked{% endif %}
+                           class="mt-1 rounded border-slate-600 bg-slate-night text-indigo-600 focus:ring-indigo-500">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2">
+                            <span class="text-white font-medium">u/{{ avatar.reddit_username }}</span>
+                            <span class="px-2 py-0.5 rounded text-xs
+                                  {% if avatar.active %}bg-emerald-900/50 text-emerald-400{% else %}bg-red-900/50 text-red-400{% endif %}">
+                                {{ 'Active' if avatar.active else 'Inactive' }}
+                            </span>
+                            {% if avatar.karma_post or avatar.karma_comment %}
+                            <span class="text-xs text-gray-500 font-mono">
+                                karma: {{ avatar.karma_post + avatar.karma_comment }}
+                            </span>
+                            {% endif %}
+                        </div>
+                        {% if avatar.voice_profile_md %}
+                        <p class="text-gray-400 text-sm mt-1">{{ avatar.voice_profile_md[:150] }}{% if avatar.voice_profile_md|length > 150 %}...{% endif %}</p>
+                        {% endif %}
+                    </div>
+                </label>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 text-sm">No avatars available. Create avatars first in the Avatars section.</p>
+            {% endif %}
+        </div>
+
+        <!-- Navigation -->
+        <div class="flex justify-between items-center">
+            <a href="/admin/clients/{{ client.id }}/onboard/step/3"
+               class="bg-slate-700 hover:bg-slate-600 text-gray-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                ← Back
+            </a>
+            <button type="submit"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors">
+                Next →
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

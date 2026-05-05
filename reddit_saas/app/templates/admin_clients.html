@@ -1,0 +1,88 @@
+{% extends "admin_base.html" %}
+{% block title %}Clients{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> / <span class="text-white">Clients</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-semibold text-white">Clients</h1>
+        <a href="/admin/clients/new"
+           class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            + New Client
+        </a>
+    </div>
+
+    {% set guide_title = "📖 Client Management" %}
+    {% set guide_content %}
+    <p>A <strong class="text-white">Client</strong> is a business (brand) that uses the platform for Reddit marketing. Each client has their own subreddits, keywords, and avatars.</p>
+    <p><strong class="text-gray-300">Onboarding a new client:</strong> Click "+ New Client" or use the "Onboard" link to go through the 6-step wizard (Profile → Subreddits → Keywords → Avatars → Review → Test Run).</p>
+    <p><strong class="text-gray-300">Columns:</strong> Subreddits = monitored communities, Avatars = Reddit accounts assigned to this client.</p>
+    {% endset %}
+    {% include "partials/page_guide.html" %}
+
+    <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+        <table class="w-full text-sm text-left">
+            <thead>
+                <tr class="border-b border-slate-700">
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Client Name</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Brand</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Active</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Subreddits</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Avatars</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Created</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in clients %}
+                <tr class="border-b border-slate-700 hover:bg-slate-700/30">
+                    <td class="px-4 py-3">
+                        <a href="/admin/clients/{{ item.client.id }}" class="text-indigo-400 hover:text-indigo-300">
+                            {{ item.client.client_name }}
+                        </a>
+                    </td>
+                    <td class="px-4 py-3 text-gray-300">{{ item.client.brand_name }}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-0.5 rounded text-xs font-medium
+                              {% if item.client.is_active %}bg-emerald-900/50 text-emerald-400{% else %}bg-red-900/50 text-red-400{% endif %}">
+                            {{ 'Active' if item.client.is_active else 'Inactive' }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-gray-300 font-mono">{{ item.subreddit_count }}</td>
+                    <td class="px-4 py-3 text-gray-300 font-mono">{{ item.avatar_count }}</td>
+                    <td class="px-4 py-3 text-gray-500 text-xs font-mono">
+                        {{ item.client.created_at.strftime('%Y-%m-%d') if item.client.created_at else '—' }}
+                    </td>
+                    <td class="px-4 py-3 flex gap-2">
+                        <a href="/admin/clients/{{ item.client.id }}" class="text-indigo-400 hover:text-indigo-300 text-xs">View</a>
+                        <a href="/admin/clients/{{ item.client.id }}/onboard/step/1" class="text-violet-400 hover:text-violet-300 text-xs">Onboard</a>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not clients %}
+                <tr>
+                    <td colspan="7" class="px-4 py-8 text-center text-gray-500">No clients yet</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if pagination.total_pages > 1 %}
+    <div class="flex justify-center gap-2 mt-6">
+        {% if pagination.has_prev %}
+        <a href="/admin/clients?page={{ pagination.page - 1 }}"
+           class="px-3 py-1 bg-dark-steel border border-slate-700 rounded text-sm text-gray-400 hover:text-white hover:border-slate-500">Previous</a>
+        {% endif %}
+        <span class="px-3 py-1 text-sm text-gray-400">Page {{ pagination.page }} of {{ pagination.total_pages }}</span>
+        {% if pagination.has_next %}
+        <a href="/admin/clients?page={{ pagination.page + 1 }}"
+           class="px-3 py-1 bg-dark-steel border border-slate-700 rounded text-sm text-gray-400 hover:text-white hover:border-slate-500">Next</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

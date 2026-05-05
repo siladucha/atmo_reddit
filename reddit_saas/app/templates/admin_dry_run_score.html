@@ -1,0 +1,115 @@
+{% extends "admin_base.html" %}
+{% block title %}Dry-Run Scoring{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> /
+    <a href="/admin/dry-run/" class="hover:text-white">Dry-Run</a> /
+    <a href="/admin/dry-run/{{ client.id }}" class="hover:text-white">{{ client.client_name }}</a> /
+    <span class="text-white">Score thread</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto">
+    <div class="flex items-start justify-between mb-4">
+        <div class="min-w-0 flex-1">
+            <div class="text-xs uppercase tracking-wide text-gray-500 mb-1">Stage 1 — Scoring</div>
+            <h1 class="text-xl font-semibold text-white">{{ thread.post_title }}</h1>
+            <div class="text-gray-400 text-sm mt-1">
+                r/{{ thread.subreddit }} ·
+                <a href="{{ thread.url }}" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300">open on Reddit ↗</a>
+            </div>
+        </div>
+        <span class="ml-3 px-2 py-1 rounded text-xs font-mono bg-slate-night border border-slate-600 text-gray-400">
+            model: {{ model_name }}
+        </span>
+    </div>
+
+    <div class="bg-amber-900/20 border border-amber-700/40 rounded-lg p-3 text-amber-200 text-sm mb-6">
+        <strong>How to use:</strong> copy the prompt below → paste into ChatGPT, Claude.ai, or any LLM playground → ask it to return JSON only (matching the schema in the system prompt) → paste the response into the textarea at the bottom and submit.
+    </div>
+
+    {% if error %}
+    <div class="mb-4 p-3 bg-red-900/40 border border-red-700 rounded-lg text-red-300 text-sm">
+        <strong>Parse error:</strong> {{ error }}
+    </div>
+    {% endif %}
+
+    <!-- Prompt panes -->
+    <div class="grid grid-cols-1 gap-4 mb-6">
+        <!-- System prompt -->
+        <div class="bg-dark-steel rounded-lg border border-slate-700">
+            <div class="flex items-center justify-between px-4 py-2 border-b border-slate-700">
+                <span class="text-sm text-gray-300 font-medium">System prompt</span>
+                <button type="button"
+                        onclick="copyToClipboard('system-prompt', this)"
+                        class="text-xs text-indigo-400 hover:text-indigo-300">Copy</button>
+            </div>
+            <pre id="system-prompt" class="p-4 text-xs text-gray-300 font-mono whitespace-pre-wrap break-words max-h-72 overflow-y-auto">{{ system_prompt }}</pre>
+        </div>
+
+        <!-- User prompt -->
+        <div class="bg-dark-steel rounded-lg border border-slate-700">
+            <div class="flex items-center justify-between px-4 py-2 border-b border-slate-700">
+                <span class="text-sm text-gray-300 font-medium">User prompt (the thread itself)</span>
+                <button type="button"
+                        onclick="copyToClipboard('user-prompt', this)"
+                        class="text-xs text-indigo-400 hover:text-indigo-300">Copy</button>
+            </div>
+            <pre id="user-prompt" class="p-4 text-xs text-gray-300 font-mono whitespace-pre-wrap break-words max-h-72 overflow-y-auto">{{ user_prompt }}</pre>
+        </div>
+
+        <!-- Combined -->
+        <div class="bg-dark-steel rounded-lg border border-slate-700">
+            <div class="flex items-center justify-between px-4 py-2 border-b border-slate-700">
+                <span class="text-sm text-gray-300 font-medium">Both, concatenated (one-shot copy)</span>
+                <button type="button"
+                        onclick="copyToClipboard('combined-prompt', this)"
+                        class="text-xs text-indigo-400 hover:text-indigo-300">Copy</button>
+            </div>
+            <pre id="combined-prompt" class="p-4 text-xs text-gray-400 font-mono whitespace-pre-wrap break-words max-h-48 overflow-y-auto">{{ combined_prompt }}</pre>
+        </div>
+    </div>
+
+    <!-- Paste-back form -->
+    <form method="post" action="/admin/dry-run/score/{{ thread.id }}"
+          class="bg-dark-steel rounded-lg border border-slate-700 p-5">
+        <label class="block text-sm font-medium text-white mb-2">
+            Paste the LLM JSON response here
+        </label>
+        <p class="text-gray-400 text-xs mb-2">
+            Expected fields: <code class="font-mono bg-slate-night px-1 rounded">alert</code>,
+            <code class="font-mono bg-slate-night px-1 rounded">tag</code>,
+            <code class="font-mono bg-slate-night px-1 rounded">relevance</code>,
+            <code class="font-mono bg-slate-night px-1 rounded">quality</code>,
+            <code class="font-mono bg-slate-night px-1 rounded">strategic</code>,
+            <code class="font-mono bg-slate-night px-1 rounded">composite</code>,
+            <code class="font-mono bg-slate-night px-1 rounded">intent</code>,
+            <code class="font-mono bg-slate-night px-1 rounded">reason</code>. Markdown <code class="font-mono bg-slate-night px-1 rounded">```json</code> fences are tolerated.
+        </p>
+        <textarea name="raw_response" rows="10" required
+                  class="w-full bg-slate-night border border-slate-600 text-gray-100 font-mono text-xs rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  placeholder='{ "alert": false, "tag": "engage", "relevance": 3, "quality": 2, "strategic": 2, "composite": 7, "intent": "help_seeking", "reason": "..." }'>{{ raw_response }}</textarea>
+
+        <div class="flex justify-between items-center mt-4">
+            <a href="/admin/dry-run/{{ client.id }}"
+               class="text-sm text-gray-400 hover:text-white">← Back to hub</a>
+            <button type="submit"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors">
+                Submit & Score →
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+function copyToClipboard(elementId, button) {
+    const el = document.getElementById(elementId);
+    const text = el.innerText;
+    navigator.clipboard.writeText(text).then(() => {
+        const original = button.innerText;
+        button.innerText = 'Copied!';
+        setTimeout(() => { button.innerText = original; }, 1500);
+    });
+}
+</script>
+{% endblock %}

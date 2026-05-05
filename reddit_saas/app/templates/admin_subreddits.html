@@ -1,0 +1,66 @@
+{% extends "admin_base.html" %}
+{% block title %}Subreddits — {{ client.client_name }}{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> / <a href="/admin/clients" class="hover:text-white">Clients</a> / <a href="/admin/clients/{{ client.id }}" class="hover:text-white">{{ client.client_name }}</a> / <span class="text-white">Subreddits</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto">
+    <h1 class="text-2xl font-semibold text-white mb-6">Subreddits — {{ client.client_name }}</h1>
+
+    {% if error %}
+    <div class="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-300 text-sm">{{ error }}</div>
+    {% endif %}
+
+    <!-- Add Subreddit Form -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-6">
+        <h2 class="text-lg font-medium text-white mb-4">Add Subreddit</h2>
+        <form method="post" action="/admin/subreddits/{{ client.id }}/add" class="flex gap-3 items-end">
+            <div class="flex-1">
+                <label class="block text-xs text-gray-400 mb-1">Subreddit Name (without r/)</label>
+                <input type="text" name="subreddit_name" required placeholder="e.g. cybersecurity"
+                       class="w-full bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Type</label>
+                <select name="subreddit_type"
+                        class="bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                    <option value="professional">Professional</option>
+                    <option value="hobby">Hobby</option>
+                </select>
+            </div>
+            <button type="submit"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                Add
+            </button>
+        </form>
+    </div>
+
+    <!-- Subreddits Table -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+        <table class="w-full text-sm text-left">
+            <thead>
+                <tr class="border-b border-slate-700">
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Status</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Subreddit</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Type</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Last Scraped</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Created</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sub in subreddits %}
+                {% include "partials/admin_subreddit_row.html" %}
+                {% endfor %}
+                {% if not subreddits %}
+                <tr>
+                    <td colspan="6" class="px-4 py-8 text-center text-gray-500">No subreddits yet</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

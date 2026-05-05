@@ -1,0 +1,302 @@
+{% extends "admin_base.html" %}
+{% block title %}System Settings{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> / <span class="text-white">System Settings</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-semibold text-white">System Settings</h1>
+        <button type="button" onclick="bulkSave()"
+                class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            Save All Changes
+        </button>
+    </div>
+
+    <!-- Bulk save status -->
+    <div id="bulk-save-status" class="mb-4"></div>
+
+    {% set group_order = ['database', 'redis', 'auth', 'reddit_api', 'llm', 'app', 'budget'] %}
+    {% set group_labels = {
+        'database': 'Database',
+        'redis': 'Redis',
+        'auth': 'Auth',
+        'reddit_api': 'Reddit API',
+        'llm': 'LLM',
+        'app': 'App',
+        'budget': 'Budget / Billing'
+    } %}
+    {% set group_icons = {
+        'database': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125"/>',
+        'redis': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m0 0a3 3 0 01-3 3m0 3h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008zm-3 6h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008z"/>',
+        'auth': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/>',
+        'reddit_api': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418"/>',
+        'llm': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"/>',
+        'app': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.28z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>',
+        'budget': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z"/>'
+    } %}
+
+    <!-- Tabs Navigation -->
+    <div class="border-b border-slate-700 mb-6">
+        <nav class="flex gap-1 overflow-x-auto pb-px" id="settings-tabs">
+            {% for group_key in group_order %}
+            {% if group_key in grouped_settings %}
+            <button type="button"
+                    onclick="switchTab('{{ group_key }}')"
+                    id="tab-{{ group_key }}"
+                    class="tab-btn flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 transition-colors whitespace-nowrap
+                           {% if loop.first %}border-indigo-500 text-white bg-dark-steel{% else %}border-transparent text-gray-400 hover:text-gray-200 hover:border-slate-500{% endif %}">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    {{ group_icons.get(group_key, group_icons['app'])|safe }}
+                </svg>
+                {{ group_labels.get(group_key, group_key|title) }}
+            </button>
+            {% endif %}
+            {% endfor %}
+        </nav>
+    </div>
+
+    <!-- Tab Panels -->
+    {% for group_key in group_order %}
+    {% if group_key in grouped_settings %}
+    {% set settings_list = grouped_settings[group_key] %}
+    <div class="tab-panel {% if not loop.first %}hidden{% endif %}" id="panel-{{ group_key }}">
+        <div class="bg-dark-steel rounded-lg border border-slate-700">
+            <!-- Group Header with actions -->
+            <div class="px-5 py-4 border-b border-slate-700 flex items-center justify-between">
+                <h2 class="text-lg font-medium text-white flex items-center gap-2">
+                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        {{ group_icons.get(group_key, group_icons['app'])|safe }}
+                    </svg>
+                    {{ group_labels.get(group_key, group_key|title) }}
+                </h2>
+                <div class="flex items-center gap-3">
+                    {% if group_key == 'reddit_api' %}
+                    <button type="button"
+                            hx-post="/admin/settings/test/reddit"
+                            hx-target="#test-reddit-result"
+                            hx-swap="innerHTML"
+                            hx-indicator="#test-reddit-spinner"
+                            class="inline-flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-gray-300 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                        Test Connection
+                        <span id="test-reddit-spinner" class="htmx-indicator">
+                            <svg class="animate-spin h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                        </span>
+                    </button>
+                    <span id="test-reddit-result"></span>
+                    {% elif group_key == 'llm' %}
+                    <button type="button"
+                            hx-post="/admin/settings/test/llm"
+                            hx-target="#test-llm-result"
+                            hx-swap="innerHTML"
+                            hx-indicator="#test-llm-spinner"
+                            class="inline-flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-gray-300 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                        Test Connection
+                        <span id="test-llm-spinner" class="htmx-indicator">
+                            <svg class="animate-spin h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                        </span>
+                    </button>
+                    <span id="test-llm-result"></span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Settings Rows -->
+            <div class="divide-y divide-slate-700">
+                {% for setting in settings_list %}
+                <div class="px-5 py-4" id="setting-row-{{ setting.key }}">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex-1 min-w-0">
+                            <!-- Key Label -->
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-sm font-medium text-white font-mono">{{ setting.key }}</span>
+                                {% if setting.is_secret %}
+                                <span class="px-1.5 py-0.5 rounded text-xs bg-amber-900/50 text-amber-400 border border-amber-700/50">secret</span>
+                                {% endif %}
+                                {% if setting.get('read_only') %}
+                                <span class="px-1.5 py-0.5 rounded text-xs bg-slate-700 text-gray-400">read-only</span>
+                                {% endif %}
+                            </div>
+
+                            <!-- Description -->
+                            {% if setting.description %}
+                            <p class="text-xs text-gray-500 mb-2">{{ setting.description }}</p>
+                            {% endif %}
+
+                            <!-- Current Value Display -->
+                            <div class="flex items-center gap-2" id="display-{{ setting.key }}">
+                                {% if setting.get('read_only') %}
+                                    <code class="text-sm text-gray-400 font-mono bg-slate-night px-2 py-1 rounded border border-slate-700 break-all">{{ setting.value or '(not set)' }}</code>
+                                    <span class="text-xs text-gray-500 italic ml-2">Change in .env file</span>
+                                {% elif setting.is_secret and setting.value %}
+                                    <span class="text-sm text-gray-300 font-mono" id="masked-{{ setting.key }}">•••••</span>
+                                    <button type="button" onclick="toggleSecret('{{ setting.key }}')"
+                                            class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                                            id="reveal-btn-{{ setting.key }}">
+                                        reveal
+                                    </button>
+                                    <span class="hidden text-sm text-gray-300 font-mono break-all" id="revealed-{{ setting.key }}">{{ setting.value }}</span>
+                                {% else %}
+                                    <code class="text-sm text-gray-300 font-mono">{{ setting.value if setting.value else '(not set)' }}</code>
+                                {% endif %}
+                            </div>
+
+                            <!-- Inline Edit Form (hidden by default) -->
+                            {% if not setting.get('read_only') %}
+                            <div class="hidden mt-2" id="edit-{{ setting.key }}">
+                                <form class="flex items-center gap-2"
+                                      hx-post="/admin/settings/{{ setting.key }}"
+                                      hx-target="#save-status-{{ setting.key }}"
+                                      hx-swap="innerHTML">
+                                    <input type="text"
+                                           name="value"
+                                           value="{{ setting.value }}"
+                                           class="flex-1 bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-1.5 text-sm font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                           id="input-{{ setting.key }}">
+                                    <button type="submit"
+                                            class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
+                                        Save
+                                    </button>
+                                    <button type="button" onclick="toggleEdit('{{ setting.key }}')"
+                                            class="bg-slate-700 hover:bg-slate-600 text-gray-300 px-3 py-1.5 rounded-lg text-sm transition-colors">
+                                        Cancel
+                                    </button>
+                                    <span id="save-status-{{ setting.key }}"></span>
+                                </form>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Right side: updated_at + edit button -->
+                        <div class="flex flex-col items-end gap-2 flex-shrink-0">
+                            {% if setting.updated_at %}
+                            <span class="text-xs text-gray-500 font-mono">{{ setting.updated_at.strftime('%Y-%m-%d %H:%M') if setting.updated_at else '' }}</span>
+                            {% endif %}
+                            {% if not setting.get('read_only') %}
+                            <button type="button" onclick="toggleEdit('{{ setting.key }}')"
+                                    class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                                    id="edit-btn-{{ setting.key }}">
+                                Edit
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function switchTab(groupKey) {
+    // Hide all panels
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+    // Deactivate all tabs
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('border-indigo-500', 'text-white', 'bg-dark-steel');
+        btn.classList.add('border-transparent', 'text-gray-400');
+    });
+    // Show selected panel
+    const panel = document.getElementById('panel-' + groupKey);
+    if (panel) panel.classList.remove('hidden');
+    // Activate selected tab
+    const tab = document.getElementById('tab-' + groupKey);
+    if (tab) {
+        tab.classList.remove('border-transparent', 'text-gray-400');
+        tab.classList.add('border-indigo-500', 'text-white', 'bg-dark-steel');
+    }
+}
+
+function toggleSecret(key) {
+    const masked = document.getElementById('masked-' + key);
+    const revealed = document.getElementById('revealed-' + key);
+    const btn = document.getElementById('reveal-btn-' + key);
+    if (masked && revealed) {
+        if (revealed.classList.contains('hidden')) {
+            revealed.classList.remove('hidden');
+            masked.classList.add('hidden');
+            btn.textContent = 'hide';
+        } else {
+            revealed.classList.add('hidden');
+            masked.classList.remove('hidden');
+            btn.textContent = 'reveal';
+        }
+    }
+}
+
+function toggleEdit(key) {
+    const display = document.getElementById('display-' + key);
+    const edit = document.getElementById('edit-' + key);
+    const btn = document.getElementById('edit-btn-' + key);
+    if (display && edit) {
+        if (edit.classList.contains('hidden')) {
+            edit.classList.remove('hidden');
+            display.classList.add('hidden');
+            if (btn) btn.textContent = 'Cancel';
+        } else {
+            edit.classList.add('hidden');
+            display.classList.remove('hidden');
+            if (btn) btn.textContent = 'Edit';
+        }
+    }
+}
+
+function bulkSave() {
+    const data = new FormData();
+    // Collect values from ALL edit forms (including hidden panels)
+    document.querySelectorAll('[id^="edit-"]').forEach(editDiv => {
+        if (!editDiv.classList.contains('hidden')) {
+            const key = editDiv.id.replace('edit-', '');
+            const input = document.getElementById('input-' + key);
+            if (input) {
+                data.append('setting_' + key, input.value);
+            }
+        }
+    });
+
+    if ([...data.entries()].length === 0) {
+        document.getElementById('bulk-save-status').innerHTML =
+            '<span class="text-yellow-400 text-sm">No settings in edit mode. Click Edit on settings you want to change.</span>';
+        setTimeout(() => {
+            document.getElementById('bulk-save-status').innerHTML = '';
+        }, 3000);
+        return;
+    }
+
+    fetch('/admin/settings/bulk-save', {
+        method: 'POST',
+        body: data
+    })
+    .then(response => response.text())
+    .then(html => {
+        document.getElementById('bulk-save-status').innerHTML = html;
+        setTimeout(() => {
+            document.getElementById('bulk-save-status').innerHTML = '';
+        }, 3000);
+    })
+    .catch(() => {
+        document.getElementById('bulk-save-status').innerHTML =
+            '<span class="text-red-400 text-sm">Failed to save settings</span>';
+    });
+}
+</script>
+{% endblock %}

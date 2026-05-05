@@ -1,0 +1,45 @@
+{% extends "admin_base.html" %}
+{% block title %}Keywords{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <a href="/admin/" class="hover:text-white">Admin</a>
+    <span class="mx-2 text-gray-600">/</span>
+    <span class="text-gray-500">Content</span>
+    <span class="mx-2 text-gray-600">/</span>
+    <span class="text-white">Keywords</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div>
+        <h1 class="text-2xl font-semibold text-white">Keywords</h1>
+        <p class="text-sm text-gray-400 mt-1">Keyword strategy across {{ groups|length }} client{{ 's' if groups|length != 1 }}.</p>
+    </div>
+
+    {% if not groups %}
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-12 text-center text-gray-500">
+        No active clients.
+    </div>
+    {% endif %}
+
+    {% for g in groups %}
+    <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+        <!-- Client header -->
+        <div class="px-5 py-4 border-b border-slate-700 flex items-center justify-between">
+            <div>
+                <h2 class="text-lg font-medium text-white">{{ g.client.client_name }}</h2>
+                <p class="text-xs text-gray-400 mt-0.5">{{ g.keywords|length }} keyword{{ 's' if g.keywords|length != 1 }}</p>
+            </div>
+            <a href="/admin/keywords/{{ g.client.id }}"
+               class="text-xs text-indigo-400 hover:text-indigo-300">Open client view →</a>
+        </div>
+
+        {% with client=g.client, keywords=g.keywords, error=None %}
+            {% include "partials/admin_keyword_section.html" %}
+        {% endwith %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends "admin_base.html" %}
+{% block title %}Billing{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> / <span class="text-white">Billing</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <h1 class="text-2xl font-semibold text-white mb-6">Billing</h1>
+
+    <!-- Current Usage -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Current AI Cost</div>
+            <div class="text-3xl font-mono font-semibold text-white">${{ "%.2f"|format(ai_costs.total_cost) }}</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Monthly Budget</div>
+            <div class="text-3xl font-mono font-semibold text-white">${{ "%.2f"|format(budget) }}</div>
+        </div>
+    </div>
+
+    <!-- Coming Soon -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-8 text-center">
+        <div class="text-4xl mb-4">🚧</div>
+        <h2 class="text-xl font-semibold text-white mb-2">Coming Soon</h2>
+        <p class="text-gray-400 mb-6">
+            Billing management, subscription plans, and payment processing will be available in a future update.
+        </p>
+        <a href="/settings"
+           class="inline-block bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors">
+            Go to Settings
+        </a>
+    </div>
+</div>
+{% endblock %}

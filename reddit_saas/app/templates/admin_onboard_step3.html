@@ -1,0 +1,95 @@
+{% extends "admin_base.html" %}
+{% block title %}Onboarding — Step 3: Keywords{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> / <a href="/admin/clients" class="hover:text-white">Clients</a> /
+    <a href="/admin/clients/{{ client.id }}" class="hover:text-white">{{ client.client_name }}</a> /
+    <span class="text-white">Onboarding — Step {{ step }}</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <h1 class="text-2xl font-semibold text-white mb-2">Client Onboarding</h1>
+    <p class="text-gray-400 text-sm mb-6">Step {{ step }} of {{ total_steps }} — Keyword Setup</p>
+
+    {% include "partials/wizard_progress.html" %}
+
+    {% if error %}
+    <div class="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-300 text-sm">{{ error }}</div>
+    {% endif %}
+
+    <!-- Add Keyword Form -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-6">
+        <h2 class="text-lg font-medium text-white mb-3">Add Keyword</h2>
+        <form method="post" action="/admin/clients/{{ client.id }}/onboard/step/3" class="flex gap-3 items-end">
+            <div class="flex-1">
+                <label class="block text-xs text-gray-400 mb-1">Keyword</label>
+                <input type="text" name="keyword_name" placeholder="e.g. breathing exercises"
+                       class="w-full bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Priority</label>
+                <select name="keyword_priority"
+                        class="bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                    <option value="HIGH">HIGH</option>
+                    <option value="MEDIUM" selected>MEDIUM</option>
+                    <option value="LOW">LOW</option>
+                </select>
+            </div>
+            <button type="submit"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                Add
+            </button>
+        </form>
+    </div>
+
+    <!-- Current Keywords -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-6">
+        <h2 class="text-lg font-medium text-white mb-3">
+            Configured Keywords
+            <span class="text-sm text-gray-400 font-normal">({{ keywords|length }})</span>
+        </h2>
+        {% if keywords %}
+        <div class="space-y-2">
+            {% for kw in keywords %}
+            <div class="flex items-center justify-between p-3 rounded bg-slate-night">
+                <div class="flex items-center gap-3">
+                    <span class="text-white">{{ kw.name }}</span>
+                    <span class="px-2 py-0.5 rounded text-xs font-medium
+                          {% if kw.priority == 'HIGH' %}bg-red-900/50 text-red-400 border border-red-700
+                          {% elif kw.priority == 'MEDIUM' %}bg-amber-900/50 text-amber-400 border border-amber-700
+                          {% else %}bg-slate-700 text-gray-400 border border-slate-600{% endif %}">
+                        {{ kw.priority }}
+                    </span>
+                </div>
+                <form method="post" action="/admin/clients/{{ client.id }}/onboard/step/3" class="inline">
+                    <input type="hidden" name="remove_keyword_index" value="{{ loop.index0 }}">
+                    <button type="submit"
+                            class="text-red-400 hover:text-red-300 text-sm transition-colors"
+                            onclick="return confirm('Remove this keyword?')">
+                        Remove
+                    </button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500 text-sm">No keywords configured yet. Add some above.</p>
+        {% endif %}
+    </div>
+
+    <!-- Navigation -->
+    <div class="flex justify-between items-center">
+        <a href="/admin/clients/{{ client.id }}/onboard/step/2"
+           class="bg-slate-700 hover:bg-slate-600 text-gray-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            ← Back
+        </a>
+        <form method="post" action="/admin/clients/{{ client.id }}/onboard/step/3">
+            <button type="submit"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors">
+                Next →
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,112 @@
+{% extends "admin_base.html" %}
+{% block title %}All Subreddits{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <a href="/admin/" class="hover:text-white">Admin</a>
+    <span class="mx-2 text-gray-600">/</span>
+    <span class="text-white">Subreddits</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold text-white">All Subreddits</h1>
+            <p class="text-sm text-gray-400 mt-1">
+                {{ total }} total ·
+                <span class="text-green-400">{{ active_count }} active</span> ·
+                <span class="text-amber-400">{{ paused_count }} paused</span>
+            </p>
+        </div>
+    </div>
+
+    <!-- Subreddits Table -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+        <table class="w-full text-sm text-left">
+            <thead>
+                <tr class="border-b border-slate-700">
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Status</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Subreddit</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Client</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Type</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Last Scraped</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in subreddits %}
+                <tr class="border-b border-slate-700/50 hover:bg-slate-700/30 {% if not item.sub.is_active %}opacity-60{% endif %}">
+                    <!-- Status -->
+                    <td class="px-4 py-3">
+                        {% if item.sub.is_active %}
+                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-green-900/50 text-green-400 border border-green-700">
+                            <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+                            Active
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-amber-900/50 text-amber-400 border border-amber-700">
+                            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                            Paused
+                        </span>
+                        {% endif %}
+                    </td>
+                    <!-- Subreddit Name -->
+                    <td class="px-4 py-3">
+                        <span class="text-white font-medium">r/{{ item.sub.subreddit_name }}</span>
+                    </td>
+                    <!-- Client -->
+                    <td class="px-4 py-3 text-gray-400">{{ item.client_name }}</td>
+                    <!-- Type -->
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-0.5 rounded text-xs font-medium
+                              {% if item.sub.type == 'professional' %}bg-indigo-900/50 text-indigo-400 border border-indigo-700{% else %}bg-purple-900/50 text-purple-400 border border-purple-700{% endif %}">
+                            {{ item.sub.type }}
+                        </span>
+                    </td>
+                    <!-- Last Scraped -->
+                    <td class="px-4 py-3">
+                        <span class="text-xs font-mono {% if item.age_display == 'Never' %}text-red-400{% elif item.age_hours is not none and item.age_hours > 24 %}text-amber-400{% else %}text-gray-400{% endif %}">
+                            {{ item.age_display }}
+                        </span>
+                    </td>
+                    <!-- Actions -->
+                    <td class="px-4 py-3">
+                        <div class="flex items-center gap-2">
+                            <!-- Pause/Resume Toggle -->
+                            <form method="post" action="/admin/subreddits/{{ item.sub.id }}/toggle-active" class="inline">
+                                {% if item.sub.is_active %}
+                                <button type="submit" class="px-2.5 py-1 rounded text-xs font-medium bg-amber-900/50 text-amber-400 border border-amber-700 hover:bg-amber-800/50 transition-colors"
+                                        title="Pause scraping for this subreddit">
+                                    Pause
+                                </button>
+                                {% else %}
+                                <button type="submit" class="px-2.5 py-1 rounded text-xs font-medium bg-green-900/50 text-green-400 border border-green-700 hover:bg-green-800/50 transition-colors"
+                                        title="Resume scraping for this subreddit">
+                                    Resume
+                                </button>
+                                {% endif %}
+                            </form>
+                            <!-- Remove -->
+                            <form method="post" action="/admin/subreddits/{{ item.sub.client_id }}/{{ item.sub.id }}/remove" class="inline">
+                                <button type="submit" class="px-2.5 py-1 rounded text-xs font-medium text-red-400 hover:text-red-300 border border-slate-700 hover:border-red-700 transition-colors"
+                                        onclick="return confirm('Remove r/{{ item.sub.subreddit_name }}?')">
+                                    Remove
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not subreddits %}
+                <tr>
+                    <td colspan="6" class="px-4 py-8 text-center text-gray-500">No subreddits configured</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

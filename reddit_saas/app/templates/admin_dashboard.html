@@ -1,0 +1,131 @@
+{% extends "admin_base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> / <span class="text-white">Dashboard</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <!-- Welcome Header -->
+    <h1 class="text-2xl font-semibold text-white mb-6">System Overview</h1>
+
+    {% set guide_title = "📖 What is the Dashboard?" %}
+    {% set guide_content %}
+    <p>This is your <strong class="text-white">command center</strong>. At a glance you see how many clients are active, how many comments are waiting for review, and how much AI budget has been spent.</p>
+    <p><strong class="text-gray-300">Key metrics:</strong> Pending Reviews (amber = action needed), AI Cost (track your budget), Total Threads (content pipeline volume).</p>
+    <p><strong class="text-gray-300">Next step:</strong> If Pending Reviews > 0, go to <a href="/admin/review" class="text-indigo-400 hover:underline">Review Queue</a> to approve or reject generated comments.</p>
+    {% endset %}
+    {% include "partials/page_guide.html" %}
+
+    <!-- Quick Actions -->
+    <div class="flex flex-wrap gap-2 mb-6">
+        {% if stats.pending_reviews > 0 %}
+        <a href="/admin/review"
+           class="inline-flex items-center gap-2 bg-amber-900/40 border border-amber-700 text-amber-200 px-4 py-2 rounded-lg text-sm hover:bg-amber-800/50 transition-colors">
+            📝 Review {{ stats.pending_reviews }} pending comment{{ 's' if stats.pending_reviews != 1 }}
+        </a>
+        {% endif %}
+        <a href="/admin/avatars"
+           class="inline-flex items-center gap-2 bg-slate-700 border border-slate-600 text-gray-200 px-4 py-2 rounded-lg text-sm hover:bg-slate-600 transition-colors">
+            👤 Manage Avatars
+        </a>
+        <a href="/admin/threads"
+           class="inline-flex items-center gap-2 bg-slate-700 border border-slate-600 text-gray-200 px-4 py-2 rounded-lg text-sm hover:bg-slate-600 transition-colors">
+            🧵 Browse Threads
+        </a>
+        <a href="/admin/ai-costs"
+           class="inline-flex items-center gap-2 bg-slate-700 border border-slate-600 text-gray-200 px-4 py-2 rounded-lg text-sm hover:bg-slate-600 transition-colors">
+            📊 AI Costs
+        </a>
+    </div>
+
+    <!-- Primary Stats Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+        <!-- Total Clients -->
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Total Clients</div>
+            <div class="text-3xl font-mono font-semibold text-white">{{ stats.total_clients }}</div>
+        </div>
+
+        <!-- Total Avatars -->
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Total Avatars</div>
+            <div class="text-3xl font-mono font-semibold text-white">{{ stats.total_avatars }}</div>
+        </div>
+
+        <!-- Pending Reviews -->
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Pending Reviews</div>
+            <div class="text-3xl font-mono font-semibold {% if stats.pending_reviews > 0 %}text-amber-500{% else %}text-white{% endif %}">
+                {{ stats.pending_reviews }}
+            </div>
+        </div>
+
+        <!-- AI Cost -->
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">AI Cost</div>
+            <div class="text-3xl font-mono font-semibold text-white">${{ "%.2f"|format(ai_costs.total_cost) }}</div>
+        </div>
+    </div>
+
+    <!-- Secondary Stats Row -->
+    <h2 class="text-lg font-medium text-gray-300 mb-4">Detailed Statistics</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <!-- Total Threads -->
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Total Threads</div>
+            <div class="text-2xl font-mono font-semibold text-white">{{ stats.total_threads }}</div>
+        </div>
+
+        <!-- Total Comment Drafts -->
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Total Comment Drafts</div>
+            <div class="text-2xl font-mono font-semibold text-white">{{ stats.total_comment_drafts }}</div>
+        </div>
+
+        <!-- Total API Calls -->
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Total API Calls</div>
+            <div class="text-2xl font-mono font-semibold text-white">{{ ai_costs.total_calls }}</div>
+        </div>
+
+        <!-- Total Tokens -->
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Total Tokens</div>
+            <div class="text-2xl font-mono font-semibold text-white">{{ ai_costs.total_input_tokens + ai_costs.total_output_tokens }}</div>
+        </div>
+    </div>
+
+    <!-- Activity Feed Section -->
+    <div class="mt-8">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-medium text-gray-300">Activity Feed</h2>
+
+            <!-- Client Filter Dropdown -->
+            <select name="client_id"
+                    hx-get="/admin/activity-feed"
+                    hx-include="this"
+                    hx-target="#activity-feed-container"
+                    hx-swap="innerHTML"
+                    class="bg-dark-steel border border-slate-700 text-gray-300 text-sm rounded-lg px-3 py-1.5 focus:ring-indigo-500 focus:border-indigo-500">
+                <option value="">All Clients</option>
+                {% if clients is defined and clients %}
+                {% for client in clients %}
+                <option value="{{ client.id }}">{{ client.company_name }}</option>
+                {% endfor %}
+                {% endif %}
+            </select>
+        </div>
+
+        <div id="activity-feed-container"
+             hx-get="/admin/activity-feed"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="bg-dark-steel rounded-lg p-8 border border-slate-700 text-center">
+                <p class="text-gray-500 text-sm">Loading activity...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

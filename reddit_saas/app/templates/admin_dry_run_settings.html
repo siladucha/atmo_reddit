@@ -1,0 +1,57 @@
+{% extends "admin_base.html" %}
+{% block title %}Dry-Run Mode{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> / <span class="text-white">Dry-Run Mode</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <h1 class="text-2xl font-semibold text-white mb-2">Dry-Run Mode</h1>
+    <p class="text-gray-400 text-sm mb-6">
+        Operate the pipeline without an LLM API key. Each AI stage renders its prompt to the screen for the operator to run through an external LLM (ChatGPT, Claude.ai, etc.) and paste the response back.
+    </p>
+
+    {% if saved %}
+    <div class="mb-4 p-3 bg-emerald-900/40 border border-emerald-700 rounded-lg text-emerald-300 text-sm">
+        Settings saved.
+    </div>
+    {% endif %}
+
+    <form method="post" action="/admin/dry-run/settings"
+          class="bg-dark-steel rounded-lg border border-slate-700 p-6 mb-6">
+        <label class="flex items-start gap-3 cursor-pointer">
+            <input type="checkbox" name="enabled" {% if enabled %}checked{% endif %}
+                   class="mt-1 rounded border-slate-600 bg-slate-night text-indigo-600 focus:ring-indigo-500">
+            <div class="flex-1">
+                <div class="text-white font-medium">Enable Dry-Run Mode</div>
+                <div class="text-gray-400 text-sm mt-1">
+                    When on, scoring/persona-select/generation/editor stages skip the LLM API and instead surface a manual paste-back UI under <code class="font-mono text-xs bg-slate-night px-1 py-0.5 rounded">/admin/dry-run/&lt;client_id&gt;</code>. Toggle off any time to resume live operation.
+                </div>
+            </div>
+        </label>
+
+        <div class="mt-4 flex justify-end">
+            <button type="submit"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors">
+                Save
+            </button>
+        </div>
+    </form>
+
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+        <h2 class="text-lg font-medium text-white mb-2">Current state</h2>
+        <p class="text-sm">
+            Pipeline is currently in
+            <span class="px-2 py-0.5 rounded text-xs font-medium {% if enabled %}bg-amber-900/50 text-amber-300 border border-amber-700{% else %}bg-emerald-900/50 text-emerald-300 border border-emerald-700{% endif %}">
+                {{ 'DRY-RUN (manual paste-back)' if enabled else 'LIVE (calls LLM API)' }}
+            </span>
+        </p>
+        {% if enabled %}
+        <p class="mt-3 text-sm">
+            <a href="/admin/dry-run/" class="text-indigo-400 hover:text-indigo-300">Open the dry-run hub →</a>
+        </p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

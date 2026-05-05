@@ -1,0 +1,164 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Scrape Queue{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <a href="/admin/" class="hover:text-white">Admin</a>
+    <span class="mx-2 text-gray-600">/</span>
+    <span class="text-white">Scrape Queue</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header with Toggle -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold text-white">Scrape Queue</h1>
+            <p class="text-sm text-gray-400 mt-1">Real-time monitoring of the Reddit scraping queue</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <!-- Manual Scrape Trigger -->
+            <form method="post" action="/admin/scrape-queue/trigger">
+                <button type="submit"
+                        class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 hover:bg-blue-700 text-white">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    Scrape Now
+                </button>
+            </form>
+            <!-- Enable/Disable Toggle -->
+            <form method="post" action="/admin/scrape-queue/toggle">
+                <button type="submit"
+                        class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                               {% if scrape_enabled %}bg-green-600 hover:bg-green-700 text-white{% else %}bg-red-600 hover:bg-red-700 text-white{% endif %}">
+                    <span class="w-2 h-2 rounded-full {% if scrape_enabled %}bg-green-300{% else %}bg-red-300{% endif %}"></span>
+                    {% if scrape_enabled %}Scraping Active{% else %}Scraping Paused{% endif %}
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Paused Banner -->
+    {% if not scrape_enabled %}
+    <div class="bg-red-900/30 border border-red-700 rounded-lg px-4 py-3 flex items-center gap-3">
+        <svg class="w-5 h-5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+        </svg>
+        <span class="text-red-300 text-sm font-medium">Scraping is paused. No new subreddits will be processed until you re-enable it.</span>
+    </div>
+    {% endif %}
+
+    <!-- Stats Cards (HTMX auto-refresh) -->
+    <div id="queue-status" hx-get="/admin/scrape-queue/status" hx-trigger="every 30s" hx-swap="innerHTML">
+        {% include "partials/scrape_queue_status.html" %}
+    </div>
+
+    <!-- Pipeline Metrics -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5">
+        <h2 class="text-lg font-medium text-white mb-4">Pipeline Metrics</h2>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">
+            <!-- Pending Comments -->
+            <div class="bg-slate-night rounded-lg p-3 border border-slate-700">
+                <span class="text-xs text-gray-400">Pending Comments</span>
+                <p class="text-xl font-semibold {% if metrics.pending_comments > 0 %}text-amber-400{% else %}text-gray-400{% endif %} mt-1">
+                    {{ metrics.pending_comments }}
+                </p>
+            </div>
+            <!-- Approved -->
+            <div class="bg-slate-night rounded-lg p-3 border border-slate-700">
+                <span class="text-xs text-gray-400">Approved (awaiting post)</span>
+                <p class="text-xl font-semibold text-green-400 mt-1">{{ metrics.approved_comments }}</p>
+            </div>
+            <!-- Posted -->
+            <div class="bg-slate-night rounded-lg p-3 border border-slate-700">
+                <span class="text-xs text-gray-400">Posted Total</span>
+                <p class="text-xl font-semibold text-blue-400 mt-1">{{ metrics.posted_comments }}</p>
+            </div>
+            <!-- Avg Delay -->
+            <div class="bg-slate-night rounded-lg p-3 border border-slate-700">
+                <span class="text-xs text-gray-400">Avg Generation → Post</span>
+                <p class="text-xl font-semibold text-purple-400 mt-1">
+                    {% if metrics.avg_generation_to_post_hours is not none %}
+                        {{ metrics.avg_generation_to_post_hours }}h
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+
+        <!-- Stalest Subreddits -->
+        <h3 class="text-sm font-medium text-gray-400 mb-2">Stalest Subreddits (top 5)</h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 border-b border-slate-700">
+                        <th class="pb-2 font-medium">Subreddit</th>
+                        <th class="pb-2 font-medium">Client</th>
+                        <th class="pb-2 font-medium">Age</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-700/50">
+                    {% for s in metrics.stalest_subreddits %}
+                    <tr>
+                        <td class="py-2 text-white">r/{{ s.subreddit_name }}</td>
+                        <td class="py-2 text-gray-400">{{ s.client_name }}</td>
+                        <td class="py-2 font-mono text-xs {% if s.age_display == 'Never' %}text-red-400{% elif s.age_hours and s.age_hours > 24 %}text-amber-400{% else %}text-gray-400{% endif %}">
+                            {{ s.age_display }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Settings Form -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5">
+        <h2 class="text-lg font-medium text-white mb-4">Queue Settings</h2>
+        <form method="post" action="/admin/scrape-queue/settings" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-sm text-gray-400 mb-1">Tick Interval (seconds)</label>
+                <input type="number" name="tick_interval" value="{{ settings.tick_interval }}"
+                       min="30" max="300" step="1"
+                       class="w-full bg-slate-night border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                <p class="text-xs text-gray-500 mt-1">30–300 sec</p>
+            </div>
+            <div>
+                <label class="block text-sm text-gray-400 mb-1">Freshness Window (hours)</label>
+                <input type="number" name="freshness_hours" value="{{ settings.freshness_hours }}"
+                       min="1" max="168" step="1"
+                       class="w-full bg-slate-night border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                <p class="text-xs text-gray-500 mt-1">1–168 hours</p>
+            </div>
+            <div>
+                <label class="block text-sm text-gray-400 mb-1">Rate Limit (req/min)</label>
+                <input type="number" name="max_rpm" value="{{ settings.max_rpm }}"
+                       min="1" max="60" step="1"
+                       class="w-full bg-slate-night border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                <p class="text-xs text-gray-500 mt-1">1–60 rpm</p>
+            </div>
+            <div class="md:col-span-3">
+                <button type="submit"
+                        class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors">
+                    Save Settings
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Waiting List Table (HTMX auto-refresh) -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700">
+        <div class="px-5 py-4 border-b border-slate-700 flex items-center justify-between">
+            <h2 class="text-lg font-medium text-white">Queue — Waiting List</h2>
+            <span class="text-xs text-gray-500">Auto-refreshes every 30s</span>
+        </div>
+        <div id="waiting-list" hx-get="/admin/scrape-queue/waiting-list" hx-trigger="every 30s" hx-swap="innerHTML">
+            {% include "partials/scrape_queue_waiting_list.html" %}
+        </div>
+    </div>
+</div>
+{% endblock %}

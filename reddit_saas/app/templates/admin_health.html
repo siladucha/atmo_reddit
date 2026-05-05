@@ -1,0 +1,128 @@
+{% extends "admin_base.html" %}
+{% block title %}System Health{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> / <span class="text-white">System Health</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto">
+
+    <!-- Overall Status Banner -->
+    {% set critical_count = health.values() | selectattr('status', 'equalto', 'critical') | list | length %}
+    {% set warning_count = health.values() | selectattr('status', 'equalto', 'warning') | list | length %}
+    {% if critical_count > 0 %}
+    <div class="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/30">
+        <div class="flex items-center gap-3">
+            <span class="text-2xl">🔴</span>
+            <div>
+                <div class="text-red-400 font-semibold">System has {{ critical_count }} critical issue{{ 's' if critical_count > 1 }}</div>
+                <div class="text-red-400/70 text-sm">Pipeline cannot run until these are resolved</div>
+            </div>
+        </div>
+    </div>
+    {% elif warning_count > 0 %}
+    <div class="mb-6 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30">
+        <div class="flex items-center gap-3">
+            <span class="text-2xl">🟡</span>
+            <div>
+                <div class="text-amber-400 font-semibold">System has {{ warning_count }} warning{{ 's' if warning_count > 1 }}</div>
+                <div class="text-amber-400/70 text-sm">System is operational but some services need attention</div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="mb-6 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+        <div class="flex items-center gap-3">
+            <span class="text-2xl">🟢</span>
+            <div>
+                <div class="text-emerald-400 font-semibold">All systems operational</div>
+                <div class="text-emerald-400/70 text-sm">Pipeline is ready to run</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <h1 class="text-2xl font-semibold text-white mb-6">Service Status</h1>
+
+    <!-- Service Status Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
+        {% for service, info in health.items() %}
+        {% include "partials/admin_health_card.html" %}
+        {% endfor %}
+    </div>
+
+    <!-- API Metrics (auto-refreshing widgets) -->
+    <div class="flex items-baseline justify-between mb-4">
+        <h2 class="text-lg font-medium text-gray-300">API Metrics</h2>
+        <span class="text-xs text-gray-500">{{ window_minutes }}-minute rolling window · auto-refresh</span>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+        <div hx-get="/admin/health/widget/rate-limit"
+             hx-trigger="every 30s"
+             hx-swap="outerHTML"
+             hx-on::response-error="this.classList.add('opacity-60')"
+             hx-on::after-request="this.classList.remove('opacity-60')">
+            {% with rate_limit=rate_limit, color=rate_limit_color %}
+            {% include "partials/health_rate_limit.html" %}
+            {% endwith %}
+        </div>
+
+        <div hx-get="/admin/health/widget/reddit-metrics"
+             hx-trigger="every 30s"
+             hx-swap="outerHTML"
+             hx-on::response-error="this.classList.add('opacity-60')"
+             hx-on::after-request="this.classList.remove('opacity-60')">
+            {% with metrics=reddit_metrics %}
+            {% include "partials/health_reddit_metrics.html" %}
+            {% endwith %}
+        </div>
+
+        <div hx-get="/admin/health/widget/llm-metrics"
+             hx-trigger="every 60s"
+             hx-swap="outerHTML"
+             hx-on::response-error="this.classList.add('opacity-60')"
+             hx-on::after-request="this.classList.remove('opacity-60')">
+            {% with metrics=llm_metrics %}
+            {% include "partials/health_llm_metrics.html" %}
+            {% endwith %}
+        </div>
+
+        <div hx-get="/admin/health/widget/scrape-freshness"
+             hx-trigger="every 120s"
+             hx-swap="outerHTML"
+             hx-on::response-error="this.classList.add('opacity-60')"
+             hx-on::after-request="this.classList.remove('opacity-60')">
+            {% include "partials/health_scrape_freshness.html" %}
+        </div>
+    </div>
+
+    <!-- DB Statistics -->
+    <h2 class="text-lg font-medium text-gray-300 mb-4">Database Statistics</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Clients</div>
+            <div class="text-2xl font-mono font-semibold text-white">{{ db_stats.total_clients }}</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Avatars</div>
+            <div class="text-2xl font-mono font-semibold text-white">{{ db_stats.total_avatars }}</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Threads</div>
+            <div class="text-2xl font-mono font-semibold text-white">{{ db_stats.total_threads }}</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Comment Drafts</div>
+            <div class="text-2xl font-mono font-semibold text-white">{{ db_stats.total_comment_drafts }}</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Pending Reviews</div>
+            <div class="text-2xl font-mono font-semibold {% if db_stats.pending_reviews > 0 %}text-amber-500{% else %}text-white{% endif %}">
+                {{ db_stats.pending_reviews }}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

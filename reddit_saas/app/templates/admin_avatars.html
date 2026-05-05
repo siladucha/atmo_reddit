@@ -1,0 +1,111 @@
+{% extends "admin_base.html" %}
+{% block title %}Avatars{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <a href="/admin/" class="hover:text-white">Admin</a>
+    <span class="mx-2 text-gray-600">/</span>
+    <span class="text-gray-500">Content</span>
+    <span class="mx-2 text-gray-600">/</span>
+    <span class="text-white">Avatars</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold text-white">Avatars</h1>
+            <p class="text-sm text-gray-400 mt-1">
+                {{ page_obj.total_in_scope }} total ·
+                <span class="text-green-400">{{ page_obj.counts.active }} active</span> ·
+                <span class="text-red-400">{{ page_obj.counts.suspended }} suspended</span> ·
+                <span class="text-amber-400">{{ page_obj.counts.stale }} stale</span>
+            </p>
+        </div>
+        <a href="/avatars/new"
+           class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            + New Avatar
+        </a>
+    </div>
+
+    <!-- Filter bar -->
+    <form id="admin-avatars-filter"
+          class="bg-dark-steel rounded-lg border border-slate-700 p-4 flex flex-wrap items-center gap-2"
+          hx-get="/admin/avatars"
+          hx-target="#admin-avatars-results"
+          hx-swap="innerHTML"
+          hx-push-url="true"
+          hx-trigger="change, keyup delay:300ms from:input[name='q']"
+          hx-include="this">
+
+        <label class="relative flex-1 min-w-[200px]">
+            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm">🔍</span>
+            <input type="search" name="q" value="{{ f.q }}" placeholder="Search by username or email…"
+                   autocomplete="off"
+                   class="w-full pl-7 pr-3 py-1.5 text-sm bg-slate-night border border-slate-600 text-gray-200 rounded focus:outline-none focus:border-indigo-500">
+        </label>
+
+        <select name="client_id" class="text-sm bg-slate-night border border-slate-600 text-gray-200 rounded px-2 py-1.5">
+            <option value="">All clients</option>
+            {% for c in page_obj.available_clients %}
+            <option value="{{ c.id }}" {% if f.client_id == (c.id|string) %}selected{% endif %}>{{ c.client_name }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="status" class="text-sm bg-slate-night border border-slate-600 text-gray-200 rounded px-2 py-1.5">
+            {% for value, label in status_options %}
+            <option value="{{ value }}" {% if f.status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="sort" class="text-sm bg-slate-night border border-slate-600 text-gray-200 rounded px-2 py-1.5">
+            {% for value, label in sort_options %}
+            <option value="{{ value }}" {% if f.sort == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+
+        <div class="inline-flex rounded border border-slate-600 overflow-hidden text-sm">
+            {% for value, label in group_options %}
+            <label class="cursor-pointer">
+                <input type="radio" name="group" value="{{ value }}" {% if f.group == value %}checked{% endif %} class="peer sr-only">
+                <span class="block px-2 py-1.5 text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white hover:bg-slate-700">{{ label }}</span>
+            </label>
+            {% endfor %}
+        </div>
+
+        <div class="inline-flex rounded border border-slate-600 overflow-hidden text-sm">
+            {% for value, label in view_options %}
+            <label class="cursor-pointer">
+                <input type="radio" name="view" value="{{ value }}" {% if f.view == value %}checked{% endif %} class="peer sr-only">
+                <span class="block px-2 py-1.5 text-gray-400 peer-checked:bg-indigo-600 peer-checked:text-white hover:bg-slate-700" title="{{ label }}">
+                    {% if value == 'grid' %}▦{% else %}≣{% endif %} {{ label }}
+                </span>
+            </label>
+            {% endfor %}
+        </div>
+
+        <input type="hidden" name="page" value="{{ f.page }}">
+
+        {% if f.has_active_filters %}
+        <a href="/admin/avatars" class="text-xs text-gray-400 hover:text-white px-2 py-1">Reset</a>
+        {% endif %}
+
+        <button type="button"
+                class="ml-auto text-sm bg-slate-700 hover:bg-slate-600 text-gray-200 border border-slate-600 px-3 py-1.5 rounded"
+                hx-post="/admin/avatars/check-visible"
+                hx-include="#admin-avatars-filter"
+                hx-target="#admin-avatars-results"
+                hx-swap="innerHTML"
+                hx-indicator="#check-spinner">
+            <span id="check-spinner" class="htmx-indicator">⏳</span>
+            Check visible
+        </button>
+    </form>
+
+    <div id="admin-avatars-results">
+        {% include "partials/admin_avatars_results.html" %}
+    </div>
+</div>
+{% endblock %}

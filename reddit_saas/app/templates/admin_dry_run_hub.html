@@ -1,0 +1,87 @@
+{% extends "admin_base.html" %}
+{% block title %}Dry-Run — {{ client.client_name }}{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> /
+    <a href="/admin/dry-run/" class="hover:text-white">Dry-Run</a> /
+    <span class="text-white">{{ client.client_name }}</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-semibold text-white">{{ client.client_name }}</h1>
+            <p class="text-gray-400 text-sm mt-1">Manual pipeline walkthrough — paste LLM responses back to advance each stage.</p>
+        </div>
+        <a href="/admin/clients/{{ client.id }}"
+           class="text-sm text-gray-400 hover:text-white">Client details →</a>
+    </div>
+
+    <!-- Backlog summary -->
+    <div class="grid grid-cols-3 gap-4 mb-6">
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
+            <div class="text-xs text-gray-400 uppercase tracking-wide">Unscored threads</div>
+            <div class="text-2xl text-white font-semibold mt-1">{{ counts.unscored }}</div>
+            <div class="text-xs text-gray-500 mt-1">awaiting Stage 1</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
+            <div class="text-xs text-gray-400 uppercase tracking-wide">Engage, no draft</div>
+            <div class="text-2xl text-white font-semibold mt-1">{{ counts.engage_without_drafts }}</div>
+            <div class="text-xs text-gray-500 mt-1">awaiting persona+gen</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
+            <div class="text-xs text-gray-400 uppercase tracking-wide">Pending review</div>
+            <div class="text-2xl text-white font-semibold mt-1">{{ counts.pending_drafts }}</div>
+            <div class="text-xs text-gray-500 mt-1">in review queue</div>
+        </div>
+    </div>
+
+    <!-- Stage 1: Scoring -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-6">
+        <div class="flex items-center justify-between mb-3">
+            <div>
+                <h2 class="text-lg font-medium text-white">Stage 1 — Scoring</h2>
+                <p class="text-gray-400 text-xs">Each unscored thread → score it via external LLM → tag becomes engage / monitor / skip.</p>
+            </div>
+            {% if unscored_threads %}
+            <a href="/admin/dry-run/score/{{ unscored_threads[0].id }}"
+               class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                Start scoring →
+            </a>
+            {% endif %}
+        </div>
+
+        {% if unscored_threads %}
+        <div class="divide-y divide-slate-700 -mx-5">
+            {% for thread in unscored_threads %}
+            <a href="/admin/dry-run/score/{{ thread.id }}"
+               class="flex items-center justify-between px-5 py-3 hover:bg-slate-800 transition-colors">
+                <div class="min-w-0 flex-1">
+                    <div class="text-white text-sm truncate">{{ thread.post_title }}</div>
+                    <div class="text-gray-500 text-xs mt-1">r/{{ thread.subreddit }} · {{ thread.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+                </div>
+                <span class="text-indigo-400 text-sm ml-3 whitespace-nowrap">Score →</span>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500 text-sm">Nothing to score. Run the scraper to fetch new threads, or this client is fully caught up.</p>
+        {% endif %}
+    </div>
+
+    <!-- Stage 2-4 placeholders -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-6 opacity-60">
+        <h2 class="text-lg font-medium text-white">Stage 2 — Persona Select</h2>
+        <p class="text-gray-400 text-xs mt-1">Coming next: pick which avatar speaks. Wired up after Stage 1 produces engage threads.</p>
+    </div>
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-6 opacity-60">
+        <h2 class="text-lg font-medium text-white">Stage 3 — Generation</h2>
+        <p class="text-gray-400 text-xs mt-1">Coming next: write the comment in the avatar's voice.</p>
+    </div>
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 opacity-60">
+        <h2 class="text-lg font-medium text-white">Stage 4 — Editor</h2>
+        <p class="text-gray-400 text-xs mt-1">Coming next: human-pass cleanup of AI artefacts.</p>
+    </div>
+</div>
+{% endblock %}

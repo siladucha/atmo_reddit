@@ -1,0 +1,152 @@
+{% extends "admin_base.html" %}
+{% block title %}Review Queue{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <a href="/admin/" class="hover:text-white">Admin</a>
+    <span class="mx-2 text-gray-600">/</span>
+    <span class="text-gray-500">Operations</span>
+    <span class="mx-2 text-gray-600">/</span>
+    <span class="text-white">Review Queue</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold text-white">Review Queue</h1>
+            <p class="text-sm text-gray-400 mt-1">{{ drafts|length }} {{ status }} draft{{ 's' if drafts|length != 1 }}</p>
+        </div>
+    </div>
+
+    <!-- Status + Client filters -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-4 flex flex-wrap items-center gap-3">
+        <span class="text-xs uppercase tracking-wider text-gray-500 font-medium">Status:</span>
+        {% for s in ['pending', 'approved', 'posted', 'rejected'] %}
+        <a href="/admin/review?status={{ s }}{% if selected_client %}&client_id={{ selected_client }}{% endif %}"
+           class="px-2.5 py-1 rounded text-xs font-medium capitalize transition-colors
+                  {% if status == s %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
+            {{ s }}
+        </a>
+        {% endfor %}
+
+        <span class="mx-2 h-4 w-px bg-slate-600"></span>
+
+        <span class="text-xs uppercase tracking-wider text-gray-500 font-medium">Client:</span>
+        <a href="/admin/review?status={{ status }}"
+           class="px-2.5 py-1 rounded text-xs font-medium transition-colors
+                  {% if not selected_client %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
+            All
+        </a>
+        {% for c in clients %}
+        <a href="/admin/review?status={{ status }}&client_id={{ c.id }}"
+           class="px-2.5 py-1 rounded text-xs font-medium transition-colors
+                  {% if selected_client == (c.id|string) %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
+            {{ c.client_name }}
+        </a>
+        {% endfor %}
+    </div>
+
+    {% if not drafts %}
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-12 text-center text-gray-500">
+        No {{ status }} drafts.{% if status == 'pending' %} Run the pipeline to generate some.{% endif %}
+    </div>
+    {% endif %}
+
+    <div class="space-y-4">
+        {% for item in drafts %}
+        <div id="comment-{{ item.draft.id }}" class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+            <!-- Header -->
+            <div class="px-4 py-3 border-b border-slate-700 bg-slate-800 flex justify-between items-start">
+                <div class="min-w-0">
+                    <div class="font-medium text-white truncate">
+                        {{ item.thread.post_title if item.thread else 'Unknown thread' }}
+                    </div>
+                    <div class="text-xs text-gray-400 mt-1">
+                        r/{{ item.thread.subreddit if item.thread else '?' }}
+                        · u/{{ item.avatar.reddit_username if item.avatar else '?' }}
+                        · {{ item.draft.engagement_mode or 'unknown' }} mode
+                        {% if item.draft.comment_approach %} · {{ item.draft.comment_approach }}{% endif %}
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 shrink-0 ml-3">
+                    {% if item.thread and item.thread.alert %}
+                    <span class="px-2 py-0.5 rounded text-xs font-medium bg-red-900/50 text-red-400 border border-red-700">ALERT</span>
+                    {% endif %}
+                    {% if item.thread %}
+                    <span class="px-2 py-0.5 rounded text-xs font-medium bg-slate-700 text-gray-300 border border-slate-600 font-mono">
+                        score: {{ item.thread.composite or 0 }}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Original post preview -->
+            {% if item.thread and item.thread.post_body %}
+            <div class="px-4 py-3 border-b border-slate-700 bg-slate-900/40">
+                <div class="text-xs text-indigo-400 font-medium mb-1">Original Post</div>
+                <div class="text-sm text-gray-300">{{ item.thread.post_body[:300] }}{% if item.thread.post_body|length > 300 %}…{% endif %}</div>
+            </div>
+            {% endif %}
+
+            <!-- Comment to (parent comment) -->
+            {% if item.draft.comment_to and item.draft.comment_to != 'post' %}
+            <div class="px-4 py-2 border-b border-slate-700 bg-amber-900/20">
+                <div class="text-xs text-amber-400 font-medium">Replying to:</div>
+                <div class="text-sm text-gray-300 italic">{{ item.draft.comment_to[:200] }}</div>
+            </div>
+            {% endif %}
+
+            <!-- AI Draft -->
+            <div class="p-4">
+                <div class="text-xs text-gray-500 mb-1">AI Draft</div>
+                <div class="text-gray-200 leading-relaxed whitespace-pre-wrap">{{ item.draft.edited_draft or item.draft.ai_draft or '(empty)' }}</div>
+                {% if item.draft.location_reasoning %}
+                <div class="mt-2 text-xs text-gray-500">Location: {{ item.draft.location_reasoning }}</div>
+                {% endif %}
+            </div>
+
+            <!-- Actions -->
+            {% if status == 'pending' %}
+            <div class="px-4 py-3 border-t border-slate-700 bg-slate-800/50 flex flex-wrap gap-2 items-center">
+                <button hx-post="/review/{{ item.draft.id }}/approve" hx-target="#actions-{{ item.draft.id }}" hx-swap="innerHTML"
+                        class="bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded text-sm font-medium">
+                    ✓ Approve
+                </button>
+                <button hx-post="/review/{{ item.draft.id }}/reject" hx-target="#actions-{{ item.draft.id }}" hx-swap="innerHTML"
+                        class="bg-red-900/50 hover:bg-red-800/60 text-red-300 border border-red-700 px-3 py-1.5 rounded text-sm font-medium">
+                    ✗ Reject
+                </button>
+                {% if item.thread %}
+                <a href="{{ item.thread.url }}" target="_blank" rel="noopener" class="text-xs text-indigo-400 hover:text-indigo-300 ml-auto">Open on Reddit ↗</a>
+                {% endif %}
+                <span id="actions-{{ item.draft.id }}" class="text-sm"></span>
+            </div>
+            <div class="px-4 py-3 border-t border-slate-700">
+                <form hx-post="/review/{{ item.draft.id }}/edit" hx-target="#edit-status-{{ item.draft.id }}" hx-swap="innerHTML"
+                      class="flex gap-2 items-end">
+                    <textarea name="edited_text" rows="2"
+                              class="flex-1 px-3 py-2 bg-slate-night border border-slate-600 text-gray-200 rounded text-sm resize-none focus:outline-none focus:border-indigo-500"
+                              placeholder="Edit the comment…">{{ item.draft.edited_draft or item.draft.ai_draft or '' }}</textarea>
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded text-sm">Save Edit</button>
+                </form>
+                <span id="edit-status-{{ item.draft.id }}" class="text-xs"></span>
+            </div>
+            {% elif status == 'approved' %}
+            <div class="px-4 py-3 border-t border-slate-700 bg-slate-800/50 flex gap-2 items-center">
+                <button hx-post="/review/{{ item.draft.id }}/posted" hx-target="#actions-{{ item.draft.id }}" hx-swap="innerHTML"
+                        class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded text-sm font-medium">
+                    📤 Mark as Posted
+                </button>
+                {% if item.thread %}
+                <a href="{{ item.thread.url }}" target="_blank" rel="noopener" class="text-xs text-indigo-400 hover:text-indigo-300 ml-auto">Open on Reddit ↗</a>
+                {% endif %}
+                <span id="actions-{{ item.draft.id }}" class="text-sm"></span>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

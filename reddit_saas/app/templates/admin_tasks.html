@@ -1,0 +1,89 @@
+{% extends "admin_base.html" %}
+{% block title %}Tasks{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> / <span class="text-white">Tasks</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <h1 class="text-2xl font-semibold text-white mb-6">Celery Task Monitor</h1>
+
+    {% if error %}
+    <div class="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-300 text-sm">{{ error }}</div>
+    {% endif %}
+    {% if success %}
+    <div class="mb-4 p-3 bg-emerald-900/50 border border-emerald-700 rounded-lg text-emerald-300 text-sm">{{ success }}</div>
+    {% endif %}
+
+    <!-- Trigger Pipeline -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-6">
+        <h2 class="text-lg font-medium text-white mb-4">Trigger Pipeline</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {% for c in clients %}
+            <div class="p-3 rounded bg-slate-night border border-slate-700">
+                <div class="text-white text-sm font-medium mb-2">{{ c.client_name }}</div>
+                <div class="flex gap-2">
+                    <form method="post" action="/admin/tasks/trigger/full/{{ c.id }}" class="inline">
+                        <button type="submit"
+                                class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-xs font-medium transition-colors">
+                            Full Pipeline
+                        </button>
+                    </form>
+                    <form method="post" action="/admin/tasks/trigger/hobby/{{ c.id }}" class="inline">
+                        <button type="submit"
+                                class="bg-violet-600 hover:bg-violet-700 text-white px-3 py-1 rounded text-xs font-medium transition-colors">
+                            Hobby
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+            {% if not clients %}
+            <div class="text-gray-500 text-sm">No active clients</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Task List with HTMX polling -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden"
+         hx-get="/admin/tasks" hx-trigger="every 10s" hx-select="#task-table" hx-target="#task-table" hx-swap="outerHTML">
+        <div id="task-table">
+            <table class="w-full text-sm text-left">
+                <thead>
+                    <tr class="border-b border-slate-700">
+                        <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Task ID</th>
+                        <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Name</th>
+                        <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Status</th>
+                        <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Worker</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for task in tasks %}
+                    <tr class="border-b border-slate-700 hover:bg-slate-700/30">
+                        <td class="px-4 py-3 text-gray-400 font-mono text-xs">{{ task.id[:12] }}...</td>
+                        <td class="px-4 py-3 text-gray-300">{{ task.name }}</td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-0.5 rounded text-xs font-medium
+                                  {% if task.status == 'started' %}bg-emerald-900/50 text-emerald-400
+                                  {% elif task.status == 'pending' %}bg-amber-900/50 text-amber-400
+                                  {% else %}bg-slate-700 text-gray-400{% endif %}">
+                                {{ task.status }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-gray-400 text-xs">{{ task.worker }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% if not tasks %}
+                    <tr>
+                        <td colspan="4" class="px-4 py-8 text-center text-gray-500">
+                            No active tasks. Workers may be offline or idle.
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

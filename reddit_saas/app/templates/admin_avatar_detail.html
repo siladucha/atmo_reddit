@@ -1,0 +1,434 @@
+{% extends "admin_base.html" %}
+{% block title %}Avatar: u/{{ avatar.reddit_username }}{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <a href="/admin/" class="hover:text-white">Admin</a>
+    <span class="mx-2 text-gray-600">/</span>
+    <a href="/admin/avatars" class="hover:text-white">Avatars</a>
+    <span class="mx-2 text-gray-600">/</span>
+    <span class="text-white">u/{{ avatar.reddit_username }}</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Avatar Header -->
+    <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4">
+            {% if health.reddit_icon_url %}
+            <img src="{{ health.reddit_icon_url }}" alt="avatar" class="w-12 h-12 rounded-full border border-slate-600">
+            {% else %}
+            <div class="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center text-gray-400 text-lg font-bold">
+                {{ avatar.reddit_username[0]|upper }}
+            </div>
+            {% endif %}
+            <div>
+                <h1 class="text-2xl font-semibold text-white">u/{{ avatar.reddit_username }}</h1>
+                <div class="flex items-center gap-3 mt-1">
+                    {% if avatar.active %}
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-green-900/50 text-green-400 border border-green-700">
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+                        Active
+                    </span>
+                    {% else %}
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-red-900/50 text-red-400 border border-red-700">
+                        <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>
+                        Inactive
+                    </span>
+                    {% endif %}
+                    <span class="px-2 py-0.5 rounded text-xs font-medium
+                          {% if avatar.reddit_status == 'active' %}bg-green-900/50 text-green-400 border border-green-700
+                          {% elif avatar.reddit_status == 'suspended' %}bg-red-900/50 text-red-400 border border-red-700
+                          {% else %}bg-slate-700 text-gray-400 border border-slate-600{% endif %}">
+                        Reddit: {{ avatar.reddit_status }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Current Warming Phase (large badge) -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Current Warming Phase</h2>
+        <div class="flex items-center gap-4">
+            {% if avatar.warming_phase == 1 %}
+            <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-blue-900/40 text-blue-300 border border-blue-700">
+                <span class="w-3 h-3 rounded-full bg-blue-400"></span>
+                Phase 1 — Credibility Building
+            </span>
+            {% elif avatar.warming_phase == 2 %}
+            <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-amber-900/40 text-amber-300 border border-amber-700">
+                <span class="w-3 h-3 rounded-full bg-amber-400"></span>
+                Phase 2 — Content Seeding
+            </span>
+            {% elif avatar.warming_phase == 3 %}
+            <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-green-900/40 text-green-400 border border-green-700">
+                <span class="w-3 h-3 rounded-full bg-green-400"></span>
+                Phase 3 — Brand Integration
+            </span>
+            {% endif %}
+
+            {% if health.phase_eligible_for_next %}
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-green-900/50 text-green-400 border border-green-600">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                Eligible for Promotion
+            </span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Phase Progress -->
+    {% if health.phase_progress %}
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">
+            Phase Progress — Requirements for Phase {{ avatar.warming_phase + 1 }}
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% if health.phase_progress.karma is defined %}
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm text-gray-400">Karma</span>
+                    <span class="text-xs font-mono {% if health.phase_progress.karma.current >= health.phase_progress.karma.required %}text-green-400{% else %}text-gray-400{% endif %}">
+                        {{ health.phase_progress.karma.current }} / {{ health.phase_progress.karma.required }}
+                    </span>
+                </div>
+                {% set pct = [[(health.phase_progress.karma.current / health.phase_progress.karma.required * 100)|int, 0]|max, 100]|min %}
+                <div class="w-full bg-slate-700 rounded-full h-2">
+                    <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-indigo-500{% endif %}" style="width: {{ pct }}%"></div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if health.phase_progress.age_days is defined %}
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm text-gray-400">Account Age (days)</span>
+                    <span class="text-xs font-mono {% if health.phase_progress.age_days.current >= health.phase_progress.age_days.required %}text-green-400{% else %}text-gray-400{% endif %}">
+                        {{ health.phase_progress.age_days.current }} / {{ health.phase_progress.age_days.required }}
+                    </span>
+                </div>
+                {% set pct = [[(health.phase_progress.age_days.current / health.phase_progress.age_days.required * 100)|int, 0]|max, 100]|min %}
+                <div class="w-full bg-slate-700 rounded-full h-2">
+                    <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-indigo-500{% endif %}" style="width: {{ pct }}%"></div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if health.phase_progress.activity is defined %}
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm text-gray-400">Activity (comments)</span>
+                    <span class="text-xs font-mono {% if health.phase_progress.activity.current >= health.phase_progress.activity.required %}text-green-400{% else %}text-gray-400{% endif %}">
+                        {{ health.phase_progress.activity.current }} / {{ health.phase_progress.activity.required }}
+                    </span>
+                </div>
+                {% set pct = [[(health.phase_progress.activity.current / health.phase_progress.activity.required * 100)|int, 0]|max, 100]|min %}
+                <div class="w-full bg-slate-700 rounded-full h-2">
+                    <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-indigo-500{% endif %}" style="width: {{ pct }}%"></div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if health.phase_progress.survival_rate is defined %}
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm text-gray-400">Survival Rate (%)</span>
+                    <span class="text-xs font-mono {% if health.phase_progress.survival_rate.current >= health.phase_progress.survival_rate.required %}text-green-400{% else %}text-gray-400{% endif %}">
+                        {{ health.phase_progress.survival_rate.current|round(1) }}% / {{ health.phase_progress.survival_rate.required }}%
+                    </span>
+                </div>
+                {% set pct = [[(health.phase_progress.survival_rate.current / health.phase_progress.survival_rate.required * 100)|int, 0]|max, 100]|min %}
+                <div class="w-full bg-slate-700 rounded-full h-2">
+                    <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-indigo-500{% endif %}" style="width: {{ pct }}%"></div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if health.phase_progress.avg_score is defined %}
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm text-gray-400">Avg Score (Phase 2→3)</span>
+                    <span class="text-xs font-mono {% if health.phase_progress.avg_score.current >= health.phase_progress.avg_score.required %}text-green-400{% else %}text-gray-400{% endif %}">
+                        {{ health.phase_progress.avg_score.current|round(1) }} / {{ health.phase_progress.avg_score.required }}
+                    </span>
+                </div>
+                {% set pct = [[(health.phase_progress.avg_score.current / health.phase_progress.avg_score.required * 100)|int, 0]|max, 100]|min %}
+                <div class="w-full bg-slate-700 rounded-full h-2">
+                    <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-indigo-500{% endif %}" style="width: {{ pct }}%"></div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% elif avatar.warming_phase == 3 %}
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Phase Progress</h2>
+        <p class="text-gray-400 text-sm">This avatar is at the maximum phase (Phase 3 — Brand Integration). No further promotion available.</p>
+    </div>
+    {% endif %}
+
+    <!-- Phase Transition History -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Phase Transition History</h2>
+        {% if phase_history %}
+        <div class="space-y-3">
+            {% for event in phase_history %}
+            <div class="flex items-start gap-3 p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
+                <!-- Event type icon -->
+                <div class="flex-shrink-0 mt-0.5">
+                    {% if event.event_type == 'phase_promotion' %}
+                    <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-900/50 text-green-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/>
+                        </svg>
+                    </span>
+                    {% elif event.event_type == 'auto_downgrade' %}
+                    <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-red-900/50 text-red-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
+                        </svg>
+                    </span>
+                    {% elif event.event_type == 'phase_override' %}
+                    <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-900/50 text-amber-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                    </span>
+                    {% endif %}
+                </div>
+                <!-- Event details -->
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-sm font-medium text-white">
+                            {% if event.event_type == 'phase_promotion' %}Promotion
+                            {% elif event.event_type == 'auto_downgrade' %}Auto Downgrade
+                            {% elif event.event_type == 'phase_override' %}Admin Override
+                            {% endif %}
+                        </span>
+                        {% if event.event_metadata %}
+                        <span class="text-xs text-gray-400">
+                            Phase {{ event.event_metadata.get('previous_phase', '?') }} → Phase {{ event.event_metadata.get('new_phase', '?') }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% if event.event_metadata %}
+                    <p class="text-xs text-gray-500 mt-1">
+                        {% if event.event_metadata.get('trigger_reason') %}
+                            Reason: {{ event.event_metadata.get('trigger_reason') }}
+                        {% elif event.event_metadata.get('reason') %}
+                            Reason: {{ event.event_metadata.get('reason') }}
+                        {% endif %}
+                    </p>
+                    {% endif %}
+                    <p class="text-xs text-gray-600 mt-1">{{ event.created_at.strftime('%Y-%m-%d %H:%M UTC') }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500 text-sm">No phase transitions recorded yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- Pipeline Stats -->
+    {% if stats %}
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Pipeline Stats</h2>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 text-center">
+                <div class="text-2xl font-bold text-white">{{ stats.hobby_total }}</div>
+                <div class="text-xs text-gray-400 mt-1">Hobby Posts Scraped</div>
+            </div>
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 text-center">
+                <div class="text-2xl font-bold text-amber-400">{{ stats.hobby_pending }}</div>
+                <div class="text-xs text-gray-400 mt-1">Hobby Pending</div>
+            </div>
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 text-center">
+                <div class="text-2xl font-bold text-blue-400">{{ stats.pro_pending }}</div>
+                <div class="text-xs text-gray-400 mt-1">Pro Pending</div>
+            </div>
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 text-center">
+                <div class="text-2xl font-bold text-green-400">{{ stats.pro_approved }}</div>
+                <div class="text-xs text-gray-400 mt-1">Pro Approved</div>
+            </div>
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 text-center">
+                <div class="text-2xl font-bold text-purple-400">{{ stats.pro_posted }}</div>
+                <div class="text-xs text-gray-400 mt-1">Posted</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- AI Costs (Billing) -->
+    {% if ai_costs %}
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">AI Billing</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-400 border-b border-slate-700">
+                        <th class="pb-2">Operation</th>
+                        <th class="pb-2">Calls</th>
+                        <th class="pb-2">Input Tokens</th>
+                        <th class="pb-2">Output Tokens</th>
+                        <th class="pb-2 text-right">Cost</th>
+                    </tr>
+                </thead>
+                <tbody class="text-gray-300">
+                    {% for row in ai_costs %}
+                    <tr class="border-b border-slate-700/50">
+                        <td class="py-2 font-medium">{{ row.operation }}</td>
+                        <td class="py-2 font-mono text-xs">{{ row.calls }}</td>
+                        <td class="py-2 font-mono text-xs">{{ '{:,}'.format(row.input_tokens or 0) }}</td>
+                        <td class="py-2 font-mono text-xs">{{ '{:,}'.format(row.output_tokens or 0) }}</td>
+                        <td class="py-2 font-mono text-xs text-right">${{ '%.4f'|format(row.total_cost or 0) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Pending Actions: Professional Comments -->
+    {% if pro_drafts %}
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">
+            Professional Comments ({{ pro_drafts|length }})
+        </h2>
+        <div class="space-y-4">
+            {% for item in pro_drafts %}
+            <div class="bg-slate-800/50 rounded-lg border border-slate-700/50 overflow-hidden">
+                <!-- Thread header -->
+                <div class="px-4 py-3 border-b border-slate-700/50 flex items-start justify-between">
+                    <div>
+                        <div class="text-sm font-medium text-white">{{ item.thread.post_title[:80] if item.thread else 'Unknown' }}</div>
+                        <div class="flex items-center gap-2 mt-1 text-xs">
+                            <span class="text-gray-400">r/{{ item.thread.subreddit if item.thread else '?' }}</span>
+                            {% if item.draft.engagement_mode %}
+                            <span class="px-1.5 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">{{ item.draft.engagement_mode }}</span>
+                            {% endif %}
+                            {% if item.draft.strategic_angle %}
+                            <span class="px-1.5 py-0.5 rounded bg-purple-900/50 text-purple-300 border border-purple-700/50">{{ item.draft.strategic_angle }}</span>
+                            {% endif %}
+                            {% if item.draft.comment_approach %}
+                            <span class="px-1.5 py-0.5 rounded bg-amber-900/50 text-amber-300 border border-amber-700/50">{{ item.draft.comment_approach }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs px-2 py-0.5 rounded
+                            {% if item.draft.status == 'pending' %}bg-amber-900/50 text-amber-300 border border-amber-700
+                            {% elif item.draft.status == 'approved' %}bg-green-900/50 text-green-300 border border-green-700
+                            {% elif item.draft.status == 'posted' %}bg-purple-900/50 text-purple-300 border border-purple-700
+                            {% else %}bg-red-900/50 text-red-300 border border-red-700{% endif %}">
+                            {{ item.draft.status }}
+                        </span>
+                        <span class="text-xs text-gray-500">{{ item.draft.created_at.strftime('%b %d %H:%M') if item.draft.created_at else '' }}</span>
+                    </div>
+                </div>
+
+                <!-- WHERE: Reply location -->
+                {% if item.draft.comment_to %}
+                <div class="px-4 py-2 border-b border-slate-700/50 bg-slate-900/30">
+                    <span class="text-xs text-amber-400 font-medium">📍 Reply to: </span>
+                    <span class="text-xs text-gray-300 italic">
+                        {% if item.draft.comment_to == 'post' %}Top-level (depth 0)
+                        {% else %}"{{ item.draft.comment_to[:100] }}" (depth {{ item.draft.location_depth or '?' }}){% endif %}
+                    </span>
+                    {% if item.draft.location_reasoning %}
+                    <div class="text-xs text-gray-500 mt-0.5">↳ {{ item.draft.location_reasoning }}</div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- WHAT: Comment text -->
+                <div class="px-4 py-3">
+                    <div class="bg-slate-900 rounded p-3 text-sm text-gray-200 font-mono leading-relaxed border border-slate-700">{{ item.draft.ai_draft }}</div>
+                </div>
+
+                <!-- Link to Reddit -->
+                {% if item.thread and item.thread.url %}
+                <div class="px-4 py-2 border-t border-slate-700/50">
+                    <a href="{{ item.thread.url }}" target="_blank" class="text-xs text-blue-400 hover:text-blue-300">Open thread on Reddit ↗</a>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Pending Actions: Hobby Comments -->
+    {% if hobby_comments %}
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">
+            Hobby Comments — Karma Building ({{ hobby_comments|length }})
+        </h2>
+        <div class="space-y-3">
+            {% for h in hobby_comments %}
+            {% if h.ai_comment %}
+            <div class="bg-slate-800/50 rounded-lg border border-slate-700/50 p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs px-2 py-0.5 rounded bg-blue-900/50 text-blue-300 border border-blue-700/50">r/{{ h.subreddit }}</span>
+                        <span class="text-xs text-gray-400">{{ h.post_title[:50] }}{% if h.post_title|length > 50 %}…{% endif %}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs px-1.5 py-0.5 rounded
+                            {% if h.status == 'pending' %}bg-amber-900/50 text-amber-300 border border-amber-700
+                            {% elif h.status == 'posted' %}bg-green-900/50 text-green-300 border border-green-700
+                            {% else %}bg-slate-700 text-gray-400 border border-slate-600{% endif %}">
+                            {{ h.status or 'new' }}
+                        </span>
+                        <span class="text-xs text-gray-500">{{ h.created_at.strftime('%b %d %H:%M') if h.created_at else '' }}</span>
+                    </div>
+                </div>
+                <div class="bg-slate-900 rounded p-3 text-sm text-gray-200 font-mono leading-relaxed border border-slate-700">{{ h.ai_comment }}</div>
+                {% if h.url %}
+                <div class="mt-2">
+                    <a href="{{ h.url }}" target="_blank" class="text-xs text-blue-400 hover:text-blue-300">Open on Reddit ↗</a>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Phase Override Form -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Phase Override</h2>
+        <form method="post" action="/admin/avatars/{{ avatar.id }}/phase-override"
+              hx-post="/admin/avatars/{{ avatar.id }}/phase-override"
+              hx-swap="none"
+              class="flex items-end gap-4 flex-wrap">
+            <div>
+                <label for="target_phase" class="block text-sm text-gray-400 mb-1">Target Phase</label>
+                <select name="target_phase" id="target_phase"
+                        class="bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="1" {% if avatar.warming_phase == 1 %}selected{% endif %}>Phase 1 — Credibility Building</option>
+                    <option value="2" {% if avatar.warming_phase == 2 %}selected{% endif %}>Phase 2 — Content Seeding</option>
+                    <option value="3" {% if avatar.warming_phase == 3 %}selected{% endif %}>Phase 3 — Brand Integration</option>
+                </select>
+            </div>
+            <div class="flex-1 min-w-[200px]">
+                <label for="reason" class="block text-sm text-gray-400 mb-1">Reason</label>
+                <input type="text" name="reason" id="reason" required
+                       placeholder="Reason for override..."
+                       class="w-full bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-500">
+            </div>
+            <button type="submit"
+                    class="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                Apply Override
+            </button>
+        </form>
+    </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,112 @@
+{% extends "admin_base.html" %}
+{% block title %}Threads{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <a href="/admin/" class="hover:text-white">Admin</a>
+    <span class="mx-2 text-gray-600">/</span>
+    <span class="text-gray-500">Content</span>
+    <span class="mx-2 text-gray-600">/</span>
+    <span class="text-white">Threads</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold text-white">Threads</h1>
+            <p class="text-sm text-gray-400 mt-1">{{ threads|length }} thread{{ 's' if threads|length != 1 }} (latest 200)</p>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-4 flex flex-wrap items-center gap-3">
+        {# Client filter #}
+        <span class="text-xs uppercase tracking-wider text-gray-500 font-medium">Client:</span>
+        <a href="/admin/threads{% if filter_tag %}?tag={{ filter_tag }}{% endif %}"
+           class="px-2.5 py-1 rounded text-xs font-medium transition-colors
+                  {% if not filter_client_id %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
+            All
+        </a>
+        {% for c in clients %}
+        <a href="/admin/threads?client_id={{ c.id }}{% if filter_tag %}&tag={{ filter_tag }}{% endif %}"
+           class="px-2.5 py-1 rounded text-xs font-medium transition-colors
+                  {% if filter_client_id == (c.id|string) %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
+            {{ c.client_name }}
+        </a>
+        {% endfor %}
+
+        <span class="mx-2 h-4 w-px bg-slate-600"></span>
+
+        {# Tag filter #}
+        <span class="text-xs uppercase tracking-wider text-gray-500 font-medium">Tag:</span>
+        {% for t in ['', 'engage', 'monitor', 'skip'] %}
+        <a href="/admin/threads?{% if filter_client_id %}client_id={{ filter_client_id }}{% endif %}{% if t %}{% if filter_client_id %}&{% endif %}tag={{ t }}{% endif %}"
+           class="px-2.5 py-1 rounded text-xs font-medium transition-colors
+                  {% if filter_tag == t %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
+            {{ t if t else 'All' }}
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Threads Table -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+        <table class="w-full text-sm text-left">
+            <thead>
+                <tr class="border-b border-slate-700">
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Tag</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Title</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Subreddit</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Client</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Score</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Author</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Open</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in threads %}
+                <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
+                    <td class="px-4 py-3">
+                        {% if t.alert %}
+                        <span class="px-2 py-0.5 rounded text-xs font-medium bg-red-900/50 text-red-400 border border-red-700 mr-1">ALERT</span>
+                        {% endif %}
+                        {% if t.tag == 'engage' %}
+                        <span class="px-2 py-0.5 rounded text-xs font-medium bg-green-900/50 text-green-400 border border-green-700">engage ({{ t.composite or 0 }})</span>
+                        {% elif t.tag == 'monitor' %}
+                        <span class="px-2 py-0.5 rounded text-xs font-medium bg-amber-900/50 text-amber-300 border border-amber-700">monitor ({{ t.composite or 0 }})</span>
+                        {% elif t.tag == 'skip' %}
+                        <span class="px-2 py-0.5 rounded text-xs font-medium bg-slate-700 text-gray-400 border border-slate-600">skip</span>
+                        {% else %}
+                        <span class="px-2 py-0.5 rounded text-xs font-medium bg-slate-700 text-gray-500 border border-slate-600">unscored</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-gray-200 max-w-md">
+                        <div class="truncate">{{ t.post_title }}</div>
+                        {% if t.scoring_reasoning %}
+                        <div class="text-xs text-gray-500 mt-1 truncate">{{ t.scoring_reasoning }}</div>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-gray-400">r/{{ t.subreddit }}</td>
+                    <td class="px-4 py-3 text-gray-400">
+                        {{ client_map.get(t.client_id|string, '?') }}
+                    </td>
+                    <td class="px-4 py-3 text-gray-400 font-mono text-xs">↑{{ t.ups }}</td>
+                    <td class="px-4 py-3 text-gray-400 text-xs">{{ t.author or '—' }}</td>
+                    <td class="px-4 py-3">
+                        {% if t.url %}
+                        <a href="{{ t.url }}" target="_blank" rel="noopener" class="text-indigo-400 hover:text-indigo-300 text-xs">↗</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not threads %}
+                <tr>
+                    <td colspan="7" class="px-4 py-8 text-center text-gray-500">No threads match the current filters.</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

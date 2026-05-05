@@ -1,0 +1,95 @@
+{% extends "admin_base.html" %}
+{% block title %}Onboarding — Step 2: Subreddits{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> / <a href="/admin/clients" class="hover:text-white">Clients</a> /
+    <a href="/admin/clients/{{ client.id }}" class="hover:text-white">{{ client.client_name }}</a> /
+    <span class="text-white">Onboarding — Step {{ step }}</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <h1 class="text-2xl font-semibold text-white mb-2">Client Onboarding</h1>
+    <p class="text-gray-400 text-sm mb-6">Step {{ step }} of {{ total_steps }} — Subreddit Configuration</p>
+
+    {% include "partials/wizard_progress.html" %}
+
+    {% if error %}
+    <div class="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-300 text-sm">{{ error }}</div>
+    {% endif %}
+
+    <!-- Add Subreddit Form -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-6">
+        <h2 class="text-lg font-medium text-white mb-3">Add Subreddit</h2>
+        <form method="post" action="/admin/clients/{{ client.id }}/onboard/step/2" class="flex gap-3 items-end">
+            <div class="flex-1">
+                <label class="block text-xs text-gray-400 mb-1">Subreddit Name</label>
+                <div class="flex items-center">
+                    <span class="text-gray-400 mr-1">r/</span>
+                    <input type="text" name="subreddit_name" placeholder="subreddit_name"
+                           class="flex-1 bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Type</label>
+                <select name="subreddit_type"
+                        class="bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                    <option value="professional">Professional</option>
+                    <option value="hobby">Hobby</option>
+                </select>
+            </div>
+            <button type="submit"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                Add
+            </button>
+        </form>
+    </div>
+
+    <!-- Current Subreddits -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-6">
+        <h2 class="text-lg font-medium text-white mb-3">
+            Configured Subreddits
+            <span class="text-sm text-gray-400 font-normal">({{ subreddits|length }})</span>
+        </h2>
+        {% if subreddits %}
+        <div class="space-y-2">
+            {% for sub in subreddits %}
+            <div class="flex items-center justify-between p-3 rounded bg-slate-night">
+                <div class="flex items-center gap-3">
+                    <span class="text-white font-medium">r/{{ sub.subreddit_name }}</span>
+                    <span class="px-2 py-0.5 rounded text-xs
+                          {% if sub.type == 'professional' %}bg-indigo-900/50 text-indigo-400 border border-indigo-700{% else %}bg-amber-900/50 text-amber-400 border border-amber-700{% endif %}">
+                        {{ sub.type }}
+                    </span>
+                </div>
+                <form method="post" action="/admin/clients/{{ client.id }}/onboard/step/2" class="inline">
+                    <input type="hidden" name="remove_subreddit_id" value="{{ sub.id }}">
+                    <button type="submit"
+                            class="text-red-400 hover:text-red-300 text-sm transition-colors"
+                            onclick="return confirm('Remove this subreddit?')">
+                        Remove
+                    </button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500 text-sm">No subreddits configured yet. Add some above.</p>
+        {% endif %}
+    </div>
+
+    <!-- Navigation -->
+    <div class="flex justify-between items-center">
+        <a href="/admin/clients/{{ client.id }}/onboard/step/1"
+           class="bg-slate-700 hover:bg-slate-600 text-gray-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            ← Back
+        </a>
+        <form method="post" action="/admin/clients/{{ client.id }}/onboard/step/2">
+            <button type="submit"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors">
+                Next →
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
