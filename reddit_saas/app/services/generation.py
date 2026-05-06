@@ -56,12 +56,31 @@ def select_persona(
 ) -> dict:
     """Select the best avatar/persona for a thread.
 
+    Avatars with established karma in the target subreddit are preferred over
+    ones with zero karma there (Req 8). The per-subreddit figure is also fed
+    into the LLM persona-selection prompt so the model can break ties.
+
     Returns:
         Dict with persona selection and engagement strategy.
+
+    Raises:
+        RuntimeError: If LLM call fails after logging the error.
     """
-    # Build personas summary for the prompt
+    from app.services import karma_tracker
+
+    # Build personas summary for the prompt — include karma in this thread's
+    # subreddit so the LLM can prefer credible avatars.
     personas_data = []
+    target_sub = thread.subreddit
+    karma_by_avatar: dict[str, int] = {}
     for avatar in avatars:
+        sub_karma_record = (
+            karma_tracker.get_karma_in_subreddit(db, avatar.id, target_sub)
+            if target_sub
+            else None
+        )
+        sub_total = sub_karma_record.total_karma if sub_karma_record else 0
+        karma_by_avatar[avatar.reddit_username] = sub_total
         personas_data.append({
             "username": avatar.reddit_username,
             "voice_summary": (avatar.voice_profile_md or "")[:500],
@@ -69,7 +88,19 @@ def select_persona(
             "helpful_topics": avatar.helpful_mode_topics or "",
             "hobby_subs": avatar.hobby_subreddits or [],
             "karma": avatar.karma_comment,
+            "subreddit_karma": {
+                "subreddit": target_sub,
+                "comment_karma": sub_karma_record.comment_karma if sub_karma_record else 0,
+                "post_karma": sub_karma_record.post_karma if sub_karma_record else 0,
+                "total": sub_total,
+            },
         })
+
+    # Sort so the prompt presents the most credible avatars first — provides
+    # the model an explicit ranking signal in addition to the numeric column.
+    personas_data.sort(
+        key=lambda p: (-p["subreddit_karma"]["total"], p["username"])
+    )
 
     thread_content = f"""Subreddit: r/{thread.subreddit}
 Alert: {thread.alert}
@@ -95,14 +126,24 @@ Alert: {thread.alert}
         {"role": "user", "content": thread_content},
     ]
 
-    result = call_llm_json(
-        messages=messages,
-        model=get_config("llm_generation_model"),
-        temperature=0.4,
-        max_tokens=512,
-    )
+    try:
+        result = call_llm_json(
+            messages=messages,
+            model=get_config("llm_generation_model"),
+            temperature=0.4,
+            max_tokens=512,
+        )
+    except Exception as e:
+        logger.error(
+            f"LLM call failed in select_persona for thread '{thread.post_title[:40]}' "
+            f"client={client.client_name}: {e}"
+        )
+        raise RuntimeError(f"Persona selection LLM failed: {e}") from e
 
-    log_ai_usage(db, str(client.id), "persona_select", result)
+    try:
+        log_ai_usage(db, str(client.id), "persona_select", result)
+    except Exception:
+        logger.warning("Failed to log AI usage for persona_select")
 
     logger.info(
         f"Selected persona '{result['data'].get('persona_username')}' "
@@ -170,6 +211,9 @@ def generate_comment(
 
     Returns:
         Created CommentDraft instance.
+
+    Raises:
+        RuntimeError: If LLM call fails.
     """
     prev_comments_text = "\n---\n".join(previous_comments or [])
     if not prev_comments_text:
@@ -201,14 +245,24 @@ def generate_comment(
         {"role": "user", "content": thread_content},
     ]
 
-    result = call_llm_json(
-        messages=messages,
-        model=get_config("llm_generation_model"),
-        temperature=0.7,
-        max_tokens=512,
-    )
+    try:
+        result = call_llm_json(
+            messages=messages,
+            model=get_config("llm_generation_model"),
+            temperature=0.7,
+            max_tokens=512,
+        )
+    except Exception as e:
+        logger.error(
+            f"LLM call failed in generate_comment for thread '{thread.post_title[:40]}' "
+            f"avatar={avatar.reddit_username}: {e}"
+        )
+        raise RuntimeError(f"Comment generation LLM failed: {e}") from e
 
-    log_ai_usage(db, str(client.id), "generation", result)
+    try:
+        log_ai_usage(db, str(client.id), "generation", result)
+    except Exception:
+        logger.warning("Failed to log AI usage for generation")
 
     data = result["data"]
 
@@ -228,9 +282,32 @@ def generate_comment(
         status="pending",
     )
 
-    db.add(draft)
-    db.commit()
-    db.refresh(draft)
+    try:
+        db.add(draft)
+        db.commit()
+        db.refresh(draft)
+    except Exception as e:
+        logger.error(f"DB error saving comment draft for thread {thread.id}: {e}")
+        db.rollback()
+        raise RuntimeError(f"Failed to save comment draft: {e}") from e
+
+    # Audit log for AI-generated draft
+    try:
+        from app.services.audit import log_system_action
+        log_system_action(
+            db=db,
+            action="generate",
+            entity_type="comment_draft",
+            entity_id=draft.id,
+            client_id=client.id,
+            details={
+                "avatar_username": avatar.reddit_username,
+                "thread_title": thread.post_title[:100],
+                "engagement_mode": persona_selection.get("mode", ""),
+            },
+        )
+    except Exception:
+        logger.warning("Failed to audit log generated draft")
 
     logger.info(
         f"Generated comment for thread '{thread.post_title[:40]}' "
@@ -280,7 +357,7 @@ def edit_comment(
     """Run the editor prompt on a draft comment to clean up AI artifacts.
 
     Returns:
-        The edited comment text.
+        The edited comment text (original text returned if editing fails).
     """
     messages = [
         {
@@ -297,20 +374,33 @@ def edit_comment(
         },
     ]
 
-    result = call_llm(
-        messages=messages,
-        model=get_config("llm_generation_model"),
-        temperature=0.3,
-        max_tokens=256,
-    )
+    try:
+        result = call_llm(
+            messages=messages,
+            model=get_config("llm_generation_model"),
+            temperature=0.3,
+            max_tokens=256,
+        )
+    except Exception as e:
+        logger.error(f"LLM call failed in edit_comment for draft {draft.id}: {e}")
+        # Return original text — editing is non-critical
+        return draft.ai_draft or ""
 
-    log_ai_usage(db, str(client.id), "editing", result)
+    try:
+        log_ai_usage(db, str(client.id), "editing", result)
+    except Exception:
+        logger.warning("Failed to log AI usage for editing")
 
     edited = result["content"].strip()
 
     # Update draft with edited version
-    draft.ai_draft = edited
-    db.commit()
+    try:
+        draft.ai_draft = edited
+        db.commit()
+    except Exception as e:
+        logger.error(f"DB error saving edited draft {draft.id}: {e}")
+        db.rollback()
+        return edited  # Return edited text even if DB save fails
 
     logger.info(f"Edited comment {draft.id}")
 

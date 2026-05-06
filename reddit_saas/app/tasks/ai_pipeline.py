@@ -11,9 +11,10 @@ from app.config import get_settings
 from app.database import SessionLocal
 from app.models.client import Client
 from app.models.thread import RedditThread
+from app.models.thread_score import ThreadScore
 from app.models.avatar import Avatar
 from app.models.comment_draft import CommentDraft
-from app.services.scoring import score_unscored_threads
+from app.services.scoring import score_unscored_threads_for_client
 from app.services.generation import select_persona, generate_comment, edit_comment
 from app.services.transparency import record_activity_event
 
@@ -22,7 +23,11 @@ logger = logging.getLogger(__name__)
 
 @celery_app.task(name="score_threads")
 def score_threads(client_id: str):
-    """Score all unscored threads for a client."""
+    """Score all unscored threads for a client.
+
+    Uses the shared subreddit registry: finds threads in the client's assigned
+    subreddits that lack a ThreadScore record for this client.
+    """
     db = SessionLocal()
     try:
         try:
@@ -31,14 +36,14 @@ def score_threads(client_id: str):
                 logger.error(f"Client {client_id} not found")
                 return 0
 
-            count = score_unscored_threads(db, client)
+            count = score_unscored_threads_for_client(db, client)
 
-            # Record activity event with tag distribution
+            # Record activity event with tag distribution from ThreadScore
             try:
                 tag_rows = (
-                    db.query(RedditThread.tag, func.count(RedditThread.id))
-                    .filter(RedditThread.client_id == client_id)
-                    .group_by(RedditThread.tag)
+                    db.query(ThreadScore.tag, func.count(ThreadScore.id))
+                    .filter(ThreadScore.client_id == client_id)
+                    .group_by(ThreadScore.tag)
                     .all()
                 )
                 tag_counts = {row[0]: row[1] for row in tag_rows}
@@ -71,6 +76,18 @@ def score_threads(client_id: str):
                 )
             except Exception:
                 logger.exception("Failed to record system error activity event")
+            # Also log to audit table
+            try:
+                from app.services.audit import log_system_action
+                log_system_action(
+                    db=db,
+                    action="error",
+                    entity_type="task",
+                    client_id=uuid.UUID(client_id),
+                    details={"task": "score_threads", "error": str(e)[:500]},
+                )
+            except Exception:
+                pass
             raise
 
     finally:
@@ -114,16 +131,18 @@ def generate_comments(client_id: str, max_comments: int = 15):
                 .subquery()
             )
 
+            # Query threads via ThreadScore for this client with tag='engage'
             engage_threads = (
                 db.query(RedditThread)
+                .join(ThreadScore, ThreadScore.thread_id == RedditThread.id)
                 .filter(
-                    RedditThread.client_id == client_id,
-                    RedditThread.tag == "engage",
+                    ThreadScore.client_id == client_id,
+                    ThreadScore.tag == "engage",
                     ~RedditThread.id.in_(db.query(threads_with_drafts.c.thread_id)),
                 )
                 .order_by(
-                    RedditThread.alert.desc(),
-                    RedditThread.composite.desc(),
+                    ThreadScore.alert.desc(),
+                    ThreadScore.composite.desc(),
                     RedditThread.created_at.desc(),
                 )
                 .limit(max_comments)
@@ -226,6 +245,18 @@ def generate_comments(client_id: str, max_comments: int = 15):
                 )
             except Exception:
                 logger.exception("Failed to record system error activity event")
+            # Also log to audit table
+            try:
+                from app.services.audit import log_system_action
+                log_system_action(
+                    db=db,
+                    action="error",
+                    entity_type="task",
+                    client_id=uuid.UUID(client_id),
+                    details={"task": "generate_comments", "error": str(e)[:500]},
+                )
+            except Exception:
+                pass
             raise
 
     finally:

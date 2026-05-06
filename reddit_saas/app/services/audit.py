@@ -45,6 +45,33 @@ def log_action(
     return entry
 
 
+def log_system_action(
+    db: Session,
+    action: str,
+    entity_type: str,
+    entity_id: uuid.UUID | None = None,
+    client_id: uuid.UUID | None = None,
+    details: dict | None = None,
+) -> AuditLog:
+    """Create an audit log entry for a system/background action (no user).
+
+    Used by background tasks, error handlers, and automated processes.
+    """
+    entry = AuditLog(
+        user_id=None,
+        action=action,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        client_id=client_id,
+        details=details,
+    )
+    db.add(entry)
+    db.flush()
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
 def query_audit_logs(
     db: Session,
     page: int = 1,
@@ -52,6 +79,8 @@ def query_audit_logs(
     user_id: uuid.UUID | None = None,
     client_id: uuid.UUID | None = None,
     action: str | None = None,
+    entity_type: str | None = None,
+    search: str | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
 ) -> tuple[list[AuditLog], int]:
@@ -64,6 +93,8 @@ def query_audit_logs(
         user_id: Filter by the admin user who performed the action.
         client_id: Filter by client context.
         action: Filter by action type (e.g. "create", "update").
+        entity_type: Filter by entity type (e.g. "avatar", "client", "comment_draft").
+        search: Free-text search in details JSONB (case-insensitive).
         date_from: Include only entries created at or after this datetime.
         date_to: Include only entries created at or before this datetime.
 
@@ -79,6 +110,17 @@ def query_audit_logs(
         query = query.filter(AuditLog.client_id == client_id)
     if action is not None:
         query = query.filter(AuditLog.action == action)
+    if entity_type is not None:
+        query = query.filter(AuditLog.entity_type == entity_type)
+    if search:
+        # Search across action, entity_type, and details JSONB (case-insensitive)
+        from sqlalchemy import cast, String as SAString, or_
+        search_filter = or_(
+            AuditLog.action.ilike(f"%{search}%"),
+            AuditLog.entity_type.ilike(f"%{search}%"),
+            cast(AuditLog.details, SAString).ilike(f"%{search}%"),
+        )
+        query = query.filter(search_filter)
     if date_from is not None:
         query = query.filter(AuditLog.created_at >= date_from)
     if date_to is not None:
@@ -96,3 +138,27 @@ def query_audit_logs(
     )
 
     return entries, total
+
+
+def get_distinct_entity_types(db: Session) -> list[str]:
+    """Return all distinct entity_type values from audit logs."""
+    from sqlalchemy import distinct
+    rows = (
+        db.query(distinct(AuditLog.entity_type))
+        .filter(AuditLog.entity_type.isnot(None))
+        .order_by(AuditLog.entity_type)
+        .all()
+    )
+    return [r[0] for r in rows]
+
+
+def get_distinct_actions(db: Session) -> list[str]:
+    """Return all distinct action values from audit logs."""
+    from sqlalchemy import distinct
+    rows = (
+        db.query(distinct(AuditLog.action))
+        .filter(AuditLog.action.isnot(None))
+        .order_by(AuditLog.action)
+        .all()
+    )
+    return [r[0] for r in rows]

@@ -11,6 +11,11 @@
 </nav>
 {% endblock %}
 
+{% block export_button %}
+{% set export_url = "/export/comments" %}
+{% include "partials/export_button.html" %}
+{% endblock %}
+
 {% block content %}
 <div class="space-y-6">
     <div class="flex items-center justify-between">
@@ -71,12 +76,12 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-2 shrink-0 ml-3">
-                    {% if item.thread and item.thread.alert %}
+                    {% if item.score and item.score.alert %}
                     <span class="px-2 py-0.5 rounded text-xs font-medium bg-red-900/50 text-red-400 border border-red-700">ALERT</span>
                     {% endif %}
-                    {% if item.thread %}
+                    {% if item.score %}
                     <span class="px-2 py-0.5 rounded text-xs font-medium bg-slate-700 text-gray-300 border border-slate-600 font-mono">
-                        score: {{ item.thread.composite or 0 }}
+                        score: {{ item.score.composite or 0 }}
                     </span>
                     {% endif %}
                 </div>
@@ -134,15 +139,119 @@
                 <span id="edit-status-{{ item.draft.id }}" class="text-xs"></span>
             </div>
             {% elif status == 'approved' %}
-            <div class="px-4 py-3 border-t border-slate-700 bg-slate-800/50 flex gap-2 items-center">
-                <button hx-post="/review/{{ item.draft.id }}/posted" hx-target="#actions-{{ item.draft.id }}" hx-swap="innerHTML"
-                        class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded text-sm font-medium">
-                    📤 Mark as Posted
-                </button>
-                {% if item.thread %}
-                <a href="{{ item.thread.url }}" target="_blank" rel="noopener" class="text-xs text-indigo-400 hover:text-indigo-300 ml-auto">Open on Reddit ↗</a>
+            <div class="px-4 py-3 border-t border-slate-700 bg-slate-800/50">
+                <form hx-post="/review/{{ item.draft.id }}/posted" hx-target="#actions-{{ item.draft.id }}" hx-swap="innerHTML"
+                      class="flex flex-wrap gap-2 items-center">
+                    <input type="url" name="reddit_comment_url" placeholder="Paste Reddit comment URL (optional)"
+                           class="flex-1 min-w-[200px] px-3 py-1.5 bg-slate-night border border-slate-600 text-gray-200 rounded text-sm focus:outline-none focus:border-indigo-500"
+                           >
+                    <button type="submit"
+                            class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded text-sm font-medium">
+                        📤 Mark as Posted
+                    </button>
+                    {% if item.thread %}
+                    <a href="{{ item.thread.url }}" target="_blank" rel="noopener" class="text-xs text-indigo-400 hover:text-indigo-300 ml-auto">Open on Reddit ↗</a>
+                    {% endif %}
+                </form>
+                <span id="actions-{{ item.draft.id }}" class="text-sm mt-1"></span>
+            </div>
+            {% elif status == 'posted' %}
+            <!-- Karma tracking for posted comments -->
+            <div class="px-4 py-3 border-t border-slate-700 bg-slate-800/50">
+                <div class="flex flex-wrap gap-3 items-center">
+                    <!-- Current score display -->
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-500 uppercase tracking-wider">Karma:</span>
+                        <span id="karma-display-{{ item.draft.id }}">
+                        {% if item.draft.reddit_score is not none %}
+                            {% if item.draft.reddit_score > 0 %}
+                            <span class="text-green-400 font-medium text-sm">↑ {{ item.draft.reddit_score }}</span>
+                            {% elif item.draft.reddit_score < 0 %}
+                            <span class="text-red-400 font-medium text-sm">↓ {{ item.draft.reddit_score }}</span>
+                            {% else %}
+                            <span class="text-gray-400 font-medium text-sm">· 0</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-gray-600 text-sm italic">not tracked</span>
+                        {% endif %}
+                        </span>
+                    </div>
+
+                    <!-- Check Karma Now button -->
+                    <button hx-post="/review/{{ item.draft.id }}/check-karma"
+                            hx-target="#karma-display-{{ item.draft.id }}"
+                            hx-swap="innerHTML"
+                            hx-indicator="#karma-spinner-{{ item.draft.id }}"
+                            class="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-gray-300 border border-slate-600 rounded text-xs font-medium">
+                        🔄 Check Now
+                    </button>
+                    <span id="karma-spinner-{{ item.draft.id }}" class="htmx-indicator text-xs text-gray-500">checking…</span>
+
+                    <!-- Reddit comment link -->
+                    {% if item.draft.reddit_comment_url %}
+                    <a href="{{ item.draft.reddit_comment_url }}" target="_blank" rel="noopener"
+                       class="text-xs text-indigo-400 hover:text-indigo-300">
+                        View on Reddit ↗
+                    </a>
+                    {% elif item.thread and item.thread.url %}
+                    <a href="{{ item.thread.url }}" target="_blank" rel="noopener"
+                       class="text-xs text-gray-500 hover:text-gray-400">
+                        Thread ↗
+                    </a>
+                    {% endif %}
+
+                    <!-- Avatar phase indicator -->
+                    {% if item.avatar %}
+                    <span class="mx-1 h-4 w-px bg-slate-600"></span>
+                    <div class="flex items-center gap-1">
+                        <span class="text-xs text-gray-500">Phase:</span>
+                        <span class="px-1.5 py-0.5 rounded text-xs font-mono
+                            {% if item.avatar.warming_phase == 1 %}bg-blue-900/50 text-blue-300 border border-blue-700
+                            {% elif item.avatar.warming_phase == 2 %}bg-amber-900/50 text-amber-300 border border-amber-700
+                            {% else %}bg-green-900/50 text-green-300 border border-green-700{% endif %}">
+                            {{ item.avatar.warming_phase }}
+                        </span>
+                    </div>
+                    {% endif %}
+
+                    <!-- Posted time -->
+                    {% if item.draft.posted_at %}
+                    <span class="mx-1 h-4 w-px bg-slate-600"></span>
+                    <span class="text-xs text-gray-500">Posted: {{ item.draft.posted_at.strftime('%b %d, %H:%M') }}</span>
+                    {% endif %}
+
+                    <!-- Update score form (manual) -->
+                    <form hx-post="/review/{{ item.draft.id }}/update-score"
+                          hx-target="#score-result-{{ item.draft.id }}"
+                          hx-swap="innerHTML"
+                          class="flex items-center gap-2 ml-auto">
+                        <input type="number" name="reddit_score"
+                               value="{{ item.draft.reddit_score if item.draft.reddit_score is not none else '' }}"
+                               placeholder="Score"
+                               class="w-20 px-2 py-1 bg-slate-night border border-slate-600 text-gray-200 rounded text-sm focus:outline-none focus:border-indigo-500">
+                        <button type="submit"
+                                class="bg-slate-700 hover:bg-slate-600 text-gray-300 px-2.5 py-1 rounded text-xs font-medium border border-slate-600">
+                            Update
+                        </button>
+                    </form>
+                    <span id="score-result-{{ item.draft.id }}" class="text-sm"></span>
+                </div>
+
+                <!-- Karma risk warning -->
+                {% if item.karma_summary and item.karma_summary.at_risk %}
+                <div class="mt-2 px-3 py-1.5 bg-red-900/30 border border-red-800 rounded text-xs text-red-300">
+                    ⚠ Avatar karma at risk — avg score: {{ item.karma_summary.avg_score }}
+                    ({{ item.karma_summary.negative_count }} negative / {{ item.karma_summary.scored_count }} scored).
+                    Phase demotion may trigger.
+                </div>
                 {% endif %}
-                <span id="actions-{{ item.draft.id }}" class="text-sm"></span>
+
+                <!-- Last checked info -->
+                {% if item.draft.last_karma_check_at %}
+                <div class="mt-1 text-xs text-gray-600">
+                    Last checked: {{ item.draft.last_karma_check_at.strftime('%b %d, %H:%M') }}
+                </div>
+                {% endif %}
             </div>
             {% endif %}
         </div>

@@ -27,4 +27,5 @@ class Client(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
-    subreddits = relationship("ClientSubreddit", back_populates="client")
+    subreddits = relationship("ClientSubreddit", back_populates="client")  # legacy, kept for migration
+    subreddit_assignments = relationship("ClientSubredditAssignment", back_populates="client")

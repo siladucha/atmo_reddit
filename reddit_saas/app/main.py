@@ -8,7 +8,8 @@ from app.config import get_settings, get_config
 from app.logging_config import setup_logging
 from app.middleware.auth import AuthMiddleware
 from app.middleware.errors import ErrorMiddleware
-from app.routes import admin, auth, dashboard, review, pipeline, avatars, clients, pages, dry_run
+from app.middleware.security import SecurityHeadersMiddleware, RateLimitMiddleware
+from app.routes import admin, auth, dashboard, review, pipeline, avatars, clients, pages, dry_run, export
 from app.services.metrics_collector import (
     get_metrics_collector,
     install_metrics_logging_handler,
@@ -31,7 +32,15 @@ app = FastAPI(
     docs_url="/docs" if app_env == "development" else None,
 )
 
-# Middleware (order matters: error handler wraps auth which wraps routes)
+# Middleware (order matters: outermost wraps innermost)
+# Request flow: SecurityHeaders → RateLimit → ErrorHandler → Auth → Routes
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(
+    RateLimitMiddleware,
+    auth_limit=5,
+    auth_window_seconds=900,
+    enabled=(app_env == "production"),
+)
 app.add_middleware(ErrorMiddleware, debug=(app_env == "development"))
 app.add_middleware(AuthMiddleware)
 
@@ -54,11 +63,49 @@ app.include_router(pipeline.router, prefix="/pipeline", tags=["pipeline"])
 app.include_router(admin.router, tags=["admin-panel"])
 app.include_router(dry_run.router, tags=["dry-run"])
 app.include_router(pages.router, tags=["pages"])
+app.include_router(export.router, tags=["export"])
 
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "version": "0.1.0"}
+    """Health check endpoint — verifies DB and Redis connectivity.
+
+    Returns 200 if all services are reachable, 503 otherwise.
+    Used by load balancers and container orchestrators.
+    """
+    checks = {"version": "0.1.0"}
+    all_ok = True
+
+    # Check database
+    try:
+        from app.database import SessionLocal
+        from sqlalchemy import text
+        db = SessionLocal()
+        db.execute(text("SELECT 1"))
+        db.close()
+        checks["database"] = "ok"
+    except Exception as e:
+        checks["database"] = f"error: {type(e).__name__}"
+        all_ok = False
+
+    # Check Redis
+    try:
+        import redis as redis_lib
+        from app.config import get_settings
+        r = redis_lib.from_url(get_settings().redis_url, socket_timeout=2)
+        r.ping()
+        checks["redis"] = "ok"
+    except Exception as e:
+        checks["redis"] = f"error: {type(e).__name__}"
+        all_ok = False
+
+    checks["status"] = "ok" if all_ok else "degraded"
+
+    if not all_ok:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(content=checks, status_code=503)
+
+    return checks
 
 
 @app.on_event("startup")
@@ -76,3 +123,21 @@ def on_startup():
         logger.warning("Failed to init settings: %s", e)
     finally:
         db.close()
+
+    # Refuse to run with the default JWT secret — anyone with the codebase
+    # could forge tokens. In dev, set SECRET_KEY in .env or system_settings.
+    secret = get_config("secret_key") or ""
+    if secret.strip() in {"", "change-me"}:
+        raise RuntimeError(
+            "SECRET_KEY is unset or still the default 'change-me'. "
+            "Set a strong value in .env or system_settings before starting."
+        )
+
+    # Validate SECRET_KEY strength in production
+    if app_env == "production" and len(secret) < 32:
+        raise RuntimeError(
+            "SECRET_KEY is too short for production (min 32 chars). "
+            "Generate with: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+        )
+
+    logger.info("Startup validation passed — all critical settings OK")

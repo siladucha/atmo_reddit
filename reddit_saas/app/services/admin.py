@@ -15,7 +15,7 @@ from app.models.ai_usage import AIUsageLog
 from app.models.avatar import Avatar
 from app.models.client import Client
 from app.models.comment_draft import CommentDraft
-from app.models.subreddit import ClientSubreddit
+from app.models.subreddit import ClientSubreddit, ClientSubredditAssignment, Subreddit
 from app.models.thread import RedditThread
 from app.models.user import User
 from app.services import audit
@@ -696,8 +696,11 @@ def add_subreddit(
     name: str,
     type: str,
     current_user_id: uuid.UUID | None,
-) -> ClientSubreddit:
-    """Add a subreddit to a client, or reactivate if previously soft-deleted.
+) -> ClientSubredditAssignment:
+    """Add a subreddit to a client. Creates Subreddit record if needed.
+
+    No longer enforces global uniqueness — multiple clients can share the
+    same subreddit.
 
     Args:
         db: SQLAlchemy database session.
@@ -707,124 +710,185 @@ def add_subreddit(
         current_user_id: The admin performing the action.
 
     Returns:
-        The created or reactivated ClientSubreddit.
+        The created or reactivated ClientSubredditAssignment.
 
     Raises:
-        ValueError: If an active subreddit with the same name already exists
-            anywhere in the system (any client). Reddit subreddit names are
-            case-insensitive, so the check uses ``lower()``.
+        ValueError: If the client is not found, is inactive, or the
+            subreddit is already actively assigned to this client.
     """
-    # Verify client exists and is active
+    # 1. Verify client exists and is active
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
         raise ValueError("Client not found")
     if not client.is_active:
         raise ValueError("Cannot add subreddit to inactive client")
 
-    # Global uniqueness: a subreddit can only be actively monitored by one client
-    # at a time. Reddit names are case-insensitive (r/Python == r/python).
-    active_anywhere = (
-        db.query(ClientSubreddit)
+    # 2. Get-or-create Subreddit record (case-insensitive lookup)
+    subreddit = (
+        db.query(Subreddit)
+        .filter(func.lower(Subreddit.subreddit_name) == name.lower())
+        .first()
+    )
+    if not subreddit:
+        subreddit = Subreddit(subreddit_name=name)
+        db.add(subreddit)
+        db.flush()
+
+    # 3. Check for existing assignment (active or inactive)
+    existing_assignment = (
+        db.query(ClientSubredditAssignment)
         .filter(
-            func.lower(ClientSubreddit.subreddit_name) == name.lower(),
-            ClientSubreddit.is_active.is_(True),
+            ClientSubredditAssignment.client_id == client_id,
+            ClientSubredditAssignment.subreddit_id == subreddit.id,
         )
         .first()
     )
-    if active_anywhere:
-        if active_anywhere.client_id == client_id:
+
+    if existing_assignment:
+        if existing_assignment.is_active:
             raise ValueError("Subreddit already added for this client")
-        other = db.query(Client).filter(Client.id == active_anywhere.client_id).first()
-        other_name = other.client_name if other else "another client"
-        raise ValueError(f"r/{name} is already monitored by {other_name}")
-
-    # No active duplicate anywhere. Check for an inactive row for *this* client
-    # (to reactivate) before creating a new one.
-    existing = (
-        db.query(ClientSubreddit)
-        .filter(
-            ClientSubreddit.client_id == client_id,
-            func.lower(ClientSubreddit.subreddit_name) == name.lower(),
-        )
-        .first()
-    )
-
-    if existing:
-        existing.is_active = True
-        existing.type = type
-        existing.subreddit_name = name
+        # Reactivate inactive assignment
+        existing_assignment.is_active = True
+        existing_assignment.type = type
         db.commit()
-        db.refresh(existing)
+        db.refresh(existing_assignment)
 
         audit.log_action(
             db=db,
             user_id=current_user_id,
             action="reactivate_subreddit",
-            entity_type="subreddit",
-            entity_id=existing.id,
+            entity_type="subreddit_assignment",
+            entity_id=existing_assignment.id,
             client_id=client_id,
             details={"subreddit_name": name, "type": type},
         )
-        # audit.log_action commits, which expires `existing`. Refresh so the
-        # caller can serialize attributes without lazy-loading inside a
-        # closed transaction.
-        db.refresh(existing)
-        return existing
+        db.refresh(existing_assignment)
+        return existing_assignment
 
-    subreddit = ClientSubreddit(
+    # 4. Create new ClientSubredditAssignment
+    assignment = ClientSubredditAssignment(
         client_id=client_id,
-        subreddit_name=name,
+        subreddit_id=subreddit.id,
         type=type,
     )
-    db.add(subreddit)
+    db.add(assignment)
     db.commit()
-    db.refresh(subreddit)
+    db.refresh(assignment)
 
+    # 5. Audit log
     audit.log_action(
         db=db,
         user_id=current_user_id,
         action="add_subreddit",
-        entity_type="subreddit",
-        entity_id=subreddit.id,
+        entity_type="subreddit_assignment",
+        entity_id=assignment.id,
         client_id=client_id,
         details={"subreddit_name": name, "type": type},
     )
-    db.refresh(subreddit)
-    return subreddit
+    db.refresh(assignment)
+    return assignment
 
 
 def remove_subreddit(
     db: Session,
-    subreddit_id: uuid.UUID,
+    assignment_id: uuid.UUID,
     current_user_id: uuid.UUID,
 ) -> None:
-    """Soft-delete a subreddit by setting ``is_active`` to False.
+    """Soft-delete by setting ``is_active=False`` on the assignment only.
+
+    Does not modify the Subreddit record or other clients' assignments.
 
     Args:
         db: SQLAlchemy database session.
-        subreddit_id: The subreddit to remove.
+        assignment_id: The ClientSubredditAssignment to deactivate.
         current_user_id: The admin performing the action.
 
     Raises:
-        ValueError: If the subreddit is not found.
+        ValueError: If the assignment is not found.
     """
-    subreddit = db.query(ClientSubreddit).filter(ClientSubreddit.id == subreddit_id).first()
-    if not subreddit:
-        raise ValueError("Subreddit not found")
+    assignment = (
+        db.query(ClientSubredditAssignment)
+        .filter(ClientSubredditAssignment.id == assignment_id)
+        .first()
+    )
+    if not assignment:
+        raise ValueError("Subreddit assignment not found")
 
-    subreddit.is_active = False
+    assignment.is_active = False
     db.commit()
-    db.refresh(subreddit)
+    db.refresh(assignment)
 
     audit.log_action(
         db=db,
         user_id=current_user_id,
         action="remove_subreddit",
-        entity_type="subreddit",
-        entity_id=subreddit.id,
-        client_id=subreddit.client_id,
-        details={"subreddit_name": subreddit.subreddit_name},
+        entity_type="subreddit_assignment",
+        entity_id=assignment.id,
+        client_id=assignment.client_id,
+        details={"subreddit_name": assignment.subreddit.subreddit_name},
     )
+
+
+def list_client_subreddits(
+    db: Session,
+    client_id: uuid.UUID,
+) -> list[dict]:
+    """Return subreddits assigned to a client with assignment metadata.
+
+    Queries ClientSubredditAssignment joined to Subreddit for the given
+    client_id. Includes a ``shared`` flag indicating if the subreddit has
+    multiple active assignments (i.e., is shared with other clients).
+
+    Args:
+        db: SQLAlchemy database session.
+        client_id: The client whose subreddits to list.
+
+    Returns:
+        A list of dicts with: id (assignment id), subreddit_name, type,
+        is_active, last_scraped_at, created_at, subreddit_id, shared.
+    """
+    assignments = (
+        db.query(ClientSubredditAssignment)
+        .join(Subreddit, ClientSubredditAssignment.subreddit_id == Subreddit.id)
+        .filter(ClientSubredditAssignment.client_id == client_id)
+        .all()
+    )
+
+    # Determine which subreddits are shared (have >1 active assignment)
+    subreddit_ids = [a.subreddit_id for a in assignments]
+    shared_subreddit_ids: set = set()
+    if subreddit_ids:
+        from sqlalchemy import and_
+        shared_counts = (
+            db.query(
+                ClientSubredditAssignment.subreddit_id,
+                func.count(ClientSubredditAssignment.id),
+            )
+            .filter(
+                ClientSubredditAssignment.subreddit_id.in_(subreddit_ids),
+                ClientSubredditAssignment.is_active.is_(True),
+            )
+            .group_by(ClientSubredditAssignment.subreddit_id)
+            .all()
+        )
+        shared_subreddit_ids = {
+            sid for sid, count in shared_counts if count > 1
+        }
+
+    result: list[dict] = []
+    for assignment in assignments:
+        result.append({
+            "id": assignment.id,
+            "subreddit_id": assignment.subreddit_id,
+            "subreddit_name": assignment.subreddit.subreddit_name,
+            "type": assignment.type,
+            "is_active": assignment.is_active,
+            "last_scraped_at": assignment.subreddit.last_scraped_at,
+            "created_at": assignment.created_at,
+            "shared": assignment.subreddit_id in shared_subreddit_ids,
+        })
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -1238,6 +1302,9 @@ def get_recent_tasks(celery_app=None) -> list[dict]:
     Attempts to read task information from Celery/Redis.  Returns an empty
     list if the backend is unavailable or ``celery_app`` is None.
 
+    Uses a short timeout (0.5s) to avoid blocking the HTTP request when
+    no workers are running.
+
     Args:
         celery_app: An optional Celery application instance.
 
@@ -1249,7 +1316,12 @@ def get_recent_tasks(celery_app=None) -> list[dict]:
         return []
 
     try:
-        inspector = celery_app.control.inspect(timeout=2.0)
+        # First do a quick ping to check if any workers are alive
+        inspector = celery_app.control.inspect(timeout=0.5)
+        ping_result = inspector.ping()
+        if not ping_result:
+            # No workers responding — skip expensive inspect calls
+            return []
 
         tasks: list[dict] = []
 

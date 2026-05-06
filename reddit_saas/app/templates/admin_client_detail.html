@@ -5,6 +5,10 @@
     <span class="text-gray-500">Admin</span> / <a href="/admin/clients" class="hover:text-white">Clients</a> / <span class="text-white">{{ client.client_name }}</span>
 </nav>
 {% endblock %}
+{% block export_button %}
+{% set export_url = "/export/clients" %}
+{% include "partials/export_button.html" %}
+{% endblock %}
 {% block content %}
 <div class="max-w-5xl mx-auto">
     <div class="flex justify-between items-center mb-6">
@@ -104,10 +108,11 @@
             <div class="text-sm text-gray-400">Subreddits</div>
             <div class="text-xl font-mono text-white mt-1">{{ subreddits|length }}</div>
         </a>
-        <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
+        <a href="/admin/avatars?client_id={{ client.id }}"
+           class="bg-dark-steel rounded-lg border border-slate-700 p-4 hover:border-indigo-500 transition-colors">
             <div class="text-sm text-gray-400">Avatars</div>
             <div class="text-xl font-mono text-white mt-1">{{ avatars|length }}</div>
-        </div>
+        </a>
     </div>
 
     <!-- Assigned Avatars -->

@@ -8,6 +8,10 @@
     <span class="text-white">Transparency</span>
 </nav>
 {% endblock %}
+{% block export_button %}
+{% set export_url = "/export/activity?client_id=" + (client.id | string) %}
+{% include "partials/export_button.html" %}
+{% endblock %}
 {% block content %}
 <div class="max-w-7xl mx-auto">
 

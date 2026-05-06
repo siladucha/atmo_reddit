@@ -14,11 +14,12 @@ from app.database import get_db
 from app.dependencies.admin import require_superuser
 from app.models.avatar import Avatar
 from app.models.client import Client
-from app.models.subreddit import ClientSubreddit
+from app.models.subreddit import ClientSubreddit, ClientSubredditAssignment, Subreddit
 from app.models.user import User
 from app.services import admin as admin_service
 from app.services import audit as audit_service
 from app.services import health_metrics
+from app.services import operations_dashboard
 from app.services import transparency
 from app.services.dry_run import is_dry_run_enabled_global
 from app.services.metrics_collector import (
@@ -60,17 +61,21 @@ def admin_dashboard(
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
-    stats = admin_service.get_db_statistics(db)
-    ai_costs = admin_service.get_ai_cost_summary(db)
-    clients_list = db.query(Client).filter(Client.is_active.is_(True)).order_by(Client.client_name).all()
+    """Operations Dashboard — unified daily-ops view at `/admin/`.
+
+    The shell renders synchronously; client cards / freshness / run-history /
+    avatar-health / schedule are filled in via HTMX partials so the page can
+    auto-refresh without a full reload.
+    """
+    metrics = operations_dashboard.get_top_metrics(db)
+    clients_list = operations_dashboard.list_active_clients(db)
 
     return templates.TemplateResponse(
         name="admin_dashboard.html",
         context={
             "request": request,
             "active_nav": "dashboard",
-            "stats": stats,
-            "ai_costs": ai_costs,
+            "metrics": metrics,
             "clients": clients_list,
         },
         request=request,
@@ -89,6 +94,208 @@ def admin_activity_feed(
     return templates.TemplateResponse(
         name="partials/activity_feed.html",
         context={"request": request, "events": events, "now_utc": datetime.now(timezone.utc)},
+        request=request,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Operations Dashboard — HTMX partials and bulk pipeline triggers
+# ---------------------------------------------------------------------------
+
+_PIPELINE_ACTIONS = {"scrape", "score", "generate", "full-pipeline"}
+
+
+def _trigger_client_pipeline(action: str, client_id: uuid.UUID) -> str:
+    """Dispatch a Celery pipeline task for a single client. Returns task id."""
+    from app.tasks.scraping import scrape_professional_subreddits
+    from app.tasks.ai_pipeline import score_threads, generate_comments
+
+    cid = str(client_id)
+    if action == "scrape":
+        return scrape_professional_subreddits.delay(cid).id
+    if action == "score":
+        return score_threads.delay(cid).id
+    if action == "generate":
+        return generate_comments.delay(cid).id
+    if action == "full-pipeline":
+        chain = (
+            scrape_professional_subreddits.si(cid)
+            | score_threads.si(cid)
+            | generate_comments.si(cid)
+        )
+        return chain.apply_async().id
+    raise ValueError(f"Unknown pipeline action: {action}")
+
+
+@router.get("/dashboard/clients", response_class=HTMLResponse)
+def dashboard_client_cards(
+    request: Request,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    cards = operations_dashboard.get_client_status_cards(db)
+    return templates.TemplateResponse(
+        name="partials/dashboard_client_cards.html",
+        context={"request": request, "cards": cards},
+        request=request,
+    )
+
+
+@router.get("/dashboard/freshness", response_class=HTMLResponse)
+def dashboard_freshness(
+    request: Request,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    groups = operations_dashboard.get_scrape_freshness_grouped(db)
+    return templates.TemplateResponse(
+        name="partials/dashboard_freshness.html",
+        context={"request": request, "groups": groups},
+        request=request,
+    )
+
+
+@router.get("/dashboard/run-history", response_class=HTMLResponse)
+def dashboard_run_history(
+    request: Request,
+    client_id: str | None = None,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    cid = uuid.UUID(client_id) if client_id else None
+    events = operations_dashboard.get_run_history(db, client_id=cid, limit=20)
+    return templates.TemplateResponse(
+        name="partials/dashboard_run_history.html",
+        context={"request": request, "events": events},
+        request=request,
+    )
+
+
+@router.get("/dashboard/avatar-health", response_class=HTMLResponse)
+def dashboard_avatar_health(
+    request: Request,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    summary = operations_dashboard.get_avatar_health_summary(db)
+    return templates.TemplateResponse(
+        name="partials/dashboard_avatar_health.html",
+        context={"request": request, "summary": summary},
+        request=request,
+    )
+
+
+@router.get("/dashboard/schedule", response_class=HTMLResponse)
+def dashboard_schedule(
+    request: Request,
+    current_user: User = Depends(require_superuser),
+):
+    schedule = operations_dashboard.get_schedule_display()
+    return templates.TemplateResponse(
+        name="partials/dashboard_schedule.html",
+        context={"request": request, "schedule": schedule},
+        request=request,
+    )
+
+
+@router.post("/dashboard/trigger/{action}/{client_id}", response_class=HTMLResponse)
+def dashboard_trigger(
+    request: Request,
+    action: str,
+    client_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """HTMX-friendly per-client pipeline trigger that returns a toast partial.
+
+    Wraps the same Celery tasks that `/pipeline/*` exposes via JSON so the
+    dashboard can render an inline confirmation without client-side glue.
+    """
+    if action not in _PIPELINE_ACTIONS:
+        return templates.TemplateResponse(
+            name="partials/dashboard_toast.html",
+            context={"request": request, "error": f"Unknown action: {action}"},
+            request=request,
+            status_code=400,
+        )
+
+    try:
+        task_id = _trigger_client_pipeline(action, client_id)
+        audit_service.log_action(
+            db=db,
+            user_id=current_user.id,
+            action="trigger_pipeline",
+            entity_type="task",
+            client_id=client_id,
+            details={"action": action, "client_id": str(client_id), "task_id": task_id},
+        )
+        return templates.TemplateResponse(
+            name="partials/dashboard_toast.html",
+            context={
+                "request": request,
+                "success": f"Queued {action} (task {task_id[:8]}…)",
+            },
+            request=request,
+        )
+    except Exception as e:
+        return templates.TemplateResponse(
+            name="partials/dashboard_toast.html",
+            context={"request": request, "error": str(e)},
+            request=request,
+            status_code=500,
+        )
+
+
+@router.post("/dashboard/run-all/{action}", response_class=HTMLResponse)
+def dashboard_run_all(
+    request: Request,
+    action: str,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Fan out a pipeline action across every active client."""
+    if action not in _PIPELINE_ACTIONS:
+        return templates.TemplateResponse(
+            name="partials/dashboard_toast.html",
+            context={"request": request, "error": f"Unknown action: {action}"},
+            request=request,
+            status_code=400,
+        )
+
+    clients_list = operations_dashboard.list_active_clients(db)
+    triggered = 0
+    failures: list[str] = []
+    for client in clients_list:
+        try:
+            _trigger_client_pipeline(action, client.id)
+            triggered += 1
+        except Exception as e:
+            failures.append(f"{client.client_name}: {e}")
+
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="trigger_pipeline_all",
+        entity_type="task",
+        details={"action": action, "triggered": triggered, "failures": failures},
+    )
+
+    if failures:
+        return templates.TemplateResponse(
+            name="partials/dashboard_toast.html",
+            context={
+                "request": request,
+                "success": f"Queued {action} for {triggered} client(s)",
+                "error": f"{len(failures)} failed: " + "; ".join(failures[:3]),
+            },
+            request=request,
+        )
+    return templates.TemplateResponse(
+        name="partials/dashboard_toast.html",
+        context={
+            "request": request,
+            "success": f"Queued {action} for {triggered} client(s)",
+        },
         request=request,
     )
 
@@ -384,11 +591,7 @@ def admin_client_detail(
     if not client:
         return HTMLResponse("Client not found", status_code=404)
 
-    subreddits = (
-        db.query(ClientSubreddit)
-        .filter(ClientSubreddit.client_id == client_id, ClientSubreddit.is_active.is_(True))
-        .all()
-    )
+    subreddits = admin_service.list_client_subreddits(db, client_id)
     avatars = (
         db.query(Avatar)
         .filter(Avatar.client_ids.any(str(client_id)))
@@ -585,31 +788,57 @@ def admin_subreddits_all(
     request: Request,
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
+    client_id: Optional[str] = None,
+    type: Optional[str] = None,
+    status: Optional[str] = None,
+    q: Optional[str] = None,
 ):
     """Global subreddits management page — all clients, with pause/resume."""
-    subreddits = (
-        db.query(ClientSubreddit)
-        .join(Client, Client.id == ClientSubreddit.client_id)
-        .order_by(
-            ClientSubreddit.is_active.desc(),
-            ClientSubreddit.last_scraped_at.asc().nulls_first(),
-            ClientSubreddit.subreddit_name.asc(),
-        )
-        .all()
+    from sqlalchemy import func as sa_func
+
+    # Build query with filters
+    query = (
+        db.query(ClientSubredditAssignment)
+        .join(Subreddit, ClientSubredditAssignment.subreddit_id == Subreddit.id)
+        .join(Client, Client.id == ClientSubredditAssignment.client_id)
     )
 
-    # Build enriched list with client names
-    clients_map = {}
-    for sub in subreddits:
-        if sub.client_id not in clients_map:
-            c = db.query(Client).filter(Client.id == sub.client_id).first()
-            clients_map[sub.client_id] = c.client_name if c else "Unknown"
+    # Filter by client
+    if client_id:
+        try:
+            cid = uuid.UUID(client_id)
+            query = query.filter(ClientSubredditAssignment.client_id == cid)
+        except ValueError:
+            pass
+
+    # Filter by type (professional / hobby)
+    if type and type in ("professional", "hobby"):
+        query = query.filter(ClientSubredditAssignment.type == type)
+
+    # Filter by status (active / paused)
+    if status == "active":
+        query = query.filter(ClientSubredditAssignment.is_active.is_(True))
+    elif status == "paused":
+        query = query.filter(ClientSubredditAssignment.is_active.is_(False))
+
+    # Search by subreddit name (case-insensitive)
+    if q and q.strip():
+        search_term = q.strip().lower()
+        query = query.filter(sa_func.lower(Subreddit.subreddit_name).contains(search_term))
+
+    assignments = query.order_by(
+        ClientSubredditAssignment.is_active.desc(),
+        Subreddit.last_scraped_at.asc().nulls_first(),
+        Subreddit.subreddit_name.asc(),
+    ).all()
 
     enriched = []
     now_utc = datetime.now(timezone.utc)
-    for sub in subreddits:
-        if sub.last_scraped_at:
-            age_seconds = (now_utc - sub.last_scraped_at).total_seconds()
+    for assignment in assignments:
+        sub = assignment.subreddit
+        last_scraped = sub.last_scraped_at
+        if last_scraped:
+            age_seconds = (now_utc - last_scraped).total_seconds()
             age_hours = age_seconds / 3600
             if age_hours >= 24:
                 age_display = f"{int(age_hours // 24)}d {int(age_hours % 24)}h ago"
@@ -622,16 +851,25 @@ def admin_subreddits_all(
             age_display = "Never"
 
         enriched.append({
-            "sub": sub,
-            "client_name": clients_map.get(sub.client_id, "Unknown"),
+            "sub": assignment,
+            "subreddit_name": sub.subreddit_name,
+            "is_active": assignment.is_active,
+            "type": assignment.type,
+            "last_scraped_at": last_scraped,
+            "created_at": assignment.created_at,
+            "client_name": assignment.client.client_name,
+            "client_id": assignment.client_id,
             "age_hours": age_hours,
             "age_display": age_display,
         })
 
-    # Stats
-    total = len(subreddits)
-    active_count = sum(1 for s in subreddits if s.is_active)
+    # Stats (reflect filtered results)
+    total = len(enriched)
+    active_count = sum(1 for item in enriched if item["is_active"])
     paused_count = total - active_count
+
+    # Get all clients for filter dropdown
+    clients = db.query(Client).filter(Client.is_active.is_(True)).order_by(Client.client_name).all()
 
     return templates.TemplateResponse(
         name="admin_subreddits_all.html",
@@ -643,6 +881,11 @@ def admin_subreddits_all(
             "active_count": active_count,
             "paused_count": paused_count,
             "now_utc": now_utc,
+            "clients": clients,
+            "filter_client_id": client_id or "",
+            "filter_type": type or "",
+            "filter_status": status or "",
+            "filter_q": q or "",
         },
         request=request,
     )
@@ -655,23 +898,24 @@ def admin_toggle_subreddit_active(
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
-    """Toggle subreddit is_active (pause/resume scraping)."""
-    sub = db.query(ClientSubreddit).filter(ClientSubreddit.id == subreddit_id).first()
-    if sub:
-        sub.is_active = not sub.is_active
+    """Toggle assignment is_active (pause/resume scraping for this client)."""
+    assignment = db.query(ClientSubredditAssignment).filter(ClientSubredditAssignment.id == subreddit_id).first()
+    if assignment:
+        assignment.is_active = not assignment.is_active
         db.commit()
         audit_service.log_action(
             db=db,
             user_id=current_user.id,
             action="toggle_active",
-            entity_type="subreddit",
-            details={"subreddit_name": sub.subreddit_name, "is_active": sub.is_active},
+            entity_type="subreddit_assignment",
+            entity_id=assignment.id,
+            details={"subreddit_name": assignment.subreddit.subreddit_name, "is_active": assignment.is_active},
         )
 
     # Check referer to redirect back to correct page
     referer = request.headers.get("referer", "")
-    if f"/subreddits/{sub.client_id}" in referer:
-        return RedirectResponse(url=f"/admin/subreddits/{sub.client_id}", status_code=303)
+    if assignment and f"/subreddits/{assignment.client_id}" in referer:
+        return RedirectResponse(url=f"/admin/subreddits/{assignment.client_id}", status_code=303)
     return RedirectResponse(url="/admin/subreddits", status_code=303)
 
 
@@ -705,6 +949,7 @@ def admin_avatars(
     )
     from app.services.safety import get_avatar_health
     from app.services.avatars_query import build_avatar_view
+    from app.services import karma_tracker
 
     f = AvatarFilter(
         q=q.strip(),
@@ -717,8 +962,19 @@ def admin_avatars(
     )
     avatar_page = list_avatars_page(db, f, viewer_client_id=None)
 
+    # Batch-fetch top-3 subreddits for all visible avatars (Req 5).
+    visible_ids = [a.id for a in avatar_page.items]
+    for g in avatar_page.groups:
+        visible_ids.extend(a.id for a in g.avatars)
+    top_by_avatar = karma_tracker.top_subreddits_for_avatars(db, visible_ids, limit=3)
+
     def _to_view(a):
-        return build_avatar_view(a, get_avatar_health(db, a), avatar_page.client_by_id)
+        return build_avatar_view(
+            a,
+            get_avatar_health(db, a),
+            avatar_page.client_by_id,
+            top_subreddits=top_by_avatar.get(str(a.id), []),
+        )
 
     flat = [_to_view(a) for a in avatar_page.items]
     grouped = []
@@ -777,6 +1033,7 @@ def admin_avatars_check_visible(
     )
     from app.services.reddit_status import check_all_reddit_statuses
     from app.services.safety import get_avatar_health
+    from app.services import karma_tracker
 
     f = AvatarFilter(q=q.strip(), status=status, client_id=client_id, sort=sort,
                      view=view, group=group, page=page)
@@ -785,8 +1042,18 @@ def admin_avatars_check_visible(
 
     page_data = list_avatars_page(db, f, viewer_client_id=None)
 
+    visible_ids = [a.id for a in page_data.items]
+    for g in page_data.groups:
+        visible_ids.extend(a.id for a in g.avatars)
+    top_by_avatar = karma_tracker.top_subreddits_for_avatars(db, visible_ids, limit=3)
+
     def _to_view(a):
-        return build_avatar_view(a, get_avatar_health(db, a), page_data.client_by_id)
+        return build_avatar_view(
+            a,
+            get_avatar_health(db, a),
+            page_data.client_by_id,
+            top_subreddits=top_by_avatar.get(str(a.id), []),
+        )
 
     flat = [_to_view(a) for a in page_data.items]
     grouped = []
@@ -815,6 +1082,112 @@ def admin_avatars_check_visible(
     }
     return templates.TemplateResponse(
         name="partials/admin_avatars_results.html", context=ctx, request=request,
+    )
+
+
+@router.get("/avatars/new", response_class=HTMLResponse)
+def admin_avatar_new_page(
+    request: Request,
+    current_user: User = Depends(require_superuser),
+):
+    """Admin page to create a new avatar."""
+    return templates.TemplateResponse(
+        name="admin_avatar_new.html",
+        context={"request": request, "active_nav": "avatars"},
+        request=request,
+    )
+
+
+@router.post("/avatars/new", response_class=HTMLResponse)
+def admin_avatar_create_submit(
+    request: Request,
+    reddit_username: str = Form(...),
+    email_address: str = Form(""),
+    voice_profile_md: str = Form(""),
+    tone_principles: str = Form(""),
+    hill_i_die_on: str = Form(""),
+    helpful_mode_topics: str = Form(""),
+    constraints: str = Form(""),
+    hobby_subreddits: str = Form(""),
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Create a new avatar from the admin panel."""
+    hobby_list = [s.strip() for s in hobby_subreddits.split(",") if s.strip()] if hobby_subreddits else []
+    avatar = Avatar(
+        reddit_username=reddit_username,
+        email_address=email_address or None,
+        voice_profile_md=voice_profile_md or None,
+        tone_principles=tone_principles or None,
+        hill_i_die_on=hill_i_die_on or None,
+        helpful_mode_topics=helpful_mode_topics or None,
+        constraints=constraints or None,
+        hobby_subreddits=hobby_list,
+        active=True,
+    )
+    db.add(avatar)
+    db.commit()
+    db.refresh(avatar)
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="create",
+        entity_type="avatar",
+        entity_id=avatar.id,
+        details={"reddit_username": reddit_username},
+    )
+    return RedirectResponse(url="/admin/avatars", status_code=303)
+
+
+@router.post("/avatars/assign-to-client", response_class=HTMLResponse)
+def admin_assign_avatar_to_client(
+    request: Request,
+    avatar_id: uuid.UUID = Form(...),
+    client_id: uuid.UUID = Form(...),
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Assign an avatar to a client from the avatars list page."""
+    from app.services import admin as admin_service
+
+    try:
+        admin_service.assign_avatars_to_client(db, client_id, [avatar_id], current_user.id)
+    except ValueError:
+        pass
+
+    return RedirectResponse(
+        url=f"/admin/avatars?client_id={client_id}",
+        status_code=303,
+    )
+
+
+@router.get("/avatars/available-for-client/{client_id}", response_class=HTMLResponse)
+def admin_available_avatars_for_client(
+    request: Request,
+    client_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Return a partial with unassigned avatars that can be assigned to this client."""
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        return HTMLResponse("<p class='text-red-400 text-sm'>Client not found.</p>", status_code=404)
+
+    # Get all active avatars not assigned to this client
+    all_avatars = db.query(Avatar).filter(Avatar.active.is_(True)).order_by(Avatar.reddit_username.asc()).all()
+    available = []
+    for av in all_avatars:
+        is_assigned = av.client_ids and str(client_id) in av.client_ids
+        if not is_assigned:
+            available.append(av)
+
+    return templates.TemplateResponse(
+        name="partials/admin_avatars_available.html",
+        context={
+            "request": request,
+            "client": client,
+            "available_avatars": available,
+        },
     )
 
 
@@ -963,6 +1336,28 @@ def admin_toggle_avatar_active(
     return RedirectResponse(url=request.headers.get("referer", "/admin/"), status_code=303)
 
 
+@router.post("/avatars/{avatar_id}/unassign-from-client", response_class=HTMLResponse)
+def admin_unassign_avatar_from_client(
+    request: Request,
+    avatar_id: uuid.UUID,
+    client_id: uuid.UUID = Form(...),
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Unassign an avatar from a client from the avatars list page."""
+    from app.services import admin as admin_service
+
+    try:
+        admin_service.unassign_avatar_from_client(db, client_id, avatar_id, current_user.id)
+    except ValueError:
+        pass
+
+    return RedirectResponse(
+        url=f"/admin/avatars?client_id={client_id}",
+        status_code=303,
+    )
+
+
 @router.post("/avatars/{avatar_id}/phase-override", response_class=HTMLResponse)
 def admin_avatar_phase_override(
     request: Request,
@@ -1009,6 +1404,19 @@ def admin_avatar_phase_override(
             content={"detail": str(e)},
         )
 
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="phase_override",
+        entity_type="avatar",
+        entity_id=avatar.id,
+        details={
+            "reddit_username": avatar.reddit_username,
+            "target_phase": target_phase,
+            "reason": reason,
+        },
+    )
+
     # Redirect back to the referring page
     referer = request.headers.get("referer", "")
     if f"/admin/avatars" in referer:
@@ -1027,12 +1435,7 @@ def admin_subreddits(
     if not client:
         return HTMLResponse("Client not found", status_code=404)
 
-    subreddits = (
-        db.query(ClientSubreddit)
-        .filter(ClientSubreddit.client_id == client_id)
-        .order_by(ClientSubreddit.is_active.desc(), ClientSubreddit.created_at.desc())
-        .all()
-    )
+    subreddits = admin_service.list_client_subreddits(db, client_id)
 
     return templates.TemplateResponse(
         name="admin_subreddits.html",
@@ -1060,12 +1463,7 @@ def admin_add_subreddit(
     valid, err = admin_service.validate_subreddit_name(subreddit_name)
     if not valid:
         client = db.query(Client).filter(Client.id == client_id).first()
-        subreddits = (
-            db.query(ClientSubreddit)
-            .filter(ClientSubreddit.client_id == client_id, ClientSubreddit.is_active.is_(True))
-            .order_by(ClientSubreddit.created_at.desc())
-            .all()
-        )
+        subreddits = admin_service.list_client_subreddits(db, client_id)
         return templates.TemplateResponse(
             name="admin_subreddits.html",
             context={
@@ -1083,12 +1481,7 @@ def admin_add_subreddit(
         admin_service.add_subreddit(db, client_id, subreddit_name, subreddit_type, current_user.id)
     except ValueError as e:
         client = db.query(Client).filter(Client.id == client_id).first()
-        subreddits = (
-            db.query(ClientSubreddit)
-            .filter(ClientSubreddit.client_id == client_id, ClientSubreddit.is_active.is_(True))
-            .order_by(ClientSubreddit.created_at.desc())
-            .all()
-        )
+        subreddits = admin_service.list_client_subreddits(db, client_id)
         return templates.TemplateResponse(
             name="admin_subreddits.html",
             context={
@@ -1404,6 +1797,8 @@ def admin_audit_logs(
     user_id: str | None = None,
     client_id: str | None = None,
     action: str | None = None,
+    entity_type: str | None = None,
+    search: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
     current_user: User = Depends(require_superuser),
@@ -1442,6 +1837,8 @@ def admin_audit_logs(
         user_id=filter_user_id,
         client_id=filter_client_id,
         action=action if action else None,
+        entity_type=entity_type if entity_type else None,
+        search=search if search else None,
         date_from=filter_date_from,
         date_to=filter_date_to,
     )
@@ -1450,6 +1847,8 @@ def admin_audit_logs(
     # Get users and clients for filter dropdowns
     users_list = db.query(User).order_by(User.email).all()
     clients_list = db.query(Client).order_by(Client.client_name).all()
+    entity_types = audit_service.get_distinct_entity_types(db)
+    actions_list = audit_service.get_distinct_actions(db)
 
     return templates.TemplateResponse(
         name="admin_audit_logs.html",
@@ -1460,10 +1859,14 @@ def admin_audit_logs(
             "pagination": pagination,
             "users": users_list,
             "clients": clients_list,
+            "entity_types": entity_types,
+            "actions_list": actions_list,
             "filters": {
                 "user_id": user_id or "",
                 "client_id": client_id or "",
                 "action": action or "",
+                "entity_type": entity_type or "",
+                "search": search or "",
                 "date_from": date_from or "",
                 "date_to": date_to or "",
             },
@@ -1543,9 +1946,9 @@ def onboard_step_get(
     # Step 2: Subreddits
     if step_num == 2:
         subreddits = (
-            db.query(ClientSubreddit)
-            .filter(ClientSubreddit.client_id == client.id, ClientSubreddit.is_active.is_(True))
-            .order_by(ClientSubreddit.created_at.desc())
+            db.query(ClientSubredditAssignment)
+            .filter(ClientSubredditAssignment.client_id == client.id, ClientSubredditAssignment.is_active.is_(True))
+            .order_by(ClientSubredditAssignment.created_at.desc())
             .all()
         )
         return templates.TemplateResponse(
@@ -1591,8 +1994,8 @@ def onboard_step_get(
     # Step 5: Review
     if step_num == 5:
         subreddits = (
-            db.query(ClientSubreddit)
-            .filter(ClientSubreddit.client_id == client.id, ClientSubreddit.is_active.is_(True))
+            db.query(ClientSubredditAssignment)
+            .filter(ClientSubredditAssignment.client_id == client.id, ClientSubredditAssignment.is_active.is_(True))
             .all()
         )
         keywords = admin_service.get_client_keywords(db, client.id)
@@ -1748,9 +2151,9 @@ def onboard_step_post(
 
             if error:
                 subreddits = (
-                    db.query(ClientSubreddit)
-                    .filter(ClientSubreddit.client_id == client.id, ClientSubreddit.is_active.is_(True))
-                    .order_by(ClientSubreddit.created_at.desc())
+                    db.query(ClientSubredditAssignment)
+                    .filter(ClientSubredditAssignment.client_id == client.id, ClientSubredditAssignment.is_active.is_(True))
+                    .order_by(ClientSubredditAssignment.created_at.desc())
                     .all()
                 )
                 return templates.TemplateResponse(
@@ -2421,25 +2824,44 @@ def admin_threads(
 ):
     """Admin threads list — filterable by client and tag (engage/monitor/skip)."""
     from app.models.thread import RedditThread
-
-    query = db.query(RedditThread)
+    from app.models.thread_score import ThreadScore
+    from app.models.ai_usage import AIUsageLog
+    from app.services.scoring import get_client_threads_with_scores
+    from sqlalchemy import func as sa_func
+    from sqlalchemy.orm import selectinload
 
     filter_client_uuid = None
+    threads_data = []
+
     if client_id:
         try:
             filter_client_uuid = uuid.UUID(client_id)
-            query = query.filter(RedditThread.client_id == filter_client_uuid)
         except ValueError:
             pass
 
-    if tag in ("engage", "monitor", "skip"):
-        query = query.filter(RedditThread.tag == tag)
+    if filter_client_uuid:
+        # Use the scoring service to get threads with per-client scores (already has LIMIT)
+        results = get_client_threads_with_scores(db, filter_client_uuid, tag=tag if tag in ("engage", "monitor", "skip") else None)
+        for thread, score in results:
+            threads_data.append({
+                "thread": thread,
+                "score": score,
+            })
+    else:
+        # No client filter — use a LEFT JOIN to get scores in one query instead of N+1
+        query = (
+            db.query(RedditThread, ThreadScore)
+            .outerjoin(ThreadScore, ThreadScore.thread_id == RedditThread.id)
+        )
+        if tag and tag in ("engage", "monitor", "skip"):
+            query = query.filter(ThreadScore.tag == tag)
 
-    threads = (
-        query.order_by(RedditThread.created_at.desc())
-        .limit(200)
-        .all()
-    )
+        rows = query.order_by(RedditThread.created_at.desc()).limit(200).all()
+        for thread, score in rows:
+            threads_data.append({
+                "thread": thread,
+                "score": score,
+            })
 
     clients_list = (
         db.query(Client)
@@ -2449,16 +2871,34 @@ def admin_threads(
     )
     client_map = {str(c.id): c.client_name for c in clients_list}
 
+    # AI usage stats — last scoring run and recent costs
+    last_scoring_log = (
+        db.query(AIUsageLog)
+        .filter(AIUsageLog.operation == "scoring")
+        .order_by(AIUsageLog.created_at.desc())
+        .first()
+    )
+    # Total AI cost in last 24h
+    from datetime import timedelta
+    day_ago = datetime.now(timezone.utc) - timedelta(hours=24)
+    ai_cost_24h = (
+        db.query(sa_func.coalesce(sa_func.sum(AIUsageLog.cost_usd), 0))
+        .filter(AIUsageLog.created_at >= day_ago)
+        .scalar()
+    )
+
     return templates.TemplateResponse(
         name="admin_threads.html",
         context={
             "request": request,
             "active_nav": "threads",
-            "threads": threads,
+            "threads": threads_data,
             "clients": clients_list,
             "client_map": client_map,
             "filter_client_id": client_id or "",
             "filter_tag": tag or "",
+            "last_scoring_log": last_scoring_log,
+            "ai_cost_24h": float(ai_cost_24h),
         },
         request=request,
     )
@@ -2479,11 +2919,17 @@ def admin_review(
     """Admin review queue — approve / reject / edit comment drafts."""
     from app.models.comment_draft import CommentDraft
     from app.models.thread import RedditThread
+    from app.models.thread_score import ThreadScore
+    from sqlalchemy.orm import joinedload
 
     if status not in ("pending", "approved", "posted", "rejected"):
         status = "pending"
 
-    query = db.query(CommentDraft).filter(CommentDraft.status == status)
+    query = (
+        db.query(CommentDraft)
+        .options(joinedload(CommentDraft.thread), joinedload(CommentDraft.avatar))
+        .filter(CommentDraft.status == status)
+    )
 
     filter_client_uuid = None
     if client_id:
@@ -2495,13 +2941,39 @@ def admin_review(
 
     drafts = query.order_by(CommentDraft.created_at.desc()).limit(50).all()
 
+    # Batch-fetch ThreadScores for all drafts in one query
+    thread_client_pairs = [
+        (draft.thread_id, draft.client_id)
+        for draft in drafts
+        if draft.thread_id and draft.client_id
+    ]
+    scores_map: dict = {}
+    if thread_client_pairs:
+        from sqlalchemy import tuple_
+        scores = (
+            db.query(ThreadScore)
+            .filter(
+                tuple_(ThreadScore.thread_id, ThreadScore.client_id).in_(thread_client_pairs)
+            )
+            .all()
+        )
+        scores_map = {(s.thread_id, s.client_id): s for s in scores}
+
     enriched = []
     for draft in drafts:
-        thread = (
-            db.query(RedditThread).filter(RedditThread.id == draft.thread_id).first()
-        )
-        avatar = db.query(Avatar).filter(Avatar.id == draft.avatar_id).first()
-        enriched.append({"draft": draft, "thread": thread, "avatar": avatar})
+        thread = draft.thread  # already loaded via joinedload
+        avatar = draft.avatar  # already loaded via joinedload
+        score = scores_map.get((draft.thread_id, draft.client_id))
+        item = {"draft": draft, "thread": thread, "avatar": avatar, "score": score}
+
+        # For posted status, include karma summary per avatar
+        if status == "posted" and avatar:
+            from app.services.karma_feedback import get_avatar_karma_summary
+            item["karma_summary"] = get_avatar_karma_summary(db, avatar.id)
+        else:
+            item["karma_summary"] = None
+
+        enriched.append(item)
 
     clients_list = (
         db.query(Client)

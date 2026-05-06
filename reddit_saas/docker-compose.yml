@@ -9,41 +9,63 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
-    volumes:
-      - .:/app
+        condition: service_healthy
+    restart: unless-stopped
 
   celery:
     build: .
-    command: celery -A app.tasks.worker worker --loglevel=info
+    command: celery -A app.tasks.worker worker --loglevel=info --concurrency=4
     env_file:
       - .env
     depends_on:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
+    restart: unless-stopped
+
+  celery-beat:
+    build: .
+    command: celery -A app.tasks.worker beat --loglevel=info
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
   db:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: reddit_saas
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: reddit_saas_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-in-production}
+    # Do NOT expose port in production — only app containers need access
+    # Uncomment for local development only:
+    # ports:
+    #   - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U reddit_saas_user -d reddit_saas"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD:-change-me-in-production} --maxmemory 256mb --maxmemory-policy allkeys-lru
+    # Do NOT expose port in production — only app containers need access
+    # Uncomment for local development only:
+    # ports:
+    #   - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-change-me-in-production}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
 volumes:
   pgdata:

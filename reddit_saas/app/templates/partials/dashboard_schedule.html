@@ -1,0 +1,22 @@
+{# HTMX partial — Schedule_Display. The soonest-firing entry is highlighted. #}
+
+{% if schedule %}
+<ul class="space-y-2 fade-in">
+    {% for entry in schedule %}
+    <li class="flex items-center justify-between gap-3 px-3 py-2 rounded border {% if entry.is_next %}bg-indigo-900/20 border-indigo-700{% else %}border-slate-700{% endif %}">
+        <div class="min-w-0">
+            <div class="text-xs text-gray-200 truncate">{{ entry.label }}</div>
+            <div class="text-[11px] text-gray-500 font-mono" title="{{ entry.next_at.strftime('%Y-%m-%d %H:%M UTC') }}">
+                {{ entry.next_at.strftime('%H:%M UTC') }}
+            </div>
+        </div>
+        <div class="text-right">
+            <div class="text-xs font-mono {% if entry.is_next %}text-indigo-300{% else %}text-gray-400{% endif %}">in {{ entry.in_human }}</div>
+            {% if entry.is_next %}<div class="text-[10px] text-indigo-400 uppercase tracking-wider">next</div>{% endif %}
+        </div>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="text-gray-500 text-xs">No schedule entries.</p>
+{% endif %}

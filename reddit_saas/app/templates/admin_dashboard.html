@@ -5,127 +5,196 @@
     <span class="text-gray-500">Admin</span> / <span class="text-white">Dashboard</span>
 </nav>
 {% endblock %}
+{% block export_button %}
+{% set export_url = "/export/clients" %}
+{% include "partials/export_button.html" %}
+{% endblock %}
 {% block content %}
 <div class="max-w-7xl mx-auto">
-    <!-- Welcome Header -->
     <h1 class="text-2xl font-semibold text-white mb-6">System Overview</h1>
 
-    {% set guide_title = "📖 What is the Dashboard?" %}
+    {% set guide_title = "📖 Daily Operations Dashboard" %}
     {% set guide_content %}
-    <p>This is your <strong class="text-white">command center</strong>. At a glance you see how many clients are active, how many comments are waiting for review, and how much AI budget has been spent.</p>
-    <p><strong class="text-gray-300">Key metrics:</strong> Pending Reviews (amber = action needed), AI Cost (track your budget), Total Threads (content pipeline volume).</p>
-    <p><strong class="text-gray-300">Next step:</strong> If Pending Reviews > 0, go to <a href="/admin/review" class="text-indigo-400 hover:underline">Review Queue</a> to approve or reject generated comments.</p>
+    <p>One page for the whole platform. The top bar shows the four numbers you check first;
+       below that, each client gets a card with today's pipeline counts and one-click triggers.
+       Side panels show scrape freshness, recent runs, avatar health, and the next scheduled run.</p>
+    <p><strong class="text-gray-300">Auto-refresh:</strong> client cards update every 60 seconds.
+       Use the inline reload buttons on side panels for an on-demand refresh.</p>
     {% endset %}
     {% include "partials/page_guide.html" %}
 
-    <!-- Quick Actions -->
-    <div class="flex flex-wrap gap-2 mb-6">
-        {% if stats.pending_reviews > 0 %}
+    <!-- Top Metrics Bar -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <a href="/admin/review"
-           class="inline-flex items-center gap-2 bg-amber-900/40 border border-amber-700 text-amber-200 px-4 py-2 rounded-lg text-sm hover:bg-amber-800/50 transition-colors">
-            📝 Review {{ stats.pending_reviews }} pending comment{{ 's' if stats.pending_reviews != 1 }}
-        </a>
-        {% endif %}
-        <a href="/admin/avatars"
-           class="inline-flex items-center gap-2 bg-slate-700 border border-slate-600 text-gray-200 px-4 py-2 rounded-lg text-sm hover:bg-slate-600 transition-colors">
-            👤 Manage Avatars
-        </a>
-        <a href="/admin/threads"
-           class="inline-flex items-center gap-2 bg-slate-700 border border-slate-600 text-gray-200 px-4 py-2 rounded-lg text-sm hover:bg-slate-600 transition-colors">
-            🧵 Browse Threads
-        </a>
-        <a href="/admin/ai-costs"
-           class="inline-flex items-center gap-2 bg-slate-700 border border-slate-600 text-gray-200 px-4 py-2 rounded-lg text-sm hover:bg-slate-600 transition-colors">
-            📊 AI Costs
-        </a>
-    </div>
-
-    <!-- Primary Stats Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-        <!-- Total Clients -->
-        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
-            <div class="text-sm text-gray-400 mb-1">Total Clients</div>
-            <div class="text-3xl font-mono font-semibold text-white">{{ stats.total_clients }}</div>
-        </div>
-
-        <!-- Total Avatars -->
-        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
-            <div class="text-sm text-gray-400 mb-1">Total Avatars</div>
-            <div class="text-3xl font-mono font-semibold text-white">{{ stats.total_avatars }}</div>
-        </div>
-
-        <!-- Pending Reviews -->
-        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+           class="bg-dark-steel rounded-lg p-5 border {% if metrics.pending_reviews > 0 %}border-amber-600 hover:border-amber-500{% else %}border-slate-700 hover:border-slate-500{% endif %} transition-colors block">
             <div class="text-sm text-gray-400 mb-1">Pending Reviews</div>
-            <div class="text-3xl font-mono font-semibold {% if stats.pending_reviews > 0 %}text-amber-500{% else %}text-white{% endif %}">
-                {{ stats.pending_reviews }}
-            </div>
-        </div>
-
-        <!-- AI Cost -->
-        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
-            <div class="text-sm text-gray-400 mb-1">AI Cost</div>
-            <div class="text-3xl font-mono font-semibold text-white">${{ "%.2f"|format(ai_costs.total_cost) }}</div>
-        </div>
-    </div>
-
-    <!-- Secondary Stats Row -->
-    <h2 class="text-lg font-medium text-gray-300 mb-4">Detailed Statistics</h2>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <!-- Total Threads -->
-        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
-            <div class="text-sm text-gray-400 mb-1">Total Threads</div>
-            <div class="text-2xl font-mono font-semibold text-white">{{ stats.total_threads }}</div>
-        </div>
-
-        <!-- Total Comment Drafts -->
-        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
-            <div class="text-sm text-gray-400 mb-1">Total Comment Drafts</div>
-            <div class="text-2xl font-mono font-semibold text-white">{{ stats.total_comment_drafts }}</div>
-        </div>
-
-        <!-- Total API Calls -->
-        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
-            <div class="text-sm text-gray-400 mb-1">Total API Calls</div>
-            <div class="text-2xl font-mono font-semibold text-white">{{ ai_costs.total_calls }}</div>
-        </div>
-
-        <!-- Total Tokens -->
-        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
-            <div class="text-sm text-gray-400 mb-1">Total Tokens</div>
-            <div class="text-2xl font-mono font-semibold text-white">{{ ai_costs.total_input_tokens + ai_costs.total_output_tokens }}</div>
-        </div>
-    </div>
-
-    <!-- Activity Feed Section -->
-    <div class="mt-8">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-medium text-gray-300">Activity Feed</h2>
-
-            <!-- Client Filter Dropdown -->
-            <select name="client_id"
-                    hx-get="/admin/activity-feed"
-                    hx-include="this"
-                    hx-target="#activity-feed-container"
-                    hx-swap="innerHTML"
-                    class="bg-dark-steel border border-slate-700 text-gray-300 text-sm rounded-lg px-3 py-1.5 focus:ring-indigo-500 focus:border-indigo-500">
-                <option value="">All Clients</option>
-                {% if clients is defined and clients %}
-                {% for client in clients %}
-                <option value="{{ client.id }}">{{ client.company_name }}</option>
-                {% endfor %}
+            <div class="flex items-baseline gap-2">
+                <div class="text-3xl font-mono font-semibold {% if metrics.pending_reviews > 0 %}text-amber-400{% else %}text-white{% endif %}">{{ metrics.pending_reviews }}</div>
+                {% if metrics.pending_reviews > 0 %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-500/20 text-amber-300">action needed</span>
                 {% endif %}
-            </select>
-        </div>
-
-        <div id="activity-feed-container"
-             hx-get="/admin/activity-feed"
-             hx-trigger="load"
-             hx-swap="innerHTML">
-            <div class="bg-dark-steel rounded-lg p-8 border border-slate-700 text-center">
-                <p class="text-gray-500 text-sm">Loading activity...</p>
             </div>
+        </a>
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Active Clients</div>
+            <div class="text-3xl font-mono font-semibold text-white">{{ metrics.total_clients }}</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Active Avatars</div>
+            <div class="text-3xl font-mono font-semibold text-white">{{ metrics.total_avatars }}</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Next Scheduled Run</div>
+            {% if metrics.next_run_in %}
+            <div class="text-2xl font-mono font-semibold text-white">in {{ metrics.next_run_in }}</div>
+            <div class="text-xs text-gray-500 mt-0.5 truncate" title="{{ metrics.next_run_label }}">{{ metrics.next_run_label }}</div>
+            {% else %}
+            <div class="text-2xl font-mono font-semibold text-gray-500">—</div>
+            {% endif %}
         </div>
     </div>
+
+    <!-- Toast slot -->
+    <div id="dashboard-toast" class="mb-4"></div>
+
+    <!-- Run All Bulk Controls -->
+    <div class="bg-dark-steel rounded-lg p-4 border border-slate-700 mb-6">
+        <div class="flex flex-wrap items-center gap-3">
+            <span class="text-sm text-gray-400 mr-2">Run All (every active client):</span>
+            <button hx-post="/admin/dashboard/run-all/scrape"
+                    hx-target="#dashboard-toast" hx-swap="innerHTML"
+                    hx-indicator="#run-all-spinner"
+                    class="px-3 py-1.5 bg-slate-700 border border-slate-600 text-gray-200 rounded text-sm hover:bg-slate-600 transition-colors">
+                🔍 Scrape All
+            </button>
+            <button hx-post="/admin/dashboard/run-all/score"
+                    hx-target="#dashboard-toast" hx-swap="innerHTML"
+                    hx-indicator="#run-all-spinner"
+                    class="px-3 py-1.5 bg-slate-700 border border-slate-600 text-gray-200 rounded text-sm hover:bg-slate-600 transition-colors">
+                📊 Score All
+            </button>
+            <button hx-post="/admin/dashboard/run-all/generate"
+                    hx-target="#dashboard-toast" hx-swap="innerHTML"
+                    hx-indicator="#run-all-spinner"
+                    class="px-3 py-1.5 bg-slate-700 border border-slate-600 text-gray-200 rounded text-sm hover:bg-slate-600 transition-colors">
+                ✍️ Generate All
+            </button>
+            <button hx-post="/admin/dashboard/run-all/full-pipeline"
+                    hx-target="#dashboard-toast" hx-swap="innerHTML"
+                    hx-indicator="#run-all-spinner"
+                    hx-confirm="Run the full pipeline for every active client?"
+                    class="px-3 py-1.5 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-500 transition-colors">
+                🚀 Full Pipeline All
+            </button>
+            <span id="run-all-spinner" class="htmx-indicator text-xs text-gray-400">queuing…</span>
+        </div>
+    </div>
+
+    <!-- Two-column layout: client cards (left) + side panels (right) -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Client cards (wider) -->
+        <div class="lg:col-span-2 space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-medium text-gray-300">Clients</h2>
+                <span class="text-xs text-gray-500">auto-refresh every 60s</span>
+            </div>
+            <div id="client-cards"
+                 hx-get="/admin/dashboard/clients"
+                 hx-trigger="load, every 60s"
+                 hx-swap="innerHTML">
+                <div class="bg-dark-steel rounded-lg p-8 border border-slate-700 text-center">
+                    <p class="text-gray-500 text-sm">Loading client status…</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Side panels -->
+        <div class="space-y-6">
+            <!-- Scrape Freshness -->
+            <section class="bg-dark-steel rounded-lg border border-slate-700">
+                <header class="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+                    <h3 class="text-sm font-semibold text-gray-200">Scrape Freshness</h3>
+                    <button class="text-xs text-gray-400 hover:text-white"
+                            hx-get="/admin/dashboard/freshness"
+                            hx-target="#freshness-panel"
+                            hx-swap="innerHTML">↻ refresh</button>
+                </header>
+                <div id="freshness-panel"
+                     hx-get="/admin/dashboard/freshness"
+                     hx-trigger="load"
+                     hx-swap="innerHTML"
+                     class="p-4">
+                    <p class="text-gray-500 text-xs">Loading…</p>
+                </div>
+            </section>
+
+            <!-- Avatar Health -->
+            <section class="bg-dark-steel rounded-lg border border-slate-700">
+                <header class="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+                    <h3 class="text-sm font-semibold text-gray-200">Avatar Health</h3>
+                    <button class="text-xs text-gray-400 hover:text-white"
+                            hx-get="/admin/dashboard/avatar-health"
+                            hx-target="#avatar-health-panel"
+                            hx-swap="innerHTML">↻ refresh</button>
+                </header>
+                <div id="avatar-health-panel"
+                     hx-get="/admin/dashboard/avatar-health"
+                     hx-trigger="load"
+                     hx-swap="innerHTML"
+                     class="p-4">
+                    <p class="text-gray-500 text-xs">Loading…</p>
+                </div>
+            </section>
+
+            <!-- Schedule -->
+            <section class="bg-dark-steel rounded-lg border border-slate-700">
+                <header class="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+                    <h3 class="text-sm font-semibold text-gray-200">Schedule</h3>
+                    <button class="text-xs text-gray-400 hover:text-white"
+                            hx-get="/admin/dashboard/schedule"
+                            hx-target="#schedule-panel"
+                            hx-swap="innerHTML">↻ refresh</button>
+                </header>
+                <div id="schedule-panel"
+                     hx-get="/admin/dashboard/schedule"
+                     hx-trigger="load, every 60s"
+                     hx-swap="innerHTML"
+                     class="p-4">
+                    <p class="text-gray-500 text-xs">Loading…</p>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Run History (full width below) -->
+    <section class="mt-8 bg-dark-steel rounded-lg border border-slate-700">
+        <header class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-slate-700">
+            <h3 class="text-sm font-semibold text-gray-200">Run History</h3>
+            <div class="flex items-center gap-2">
+                <select name="client_id"
+                        hx-get="/admin/dashboard/run-history"
+                        hx-include="this"
+                        hx-target="#run-history-panel"
+                        hx-swap="innerHTML"
+                        class="bg-slate-night border border-slate-700 text-gray-300 text-xs rounded px-2 py-1 focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">All clients</option>
+                    {% for c in clients %}
+                    <option value="{{ c.id }}">{{ c.client_name }}</option>
+                    {% endfor %}
+                </select>
+                <button class="text-xs text-gray-400 hover:text-white"
+                        hx-get="/admin/dashboard/run-history"
+                        hx-target="#run-history-panel"
+                        hx-swap="innerHTML">↻ refresh</button>
+            </div>
+        </header>
+        <div id="run-history-panel"
+             hx-get="/admin/dashboard/run-history"
+             hx-trigger="load"
+             hx-swap="innerHTML"
+             class="p-4">
+            <p class="text-gray-500 text-xs">Loading…</p>
+        </div>
+    </section>
 </div>
 {% endblock %}

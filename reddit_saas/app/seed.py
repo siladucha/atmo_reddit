@@ -3,14 +3,33 @@
 Run: python -m app.seed
 """
 
+from sqlalchemy import func
+
 from app.database import engine, SessionLocal, Base
 from app.models import *  # noqa: F401,F403
 from app.services.auth import create_user
 
 
+def get_or_create_subreddit(db, subreddit_name: str) -> "Subreddit":
+    """Get or create a Subreddit record (case-insensitive lookup).
+
+    Uses the shared subreddit registry pattern: one record per unique subreddit name.
+    """
+    existing = (
+        db.query(Subreddit)
+        .filter(func.lower(Subreddit.subreddit_name) == subreddit_name.lower())
+        .first()
+    )
+    if existing:
+        return existing
+    sub = Subreddit(subreddit_name=subreddit_name, is_active=True)
+    db.add(sub)
+    db.flush()
+    return sub
+
+
 def seed():
-    # Create all tables
-    Base.metadata.create_all(bind=engine)
+    # Schema is managed by Alembic — run `alembic upgrade head` before seeding.
     db = SessionLocal()
 
     try:
@@ -161,12 +180,23 @@ def seed():
             ("activedirectory", 10),
         ]
         for sub_name, limit in subreddits_with_limits:
-            db.add(ClientSubreddit(
-                client_id=client.id,
-                subreddit_name=sub_name,
-                type="professional",
-                is_active=True,
-            ))
+            subreddit = get_or_create_subreddit(db, sub_name)
+            # Create assignment if it doesn't already exist
+            existing_assignment = (
+                db.query(ClientSubredditAssignment)
+                .filter(
+                    ClientSubredditAssignment.client_id == client.id,
+                    ClientSubredditAssignment.subreddit_id == subreddit.id,
+                )
+                .first()
+            )
+            if not existing_assignment:
+                db.add(ClientSubredditAssignment(
+                    client_id=client.id,
+                    subreddit_id=subreddit.id,
+                    type="professional",
+                    is_active=True,
+                ))
         print(f"Created {len(subreddits_with_limits)} professional subreddits")
 
         # 4. Create all 7 avatars from legacy workflow (Reddit Personas CSV)
@@ -665,7 +695,6 @@ def seed_neuroyoga(db=None):
     """
     close_db = False
     if db is None:
-        Base.metadata.create_all(bind=engine)
         db = SessionLocal()
         close_db = True
 
@@ -673,29 +702,42 @@ def seed_neuroyoga(db=None):
         # Check if already seeded
         existing = db.query(Client).filter(Client.client_name == "NeuroYoga").first()
         if existing:
-            print("NeuroYoga already seeded. Skipping.")
-            return
+            # Client exists — check if assignments exist too
+            assignment_count = (
+                db.query(ClientSubredditAssignment)
+                .filter(ClientSubredditAssignment.client_id == existing.id)
+                .count()
+            )
+            if assignment_count > 0:
+                print("NeuroYoga already seeded. Skipping.")
+                return
+            # Client exists but no assignments — continue to create them
+            client = existing
+            print(f"NeuroYoga client exists but missing assignments. Creating them...")
+        else:
+            client = None
 
-        # 1. Create NeuroYoga client
-        client = Client(
-            client_name="NeuroYoga",
-            brand_name="ATMO",
-            company_profile="ATMO is the world's first NeuroYoga app — 3-minute sessions blending neuroscience and yoga: guided breathing protocols, pressure point stimulation (acupressure), fully offline, no subscriptions, zero data collection. Evidence-based with up to 46% HRV improvement in studies. Available on iOS and Android.",
-            company_worldview="Stress management doesn't need to be complicated or time-consuming. Ancient practices like breathing exercises and acupressure have solid scientific backing. The body has built-in recovery mechanisms — we just need to activate them correctly. Technology should serve the practice, not replace it.",
-            company_problem="People are overwhelmed by stress but don't have time for hour-long yoga sessions or expensive wellness retreats. Most meditation apps are subscription-based, collect user data, and require internet. There's a gap between clinical breathing protocols and accessible daily practice.",
-            competitive_landscape="Calm and Headspace dominate meditation apps but are subscription-heavy and content-focused. Wim Hof Method app focuses only on cold exposure + breathing. Most yoga apps require 20-60 minute sessions. No app combines neuroscience-backed breathing protocols with acupressure in 3-minute sessions.",
-            brand_voice="Warm, evidence-based, anti-hype. Speaks from personal practice experience. References science but doesn't lecture. Casual and approachable, like a friend who happens to know a lot about breathing and stress physiology. Never pushy about the product.",
-            icp_profiles="Stressed professionals (25-45), biohackers interested in HRV optimization, yoga practitioners looking for quick daily routines, people with anxiety exploring non-pharmaceutical approaches, wellness tech enthusiasts.",
-            keywords={
-                "high": ["breathing exercises", "acupressure", "stress relief", "HRV improvement", "vagus nerve stimulation"],
-                "medium": ["TCM", "meditation app", "HRV biofeedback", "breathwork", "pressure points"],
-                "low": ["wellness tech", "mindfulness", "yoga app", "stress management"],
-            },
-            is_active=True,
-        )
-        db.add(client)
-        db.flush()
-        print(f"Created NeuroYoga client (id: {client.id})")
+        # 1. Create NeuroYoga client (if not exists)
+        if client is None:
+            client = Client(
+                client_name="NeuroYoga",
+                brand_name="ATMO",
+                company_profile="ATMO is the world's first NeuroYoga app — 3-minute sessions blending neuroscience and yoga: guided breathing protocols, pressure point stimulation (acupressure), fully offline, no subscriptions, zero data collection. Evidence-based with up to 46% HRV improvement in studies. Available on iOS and Android.",
+                company_worldview="Stress management doesn't need to be complicated or time-consuming. Ancient practices like breathing exercises and acupressure have solid scientific backing. The body has built-in recovery mechanisms — we just need to activate them correctly. Technology should serve the practice, not replace it.",
+                company_problem="People are overwhelmed by stress but don't have time for hour-long yoga sessions or expensive wellness retreats. Most meditation apps are subscription-based, collect user data, and require internet. There's a gap between clinical breathing protocols and accessible daily practice.",
+                competitive_landscape="Calm and Headspace dominate meditation apps but are subscription-heavy and content-focused. Wim Hof Method app focuses only on cold exposure + breathing. Most yoga apps require 20-60 minute sessions. No app combines neuroscience-backed breathing protocols with acupressure in 3-minute sessions.",
+                brand_voice="Warm, evidence-based, anti-hype. Speaks from personal practice experience. References science but doesn't lecture. Casual and approachable, like a friend who happens to know a lot about breathing and stress physiology. Never pushy about the product.",
+                icp_profiles="Stressed professionals (25-45), biohackers interested in HRV optimization, yoga practitioners looking for quick daily routines, people with anxiety exploring non-pharmaceutical approaches, wellness tech enthusiasts.",
+                keywords={
+                    "high": ["breathing exercises", "acupressure", "stress relief", "HRV improvement", "vagus nerve stimulation"],
+                    "medium": ["TCM", "meditation app", "HRV biofeedback", "breathwork", "pressure points"],
+                    "low": ["wellness tech", "mindfulness", "yoga app", "stress management"],
+                },
+                is_active=True,
+            )
+            db.add(client)
+            db.flush()
+            print(f"Created NeuroYoga client (id: {client.id})")
 
         # 2. Create subreddits
         subreddits = [
@@ -709,12 +751,23 @@ def seed_neuroyoga(db=None):
             "Anxiety",
         ]
         for sub in subreddits:
-            db.add(ClientSubreddit(
-                client_id=client.id,
-                subreddit_name=sub,
-                type="professional",
-                is_active=True,
-            ))
+            subreddit = get_or_create_subreddit(db, sub)
+            # Create assignment if it doesn't already exist
+            existing_assignment = (
+                db.query(ClientSubredditAssignment)
+                .filter(
+                    ClientSubredditAssignment.client_id == client.id,
+                    ClientSubredditAssignment.subreddit_id == subreddit.id,
+                )
+                .first()
+            )
+            if not existing_assignment:
+                db.add(ClientSubredditAssignment(
+                    client_id=client.id,
+                    subreddit_id=subreddit.id,
+                    type="professional",
+                    is_active=True,
+                ))
         print(f"Created {len(subreddits)} professional subreddits for NeuroYoga")
 
         # 3. Create avatars
@@ -791,7 +844,6 @@ def seed_default_settings(db=None):
     """
     close_db = False
     if db is None:
-        Base.metadata.create_all(bind=engine)
         db = SessionLocal()
         close_db = True
 

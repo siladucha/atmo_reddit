@@ -61,5 +61,16 @@
     <footer class="max-w-7xl mx-auto px-4 py-4 text-center text-xs text-gray-400 border-t mt-8">
         Reddit Marketing SaaS v0.1.0 · <a href="/guide" class="text-blue-500 hover:underline">User Guide</a>
     </footer>
+    <script>
+        function exportToJson(endpoint) {
+            var a = document.createElement('a');
+            a.href = endpoint;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+    </script>
+    {% block extra_scripts %}{% endblock %}
 </body>
 </html>

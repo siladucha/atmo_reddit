@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
 from app.database import get_db
@@ -19,6 +19,8 @@ from app.models.post_draft import PostDraft
 from app.models.ai_usage import AIUsageLog
 from app.models.user import User
 from app.services.auth import authenticate_user, create_user, create_access_token, get_user_by_email
+from app.services.cookies import set_auth_cookie, delete_auth_cookie
+from app.services import audit as audit_service
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -182,8 +184,11 @@ def _tab_threads(client_id: UUID, db: Session, tag: str | None = None) -> dict:
 
 def _tab_review(client_id: UUID, db: Session, status: str = "pending") -> dict:
     """Return enriched comment drafts for the client filtered by status."""
+    from sqlalchemy.orm import joinedload
+
     drafts = (
         db.query(CommentDraft)
+        .options(joinedload(CommentDraft.thread), joinedload(CommentDraft.avatar))
         .filter(CommentDraft.client_id == client_id, CommentDraft.status == status)
         .order_by(CommentDraft.created_at.desc())
         .limit(50)
@@ -192,8 +197,8 @@ def _tab_review(client_id: UUID, db: Session, status: str = "pending") -> dict:
 
     enriched: list[dict] = []
     for d in drafts:
-        thread = db.query(RedditThread).filter(RedditThread.id == d.thread_id).first()
-        avatar = db.query(Avatar).filter(Avatar.id == d.avatar_id).first()
+        thread = d.thread  # already loaded via joinedload
+        avatar = d.avatar  # already loaded via joinedload
         enriched.append({
             "draft": d,
             "thread_title": thread.post_title if thread else "",
@@ -322,7 +327,7 @@ def login_submit(request: Request, email: str = Form(...), password: str = Form(
         return _render(request, "login.html", {"error": "Invalid credentials"})
     token = create_access_token(data={"sub": str(user.id), "email": user.email})
     response = RedirectResponse(url="/", status_code=303)
-    response.set_cookie(key="access_token", value=token, httponly=True, max_age=86400)
+    set_auth_cookie(response, token)
     return response
 
 
@@ -344,14 +349,14 @@ def register_submit(
     user = create_user(db, email=email, password=password, full_name=full_name or None)
     token = create_access_token(data={"sub": str(user.id), "email": user.email})
     response = RedirectResponse(url="/", status_code=303)
-    response.set_cookie(key="access_token", value=token, httponly=True, max_age=86400)
+    set_auth_cookie(response, token)
     return response
 
 
 @router.get("/logout")
 def logout():
     response = RedirectResponse(url="/login", status_code=303)
-    response.delete_cookie("access_token")
+    delete_auth_cookie(response)
     return response
 
 
@@ -576,7 +581,11 @@ def review_comments(
             target += f"&client_id={client_id}"
         return RedirectResponse(url=target, status_code=303)
 
-    query = db.query(CommentDraft).filter(CommentDraft.status == status)
+    query = (
+        db.query(CommentDraft)
+        .options(joinedload(CommentDraft.thread), joinedload(CommentDraft.avatar))
+        .filter(CommentDraft.status == status)
+    )
 
     # Non-admin: force filter to own client
     if current_user and not current_user.is_superuser and current_user.client_id:
@@ -588,9 +597,7 @@ def review_comments(
 
     enriched = []
     for draft in drafts:
-        thread = db.query(RedditThread).filter(RedditThread.id == draft.thread_id).first()
-        avatar = db.query(Avatar).filter(Avatar.id == draft.avatar_id).first()
-        enriched.append({"draft": draft, "thread": thread, "avatar": avatar})
+        enriched.append({"draft": draft, "thread": draft.thread, "avatar": draft.avatar})
 
     # Non-admin: only show own client in filter dropdown
     if current_user and not current_user.is_superuser and current_user.client_id:
@@ -609,63 +616,255 @@ def review_comments(
 # --- HTMX partials ---
 
 @router.post("/review/{comment_id}/approve", response_class=HTMLResponse)
-def approve_comment(comment_id: UUID, db: Session = Depends(get_db)):
+def approve_comment(comment_id: UUID, request: Request, db: Session = Depends(get_db)):
+    current_user = _get_current_user(request, db)
+    if not current_user:
+        raise HTTPException(status_code=403, detail="Authentication required")
     draft = db.query(CommentDraft).filter(CommentDraft.id == comment_id).first()
-    if draft:
-        draft.status = "approved"
-        db.commit()
+    if not draft:
+        raise HTTPException(status_code=404)
+    # Non-admin users can only approve their own client's drafts
+    if not current_user.is_superuser:
+        if current_user.client_id != draft.client_id:
+            raise HTTPException(status_code=403)
+    draft.status = "approved"
+    db.commit()
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="approve",
+        entity_type="comment_draft",
+        entity_id=draft.id,
+        client_id=draft.client_id,
+        details={"avatar_username": draft.avatar.reddit_username if draft.avatar else None},
+    )
     return HTMLResponse('<span class="text-green-600 font-medium">✓ Approved</span>')
 
 
 @router.post("/review/{comment_id}/reject", response_class=HTMLResponse)
-def reject_comment(comment_id: UUID, db: Session = Depends(get_db)):
+def reject_comment(comment_id: UUID, request: Request, db: Session = Depends(get_db)):
+    current_user = _get_current_user(request, db)
+    if not current_user:
+        raise HTTPException(status_code=403, detail="Authentication required")
     draft = db.query(CommentDraft).filter(CommentDraft.id == comment_id).first()
-    if draft:
-        draft.status = "rejected"
-        db.commit()
+    if not draft:
+        raise HTTPException(status_code=404)
+    if not current_user.is_superuser:
+        if current_user.client_id != draft.client_id:
+            raise HTTPException(status_code=403)
+    draft.status = "rejected"
+    db.commit()
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="reject",
+        entity_type="comment_draft",
+        entity_id=draft.id,
+        client_id=draft.client_id,
+        details={"avatar_username": draft.avatar.reddit_username if draft.avatar else None},
+    )
     return HTMLResponse('<span class="text-red-600 font-medium">✗ Rejected</span>')
 
 
 @router.post("/review/{comment_id}/edit", response_class=HTMLResponse)
-def edit_comment_text(comment_id: UUID, edited_text: str = Form(...), db: Session = Depends(get_db)):
+def edit_comment_text(comment_id: UUID, request: Request, edited_text: str = Form(...), db: Session = Depends(get_db)):
+    current_user = _get_current_user(request, db)
+    if not current_user:
+        raise HTTPException(status_code=403, detail="Authentication required")
+    # Input validation: limit comment length
+    if len(edited_text) > 2000:
+        return HTMLResponse(
+            '<span class="text-red-600 font-medium">✗ Text too long (max 2000 chars)</span>',
+            status_code=400,
+        )
     draft = db.query(CommentDraft).filter(CommentDraft.id == comment_id).first()
-    if draft:
-        draft.edited_draft = edited_text
-        db.commit()
+    if not draft:
+        raise HTTPException(status_code=404)
+    if not current_user.is_superuser:
+        if current_user.client_id != draft.client_id:
+            raise HTTPException(status_code=403)
+    draft.edited_draft = edited_text
+    db.commit()
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="edit",
+        entity_type="comment_draft",
+        entity_id=draft.id,
+        client_id=draft.client_id,
+        details={"avatar_username": draft.avatar.reddit_username if draft.avatar else None},
+    )
     return HTMLResponse('<span class="text-blue-600 font-medium">✓ Saved</span>')
 
 
 @router.post("/review/{comment_id}/posted", response_class=HTMLResponse)
-def mark_posted(comment_id: UUID, db: Session = Depends(get_db)):
-    from datetime import datetime, timezone
+def mark_posted(
+    comment_id: UUID,
+    request: Request,
+    reddit_comment_url: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    current_user = _get_current_user(request, db)
+    if not current_user:
+        raise HTTPException(status_code=403, detail="Authentication required")
     draft = db.query(CommentDraft).filter(CommentDraft.id == comment_id).first()
-    if draft:
-        draft.status = "posted"
-        draft.posted_at = datetime.now(timezone.utc)
-        db.commit()
+    if not draft:
+        raise HTTPException(status_code=404)
+    if not current_user.is_superuser:
+        if current_user.client_id != draft.client_id:
+            raise HTTPException(status_code=403)
 
-        # Piggyback phase evaluation after posting
-        try:
-            from app.services.phase import PhaseEvaluator, PhaseTransitionManager
-            from app.services.phase_lock import PhaseTransitionLock
-            from app.config import get_settings
-            import redis
+    from datetime import datetime, timezone
+    draft.status = "posted"
+    draft.posted_at = datetime.now(timezone.utc)
+    if reddit_comment_url.strip():
+        draft.reddit_comment_url = reddit_comment_url.strip()
+    db.commit()
 
-            avatar = draft.avatar
-            if avatar and PhaseEvaluator().should_piggyback(avatar):
-                result = PhaseEvaluator().evaluate(db, avatar)
-                if result.action == "promote":
-                    redis_client = redis.from_url(get_settings().redis_url)
-                    lock = PhaseTransitionLock(redis_client)
-                    PhaseTransitionManager(lock).promote(db, avatar, result.criteria_values)
-                elif result.action == "demote":
-                    redis_client = redis.from_url(get_settings().redis_url)
-                    lock = PhaseTransitionLock(redis_client)
-                    PhaseTransitionManager(lock).demote(db, avatar, result.target_phase, result.trigger_reason)
-        except Exception:
-            pass  # Never break the posting flow
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="mark_posted",
+        entity_type="comment_draft",
+        entity_id=draft.id,
+        client_id=draft.client_id,
+        details={"avatar_username": draft.avatar.reddit_username if draft.avatar else None},
+    )
+
+    # Piggyback phase evaluation after posting
+    try:
+        from app.services.phase import PhaseEvaluator, PhaseTransitionManager
+        from app.services.phase_lock import PhaseTransitionLock
+        from app.config import get_settings
+        import redis
+
+        avatar = draft.avatar
+        if avatar and PhaseEvaluator().should_piggyback(avatar):
+            result = PhaseEvaluator().evaluate(db, avatar)
+            if result.action == "promote":
+                redis_client = redis.from_url(get_settings().redis_url)
+                lock = PhaseTransitionLock(redis_client)
+                PhaseTransitionManager(lock).promote(db, avatar, result.criteria_values)
+            elif result.action == "demote":
+                redis_client = redis.from_url(get_settings().redis_url)
+                lock = PhaseTransitionLock(redis_client)
+                PhaseTransitionManager(lock).demote(db, avatar, result.target_phase, result.trigger_reason)
+    except Exception:
+        pass  # Never break the posting flow
 
     return HTMLResponse('<span class="text-purple-600 font-medium">✓ Posted</span>')
+
+
+@router.post("/review/{comment_id}/update-score", response_class=HTMLResponse)
+def update_comment_karma_score(
+    comment_id: UUID,
+    request: Request,
+    reddit_score: int = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Update reddit_score for a posted comment and evaluate karma-based demotion."""
+    current_user = _get_current_user(request, db)
+    if not current_user:
+        raise HTTPException(status_code=403, detail="Authentication required")
+
+    from app.services.karma_feedback import update_comment_score, evaluate_and_demote_if_needed
+
+    comment = update_comment_score(db, comment_id, reddit_score)
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comment not found or not posted")
+
+    # Evaluate karma-based demotion
+    demotion_result = None
+    avatar = comment.avatar
+    if avatar:
+        demotion_result = evaluate_and_demote_if_needed(db, avatar)
+
+    # Build response HTML
+    score_color = "text-green-400" if reddit_score > 0 else ("text-red-400" if reddit_score < 0 else "text-gray-400")
+    score_icon = "↑" if reddit_score > 0 else ("↓" if reddit_score < 0 else "·")
+
+    html = f'<span class="{score_color} font-medium">{score_icon} {reddit_score}</span>'
+
+    if demotion_result and demotion_result.get("demoted"):
+        html += (
+            f' <span class="text-red-400 text-xs ml-2">'
+            f'⚠ Phase demoted → {demotion_result["new_phase"]}'
+            f'</span>'
+        )
+    elif demotion_result and demotion_result.get("at_risk", False):
+        html += (
+            ' <span class="text-amber-400 text-xs ml-2">'
+            '⚠ Karma at risk</span>'
+        )
+
+    return HTMLResponse(html)
+
+
+@router.post("/review/{comment_id}/check-karma", response_class=HTMLResponse)
+def check_karma_now(
+    comment_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Manually trigger karma check for a single posted comment via Reddit API."""
+    current_user = _get_current_user(request, db)
+    if not current_user:
+        raise HTTPException(status_code=403, detail="Authentication required")
+
+    from app.models.comment_draft import CommentDraft
+
+    comment = db.query(CommentDraft).filter(CommentDraft.id == comment_id).first()
+    if not comment or comment.status != "posted":
+        return HTMLResponse('<span class="text-red-400 text-xs">Not found or not posted</span>')
+
+    avatar = comment.avatar
+    if not avatar or not avatar.reddit_username:
+        return HTMLResponse('<span class="text-red-400 text-xs">No avatar linked</span>')
+
+    # Try to fetch karma from Reddit
+    try:
+        from app.services.reddit import get_reddit_client
+
+        reddit = get_reddit_client()
+        redditor = reddit.redditor(avatar.reddit_username)
+
+        draft_text = (comment.edited_draft or comment.ai_draft or "").strip()[:80].lower()
+        found = False
+
+        for reddit_comment in redditor.comments.new(limit=50):
+            body_key = (reddit_comment.body or "").strip()[:80].lower()
+            if body_key and body_key == draft_text:
+                # Found the comment
+                new_score = reddit_comment.score
+                comment.reddit_score = new_score
+                comment.last_karma_check_at = datetime.now(timezone.utc)
+
+                # Also save the permalink if we don't have it
+                if not comment.reddit_comment_url:
+                    comment.reddit_comment_url = f"https://www.reddit.com{reddit_comment.permalink}"
+
+                # Check if deleted
+                if reddit_comment.body in ("[removed]", "[deleted]"):
+                    comment.is_deleted = True
+                    comment.deleted_detected_at = datetime.now(timezone.utc)
+
+                db.commit()
+                found = True
+
+                score_color = "text-green-400" if new_score > 0 else ("text-red-400" if new_score < 0 else "text-gray-400")
+                score_icon = "↑" if new_score > 0 else ("↓" if new_score < 0 else "·")
+                html = f'<span class="{score_color} font-medium">{score_icon} {new_score}</span> <span class="text-gray-500 text-xs">checked now</span>'
+                return HTMLResponse(html)
+
+        if not found:
+            comment.last_karma_check_at = datetime.now(timezone.utc)
+            comment.is_deleted = True
+            comment.deleted_detected_at = datetime.now(timezone.utc)
+            db.commit()
+            return HTMLResponse('<span class="text-amber-400 text-xs">⚠ Comment not found on Reddit (may be deleted)</span>')
+
+    except Exception as e:
+        return HTMLResponse(f'<span class="text-red-400 text-xs">Error: {str(e)[:60]}</span>')
 
 
 # --- Threads ---
@@ -855,7 +1054,8 @@ def check_all_avatars_reddit_status_htmx(
 
 @router.get("/avatars/new", response_class=HTMLResponse)
 def avatar_new_page(request: Request):
-    return _render(request, "avatar_new.html")
+    """Redirect to admin avatar creation page."""
+    return RedirectResponse(url="/admin/avatars/new", status_code=302)
 
 
 @router.post("/avatars/new", response_class=HTMLResponse)
@@ -871,21 +1071,8 @@ def avatar_create_submit(
     hobby_subreddits: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    hobby_list = [s.strip() for s in hobby_subreddits.split(",") if s.strip()] if hobby_subreddits else []
-    avatar = Avatar(
-        reddit_username=reddit_username,
-        email_address=email_address or None,
-        voice_profile_md=voice_profile_md or None,
-        tone_principles=tone_principles or None,
-        hill_i_die_on=hill_i_die_on or None,
-        helpful_mode_topics=helpful_mode_topics or None,
-        constraints=constraints or None,
-        hobby_subreddits=hobby_list,
-        active=True,
-    )
-    db.add(avatar)
-    db.commit()
-    return RedirectResponse(url="/avatars-page", status_code=303)
+    """Redirect POST to admin avatar creation."""
+    return RedirectResponse(url="/admin/avatars/new", status_code=302)
 
 
 

@@ -5,6 +5,10 @@
     <span class="text-gray-500">Admin</span> / <span class="text-white">Clients</span>
 </nav>
 {% endblock %}
+{% block export_button %}
+{% set export_url = "/export/clients" %}
+{% include "partials/export_button.html" %}
+{% endblock %}
 {% block content %}
 <div class="max-w-7xl mx-auto">
     <div class="flex justify-between items-center mb-6">

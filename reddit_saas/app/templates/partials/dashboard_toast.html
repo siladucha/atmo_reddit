@@ -1,0 +1,10 @@
+{# HTMX partial — inline toast for pipeline trigger results. Auto-dismisses. #}
+
+<div class="rounded border px-3 py-2 text-sm fade-in flex items-start gap-2
+            {% if error and not success %}bg-red-900/30 border-red-700 text-red-200
+            {% elif error %}bg-amber-900/30 border-amber-700 text-amber-200
+            {% else %}bg-emerald-900/30 border-emerald-700 text-emerald-200{% endif %}"
+     hx-on:load="setTimeout(()=>this.remove(), 6000)">
+    {% if success %}<span>✓ {{ success }}</span>{% endif %}
+    {% if error %}<span>{% if success %} · {% endif %}⚠ {{ error }}</span>{% endif %}
+</div>

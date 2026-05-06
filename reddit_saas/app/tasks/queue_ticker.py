@@ -6,7 +6,7 @@ acquires a distributed lock, and dispatches a scrape worker.
 
 Tasks:
     queue_tick: Periodic task fired by Celery Beat every 60s.
-    scrape_single_subreddit: Scrapes one subreddit for one client.
+    scrape_single_subreddit: Legacy scrape task (kept for backward compatibility).
 """
 
 import logging
@@ -20,7 +20,7 @@ import sqlalchemy.exc
 from app.database import SessionLocal
 from app.models.client import Client
 from app.models.scrape_log import ScrapeLog
-from app.models.subreddit import ClientSubreddit
+from app.models.subreddit import ClientSubreddit, Subreddit, ClientSubredditAssignment
 from app.models.thread import RedditThread
 from app.services.distributed_lock import ScrapeDistributedLock
 from app.services.rate_limiter import ScrapeRateLimiter
@@ -48,9 +48,15 @@ def queue_tick() -> dict:
     Fired by Celery Beat every 60s. Internally gates execution based on
     the configurable tick interval from system_settings.
 
+    Queries the `subreddits` table ordered by last_scraped_at ASC NULLS FIRST,
+    joining to client_subreddit_assignments (at least one active) and clients
+    (is_active=true). Dispatches scrape_subreddit_shared(subreddit_id).
+
     Returns:
         Status dict: {"status": str, "subreddit": str|None, ...}
     """
+    from app.tasks.scraping import scrape_subreddit_shared
+
     try:
         redis_client = _get_redis_client()
     except redis.ConnectionError:
@@ -105,23 +111,27 @@ def queue_tick() -> dict:
         db.close()
         return {"status": "error", "reason": "redis_unavailable"}
 
-    # --- Query next stale subreddit ---
+    # --- Query next stale subreddit from shared registry ---
+    # Query subreddits table, requiring at least one active assignment
+    # where the corresponding client is also active.
     try:
         candidates = (
             db.query(
-                ClientSubreddit.subreddit_name,
-                ClientSubreddit.client_id,
-                Client.client_name,
-                ClientSubreddit.last_scraped_at,
+                Subreddit.id,
+                Subreddit.subreddit_name,
+                Subreddit.last_scraped_at,
             )
-            .join(Client, Client.id == ClientSubreddit.client_id)
+            .join(ClientSubredditAssignment, ClientSubredditAssignment.subreddit_id == Subreddit.id)
+            .join(Client, Client.id == ClientSubredditAssignment.client_id)
             .filter(
-                ClientSubreddit.is_active.is_(True),
+                Subreddit.is_active.is_(True),
+                ClientSubredditAssignment.is_active.is_(True),
                 Client.is_active.is_(True),
             )
+            .group_by(Subreddit.id, Subreddit.subreddit_name, Subreddit.last_scraped_at)
             .order_by(
-                ClientSubreddit.last_scraped_at.asc().nulls_first(),
-                ClientSubreddit.subreddit_name.asc(),
+                Subreddit.last_scraped_at.asc().nulls_first(),
+                Subreddit.subreddit_name.asc(),
             )
             .limit(5)
             .all()
@@ -178,15 +188,15 @@ def queue_tick() -> dict:
         pass
 
     subreddit_name = dispatched_sub.subreddit_name
-    client_id = str(dispatched_sub.client_id)
+    subreddit_id = str(dispatched_sub.id)
 
     db.close()
 
-    # Dispatch the scrape worker
-    scrape_single_subreddit.delay(subreddit_name, client_id)
+    # Dispatch the shared scrape worker (subreddit-centric, no client_id)
+    scrape_subreddit_shared.delay(subreddit_id)
 
-    logger.info("queue_tick: Dispatched scrape for r/%s (client: %s)", subreddit_name, dispatched_sub.client_name)
-    return {"status": "dispatched", "subreddit": subreddit_name, "client": dispatched_sub.client_name}
+    logger.info("queue_tick: Dispatched shared scrape for r/%s (subreddit_id: %s)", subreddit_name, subreddit_id)
+    return {"status": "dispatched", "subreddit": subreddit_name, "subreddit_id": subreddit_id}
 
 
 @celery_app.task(name="scrape_single_subreddit", bind=True, max_retries=0)

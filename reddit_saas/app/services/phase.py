@@ -620,13 +620,17 @@ class PhaseEvaluator:
     ) -> tuple[bool, dict]:
         """Check if avatar meets all criteria for the next phase.
 
-        Phase 1→2: age≥60, karma≥100, activity≥20, survival≥80%
-        Phase 2→3: age≥150, karma≥500, activity≥50, survival≥85%, avg_score≥2.0
+        Phase 1→2: age≥60, karma≥100, activity≥20, survival≥80%,
+                   karma in ≥2 distinct subreddits.
+        Phase 2→3: age≥150, karma≥500, activity≥50, survival≥85%, avg_score≥2.0,
+                   karma in ≥3 distinct subreddits incl. ≥1 professional.
         Phase 3: already max, return (False, {})
 
         Returns:
             (eligible: bool, criteria_values: dict with current vs required for each criterion)
         """
+        from app.services import karma_tracker
+
         current_phase = avatar.warming_phase
 
         if current_phase >= 3:
@@ -668,30 +672,65 @@ class PhaseEvaluator:
         survival_rate = self.compute_comment_survival_rate(db, avatar, window_days)
         survival_pct = survival_rate * 100
 
+        # Subreddit karma distribution (Req 7)
+        diversity = karma_tracker.diversity_count(db, avatar.id)
+        professional_diversity = karma_tracker.professional_diversity_count(
+            db, avatar.id
+        )
+
+        if current_phase == 1:
+            required_diversity = 2
+        else:  # Phase 2 → 3
+            required_diversity = 3
+
         # Build criteria values dict
         criteria_values = {
             "age_days": {"current": age_days, "required": thresholds["min_age_days"]},
             "karma": {"current": karma, "required": thresholds["min_karma"]},
             "activity": {"current": activity_count, "required": thresholds["min_activity"]},
             "survival_rate": {"current": survival_pct, "required": thresholds["min_survival_rate"]},
+            "subreddit_diversity": {
+                "current": diversity,
+                "required": required_diversity,
+                "shortfall": (
+                    f"karma in {diversity}/{required_diversity} required subreddits"
+                    if diversity < required_diversity
+                    else None
+                ),
+            },
         }
 
         # Check all criteria
+        diversity_ok = diversity >= required_diversity
         eligible = (
             age_days >= thresholds["min_age_days"]
             and karma >= thresholds["min_karma"]
             and activity_count >= thresholds["min_activity"]
             and survival_pct >= thresholds["min_survival_rate"]
+            and diversity_ok
         )
 
-        # Phase 2→3 also requires avg_score
+        # Phase 2→3 also requires avg_score and at least one professional sub
         if current_phase == 2:
             avg_score = self.compute_avg_comment_score(db, avatar, window_days)
             criteria_values["avg_score"] = {
                 "current": avg_score,
                 "required": thresholds["min_avg_score"],
             }
-            eligible = eligible and avg_score >= thresholds["min_avg_score"]
+            criteria_values["professional_diversity"] = {
+                "current": professional_diversity,
+                "required": 1,
+                "shortfall": (
+                    "needs karma in at least 1 professional subreddit"
+                    if professional_diversity < 1
+                    else None
+                ),
+            }
+            eligible = (
+                eligible
+                and avg_score >= thresholds["min_avg_score"]
+                and professional_diversity >= 1
+            )
 
         return (eligible, criteria_values)
 
@@ -703,6 +742,7 @@ class PhaseEvaluator:
         Triggers checked:
         - Shadowban detected → demote to Phase 1, reason "shadowban_detected"
         - Survival rate < 70% (7-day window) → demote by 1 phase, reason "low_survival_rate"
+        - Karma drop (avg reddit_score < -2 over 14-day window) → demote by 1, reason "karma_drop"
 
         Returns:
             (should_demote: bool, target_phase: int, trigger_reason: str | None)
@@ -726,6 +766,13 @@ class PhaseEvaluator:
         if survival_pct < _DEMOTION_MIN_SURVIVAL_RATE:
             target_phase = max(1, current_phase - 1)
             return (True, target_phase, "low_survival_rate")
+
+        # Check karma drop — avg reddit_score below threshold over 14-day window
+        from app.services.karma_feedback import check_karma_drop_demotion
+        should_demote_karma, avg_score = check_karma_drop_demotion(db, avatar)
+        if should_demote_karma:
+            target_phase = max(1, current_phase - 1)
+            return (True, target_phase, f"karma_drop (avg_score={avg_score:.2f})")
 
         return (False, current_phase, None)
 

@@ -29,6 +29,34 @@ ERROR_HTML = """
 """
 
 
+def _log_error_to_audit(request: Request, error: Exception) -> None:
+    """Best-effort logging of unhandled errors to the audit_log table."""
+    try:
+        from app.database import SessionLocal
+        from app.services.audit import log_system_action
+
+        user_id_str = getattr(request.state, "user_id", None)
+        db = SessionLocal()
+        try:
+            log_system_action(
+                db=db,
+                action="error",
+                entity_type="system",
+                details={
+                    "path": str(request.url.path),
+                    "method": request.method,
+                    "error_type": type(error).__name__,
+                    "error_message": str(error)[:500],
+                    "user_id": str(user_id_str) if user_id_str else None,
+                },
+            )
+        finally:
+            db.close()
+    except Exception:
+        # Never let audit logging break the error response
+        pass
+
+
 class ErrorMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, debug: bool = False):
         super().__init__(app)
@@ -50,6 +78,9 @@ class ErrorMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             logger.error("Unhandled error on %s: %s", request.url.path, e)
             logger.error(traceback.format_exc())
+
+            # Log to audit table
+            _log_error_to_audit(request, e)
 
             debug_info = ""
             if self.debug:

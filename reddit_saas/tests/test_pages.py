@@ -71,14 +71,16 @@ def test_client_new_submit(client):
 
 
 def test_avatar_new_page(client):
-    r = client.get("/avatars/new")
-    assert r.status_code == 200
-    assert "New Avatar" in r.text or "Create" in r.text
+    """Non-superuser gets redirected to admin avatar creation (which requires superuser)."""
+    r = client.get("/avatars/new", follow_redirects=False)
+    assert r.status_code == 302
+    assert "/admin/avatars/new" in r.headers.get("location", "")
 
 
 def test_avatar_new_submit(client):
+    """Non-superuser POST to /avatars/new redirects to admin."""
     r = client.post("/avatars/new", data={
         "reddit_username": "ui_test_avatar",
         "hobby_subreddits": "wine, cooking",
     }, follow_redirects=False)
-    assert r.status_code == 303
+    assert r.status_code == 302

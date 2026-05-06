@@ -20,16 +20,28 @@ A Reddit marketing SaaS platform. AI monitors subreddits, scores posts, generate
 - **Agency model**: Per-client-slot pricing ($999–$3,499/mo for 3–20 clients). Annual contracts only.
 - **Key moat**: Pre-warmed avatar inventory (aged accounts with karma). Cannot be replicated overnight by competitors.
 
-## Tech Stack
+## Tech Stack (Target Architecture)
 - **Backend:** Python 3.11+ / FastAPI
 - **Templates/UI:** Jinja2 + HTMX
 - **CSS:** Tailwind CSS (CDN)
-- **Database:** PostgreSQL / SQLAlchemy 2.0 / Alembic
+- **Database:** PostgreSQL / SQLAlchemy 2.0 / Alembic (on EC2 Docker initially, RDS later)
 - **Auth:** JWT (python-jose + passlib), `is_superuser` flag for admin access
-- **Background jobs:** Celery + Redis
+- **Task Queue:** AWS SQS Standard (replaces Celery + Redis broker)
+- **Cache/Locks:** AWS ElastiCache Serverless Valkey (distributed locks, rate limiting, task results)
 - **Reddit:** PRAW
 - **AI/LLM:** LiteLLM (Gemini Flash for scoring, Claude Sonnet for generation)
-- **Deploy:** Docker + VPS (AWS later)
+- **Deploy:** EC2 t3.small + SQS + Valkey Serverless (Docker for app + PostgreSQL)
+- **Observability:** CloudWatch (SQS metrics, Valkey metrics, EC2 metrics)
+
+### Infrastructure Decisions (May 2026)
+- **SQS over Celery**: Native DLQ, message persistence (14 days), visibility timeout, CloudWatch metrics. Cost: ~$0.30/mo at current scale.
+- **Valkey Serverless over Redis Docker**: Managed HA, multi-AZ, no ops overhead. Cost: ~$6.14/mo (minimum 100 MB storage floor).
+- **EC2 over ECS/Fargate**: Simpler, cheaper for single-instance deployment. Docker Compose on EC2 for app + PostgreSQL.
+- **PostgreSQL on EC2 Docker** (initial): Migrate to RDS db.t4g.small ($24/mo) when data loss becomes unacceptable (5+ clients).
+
+### Legacy Stack (being migrated away)
+- ~~Celery + Redis~~ → AWS SQS + Valkey Serverless
+- ~~Docker Compose (all-in-one)~~ → EC2 + managed AWS services
 
 ## Code Style
 - Python: type hints everywhere, async where beneficial
@@ -88,8 +100,10 @@ reddit_saas/
 │   │   ├── scoring.py         # Post scoring pipeline
 │   │   ├── settings.py        # System settings service
 │   │   └── transparency.py    # Activity events, pipeline stats, scrape freshness
-│   ├── tasks/                 # Celery background tasks
-│   │   ├── worker.py          # Celery app
+│   ├── tasks/                 # SQS-based background tasks (migrating from Celery)
+│   │   ├── sqs_consumer.py    # SQS long-poll consumer loop
+│   │   ├── sqs_producer.py    # Send messages to SQS queues
+│   │   ├── scheduler.py       # Periodic task scheduling
 │   │   ├── orchestrator.py    # Pipeline orchestration
 │   │   ├── scraping.py        # Reddit scraping tasks
 │   │   └── ai_pipeline.py     # AI scoring/generation tasks
@@ -107,11 +121,11 @@ reddit_saas/
 ```
 
 ## What's Built (MVP Status)
-- **Admin panel** (dark theme): dashboard, user/client/persona/keyword/subreddit CRUD, Celery task monitoring, system health, AI costs, audit logs, billing placeholder
+- **Admin panel** (dark theme): dashboard, user/client/persona/keyword/subreddit CRUD, task monitoring, system health, AI costs, audit logs, billing placeholder
 - **7-step onboarding wizard**: client profile → subreddits → keywords → avatars → personas → pipeline config → test run
 - **NeuroYoga seed data**: first client (ATMO) with subreddits, keywords, persona
 - **User-facing pages**: dashboard, review queue, threads, avatars, settings
-- **Pipeline**: scrape → score → generate → edit (Celery tasks)
+- **Pipeline**: scrape → score → generate → edit (SQS tasks, migrating from Celery)
 - **93 tests passing** (pytest)
 
 ## What's Built — Activity Feed & Transparency (new)
@@ -123,6 +137,7 @@ reddit_saas/
 - Subreddit freshness tracking with stale indicators
 
 ## What's NOT Built Yet
+- **System Topology Timeline** — real-time pipeline node visualization with history + forecast (spec in `.kiro/steering/system_topology_dashboard.md`)
 - Self-service client access (multi-tenancy, role-based views)
 - Customer Success Dashboard (business metrics per client)
 - Enhanced System Health (detailed diagnostics, load metrics)
@@ -138,11 +153,20 @@ reddit_saas/
 - Auto-generated PDF reports — deferred
 
 ## Key Data Flow
-1. Celery scrapes subreddits → saves RedditThread records
+1. SQS worker scrapes subreddits → saves RedditThread records
 2. AI scores threads (relevance/quality/strategic) → tags: engage/monitor/skip
 3. AI generates comment drafts for "engage" threads
 4. Human reviews drafts → approve/reject/edit
 5. Approved comments posted manually to Reddit
+
+## Task Architecture (Target)
+- **Producer**: FastAPI app / scheduler sends messages to SQS queues
+- **Consumer**: Python workers (asyncio loop) poll SQS with long polling (20s)
+- **Scheduler**: EventBridge Scheduler (replaces Celery Beat) or cron on EC2
+- **Locks**: Valkey SETNX with Lua atomic release (same pattern as current)
+- **Rate Limiter**: Valkey sorted set sliding window (same pattern as current)
+- **DLQ**: SQS Dead Letter Queue per task type (automatic after N failures)
+- **Results**: Valkey with TTL (short-lived, 5 min default)
 
 ## Comment Draft Status Workflow
 `pending` → `approved` / `rejected` → `posted`
@@ -154,6 +178,9 @@ reddit_saas/
 
 ## Key Reference Files
 - `docs/memory.md` — Project knowledge base
+- `docs/aws_budget_may2026.md` — Detailed AWS budget with SQS/Valkey calculations
+- `docs/aws_cost_estimate.md` — AWS cost estimate (summary, scaling projections)
+- `docs/adr_sqs_valkey_migration.md` — Architecture Decision Record: SQS+Valkey migration
 - `docs/ai_cost_benchmark.md` — AI token cost analysis
 - `docs/file_index.md` — Index of all Ori's handoff files
 - `docs/Reddit Project Legal Risks.docx` — 6 categories of legal exposure (Tzvi's lawyer)

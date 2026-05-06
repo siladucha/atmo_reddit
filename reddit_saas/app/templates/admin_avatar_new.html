@@ -1,0 +1,97 @@
+{% extends "admin_base.html" %}
+{% block title %}New Avatar{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <a href="/admin/" class="hover:text-white">Admin</a>
+    <span class="mx-2 text-gray-600">/</span>
+    <span class="text-gray-500">Content</span>
+    <span class="mx-2 text-gray-600">/</span>
+    <a href="/admin/avatars" class="hover:text-white">Avatars</a>
+    <span class="mx-2 text-gray-600">/</span>
+    <span class="text-white">New</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-2xl">
+    <!-- Header -->
+    <div>
+        <h1 class="text-2xl font-semibold text-white">Create New Avatar</h1>
+        <p class="text-sm text-gray-400 mt-1">An avatar is a Reddit account with a unique persona used for community engagement.</p>
+    </div>
+
+    <form method="POST" action="/admin/avatars/new" class="space-y-6">
+        <!-- Account Info -->
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 space-y-4">
+            <h2 class="font-semibold text-white text-sm uppercase tracking-wide">Account Info</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Reddit Username *</label>
+                    <input type="text" name="reddit_username" required placeholder="e.g. ThorneMarcus92"
+                        class="w-full px-3 py-2 text-sm bg-slate-night border border-slate-600 text-gray-200 rounded focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Email</label>
+                    <input type="email" name="email_address" placeholder="avatar's email"
+                        class="w-full px-3 py-2 text-sm bg-slate-night border border-slate-600 text-gray-200 rounded focus:outline-none focus:border-indigo-500">
+                </div>
+            </div>
+        </div>
+
+        <!-- Voice Profile -->
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 space-y-4">
+            <div>
+                <h2 class="font-semibold text-white text-sm uppercase tracking-wide">Voice Profile</h2>
+                <p class="text-xs text-gray-500 mt-1">How this avatar talks. The AI uses this to match the persona's style.</p>
+            </div>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Full Voice Profile (markdown)</label>
+                    <textarea name="voice_profile_md" rows="5" placeholder="Name, role, age, location, tone, style..."
+                        class="w-full px-3 py-2 text-sm bg-slate-night border border-slate-600 text-gray-200 rounded focus:outline-none focus:border-indigo-500 font-mono"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Tone Principles</label>
+                    <textarea name="tone_principles" rows="2" placeholder="e.g. Strategic not tactical. Dry humor. Anti-hype."
+                        class="w-full px-3 py-2 text-sm bg-slate-night border border-slate-600 text-gray-200 rounded focus:outline-none focus:border-indigo-500"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">The Hill They Die On</label>
+                    <textarea name="hill_i_die_on" rows="2" placeholder="Their core belief — what triggers 'bullseye mode'"
+                        class="w-full px-3 py-2 text-sm bg-slate-night border border-slate-600 text-gray-200 rounded focus:outline-none focus:border-indigo-500"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Helpful Mode Topics</label>
+                    <textarea name="helpful_mode_topics" rows="2" placeholder="Topics where they naturally help others"
+                        class="w-full px-3 py-2 text-sm bg-slate-night border border-slate-600 text-gray-200 rounded focus:outline-none focus:border-indigo-500"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Constraints (what they'd never do)</label>
+                    <textarea name="constraints" rows="2" placeholder="e.g. Never sound enthusiastic. Never use vendor language."
+                        class="w-full px-3 py-2 text-sm bg-slate-night border border-slate-600 text-gray-200 rounded focus:outline-none focus:border-indigo-500"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Subreddits -->
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 space-y-3">
+            <div>
+                <h2 class="font-semibold text-white text-sm uppercase tracking-wide">Hobby Subreddits</h2>
+                <p class="text-xs text-gray-500 mt-1">For karma building. Comma-separated, without r/ prefix.</p>
+            </div>
+            <input type="text" name="hobby_subreddits" placeholder="e.g. wine, sailing, investing"
+                class="w-full px-3 py-2 text-sm bg-slate-night border border-slate-600 text-gray-200 rounded focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <!-- Submit -->
+        <div class="flex items-center gap-3">
+            <button type="submit"
+                class="bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 px-6 rounded-lg text-sm font-medium transition-colors">
+                Create Avatar
+            </button>
+            <a href="/admin/avatars" class="text-sm text-gray-400 hover:text-white transition-colors">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

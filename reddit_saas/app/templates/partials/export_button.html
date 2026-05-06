@@ -1,0 +1,13 @@
+{# Reusable export-to-JSON button. Pass `export_url` to set the endpoint. #}
+<button type="button"
+        onclick="exportToJson('{{ export_url }}')"
+        class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium
+               bg-slate-700 hover:bg-slate-600 text-gray-300 hover:text-white border border-slate-600
+               transition-colors"
+        title="Export to JSON">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+    </svg>
+    <span>Export JSON</span>
+</button>

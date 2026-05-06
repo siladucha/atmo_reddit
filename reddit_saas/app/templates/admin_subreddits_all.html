@@ -9,6 +9,11 @@
 </nav>
 {% endblock %}
 
+{% block export_button %}
+{% set export_url = "/export/subreddits" %}
+{% include "partials/export_button.html" %}
+{% endblock %}
+
 {% block content %}
 <div class="space-y-6">
     <!-- Header -->
@@ -20,6 +25,78 @@
                 <span class="text-green-400">{{ active_count }} active</span> ·
                 <span class="text-amber-400">{{ paused_count }} paused</span>
             </p>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-4 space-y-3">
+        <div class="flex flex-wrap items-center gap-3">
+            {# Search input #}
+            <div class="relative flex-1 min-w-[200px] max-w-sm">
+                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                <input type="text" id="subreddit-search" placeholder="Search subreddits..."
+                       value="{{ filter_q }}"
+                       class="w-full bg-slate-night border border-slate-600 text-white rounded-lg pl-10 pr-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 placeholder-gray-500">
+            </div>
+
+            {# Client filter #}
+            <span class="text-xs uppercase tracking-wider text-gray-500 font-medium">Client:</span>
+            <a href="/admin/subreddits{% if filter_type %}?type={{ filter_type }}{% endif %}{% if filter_status %}{{ '&' if filter_type else '?' }}status={{ filter_status }}{% endif %}"
+               class="px-2.5 py-1 rounded text-xs font-medium transition-colors
+                      {% if not filter_client_id %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
+                All
+            </a>
+            {% for c in clients %}
+            <a href="/admin/subreddits?client_id={{ c.id }}{% if filter_type %}&type={{ filter_type }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}"
+               class="px-2.5 py-1 rounded text-xs font-medium transition-colors
+                      {% if filter_client_id == (c.id|string) %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
+                {{ c.client_name }}
+            </a>
+            {% endfor %}
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+            {# Type filter #}
+            <span class="text-xs uppercase tracking-wider text-gray-500 font-medium">Type:</span>
+            <a href="/admin/subreddits?{% if filter_client_id %}client_id={{ filter_client_id }}&{% endif %}{% if filter_status %}status={{ filter_status }}{% endif %}"
+               class="px-2.5 py-1 rounded text-xs font-medium transition-colors
+                      {% if not filter_type %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
+                All
+            </a>
+            {% for t in ['professional', 'hobby'] %}
+            <a href="/admin/subreddits?{% if filter_client_id %}client_id={{ filter_client_id }}&{% endif %}type={{ t }}{% if filter_status %}&status={{ filter_status }}{% endif %}"
+               class="px-2.5 py-1 rounded text-xs font-medium transition-colors
+                      {% if filter_type == t %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
+                {{ t|capitalize }}
+            </a>
+            {% endfor %}
+
+            <span class="mx-2 h-4 w-px bg-slate-600"></span>
+
+            {# Status filter #}
+            <span class="text-xs uppercase tracking-wider text-gray-500 font-medium">Status:</span>
+            <a href="/admin/subreddits?{% if filter_client_id %}client_id={{ filter_client_id }}&{% endif %}{% if filter_type %}type={{ filter_type }}{% endif %}"
+               class="px-2.5 py-1 rounded text-xs font-medium transition-colors
+                      {% if not filter_status %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
+                All
+            </a>
+            {% for s in ['active', 'paused'] %}
+            <a href="/admin/subreddits?{% if filter_client_id %}client_id={{ filter_client_id }}&{% endif %}{% if filter_type %}type={{ filter_type }}&{% endif %}status={{ s }}"
+               class="px-2.5 py-1 rounded text-xs font-medium transition-colors
+                      {% if filter_status == s %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
+                {{ s|capitalize }}
+            </a>
+            {% endfor %}
+
+            <span class="mx-2 h-4 w-px bg-slate-600"></span>
+
+            {# Stale filter (client-side) #}
+            <label class="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" id="stale-only" class="rounded border-slate-600 bg-slate-night text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0 w-3.5 h-3.5">
+                <span class="text-xs text-gray-400">Stale only (24h+)</span>
+            </label>
         </div>
     </div>
 
@@ -36,12 +113,14 @@
                     <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Actions</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="subreddits-tbody">
                 {% for item in subreddits %}
-                <tr class="border-b border-slate-700/50 hover:bg-slate-700/30 {% if not item.sub.is_active %}opacity-60{% endif %}">
+                <tr class="subreddit-row border-b border-slate-700/50 hover:bg-slate-700/30 {% if not item.is_active %}opacity-60{% endif %}"
+                    data-name="{{ item.subreddit_name|lower }}"
+                    data-stale="{{ 'true' if (item.age_hours is not none and item.age_hours > 24) or item.age_display == 'Never' else 'false' }}">
                     <!-- Status -->
                     <td class="px-4 py-3">
-                        {% if item.sub.is_active %}
+                        {% if item.is_active %}
                         <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-green-900/50 text-green-400 border border-green-700">
                             <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>
                             Active
@@ -55,15 +134,15 @@
                     </td>
                     <!-- Subreddit Name -->
                     <td class="px-4 py-3">
-                        <span class="text-white font-medium">r/{{ item.sub.subreddit_name }}</span>
+                        <span class="text-white font-medium">r/{{ item.subreddit_name }}</span>
                     </td>
                     <!-- Client -->
                     <td class="px-4 py-3 text-gray-400">{{ item.client_name }}</td>
                     <!-- Type -->
                     <td class="px-4 py-3">
                         <span class="px-2 py-0.5 rounded text-xs font-medium
-                              {% if item.sub.type == 'professional' %}bg-indigo-900/50 text-indigo-400 border border-indigo-700{% else %}bg-purple-900/50 text-purple-400 border border-purple-700{% endif %}">
-                            {{ item.sub.type }}
+                              {% if item.type == 'professional' %}bg-indigo-900/50 text-indigo-400 border border-indigo-700{% else %}bg-purple-900/50 text-purple-400 border border-purple-700{% endif %}">
+                            {{ item.type }}
                         </span>
                     </td>
                     <!-- Last Scraped -->
@@ -77,7 +156,7 @@
                         <div class="flex items-center gap-2">
                             <!-- Pause/Resume Toggle -->
                             <form method="post" action="/admin/subreddits/{{ item.sub.id }}/toggle-active" class="inline">
-                                {% if item.sub.is_active %}
+                                {% if item.is_active %}
                                 <button type="submit" class="px-2.5 py-1 rounded text-xs font-medium bg-amber-900/50 text-amber-400 border border-amber-700 hover:bg-amber-800/50 transition-colors"
                                         title="Pause scraping for this subreddit">
                                     Pause
@@ -90,9 +169,9 @@
                                 {% endif %}
                             </form>
                             <!-- Remove -->
-                            <form method="post" action="/admin/subreddits/{{ item.sub.client_id }}/{{ item.sub.id }}/remove" class="inline">
+                            <form method="post" action="/admin/subreddits/{{ item.client_id }}/{{ item.sub.id }}/remove" class="inline">
                                 <button type="submit" class="px-2.5 py-1 rounded text-xs font-medium text-red-400 hover:text-red-300 border border-slate-700 hover:border-red-700 transition-colors"
-                                        onclick="return confirm('Remove r/{{ item.sub.subreddit_name }}?')">
+                                        onclick="return confirm('Remove r/{{ item.subreddit_name }}?')">
                                     Remove
                                 </button>
                             </form>
@@ -101,12 +180,63 @@
                 </tr>
                 {% endfor %}
                 {% if not subreddits %}
-                <tr>
-                    <td colspan="6" class="px-4 py-8 text-center text-gray-500">No subreddits configured</td>
+                <tr id="no-results-row">
+                    <td colspan="6" class="px-4 py-8 text-center text-gray-500">No subreddits match the current filters.</td>
                 </tr>
                 {% endif %}
             </tbody>
         </table>
     </div>
+
+    <!-- Results count (updated by JS) -->
+    <p class="text-xs text-gray-500" id="visible-count"></p>
 </div>
+
+<script>
+(function() {
+    const searchInput = document.getElementById('subreddit-search');
+    const staleCheckbox = document.getElementById('stale-only');
+    const tbody = document.getElementById('subreddits-tbody');
+    const visibleCount = document.getElementById('visible-count');
+    let debounceTimer = null;
+
+    function filterRows() {
+        const query = searchInput.value.trim().toLowerCase();
+        const staleOnly = staleCheckbox.checked;
+        const rows = tbody.querySelectorAll('.subreddit-row');
+        let shown = 0;
+
+        rows.forEach(row => {
+            const name = row.dataset.name;
+            const isStale = row.dataset.stale === 'true';
+
+            const matchesSearch = !query || name.includes(query);
+            const matchesStale = !staleOnly || isStale;
+
+            if (matchesSearch && matchesStale) {
+                row.style.display = '';
+                shown++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        visibleCount.textContent = shown < rows.length
+            ? `Showing ${shown} of ${rows.length} subreddits`
+            : '';
+    }
+
+    searchInput.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(filterRows, 150);
+    });
+
+    staleCheckbox.addEventListener('change', filterRows);
+
+    // If there's a server-side search query, also apply client-side filter on load
+    if (searchInput.value.trim()) {
+        filterRows();
+    }
+})();
+</script>
 {% endblock %}

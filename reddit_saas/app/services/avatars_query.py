@@ -358,10 +358,27 @@ def build_avatar_view(
     avatar: Avatar,
     health: dict,
     client_by_id: dict,
+    top_subreddits: list | None = None,
 ) -> dict:
-    """Merge get_avatar_health + batched related entities into a template dict."""
+    """Merge get_avatar_health + batched related entities into a template dict.
+
+    `top_subreddits` is an optional list of SubredditKarma rows to surface as
+    a compact summary on cards/rows (Req 5). Caller is responsible for
+    batch-fetching them via karma_tracker.top_subreddits_for_avatars.
+    """
     client_ids = [str(cid) for cid in (avatar.client_ids or []) if cid]
     clients = [client_by_id[cid] for cid in client_ids if cid in client_by_id]
+
+    top_summary: list[dict] = []
+    for r in (top_subreddits or []):
+        total = (r.comment_karma or 0) + (r.post_karma or 0)
+        top_summary.append({
+            "subreddit_name": r.subreddit_name,
+            "total_karma": total,
+            "comment_karma": r.comment_karma or 0,
+            "post_karma": r.post_karma or 0,
+            "type": r.subreddit_type or "unknown",
+        })
 
     out = dict(health)
     out.update({
@@ -378,5 +395,6 @@ def build_avatar_view(
         "business_subreddits": avatar.business_subreddits or [],
         "created_at": avatar.created_at,
         "clients": [{"id": str(c.id), "name": c.client_name, "brand": c.brand_name} for c in clients],
+        "top_subreddits": top_summary,
     })
     return out

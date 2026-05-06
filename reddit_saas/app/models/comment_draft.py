@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, Text, Boolean, Integer, DateTime, ForeignKey, func
+from sqlalchemy import Index, String, Text, Boolean, Integer, DateTime, ForeignKey, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -35,10 +35,18 @@ class CommentDraft(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Reddit feedback (populated by health check / status sync)
+    reddit_comment_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     reddit_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     deleted_detected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_karma_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationships
-    thread = relationship("RedditThread")
-    avatar = relationship("Avatar")
+    thread = relationship("RedditThread", lazy="joined")
+    avatar = relationship("Avatar", lazy="joined")
+
+    __table_args__ = (
+        Index("ix_comment_drafts_status", "status"),
+        Index("ix_comment_drafts_client_status", "client_id", "status"),
+        Index("ix_comment_drafts_created_at", "created_at"),
+    )

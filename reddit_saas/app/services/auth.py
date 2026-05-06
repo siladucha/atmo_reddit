@@ -40,7 +40,11 @@ def decode_access_token(token: str) -> dict | None:
 
 
 def get_user_by_email(db: Session, email: str) -> User | None:
-    return db.query(User).filter(User.email == email).first()
+    try:
+        return db.query(User).filter(User.email == email).first()
+    except Exception as e:
+        logger.error(f"DB error in get_user_by_email for {email}: {e}")
+        return None
 
 
 def create_user(db: Session, email: str, password: str, full_name: str | None = None) -> User:
@@ -49,9 +53,14 @@ def create_user(db: Session, email: str, password: str, full_name: str | None = 
         hashed_password=hash_password(password),
         full_name=full_name,
     )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+    try:
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    except Exception as e:
+        logger.error(f"DB error creating user {email}: {e}")
+        db.rollback()
+        raise
     return user
 
 

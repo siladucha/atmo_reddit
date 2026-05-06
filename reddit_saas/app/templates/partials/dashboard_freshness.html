@@ -1,0 +1,31 @@
+{# HTMX partial — Scrape_Freshness_Panel grouped by client, stale at top. #}
+
+{% if groups %}
+<div class="space-y-3 fade-in">
+    {% for group in groups %}
+    <details class="border border-slate-700 rounded-md" {% if group.stale_count > 0 %}open{% endif %}>
+        <summary class="cursor-pointer px-3 py-2 text-xs flex items-center justify-between">
+            <span class="text-gray-200 font-medium">{{ group.client_name }}</span>
+            <span class="font-mono text-gray-400">
+                {% if group.stale_count > 0 %}
+                <span class="text-red-400">{{ group.stale_count }} stale</span> /
+                {% endif %}
+                {{ group.total }} total
+            </span>
+        </summary>
+        <ul class="divide-y divide-slate-700">
+            {% for sub in group.subreddits %}
+            <li class="px-3 py-2 flex items-center justify-between gap-2 text-xs">
+                <span class="text-gray-300 truncate">r/{{ sub.subreddit_name }}</span>
+                <span class="font-mono whitespace-nowrap {% if sub.is_stale %}text-red-400{% else %}text-gray-400{% endif %}">
+                    {% if sub.is_stale %}● {% endif %}{{ sub.since_human }}
+                </span>
+            </li>
+            {% endfor %}
+        </ul>
+    </details>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-gray-500 text-xs">No active subreddits across any client.</p>
+{% endif %}

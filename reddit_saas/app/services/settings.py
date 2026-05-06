@@ -80,6 +80,12 @@ DEFAULTS: dict[str, dict] = {
         "desc": "LLM API key (Anthropic, OpenRouter, or AWS Bedrock)",
         "group": "llm",
     },
+    "gemini_api_key": {
+        "value": "",
+        "secret": True,
+        "desc": "Google Gemini API key (for scoring model)",
+        "group": "llm",
+    },
     "llm_provider": {
         "value": "anthropic",
         "secret": False,
@@ -87,7 +93,7 @@ DEFAULTS: dict[str, dict] = {
         "group": "llm",
     },
     "llm_scoring_model": {
-        "value": "anthropic/claude-3-5-haiku-20241022",
+        "value": "gemini/gemini-2.0-flash",
         "secret": False,
         "desc": "Model for scoring (cheap, fast)",
         "group": "llm",
@@ -334,6 +340,7 @@ def seed_from_env(db: Session) -> None:
         "reddit_client_secret": "REDDIT_CLIENT_SECRET",
         "reddit_user_agent": "REDDIT_USER_AGENT",
         "llm_api_key": "LITELLM_API_KEY",
+        "gemini_api_key": "GEMINI_API_KEY",
         "llm_provider": "LITELLM_PROVIDER",
         "llm_scoring_model": "LITELLM_SCORING_MODEL",
         "llm_generation_model": "LITELLM_GENERATION_MODEL",
@@ -444,13 +451,23 @@ def test_llm_connection(db: Session) -> dict:
 
     Returns ``{"success": bool, "message": str}``.
     """
-    api_key = get_setting(db, "llm_api_key")
     model = get_setting(db, "llm_scoring_model")
 
-    if not api_key:
-        return {"success": False, "message": "LLM API key not configured"}
     if not model:
         return {"success": False, "message": "LLM model not configured"}
+
+    # Resolve the correct API key based on model provider
+    if model.startswith("gemini/"):
+        api_key = get_setting(db, "gemini_api_key")
+        if not api_key:
+            api_key = get_setting(db, "llm_api_key")
+        key_name = "gemini_api_key"
+    else:
+        api_key = get_setting(db, "llm_api_key")
+        key_name = "llm_api_key"
+
+    if not api_key:
+        return {"success": False, "message": f"{key_name} not configured"}
 
     try:
         import litellm

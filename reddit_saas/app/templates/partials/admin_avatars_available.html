@@ -1,0 +1,40 @@
+{# Partial: list of avatars available to assign to a client.
+   Context: client, available_avatars #}
+{% if available_avatars %}
+<p class="text-sm text-gray-400 mb-4">
+    Select an avatar to assign to <strong class="text-white">{{ client.client_name }}</strong>:
+</p>
+<div class="space-y-2 max-h-[50vh] overflow-y-auto">
+    {% for av in available_avatars %}
+    <div class="flex items-center justify-between p-3 rounded-lg bg-slate-night border border-slate-700 hover:border-indigo-500 transition-colors">
+        <div>
+            <span class="text-white font-medium text-sm">u/{{ av.reddit_username }}</span>
+            {% if av.client_ids and av.client_ids|length > 0 %}
+            <span class="ml-2 text-[10px] text-amber-400 bg-amber-900/30 border border-amber-700/50 px-1.5 py-0.5 rounded">shared</span>
+            {% else %}
+            <span class="ml-2 text-[10px] text-green-400 bg-green-900/30 border border-green-700/50 px-1.5 py-0.5 rounded">free</span>
+            {% endif %}
+            <div class="text-[11px] text-gray-500 mt-0.5">
+                Karma: {{ (av.reddit_karma_comment or 0) + (av.reddit_karma_post or 0) }}
+                · Phase {{ av.warming_phase }}
+                · {{ av.reddit_status or 'unknown' }}
+            </div>
+        </div>
+        <form method="post" action="/admin/avatars/assign-to-client">
+            <input type="hidden" name="avatar_id" value="{{ av.id }}">
+            <input type="hidden" name="client_id" value="{{ client.id }}">
+            <button type="submit"
+                    class="px-3 py-1 rounded text-xs font-medium bg-green-700 hover:bg-green-600 text-white transition-colors">
+                Assign
+            </button>
+        </form>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-8">
+    <div class="text-2xl mb-2">✓</div>
+    <p class="text-gray-400 text-sm">All active avatars are already assigned to this client.</p>
+    <a href="/admin/avatars/new" class="inline-block mt-3 text-indigo-400 hover:text-indigo-300 text-sm">Create a new avatar →</a>
+</div>
+{% endif %}

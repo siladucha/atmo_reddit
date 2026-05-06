@@ -5,11 +5,24 @@
 
 <div class="mb-6 flex justify-between items-center">
     <h1 class="text-2xl font-bold text-gray-800">Review Comments</h1>
-    <div class="flex gap-2">
+    <div class="flex items-center gap-3">
+        <button type="button"
+                onclick="exportToJson('/export/comments?status={{ status }}')"
+                class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium
+                       bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 transition-colors"
+                title="Export to JSON">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                      d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+            </svg>
+            <span>Export JSON</span>
+        </button>
+        <div class="flex gap-2">
         <a href="/review?status=pending" class="px-3 py-1.5 rounded text-sm {{ 'bg-blue-600 text-white' if status == 'pending' else 'bg-gray-100 hover:bg-gray-200' }}">Pending</a>
         <a href="/review?status=approved" class="px-3 py-1.5 rounded text-sm {{ 'bg-blue-600 text-white' if status == 'approved' else 'bg-gray-100 hover:bg-gray-200' }}">Approved</a>
         <a href="/review?status=posted" class="px-3 py-1.5 rounded text-sm {{ 'bg-blue-600 text-white' if status == 'posted' else 'bg-gray-100 hover:bg-gray-200' }}">Posted</a>
         <a href="/review?status=rejected" class="px-3 py-1.5 rounded text-sm {{ 'bg-blue-600 text-white' if status == 'rejected' else 'bg-gray-100 hover:bg-gray-200' }}">Rejected</a>
+    </div>
     </div>
 </div>
 

@@ -83,17 +83,24 @@ def check_all_avatars_health():
         logger.info(f"Health check for {len(avatars)} avatars")
 
         for avatar in avatars:
-            health = get_avatar_health(db, avatar)
+            try:
+                health = get_avatar_health(db, avatar)
 
-            # Auto-quarantine if brand ratio too high
-            if not health["brand_ratio_ok"]:
-                logger.warning(f"Avatar {avatar.reddit_username} brand ratio too high: {health['brand_ratio']}")
-                # Don't quarantine, just log — human decides
+                # Auto-quarantine if brand ratio too high
+                if not health["brand_ratio_ok"]:
+                    logger.warning(f"Avatar {avatar.reddit_username} brand ratio too high: {health['brand_ratio']}")
+                    # Don't quarantine, just log — human decides
 
-            avatar.last_health_check = datetime.now(timezone.utc)
-            db.commit()
+                avatar.last_health_check = datetime.now(timezone.utc)
+                db.commit()
+            except Exception as e:
+                logger.error(f"Health check failed for avatar {avatar.reddit_username}: {e}")
+                db.rollback()
+                continue
 
         logger.info("Health check complete")
 
+    except Exception as e:
+        logger.error(f"Health check task failed: {e}")
     finally:
         db.close()

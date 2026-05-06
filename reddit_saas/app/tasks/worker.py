@@ -14,6 +14,8 @@ celery_app = Celery(
         "app.tasks.scraping",
         "app.tasks.orchestrator",
         "app.tasks.ai_pipeline",
+        "app.tasks.heartbeat",
+        "app.tasks.karma_tracking",
     ],
 )
 
@@ -28,6 +30,10 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     # Beat schedule — automated pipeline runs
     beat_schedule={
+        "system-heartbeat": {
+            "task": "system_heartbeat",
+            "schedule": 60.0,  # Every 60s — system health pulse
+        },
         "ai-pipeline-morning": {
             "task": "run_full_pipeline_all_clients",
             "schedule": crontab(hour=8, minute=0),
@@ -52,6 +58,17 @@ celery_app.conf.update(
             "task": "evaluate_all_avatar_phases",
             "schedule": crontab(hour=6, minute=0),
         },
+        "karma-tracking-4h": {
+            "task": "track_karma_all_avatars",
+            "schedule": crontab(hour="*/4", minute=15),
+        },
     },
+    # Broker connection resilience
+    broker_connection_retry_on_startup=True,
+    broker_connection_retry=True,
+    broker_connection_max_retries=None,  # Retry forever
+    broker_connection_timeout=10,
+    # Worker resilience
+    worker_cancel_long_running_tasks_on_connection_loss=True,
 )
 

@@ -1,5 +1,6 @@
 """Avatar CRUD and health monitoring routes."""
 
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,9 +8,12 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.database import get_db
+from app.dependencies.admin import require_superuser
 from app.models.avatar import Avatar
+from app.models.user import User
 from app.services.safety import get_avatar_health, quarantine_avatar
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -46,7 +50,12 @@ class AvatarUpdate(BaseModel):
 # --- CRUD ---
 
 @router.get("/")
-def list_avatars(active_only: bool = True, client_id: UUID | None = None, db: Session = Depends(get_db)):
+def list_avatars(
+    active_only: bool = True,
+    client_id: UUID | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superuser),
+):
     """List all avatars with health status."""
     query = db.query(Avatar)
     if active_only:
@@ -62,7 +71,11 @@ def list_avatars(active_only: bool = True, client_id: UUID | None = None, db: Se
 
 
 @router.get("/{avatar_id}")
-def get_avatar(avatar_id: UUID, db: Session = Depends(get_db)):
+def get_avatar(
+    avatar_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superuser),
+):
     """Get full avatar details."""
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
@@ -74,7 +87,11 @@ def get_avatar(avatar_id: UUID, db: Session = Depends(get_db)):
 
 
 @router.post("/")
-def create_avatar(data: AvatarCreate, db: Session = Depends(get_db)):
+def create_avatar(
+    data: AvatarCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superuser),
+):
     """Create a new avatar."""
     # Check username uniqueness
     existing = db.query(Avatar).filter(Avatar.reddit_username == data.reddit_username).first()
@@ -100,67 +117,27 @@ def create_avatar(data: AvatarCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(avatar)
 
-    # Immediate scrape of hobby subreddits for the new avatar
-    # Uses a separate DB session to avoid interfering with the main transaction
+    # Dispatch hobby scrape asynchronously — POST shouldn't block on Reddit I/O.
     if data.hobby_subreddits:
         try:
-            from app.database import SessionLocal
-            from app.services.reddit import scrape_subreddit
-            from app.models.hobby import HobbySubreddit
-            from app.services.transparency import record_activity_event
-
-            scrape_db = SessionLocal()
-            try:
-                hobby_subs = data.hobby_subreddits
-                if isinstance(hobby_subs, str):
-                    hobby_subs = [s.strip() for s in hobby_subs.split(",")]
-
-                for sub_name in hobby_subs[:3]:  # Limit to 3 to avoid long wait
-                    sub_name = sub_name.strip().replace("r/", "")
-                    if not sub_name:
-                        continue
-                    try:
-                        posts = scrape_subreddit(sub_name, limit=20, max_age_hours=24, sort="hot")
-                        for post in posts:
-                            exists = scrape_db.query(HobbySubreddit).filter(
-                                HobbySubreddit.post_id == post["reddit_native_id"]
-                            ).first()
-                            if exists:
-                                continue
-                            hobby = HobbySubreddit(
-                                subreddit=post["subreddit"],
-                                post_id=post["reddit_native_id"],
-                                post_title=post["post_title"],
-                                post_body=post["post_body"],
-                                comments=post["comments_json"],
-                                url=post["url"],
-                                author=post["author"],
-                                avatar_username=avatar.reddit_username,
-                                post_ups=post["ups"],
-                                post_downs=post["downs"],
-                                status="new",
-                            )
-                            scrape_db.add(hobby)
-                        scrape_db.commit()
-                        record_activity_event(
-                            scrape_db, "scrape",
-                            f"Immediate hobby scrape: r/{sub_name} for {avatar.reddit_username}",
-                            client_id=None,
-                            metadata={"subreddit_name": sub_name, "avatar_username": avatar.reddit_username, "trigger": "immediate"},
-                        )
-                    except Exception:
-                        scrape_db.rollback()
-                        continue  # Non-critical
-            finally:
-                scrape_db.close()
+            from app.tasks.scraping import scrape_hobby_subreddits
+            scrape_hobby_subreddits.delay(str(avatar.id))
         except Exception:
-            pass  # Non-critical — avatar was created
+            logger.warning(
+                "Failed to dispatch hobby scrape for avatar %s",
+                avatar.reddit_username, exc_info=True,
+            )
 
     return avatar
 
 
 @router.patch("/{avatar_id}")
-def update_avatar(avatar_id: UUID, data: AvatarUpdate, db: Session = Depends(get_db)):
+def update_avatar(
+    avatar_id: UUID,
+    data: AvatarUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superuser),
+):
     """Update avatar details."""
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
@@ -177,7 +154,11 @@ def update_avatar(avatar_id: UUID, data: AvatarUpdate, db: Session = Depends(get
 # --- Health & Safety ---
 
 @router.get("/{avatar_id}/health")
-def avatar_health(avatar_id: UUID, db: Session = Depends(get_db)):
+def avatar_health(
+    avatar_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superuser),
+):
     """Get detailed health metrics for an avatar."""
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
@@ -186,7 +167,12 @@ def avatar_health(avatar_id: UUID, db: Session = Depends(get_db)):
 
 
 @router.post("/{avatar_id}/quarantine")
-def quarantine(avatar_id: UUID, reason: str = "manual", db: Session = Depends(get_db)):
+def quarantine(
+    avatar_id: UUID,
+    reason: str = "manual",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superuser),
+):
     """Quarantine (deactivate) an avatar."""
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
@@ -196,7 +182,11 @@ def quarantine(avatar_id: UUID, reason: str = "manual", db: Session = Depends(ge
 
 
 @router.post("/{avatar_id}/reactivate")
-def reactivate(avatar_id: UUID, db: Session = Depends(get_db)):
+def reactivate(
+    avatar_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superuser),
+):
     """Reactivate a quarantined avatar."""
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
@@ -210,7 +200,11 @@ def reactivate(avatar_id: UUID, db: Session = Depends(get_db)):
 # --- Reddit Status (JSON API) ---
 
 @router.post("/{avatar_id}/check-reddit-status")
-def check_reddit_status_api(avatar_id: UUID, db: Session = Depends(get_db)):
+def check_reddit_status_api(
+    avatar_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superuser),
+):
     """Trigger a Reddit status check for one avatar; return cached fields as JSON."""
     from app.services.reddit_status import check_reddit_status
 
@@ -242,7 +236,10 @@ def check_reddit_status_api(avatar_id: UUID, db: Session = Depends(get_db)):
 
 
 @router.post("/check-reddit-status-all")
-def check_reddit_status_all_api(db: Session = Depends(get_db)):
+def check_reddit_status_all_api(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superuser),
+):
     """Trigger Reddit status check for all active avatars; return summary."""
     from app.services.reddit_status import check_all_reddit_statuses
 

@@ -9,10 +9,25 @@
     {% if is_superuser %}
     <a href="/" class="text-sm text-blue-600 hover:underline">&larr; Back to Dashboard</a>
     {% endif %}
-    <h1 class="text-2xl font-bold text-gray-900 mt-2">{{ client.client_name }}</h1>
-    {% if client.brand_name %}
-    <p class="text-gray-500">{{ client.brand_name }}</p>
-    {% endif %}
+    <div class="flex items-center justify-between mt-2">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">{{ client.client_name }}</h1>
+        {% if client.brand_name %}
+        <p class="text-gray-500">{{ client.brand_name }}</p>
+        {% endif %}
+      </div>
+      <button type="button"
+              onclick="exportToJson('/export/threads?client_id={{ client.id }}')"
+              class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium
+                     bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 transition-colors"
+              title="Export to JSON">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+        </svg>
+        <span>Export JSON</span>
+      </button>
+    </div>
   </div>
 
   <!-- Tab Bar -->

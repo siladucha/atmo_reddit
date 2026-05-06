@@ -1,0 +1,71 @@
+{# HTMX partial — grid of Client_Status_Cards with inline pipeline buttons. #}
+
+{% if cards %}
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 fade-in">
+    {% for card in cards %}
+    <div class="rounded-lg p-4 border {% if card.is_idle %}bg-amber-900/10 border-amber-700{% else %}bg-dark-steel border-slate-700{% endif %}">
+        <div class="flex items-start justify-between gap-2 mb-3">
+            <div>
+                <a href="/admin/clients/{{ card.client_id }}" class="text-base font-semibold text-white hover:text-indigo-300">{{ card.client_name }}</a>
+                {% if card.is_idle %}
+                <div class="text-[11px] text-amber-400 mt-0.5">⚠ no activity in last 24h</div>
+                {% endif %}
+            </div>
+            {% if card.pending > 0 %}
+            <a href="/admin/review"
+               class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-500/20 text-amber-300 hover:bg-amber-500/30">
+                {{ card.pending }} pending
+            </a>
+            {% endif %}
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 mb-3 text-center">
+            <div>
+                <div class="text-[11px] text-gray-500">Scraped 24h</div>
+                <div class="text-lg font-mono font-semibold text-white">{{ card.threads_24h }}</div>
+            </div>
+            <div>
+                <div class="text-[11px] text-gray-500">Scored 24h</div>
+                <div class="text-lg font-mono font-semibold text-white">{{ card.scored_24h }}</div>
+            </div>
+            <div>
+                <div class="text-[11px] text-gray-500">Generated 24h</div>
+                <div class="text-lg font-mono font-semibold text-white">{{ card.generated_24h }}</div>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap gap-1.5">
+            <button hx-post="/admin/dashboard/trigger/scrape/{{ card.client_id }}"
+                    hx-target="#dashboard-toast" hx-swap="innerHTML"
+                    hx-indicator="#spin-{{ card.client_id }}"
+                    class="px-2 py-1 bg-slate-700 border border-slate-600 text-gray-200 rounded text-xs hover:bg-slate-600">
+                🔍 Scrape
+            </button>
+            <button hx-post="/admin/dashboard/trigger/score/{{ card.client_id }}"
+                    hx-target="#dashboard-toast" hx-swap="innerHTML"
+                    hx-indicator="#spin-{{ card.client_id }}"
+                    class="px-2 py-1 bg-slate-700 border border-slate-600 text-gray-200 rounded text-xs hover:bg-slate-600">
+                📊 Score
+            </button>
+            <button hx-post="/admin/dashboard/trigger/generate/{{ card.client_id }}"
+                    hx-target="#dashboard-toast" hx-swap="innerHTML"
+                    hx-indicator="#spin-{{ card.client_id }}"
+                    class="px-2 py-1 bg-slate-700 border border-slate-600 text-gray-200 rounded text-xs hover:bg-slate-600">
+                ✍️ Generate
+            </button>
+            <button hx-post="/admin/dashboard/trigger/full-pipeline/{{ card.client_id }}"
+                    hx-target="#dashboard-toast" hx-swap="innerHTML"
+                    hx-indicator="#spin-{{ card.client_id }}"
+                    class="px-2 py-1 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-500">
+                🚀 Full
+            </button>
+            <span id="spin-{{ card.client_id }}" class="htmx-indicator text-[11px] text-gray-400 self-center">…</span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="bg-dark-steel rounded-lg p-8 border border-slate-700 text-center">
+    <p class="text-gray-500 text-sm">No active clients. Create one in <a href="/admin/clients" class="text-indigo-400 hover:underline">Clients</a>.</p>
+</div>
+{% endif %}

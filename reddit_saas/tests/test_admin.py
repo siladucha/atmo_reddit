@@ -1,8 +1,8 @@
 """Test admin dashboard API."""
 
 
-def test_admin_stats(client):
-    r = client.get("/api/admin/stats")
+def test_admin_stats(admin_client):
+    r = admin_client.get("/api/admin/stats")
     assert r.status_code == 200
     data = r.json()
     assert "clients" in data
@@ -12,7 +12,7 @@ def test_admin_stats(client):
     assert "total_cost_usd" in data["ai"]
 
 
-def test_admin_ai_usage(client):
-    r = client.get("/api/admin/ai-usage")
+def test_admin_ai_usage(admin_client):
+    r = admin_client.get("/api/admin/ai-usage")
     assert r.status_code == 200
     assert isinstance(r.json(), list)

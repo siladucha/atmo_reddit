@@ -11,6 +11,11 @@
 </nav>
 {% endblock %}
 
+{% block export_button %}
+{% set export_url = "/export/avatars" %}
+{% include "partials/export_button.html" %}
+{% endblock %}
+
 {% block content %}
 <div class="space-y-6">
     <!-- Header -->
@@ -24,11 +29,43 @@
                 <span class="text-amber-400">{{ page_obj.counts.stale }} stale</span>
             </p>
         </div>
-        <a href="/avatars/new"
-           class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-            + New Avatar
-        </a>
+        <div class="flex gap-2">
+            {% if f.client_id %}
+            <button type="button"
+                    id="assign-avatar-btn"
+                    hx-get="/admin/avatars/available-for-client/{{ f.client_id }}"
+                    hx-target="#assign-avatar-modal-body"
+                    hx-swap="innerHTML"
+                    hx-trigger="click"
+                    hx-on::before-request="document.getElementById('assign-avatar-modal-body').innerHTML='<p class=\'text-gray-400 text-sm\'>Loading available avatars…</p>'; document.getElementById('assign-avatar-modal').classList.remove('hidden')"
+                    hx-on::response-error="document.getElementById('assign-avatar-modal-body').innerHTML='<p class=\'text-red-400 text-sm\'>Failed to load avatars. Please refresh the page.</p>'"
+                    class="bg-green-700 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                + Assign Existing Avatar
+            </button>
+            {% endif %}
+            <a href="/admin/avatars/new"
+               class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                + New Avatar
+            </a>
+        </div>
     </div>
+
+    {% if f.client_id %}
+    <!-- Assign Avatar Modal -->
+    <div id="assign-avatar-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+        <div class="bg-slate-800 border border-slate-700 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-slate-700">
+                <h2 class="text-lg font-semibold text-white">Assign Avatar to Client</h2>
+                <button type="button"
+                        onclick="document.getElementById('assign-avatar-modal').classList.add('hidden')"
+                        class="text-gray-400 hover:text-white text-xl">&times;</button>
+            </div>
+            <div id="assign-avatar-modal-body" class="p-5 overflow-y-auto flex-1">
+                <p class="text-gray-400 text-sm">Loading available avatars…</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Filter bar -->
     <form id="admin-avatars-filter"

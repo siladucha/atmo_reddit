@@ -352,7 +352,7 @@ def test_seed_neuroyoga(db):
     """Seed creates NeuroYoga with all data."""
     from app.seed import seed_neuroyoga
     from app.models.client import Client
-    from app.models.subreddit import ClientSubreddit
+    from app.models.subreddit import Subreddit, ClientSubredditAssignment
     from app.models.avatar import Avatar
 
     seed_neuroyoga(db)
@@ -361,8 +361,13 @@ def test_seed_neuroyoga(db):
     assert client is not None
     assert client.brand_name == "ATMO"
 
-    subs = db.query(ClientSubreddit).filter(ClientSubreddit.client_id == client.id).all()
-    assert len(subs) >= 10
+    assignments = db.query(ClientSubredditAssignment).filter(ClientSubredditAssignment.client_id == client.id).all()
+    assert len(assignments) >= 10
+
+    # Verify Subreddit records were created
+    subreddit_ids = [a.subreddit_id for a in assignments]
+    subreddits = db.query(Subreddit).filter(Subreddit.id.in_(subreddit_ids)).all()
+    assert len(subreddits) >= 10
 
     avatars = db.query(Avatar).filter(Avatar.client_ids.any(str(client.id))).all()
     assert len(avatars) >= 2

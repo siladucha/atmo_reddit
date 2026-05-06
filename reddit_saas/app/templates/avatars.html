@@ -12,7 +12,20 @@
             <span class="text-orange-600">{{ page_obj.counts.stale }} stale</span>
         </p>
     </div>
-    <a href="/avatars/new" class="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 shrink-0">+ New Avatar</a>
+    <div class="flex items-center gap-2">
+        <button type="button"
+                onclick="exportToJson('/export/avatars')"
+                class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium
+                       bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 transition-colors"
+                title="Export to JSON">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                      d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+            </svg>
+            <span>Export JSON</span>
+        </button>
+        <a href="/avatars/new" class="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 shrink-0">+ New Avatar</a>
+    </div>
 </div>
 
 {% include "partials/avatars_filter_bar.html" %}

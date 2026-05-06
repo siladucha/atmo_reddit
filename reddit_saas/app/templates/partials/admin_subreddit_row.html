@@ -10,7 +10,12 @@
         </span>
         {% endif %}
     </td>
-    <td class="px-4 py-3 text-gray-300">r/{{ sub.subreddit_name }}</td>
+    <td class="px-4 py-3 text-gray-300">
+        r/{{ sub.subreddit_name }}
+        {% if sub.shared %}
+        <span class="ml-1 px-1.5 py-0.5 rounded text-xs bg-purple-900/50 text-purple-400 border border-purple-700" title="Shared with other clients">Shared</span>
+        {% endif %}
+    </td>
     <td class="px-4 py-3">
         <span class="px-2 py-0.5 rounded text-xs font-medium
               {% if sub.type == 'professional' %}bg-indigo-900/50 text-indigo-400 border border-indigo-700{% else %}bg-amber-900/50 text-amber-400 border border-amber-700{% endif %}">

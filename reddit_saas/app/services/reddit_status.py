@@ -214,6 +214,20 @@ def check_reddit_status(db: Session, avatar: Avatar) -> RedditAccountStatus:
 
     db.commit()
     db.refresh(avatar)
+
+    # Karma sync — derive per-subreddit karma from the avatar's recent comment
+    # history (Req 3). Failures must not block the status check itself.
+    try:
+        from app.services import karma_tracker
+
+        karma_tracker.sync_avatar_from_reddit(db, avatar)
+        db.commit()
+    except Exception:
+        logger.warning(
+            "Subreddit karma sync failed for u/%s", avatar.reddit_username, exc_info=True
+        )
+        db.rollback()
+
     return status
 
 

@@ -61,6 +61,9 @@ def call_llm(
         "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
+        # Hard timeout — without this a hung provider blocks a Celery worker
+        # until Celery's task hard timeout (often minutes), starving the queue.
+        "timeout": 60,
     }
     if api_key:
         kwargs["api_key"] = api_key
@@ -200,7 +203,11 @@ def _resolve_api_key(model: str) -> str | None:
     We mirror this by resolving the correct key per provider prefix.
     """
     if model.startswith("gemini/"):
-        return get_config("gemini_api_key")
+        key = get_config("gemini_api_key")
+        if not key:
+            # Fallback: try main LLM key (works if using OpenRouter or unified key)
+            key = get_config("llm_api_key")
+        return key or None
     elif model.startswith("anthropic/"):
         return get_config("llm_api_key")
     elif model.startswith("bedrock/"):

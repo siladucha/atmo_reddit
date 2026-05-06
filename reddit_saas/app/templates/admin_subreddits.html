@@ -5,6 +5,10 @@
     <span class="text-gray-500">Admin</span> / <a href="/admin/clients" class="hover:text-white">Clients</a> / <a href="/admin/clients/{{ client.id }}" class="hover:text-white">{{ client.client_name }}</a> / <span class="text-white">Subreddits</span>
 </nav>
 {% endblock %}
+{% block export_button %}
+{% set export_url = "/export/subreddits?client_id=" + (client.id | string) %}
+{% include "partials/export_button.html" %}
+{% endblock %}
 {% block content %}
 <div class="max-w-5xl mx-auto">
     <h1 class="text-2xl font-semibold text-white mb-6">Subreddits — {{ client.client_name }}</h1>

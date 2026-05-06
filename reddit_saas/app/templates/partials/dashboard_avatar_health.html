@@ -1,0 +1,76 @@
+{# HTMX partial — Avatar_Health_Summary. #}
+
+<div class="space-y-3 fade-in">
+    <div class="grid grid-cols-2 gap-2 text-xs">
+        <a href="/admin/avatars?status=active"
+           class="bg-slate-night rounded px-3 py-2 border border-slate-700 hover:border-slate-500 block">
+            <div class="text-gray-500">Active</div>
+            <div class="font-mono text-lg text-emerald-400">{{ summary.status_counts.active }}</div>
+        </a>
+        <a href="/admin/avatars?status=unknown"
+           class="bg-slate-night rounded px-3 py-2 border border-slate-700 hover:border-slate-500 block">
+            <div class="text-gray-500">Unknown</div>
+            <div class="font-mono text-lg text-gray-300">{{ summary.status_counts.unknown }}</div>
+        </a>
+        <a href="/admin/avatars?status=shadowbanned"
+           class="rounded px-3 py-2 border block {% if summary.status_counts.shadowbanned > 0 %}bg-red-900/20 border-red-700 hover:border-red-500{% else %}bg-slate-night border-slate-700 hover:border-slate-500{% endif %}">
+            <div class="text-gray-500">Shadowbanned</div>
+            <div class="font-mono text-lg {% if summary.status_counts.shadowbanned > 0 %}text-red-400{% else %}text-gray-300{% endif %}">{{ summary.status_counts.shadowbanned }}</div>
+        </a>
+        <a href="/admin/avatars?status=suspended"
+           class="rounded px-3 py-2 border block {% if summary.status_counts.suspended > 0 %}bg-red-900/20 border-red-700 hover:border-red-500{% else %}bg-slate-night border-slate-700 hover:border-slate-500{% endif %}">
+            <div class="text-gray-500">Suspended</div>
+            <div class="font-mono text-lg {% if summary.status_counts.suspended > 0 %}text-red-400{% else %}text-gray-300{% endif %}">{{ summary.status_counts.suspended }}</div>
+        </a>
+    </div>
+
+    <div class="border-t border-slate-700 pt-3 text-xs">
+        <div class="flex items-center justify-between">
+            <span class="text-gray-400">Total active</span>
+            <span class="font-mono text-white">{{ summary.total_active }}</span>
+        </div>
+    </div>
+
+    <div class="text-xs space-y-1">
+        <div class="text-gray-500 mb-1">Warming Phases</div>
+        <div class="flex items-center justify-between">
+            <span class="text-gray-400">Phase 1</span>
+            <span class="font-mono text-white">{{ summary.phase_counts.phase_1 }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+            <span class="text-gray-400">Phase 2</span>
+            <span class="font-mono text-white">{{ summary.phase_counts.phase_2 }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+            <span class="text-gray-400">Phase 3</span>
+            <span class="font-mono text-white">{{ summary.phase_counts.phase_3 }}</span>
+        </div>
+    </div>
+
+    {% if summary.eligible_for_promotion > 0 %}
+    <div class="border-t border-slate-700 pt-3">
+        <a href="/admin/avatars" class="block bg-indigo-900/30 border border-indigo-700 rounded px-3 py-2 text-xs hover:bg-indigo-900/50">
+            <span class="text-indigo-200">{{ summary.eligible_for_promotion }} avatar(s) eligible for phase promotion</span>
+        </a>
+    </div>
+    {% endif %}
+
+    {% if summary.karma_diversity %}
+    <div class="border-t border-slate-700 pt-3 text-xs space-y-1">
+        <div class="text-gray-500 mb-1">Karma Diversity</div>
+        <div class="flex items-center justify-between">
+            <span class="text-gray-400">Avg subs per avatar</span>
+            <span class="font-mono text-white">{{ summary.karma_diversity.avg_subreddits_per_avatar }}</span>
+        </div>
+        {% if summary.karma_diversity.low_diversity_count > 0 %}
+        <div class="bg-amber-900/20 border border-amber-700 rounded px-3 py-2 mt-2">
+            <span class="text-amber-300">
+                {{ summary.karma_diversity.low_diversity_count }} avatar(s) flagged
+                <span class="font-medium">low diversity</span>
+                — karma in ≤1 subreddit
+            </span>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>

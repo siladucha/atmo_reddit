@@ -81,38 +81,46 @@ def check_avatar_can_post(
 
     # Check 2: Phase policy — replaces the old binary warmup check
     if target_subreddit is not None and comment_text is not None and client is not None:
-        phase_policy = PhasePolicy()
-        policy_result = phase_policy.check_comment_allowed(
-            db=db,
-            avatar=avatar,
-            comment_type=comment_type,
-            target_subreddit=target_subreddit,
-            comment_text=comment_text,
-            client=client,
-            thread_tag=thread_tag,
-        )
-
-        if policy_result.status == PolicyStatus.blocked:
-            # Log policy_block ActivityEvent
-            _log_policy_block(
+        try:
+            phase_policy = PhasePolicy()
+            policy_result = phase_policy.check_comment_allowed(
                 db=db,
                 avatar=avatar,
                 comment_type=comment_type,
                 target_subreddit=target_subreddit,
-                policy_result=policy_result,
+                comment_text=comment_text,
+                client=client,
+                thread_tag=thread_tag,
             )
-            return SafetyCheckResult(False, policy_result.reason)
 
-        if policy_result.status == PolicyStatus.requires_review:
-            # Log policy_block ActivityEvent for requires_review as well
-            _log_policy_block(
-                db=db,
-                avatar=avatar,
-                comment_type=comment_type,
-                target_subreddit=target_subreddit,
-                policy_result=policy_result,
+            if policy_result.status == PolicyStatus.blocked:
+                # Log policy_block ActivityEvent
+                _log_policy_block(
+                    db=db,
+                    avatar=avatar,
+                    comment_type=comment_type,
+                    target_subreddit=target_subreddit,
+                    policy_result=policy_result,
+                )
+                return SafetyCheckResult(False, policy_result.reason)
+
+            if policy_result.status == PolicyStatus.requires_review:
+                # Log policy_block ActivityEvent for requires_review as well
+                _log_policy_block(
+                    db=db,
+                    avatar=avatar,
+                    comment_type=comment_type,
+                    target_subreddit=target_subreddit,
+                    policy_result=policy_result,
+                )
+                return SafetyCheckResult(False, f"Requires human review: {policy_result.reason}")
+        except Exception as e:
+            logger.error(
+                f"Phase policy check failed for avatar {avatar.reddit_username} "
+                f"in r/{target_subreddit}: {e}"
             )
-            return SafetyCheckResult(False, f"Requires human review: {policy_result.reason}")
+            # Default to blocking on policy check failure (safe default)
+            return SafetyCheckResult(False, f"Phase policy check error: {e}")
 
     # Piggyback evaluation: check if phase evaluation is due
     evaluator = PhaseEvaluator()
@@ -307,30 +315,39 @@ def quarantine_avatar(db: Session, avatar: Avatar, reason: str) -> None:
 
 
 def get_avatar_health(db: Session, avatar: Avatar) -> dict:
-    """Get health metrics for an avatar."""
+    """Get health metrics for an avatar.
+
+    Returns a dict with health metrics. On DB errors, returns a degraded
+    response with available data.
+    """
     now = datetime.now(timezone.utc)
     week_start = now - timedelta(days=7)
 
-    week_comments = (
-        db.query(func.count(CommentDraft.id))
-        .filter(
-            CommentDraft.avatar_id == avatar.id,
-            CommentDraft.status.in_(["approved", "posted"]),
-            CommentDraft.created_at >= week_start,
+    try:
+        week_comments = (
+            db.query(func.count(CommentDraft.id))
+            .filter(
+                CommentDraft.avatar_id == avatar.id,
+                CommentDraft.status.in_(["approved", "posted"]),
+                CommentDraft.created_at >= week_start,
+            )
+            .scalar()
         )
-        .scalar()
-    )
 
-    week_professional = (
-        db.query(func.count(CommentDraft.id))
-        .filter(
-            CommentDraft.avatar_id == avatar.id,
-            CommentDraft.type == "professional",
-            CommentDraft.status.in_(["approved", "posted"]),
-            CommentDraft.created_at >= week_start,
+        week_professional = (
+            db.query(func.count(CommentDraft.id))
+            .filter(
+                CommentDraft.avatar_id == avatar.id,
+                CommentDraft.type == "professional",
+                CommentDraft.status.in_(["approved", "posted"]),
+                CommentDraft.created_at >= week_start,
+            )
+            .scalar()
         )
-        .scalar()
-    )
+    except Exception as e:
+        logger.error(f"DB error in get_avatar_health for {avatar.reddit_username}: {e}")
+        week_comments = 0
+        week_professional = 0
 
     brand_ratio = week_professional / week_comments if week_comments > 0 else 0
     account_age = (now - avatar.created_at).days if avatar.created_at else 0
@@ -356,8 +373,13 @@ def get_avatar_health(db: Session, avatar: Avatar) -> dict:
         3: "Brand Integration",
     }
 
-    evaluator = PhaseEvaluator()
-    eligible, criteria_values = evaluator.check_promotion_eligibility(db, avatar)
+    try:
+        evaluator = PhaseEvaluator()
+        eligible, criteria_values = evaluator.check_promotion_eligibility(db, avatar)
+    except Exception as e:
+        logger.warning(f"Phase evaluation failed for {avatar.reddit_username}: {e}")
+        eligible = False
+        criteria_values = {}
 
     return {
         "id": str(avatar.id),

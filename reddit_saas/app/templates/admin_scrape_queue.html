@@ -10,6 +10,11 @@
 </nav>
 {% endblock %}
 
+{% block export_button %}
+{% set export_url = "/export/subreddits" %}
+{% include "partials/export_button.html" %}
+{% endblock %}
+
 {% block content %}
 <div class="space-y-6">
     <!-- Header with Toggle -->

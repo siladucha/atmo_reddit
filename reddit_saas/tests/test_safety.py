@@ -42,13 +42,13 @@ def test_promotional_phrases_blocked():
 
 
 def test_long_comment_blocked():
-    result = check_comment_content("x" * 301)
+    result = check_comment_content("x" * 501)
     assert not result.allowed
     assert "long" in result.reason.lower()
 
 
 def test_comment_at_limit_passes():
-    result = check_comment_content("x" * 300)
+    result = check_comment_content("x" * 500)
     assert result.allowed
 
 

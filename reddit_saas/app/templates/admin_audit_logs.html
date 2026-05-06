@@ -5,6 +5,10 @@
     <span class="text-gray-500">Admin</span> / <span class="text-white">Audit Logs</span>
 </nav>
 {% endblock %}
+{% block export_button %}
+{% set export_url = "/export/audit-logs" %}
+{% include "partials/export_button.html" %}
+{% endblock %}
 {% block content %}
 <div class="max-w-7xl mx-auto">
     <h1 class="text-2xl font-semibold text-white mb-6">Audit Logs</h1>
@@ -34,8 +38,28 @@
             </div>
             <div>
                 <label class="block text-xs text-gray-400 mb-1">Action</label>
-                <input type="text" name="action" value="{{ filters.action }}" placeholder="e.g. create"
-                       class="bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                <select name="action"
+                        class="bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                    <option value="">All Actions</option>
+                    {% for a in actions_list %}
+                    <option value="{{ a }}" {% if filters.action == a %}selected{% endif %}>{{ a }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Entity Type</label>
+                <select name="entity_type"
+                        class="bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                    <option value="">All Types</option>
+                    {% for et in entity_types %}
+                    <option value="{{ et }}" {% if filters.entity_type == et %}selected{% endif %}>{{ et }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Search Details</label>
+                <input type="text" name="search" value="{{ filters.search }}" placeholder="e.g. Hot-Thought2408"
+                       class="bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-48">
             </div>
             <div>
                 <label class="block text-xs text-gray-400 mb-1">From</label>
@@ -60,6 +84,9 @@
 
     <!-- Logs Table -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+        <div class="px-4 py-2 border-b border-slate-700 text-xs text-gray-500">
+            {{ pagination.total }} entries found
+        </div>
         <table class="w-full text-sm text-left">
             <thead>
                 <tr class="border-b border-slate-700">
@@ -77,7 +104,12 @@
                         {{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') if log.created_at else '—' }}
                     </td>
                     <td class="px-4 py-3">
-                        <span class="px-2 py-0.5 rounded text-xs font-medium bg-slate-700 text-gray-300">
+                        <span class="px-2 py-0.5 rounded text-xs font-medium
+                            {% if log.action == 'create' %}bg-green-900/50 text-green-300
+                            {% elif log.action == 'update' %}bg-blue-900/50 text-blue-300
+                            {% elif log.action == 'delete' or log.action == 'deactivate' %}bg-red-900/50 text-red-300
+                            {% elif 'pipeline' in log.action %}bg-purple-900/50 text-purple-300
+                            {% else %}bg-slate-700 text-gray-300{% endif %}">
                             {{ log.action }}
                         </span>
                     </td>
@@ -85,9 +117,12 @@
                     <td class="px-4 py-3 text-gray-400 font-mono text-xs">
                         {{ (log.entity_id|string)[:12] if log.entity_id else '—' }}
                     </td>
-                    <td class="px-4 py-3 text-gray-400 text-xs">
+                    <td class="px-4 py-3 text-gray-400 text-xs max-w-md">
                         {% if log.details %}
-                        <code class="text-xs">{{ log.details|tojson|truncate(80) }}</code>
+                        <details class="cursor-pointer">
+                            <summary class="text-gray-400 hover:text-gray-200">{{ log.details|tojson|truncate(60) }}</summary>
+                            <pre class="mt-1 text-xs text-gray-500 whitespace-pre-wrap break-all">{{ log.details|tojson(indent=2) }}</pre>
+                        </details>
                         {% else %}
                         —
                         {% endif %}
@@ -107,12 +142,12 @@
     {% if pagination.total_pages > 1 %}
     <div class="flex justify-center gap-2 mt-6">
         {% if pagination.has_prev %}
-        <a href="/admin/audit-logs?page={{ pagination.page - 1 }}&user_id={{ filters.user_id }}&client_id={{ filters.client_id }}&action={{ filters.action }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}"
+        <a href="/admin/audit-logs?page={{ pagination.page - 1 }}&user_id={{ filters.user_id }}&client_id={{ filters.client_id }}&action={{ filters.action }}&entity_type={{ filters.entity_type }}&search={{ filters.search }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}"
            class="px-3 py-1 bg-dark-steel border border-slate-700 rounded text-sm text-gray-400 hover:text-white hover:border-slate-500">Previous</a>
         {% endif %}
         <span class="px-3 py-1 text-sm text-gray-400">Page {{ pagination.page }} of {{ pagination.total_pages }}</span>
         {% if pagination.has_next %}
-        <a href="/admin/audit-logs?page={{ pagination.page + 1 }}&user_id={{ filters.user_id }}&client_id={{ filters.client_id }}&action={{ filters.action }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}"
+        <a href="/admin/audit-logs?page={{ pagination.page + 1 }}&user_id={{ filters.user_id }}&client_id={{ filters.client_id }}&action={{ filters.action }}&entity_type={{ filters.entity_type }}&search={{ filters.search }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}"
            class="px-3 py-1 bg-dark-steel border border-slate-700 rounded text-sm text-gray-400 hover:text-white hover:border-slate-500">Next</a>
         {% endif %}
     </div>
