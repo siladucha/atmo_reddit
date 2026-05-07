@@ -54,6 +54,11 @@ _SCHEDULE_ENTRIES: list[dict[str, Any]] = [
         "label": "Evaluate avatar warming phases",
         "cron": crontab(hour=6, minute=0),
     },
+    {
+        "key": "karma-tracking-4h",
+        "label": "Karma tracking (all avatars)",
+        "cron": crontab(hour="*/4", minute=15),
+    },
 ]
 
 
@@ -96,6 +101,9 @@ def _human_since(when: datetime | None, now: datetime) -> str:
 
 def get_top_metrics(db: Session) -> dict[str, Any]:
     """Aggregate the four headline numbers shown above the dashboard grid."""
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
     pending_reviews = (
         db.query(sa_func.count(CommentDraft.id))
         .filter(CommentDraft.status == "pending")
@@ -117,12 +125,84 @@ def get_top_metrics(db: Session) -> dict[str, Any]:
     schedule = get_schedule_display()
     next_run = schedule[0] if schedule else None
 
+    # Today's pipeline throughput
+    threads_today = (
+        db.query(sa_func.count(RedditThread.id))
+        .filter(RedditThread.created_at >= today_start)
+        .scalar()
+    ) or 0
+
+    scored_today = (
+        db.query(sa_func.count(RedditThread.id))
+        .filter(
+            RedditThread.created_at >= today_start,
+            RedditThread.tag.isnot(None),
+        )
+        .scalar()
+    ) or 0
+
+    generated_today = (
+        db.query(sa_func.count(CommentDraft.id))
+        .filter(CommentDraft.created_at >= today_start)
+        .scalar()
+    ) or 0
+
+    approved_today = (
+        db.query(sa_func.count(CommentDraft.id))
+        .filter(
+            CommentDraft.status.in_(["approved", "posted"]),
+            CommentDraft.created_at >= today_start,
+        )
+        .scalar()
+    ) or 0
+
+    posted_today = (
+        db.query(sa_func.count(CommentDraft.id))
+        .filter(
+            CommentDraft.status == "posted",
+            CommentDraft.posted_at >= today_start,
+        )
+        .scalar()
+    ) or 0
+
+    # Worker status — check heartbeat freshness
+    last_heartbeat = (
+        db.query(ActivityEvent.created_at)
+        .filter(
+            ActivityEvent.event_type == "system",
+            ActivityEvent.message.ilike("%heartbeat%"),
+        )
+        .order_by(desc(ActivityEvent.created_at))
+        .first()
+    )
+    worker_online = False
+    if last_heartbeat and last_heartbeat.created_at:
+        worker_online = (now - last_heartbeat.created_at).total_seconds() < 120
+
+    # Last pipeline activity (any type)
+    last_activity = (
+        db.query(ActivityEvent.created_at)
+        .filter(ActivityEvent.event_type.in_(("scrape", "score", "generate")))
+        .order_by(desc(ActivityEvent.created_at))
+        .first()
+    )
+    last_activity_since = _human_since(last_activity.created_at, now) if last_activity else "Never"
+
     return {
         "pending_reviews": pending_reviews,
         "total_clients": total_clients,
         "total_avatars": total_avatars,
         "next_run_label": next_run["label"] if next_run else None,
         "next_run_in": next_run["in_human"] if next_run else None,
+        "today": {
+            "threads": threads_today,
+            "scored": scored_today,
+            "generated": generated_today,
+            "approved": approved_today,
+            "posted": posted_today,
+        },
+        "worker_online": worker_online,
+        "last_activity_since": last_activity_since,
     }
 
 
@@ -292,24 +372,54 @@ def get_scrape_freshness_grouped(
 
 _PIPELINE_EVENT_TYPES = ("scrape", "score", "generate")
 
+_ALL_EVENT_TYPES = ("scrape", "score", "generate", "review", "system", "karma_tracking")
+
 
 def get_run_history(
     db: Session,
     client_id: uuid.UUID | None = None,
     limit: int = 20,
+    event_types: tuple[str, ...] | None = None,
 ) -> list[dict[str, Any]]:
     """Recent pipeline events, joined with client name for display."""
     now = datetime.now(timezone.utc)
 
+    types_filter = event_types or _PIPELINE_EVENT_TYPES
+
     query = (
         db.query(ActivityEvent, Client.client_name)
         .outerjoin(Client, ActivityEvent.client_id == Client.id)
-        .filter(ActivityEvent.event_type.in_(_PIPELINE_EVENT_TYPES))
+        .filter(ActivityEvent.event_type.in_(types_filter))
     )
     if client_id is not None:
         query = query.filter(ActivityEvent.client_id == client_id)
 
     rows = query.order_by(desc(ActivityEvent.created_at)).limit(limit).all()
+
+    def _derive_status(event: ActivityEvent) -> str:
+        """Derive a status label from event type and content."""
+        if event.event_type == "system":
+            msg_lower = (event.message or "").lower()
+            if "fail" in msg_lower or "error" in msg_lower:
+                return "error"
+            if "rate_limit" in msg_lower or "backoff" in msg_lower:
+                return "warning"
+            return "info"
+        meta = event.event_metadata or {}
+        if meta.get("error"):
+            return "error"
+        return "success"
+
+    def _derive_trigger(event: ActivityEvent) -> str:
+        """Derive whether the event was manual or scheduled."""
+        meta = event.event_metadata or {}
+        trigger = meta.get("trigger")
+        if trigger in ("manual", "immediate"):
+            return "manual"
+        msg_lower = (event.message or "").lower()
+        if "manual" in msg_lower:
+            return "manual"
+        return "scheduled"
 
     return [
         {
@@ -320,6 +430,8 @@ def get_run_history(
             "message": event.message,
             "created_at": event.created_at,
             "since_human": _human_since(event.created_at, now),
+            "status": _derive_status(event),
+            "trigger": _derive_trigger(event),
         }
         for event, client_name in rows
     ]
@@ -489,3 +601,66 @@ def get_schedule_display(now: datetime | None = None) -> list[dict[str, Any]]:
     if rows:
         rows[0]["is_next"] = True
     return rows
+
+
+# Mapping from schedule key to the event_type(s) used in activity_events.
+_SCHEDULE_KEY_TO_EVENT_TYPES: dict[str, list[str]] = {
+    "ai-pipeline-morning": ["score", "generate"],
+    "ai-pipeline-afternoon": ["score", "generate"],
+    "hobby-pipeline-daily": ["scrape"],
+    "avatar-health-check": ["system"],
+    "evaluate-avatar-phases-daily": ["system"],
+    "karma-tracking-4h": ["karma_tracking"],
+}
+
+
+def get_schedule_with_history(db: Session, now: datetime | None = None) -> list[dict[str, Any]]:
+    """Schedule entries enriched with last run info from activity_events."""
+    if now is None:
+        now = datetime.now(timezone.utc)
+
+    schedule = get_schedule_display(now)
+
+    # Fetch recent activity events (last 24h) to match against schedule entries
+    cutoff = now - timedelta(hours=48)
+    recent_events = (
+        db.query(ActivityEvent)
+        .filter(ActivityEvent.created_at >= cutoff)
+        .order_by(desc(ActivityEvent.created_at))
+        .limit(200)
+        .all()
+    )
+
+    for entry in schedule:
+        key = entry["key"]
+        event_types = _SCHEDULE_KEY_TO_EVENT_TYPES.get(key, [])
+
+        # Find matching events for this schedule entry
+        matching = [
+            e for e in recent_events
+            if e.event_type in event_types
+        ]
+
+        if matching:
+            last = matching[0]
+            entry["last_run_at"] = last.created_at
+            entry["last_run_since"] = _human_since(last.created_at, now)
+            entry["last_run_message"] = last.message
+            entry["last_run_type"] = last.event_type
+        else:
+            entry["last_run_at"] = None
+            entry["last_run_since"] = "Never"
+            entry["last_run_message"] = None
+            entry["last_run_type"] = None
+
+        if len(matching) > 1:
+            prev = matching[1]
+            entry["prev_run_at"] = prev.created_at
+            entry["prev_run_since"] = _human_since(prev.created_at, now)
+            entry["prev_run_message"] = prev.message
+        else:
+            entry["prev_run_at"] = None
+            entry["prev_run_since"] = None
+            entry["prev_run_message"] = None
+
+    return schedule

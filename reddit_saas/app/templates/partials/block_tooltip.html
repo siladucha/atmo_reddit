@@ -1,0 +1,12 @@
+{# Block tooltip — hover ⓘ icon with explanation popup.
+   Usage: {% set tooltip_text = "Your explanation" %}{% include "partials/block_tooltip.html" %}
+#}
+<span class="inline-flex items-center ml-2 relative" style="vertical-align: middle;">
+    <span class="block-tooltip-trigger" tabindex="0">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="display:block;">
+            <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <text x="8" y="12" text-anchor="middle" font-size="10" font-weight="600" fill="currentColor">i</text>
+        </svg>
+    </span>
+    <span class="block-tooltip-popup">{{ tooltip_text }}</span>
+</span>

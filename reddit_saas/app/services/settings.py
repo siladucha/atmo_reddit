@@ -160,6 +160,49 @@ DEFAULTS: dict[str, dict] = {
         "desc": "Max Reddit API requests per minute (1–60)",
         "group": "scraping",
     },
+    # Scheduler
+    "pipeline_enabled": {
+        "value": "true",
+        "secret": False,
+        "desc": "Master kill switch — disables all AI pipeline tasks (score, generate)",
+        "group": "scheduler",
+    },
+    "generation_enabled": {
+        "value": "true",
+        "secret": False,
+        "desc": "Kill switch for comment generation only (score still runs)",
+        "group": "scheduler",
+    },
+    "schedule_ai_pipeline_hours": {
+        "value": "8,14",
+        "secret": False,
+        "desc": "Hours (UTC) when AI pipeline runs (scoring + generation). Comma-separated.",
+        "group": "scheduler",
+    },
+    "schedule_hobby_pipeline_hour": {
+        "value": "10",
+        "secret": False,
+        "desc": "Hour (UTC) when hobby pipeline runs daily",
+        "group": "scheduler",
+    },
+    "schedule_avatar_health_hours": {
+        "value": "0,12",
+        "secret": False,
+        "desc": "Hours (UTC) for avatar health checks. Comma-separated.",
+        "group": "scheduler",
+    },
+    "schedule_phase_evaluation_hour": {
+        "value": "6",
+        "secret": False,
+        "desc": "Hour (UTC) for daily avatar phase evaluation",
+        "group": "scheduler",
+    },
+    "schedule_karma_tracking_hours": {
+        "value": "0,4,8,12,16,20",
+        "secret": False,
+        "desc": "Hours (UTC) for karma tracking. Comma-separated (every 4h default).",
+        "group": "scheduler",
+    },
     # Budget / Billing
     "monthly_budget_usd": {
         "value": "100",
@@ -516,3 +559,23 @@ def check_connections(db: Session) -> dict:
         "database": {"configured": True, "status": "connected"},
         "redis": {"configured": True, "status": "connected"},
     }
+
+
+# ---------------------------------------------------------------------------
+# Kill switch helpers
+# ---------------------------------------------------------------------------
+
+
+def is_pipeline_enabled(db: Session) -> bool:
+    """Check if the pipeline master switch is on."""
+    return get_setting(db, "pipeline_enabled").lower() == "true"
+
+
+def is_generation_enabled(db: Session) -> bool:
+    """Check if generation is enabled."""
+    return get_setting(db, "generation_enabled").lower() == "true"
+
+
+def is_scrape_enabled(db: Session) -> bool:
+    """Check if scraping is enabled."""
+    return get_setting(db, "scrape_enabled").lower() == "true"

@@ -10,100 +10,156 @@
 {% include "partials/export_button.html" %}
 {% endblock %}
 {% block content %}
+<style>
+    /* Skeleton pulse */
+    @keyframes skeleton-pulse {
+        0%, 100% { opacity: 0.4; }
+        50% { opacity: 0.7; }
+    }
+    .skeleton-card {
+        animation: skeleton-pulse 1.5s ease-in-out infinite;
+    }
+</style>
+
 <div class="max-w-7xl mx-auto">
 
-    <!-- Overall Status Banner -->
-    {% set critical_count = health.values() | selectattr('status', 'equalto', 'critical') | list | length %}
-    {% set warning_count = health.values() | selectattr('status', 'equalto', 'warning') | list | length %}
-    {% if critical_count > 0 %}
-    <div class="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/30">
+    <!-- Overall Status Banner (loads after service cards) -->
+    <div id="health-status-banner"
+         class="mb-6 p-4 rounded-lg bg-slate-700/20 border border-slate-700">
         <div class="flex items-center gap-3">
-            <span class="text-2xl">🔴</span>
+            <span class="text-2xl">⏳</span>
             <div>
-                <div class="text-red-400 font-semibold">System has {{ critical_count }} critical issue{{ 's' if critical_count > 1 }}</div>
-                <div class="text-red-400/70 text-sm">Pipeline cannot run until these are resolved</div>
+                <div class="text-gray-400 font-semibold">Checking services...</div>
+                <div class="text-gray-500 text-sm">Health checks are running in parallel</div>
             </div>
         </div>
     </div>
-    {% elif warning_count > 0 %}
-    <div class="mb-6 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30">
-        <div class="flex items-center gap-3">
-            <span class="text-2xl">🟡</span>
-            <div>
-                <div class="text-amber-400 font-semibold">System has {{ warning_count }} warning{{ 's' if warning_count > 1 }}</div>
-                <div class="text-amber-400/70 text-sm">System is operational but some services need attention</div>
-            </div>
-        </div>
-    </div>
-    {% else %}
-    <div class="mb-6 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
-        <div class="flex items-center gap-3">
-            <span class="text-2xl">🟢</span>
-            <div>
-                <div class="text-emerald-400 font-semibold">All systems operational</div>
-                <div class="text-emerald-400/70 text-sm">Pipeline is ready to run</div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
 
-    <h1 class="text-2xl font-semibold text-white mb-6">Service Status</h1>
+    <div class="flex items-center gap-3 mb-6">
+        <h1 class="text-2xl font-semibold text-white">Service Status</h1>
+        <div class="tooltip-container">
+            <span class="tooltip-trigger text-gray-500 hover:text-gray-300 transition-colors">
+                <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </span>
+            <div class="tooltip-content">
+                <div class="font-semibold text-white mb-1">Service Health Checks</div>
+                Each card tests connectivity to a specific infrastructure component. Cards load independently — slow services won't block the page.
+                <div class="mt-2 text-gray-400 text-[11px]">Stack: PostgreSQL · Redis/Valkey · Celery · PRAW · LiteLLM</div>
+            </div>
+        </div>
+    </div>
 
-    <!-- Service Status Cards -->
+    <!-- Service Status Cards (lazy-loaded via HTMX) -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
-        {% for service, info in health.items() %}
-        {% include "partials/admin_health_card.html" %}
+        {% for service in services %}
+        <div hx-get="/admin/health/service/{{ service }}"
+             hx-trigger="load"
+             hx-swap="outerHTML"
+             class="skeleton-card bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-sm text-gray-400 uppercase tracking-wide">{{ service }}</span>
+                <span class="w-3 h-3 rounded-full bg-slate-600"></span>
+            </div>
+            <div class="mb-2">
+                <span class="text-gray-500 font-medium">Checking...</span>
+            </div>
+            <div class="h-4 w-2/3 bg-slate-700 rounded mt-2"></div>
+        </div>
         {% endfor %}
     </div>
 
     <!-- API Metrics (auto-refreshing widgets) -->
     <div class="flex items-baseline justify-between mb-4">
-        <h2 class="text-lg font-medium text-gray-300">API Metrics</h2>
+        <div class="flex items-center gap-3">
+            <h2 class="text-lg font-medium text-gray-300">API Metrics</h2>
+            <div class="tooltip-container">
+                <span class="tooltip-trigger text-gray-500 hover:text-gray-300 transition-colors">
+                    <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </span>
+                <div class="tooltip-content">
+                    <div class="font-semibold text-white mb-1">Rolling Window Metrics</div>
+                    Aggregated from <code class="text-blue-300">scrape_log</code> and <code class="text-blue-300">ai_usage_log</code> tables. Shows API performance within the configured time window.
+                    <div class="mt-2 text-gray-400 text-[11px]">Auto-refreshes: Rate Limit 30s · Reddit 30s · LLM 60s · Freshness 120s</div>
+                </div>
+            </div>
+        </div>
         <span class="text-xs text-gray-500">{{ window_minutes }}-minute rolling window · auto-refresh</span>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
         <div hx-get="/admin/health/widget/rate-limit"
-             hx-trigger="every 30s"
+             hx-trigger="load, every 30s"
              hx-swap="outerHTML"
              hx-on::response-error="this.classList.add('opacity-60')"
-             hx-on::after-request="this.classList.remove('opacity-60')">
-            {% with rate_limit=rate_limit, color=rate_limit_color %}
-            {% include "partials/health_rate_limit.html" %}
-            {% endwith %}
+             hx-on::after-request="this.classList.remove('opacity-60')"
+             class="skeleton-card bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 uppercase tracking-wide mb-3">Reddit Rate Limit</div>
+            <div class="h-8 w-1/3 bg-slate-700 rounded mb-3"></div>
+            <div class="h-2.5 w-full bg-slate-700 rounded"></div>
         </div>
 
         <div hx-get="/admin/health/widget/reddit-metrics"
-             hx-trigger="every 30s"
+             hx-trigger="load, every 30s"
              hx-swap="outerHTML"
              hx-on::response-error="this.classList.add('opacity-60')"
-             hx-on::after-request="this.classList.remove('opacity-60')">
-            {% with metrics=reddit_metrics %}
-            {% include "partials/health_reddit_metrics.html" %}
-            {% endwith %}
+             hx-on::after-request="this.classList.remove('opacity-60')"
+             class="skeleton-card bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 uppercase tracking-wide mb-3">Reddit API</div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="h-8 w-2/3 bg-slate-700 rounded"></div>
+                <div class="h-8 w-2/3 bg-slate-700 rounded"></div>
+            </div>
         </div>
 
         <div hx-get="/admin/health/widget/llm-metrics"
-             hx-trigger="every 60s"
+             hx-trigger="load, every 60s"
              hx-swap="outerHTML"
              hx-on::response-error="this.classList.add('opacity-60')"
-             hx-on::after-request="this.classList.remove('opacity-60')">
-            {% with metrics=llm_metrics %}
-            {% include "partials/health_llm_metrics.html" %}
-            {% endwith %}
+             hx-on::after-request="this.classList.remove('opacity-60')"
+             class="skeleton-card bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 uppercase tracking-wide mb-3">LLM API</div>
+            <div class="grid grid-cols-3 gap-4">
+                <div class="h-8 w-2/3 bg-slate-700 rounded"></div>
+                <div class="h-8 w-2/3 bg-slate-700 rounded"></div>
+                <div class="h-8 w-2/3 bg-slate-700 rounded"></div>
+            </div>
         </div>
 
         <div hx-get="/admin/health/widget/scrape-freshness"
-             hx-trigger="every 120s"
+             hx-trigger="load, every 120s"
              hx-swap="outerHTML"
              hx-on::response-error="this.classList.add('opacity-60')"
-             hx-on::after-request="this.classList.remove('opacity-60')">
-            {% include "partials/health_scrape_freshness.html" %}
+             hx-on::after-request="this.classList.remove('opacity-60')"
+             class="skeleton-card bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 uppercase tracking-wide mb-3">Scrape Freshness</div>
+            <div class="grid grid-cols-3 gap-3">
+                <div class="h-8 w-2/3 bg-slate-700 rounded"></div>
+                <div class="h-8 w-2/3 bg-slate-700 rounded"></div>
+                <div class="h-8 w-2/3 bg-slate-700 rounded"></div>
+            </div>
         </div>
     </div>
 
     <!-- DB Statistics -->
-    <h2 class="text-lg font-medium text-gray-300 mb-4">Database Statistics</h2>
+    <div class="flex items-center gap-3 mb-4">
+        <h2 class="text-lg font-medium text-gray-300">Database Statistics</h2>
+        <div class="tooltip-container">
+            <span class="tooltip-trigger text-gray-500 hover:text-gray-300 transition-colors">
+                <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </span>
+            <div class="tooltip-content">
+                <div class="font-semibold text-white mb-1">PostgreSQL Record Counts</div>
+                Live counts from the database. These are lightweight <code class="text-blue-300">COUNT(*)</code> queries.
+                <div class="mt-2 text-gray-400 text-[11px]">Tables: clients · avatars · reddit_threads · comment_drafts</div>
+            </div>
+        </div>
+    </div>
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
         <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
             <div class="text-sm text-gray-400 mb-1">Clients</div>
@@ -129,4 +185,53 @@
         </div>
     </div>
 </div>
+
+<script>
+// Update status banner after all service cards load
+document.addEventListener('htmx:afterSettle', function() {
+    const cards = document.querySelectorAll('[id^="health-"]');
+    if (cards.length < 5) return; // not all loaded yet
+
+    const banner = document.getElementById('health-status-banner');
+    if (!banner) return;
+
+    let critical = 0, warning = 0;
+    cards.forEach(card => {
+        if (card.classList.contains('border-red-500/30')) critical++;
+        else if (card.classList.contains('border-amber-500/30')) warning++;
+    });
+
+    if (critical > 0) {
+        banner.className = 'mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/30';
+        banner.innerHTML = `
+            <div class="flex items-center gap-3">
+                <span class="text-2xl">🔴</span>
+                <div>
+                    <div class="text-red-400 font-semibold">System has ${critical} critical issue${critical > 1 ? 's' : ''}</div>
+                    <div class="text-red-400/70 text-sm">Pipeline cannot run until these are resolved</div>
+                </div>
+            </div>`;
+    } else if (warning > 0) {
+        banner.className = 'mb-6 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30';
+        banner.innerHTML = `
+            <div class="flex items-center gap-3">
+                <span class="text-2xl">🟡</span>
+                <div>
+                    <div class="text-amber-400 font-semibold">System has ${warning} warning${warning > 1 ? 's' : ''}</div>
+                    <div class="text-amber-400/70 text-sm">System is operational but some services need attention</div>
+                </div>
+            </div>`;
+    } else {
+        banner.className = 'mb-6 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30';
+        banner.innerHTML = `
+            <div class="flex items-center gap-3">
+                <span class="text-2xl">🟢</span>
+                <div>
+                    <div class="text-emerald-400 font-semibold">All systems operational</div>
+                    <div class="text-emerald-400/70 text-sm">Pipeline is ready to run</div>
+                </div>
+            </div>`;
+    }
+});
+</script>
 {% endblock %}

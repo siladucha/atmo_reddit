@@ -1,7 +1,63 @@
+{% set tech_info = {
+    'postgresql': {
+        'icon': '🐘',
+        'label': 'PostgreSQL',
+        'tech': 'PostgreSQL + SQLAlchemy 2.0',
+        'tip': 'Primary data store. Holds clients, avatars, threads, drafts, audit logs. Currently running in Docker on EC2, migrates to RDS at 5+ clients.',
+        'detail_tip': 'Connection pool: 10 (SQLAlchemy default). ~9,350 queries/day at 10 clients. Latency <5ms is healthy.'
+    },
+    'redis': {
+        'icon': '⚡',
+        'label': 'Redis / Valkey',
+        'tech': 'Redis / Valkey Serverless',
+        'tip': 'Distributed locks (scrape dedup), rate limiting (sliding window), task results (TTL 5min), Celery broker. Migrating to AWS ElastiCache Valkey.',
+        'detail_tip': 'Cost: $6.14/mo flat (100MB storage floor). ~8,644 ECPUs/day at 10 clients. Memory <5MB typical.'
+    },
+    'celery': {
+        'icon': '🔄',
+        'label': 'Task Workers',
+        'tech': 'Celery Workers (migrating to SQS)',
+        'tip': 'Background task execution: scraping, AI scoring, comment generation. Inspect timeout 1.5s. Migrating to SQS long-poll consumers.',
+        'detail_tip': 'Workers process queue_tick (60s), scrape tasks, AI pipeline batches. No workers = pipeline halted.'
+    },
+    'reddit': {
+        'icon': '🤖',
+        'label': 'Reddit API',
+        'tech': 'Reddit API via PRAW',
+        'tip': 'OAuth2 read-only access for scraping subreddits. Rate limit: 60 req/min per token. Tests connectivity by fetching r/test.',
+        'detail_tip': 'Cost: $0 (free API). ~300 calls/day at 10 clients. Bottleneck is rate limits, not cost. Proxy rotation needed at 500+ clients.'
+    },
+    'llm': {
+        'icon': '🧠',
+        'label': 'LLM API',
+        'tech': 'LiteLLM (multi-provider gateway)',
+        'tip': 'AI inference via LiteLLM proxy. Supports Gemini, Claude, OpenAI. Scoring uses cheap/fast models, generation uses high-quality models.',
+        'detail_tip': 'Pipeline cost: ~$1.17/client/day. 93% of total infra cost. Scoring: ~$0.0003/call. Generation: ~$0.039/call.'
+    }
+} %}
+{% set svc = tech_info.get(service, {'icon': '❓', 'label': service, 'tech': service, 'tip': 'Unknown service', 'detail_tip': ''}) %}
+
 <div id="health-{{ service }}" class="bg-dark-steel rounded-lg p-5 border
     {% if info.status == 'ok' %}border-emerald-500/30{% elif info.status == 'warning' %}border-amber-500/30{% else %}border-red-500/30{% endif %}">
     <div class="flex items-center justify-between mb-2">
-        <span class="text-sm text-gray-400 uppercase tracking-wide">{{ service }}</span>
+        <div class="flex items-center gap-2">
+            <span class="text-base">{{ svc.icon }}</span>
+            <span class="text-sm text-gray-400 uppercase tracking-wide">{{ svc.label }}</span>
+            <div class="tooltip-container">
+                <span class="tooltip-trigger text-gray-600 hover:text-gray-400 transition-colors">
+                    <svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </span>
+                <div class="tooltip-content">
+                    <div class="font-semibold text-white mb-1">{{ svc.tech }}</div>
+                    <div class="mb-2">{{ svc.tip }}</div>
+                    {% if svc.detail_tip %}
+                    <div class="text-[11px] text-gray-400 border-t border-slate-600 pt-1.5 mt-1.5">{{ svc.detail_tip }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
         {% if info.status == 'ok' %}
         <span class="w-3 h-3 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/30"></span>
         {% elif info.status == 'warning' %}

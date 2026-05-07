@@ -35,15 +35,18 @@
                 {% endif %}
             </div>
         </a>
-        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+        <a href="/admin/clients"
+           class="bg-dark-steel rounded-lg p-5 border border-slate-700 hover:border-slate-500 transition-colors block">
             <div class="text-sm text-gray-400 mb-1">Active Clients</div>
             <div class="text-3xl font-mono font-semibold text-white">{{ metrics.total_clients }}</div>
-        </div>
-        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+        </a>
+        <a href="/admin/avatars"
+           class="bg-dark-steel rounded-lg p-5 border border-slate-700 hover:border-slate-500 transition-colors block">
             <div class="text-sm text-gray-400 mb-1">Active Avatars</div>
             <div class="text-3xl font-mono font-semibold text-white">{{ metrics.total_avatars }}</div>
-        </div>
-        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+        </a>
+        <a href="/admin/tasks"
+           class="bg-dark-steel rounded-lg p-5 border border-slate-700 hover:border-slate-500 transition-colors block">
             <div class="text-sm text-gray-400 mb-1">Next Scheduled Run</div>
             {% if metrics.next_run_in %}
             <div class="text-2xl font-mono font-semibold text-white">in {{ metrics.next_run_in }}</div>
@@ -51,16 +54,75 @@
             {% else %}
             <div class="text-2xl font-mono font-semibold text-gray-500">—</div>
             {% endif %}
-        </div>
+        </a>
     </div>
 
     <!-- Toast slot -->
     <div id="dashboard-toast" class="mb-4"></div>
 
+    <!-- Today's Pipeline Summary + Worker Status -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 px-4 py-3 mb-6">
+        <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <span class="text-xs text-gray-500 uppercase tracking-wider font-medium">Today{% set tooltip_text = "Pipeline throughput for today (UTC). Shows how many posts were scraped, scored, had comments generated, approved, and posted." %}{% include "partials/block_tooltip.html" %}</span>
+            <div class="flex items-center gap-1">
+                <span class="text-xs text-gray-400">Scraped</span>
+                <span class="text-sm font-mono font-medium text-white">{{ metrics.today.threads }}</span>
+            </div>
+            <div class="flex items-center gap-1">
+                <span class="text-xs text-gray-400">Scored</span>
+                <span class="text-sm font-mono font-medium text-white">{{ metrics.today.scored }}</span>
+            </div>
+            <div class="flex items-center gap-1">
+                <span class="text-xs text-gray-400">Generated</span>
+                <span class="text-sm font-mono font-medium text-white">{{ metrics.today.generated }}</span>
+            </div>
+            <div class="flex items-center gap-1">
+                <span class="text-xs text-gray-400">Approved</span>
+                <span class="text-sm font-mono font-medium text-green-400">{{ metrics.today.approved }}</span>
+            </div>
+            <div class="flex items-center gap-1">
+                <span class="text-xs text-gray-400">Posted</span>
+                <span class="text-sm font-mono font-medium text-indigo-400">{{ metrics.today.posted }}</span>
+            </div>
+            <span class="h-4 w-px bg-slate-700 mx-1"></span>
+            <div class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full {% if metrics.worker_online %}bg-green-400{% else %}bg-red-400 animate-pulse{% endif %}"></span>
+                <span class="text-xs {% if metrics.worker_online %}text-green-400{% else %}text-red-400{% endif %}">
+                    Worker {% if metrics.worker_online %}online{% else %}offline{% endif %}
+                </span>
+            </div>
+            <div class="flex items-center gap-1">
+                <span class="text-xs text-gray-500">Last activity:</span>
+                <span class="text-xs font-mono text-gray-400">{{ metrics.last_activity_since }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Topology Timeline -->
+    <div id="topology-container" class="bg-dark-steel rounded-lg border border-slate-700 mb-6 relative">
+        <div id="topology-error-indicator" class="hidden absolute top-2 right-2 text-[10px] text-red-400 bg-red-900/30 px-2 py-0.5 rounded">
+            ⚠ refresh failed
+        </div>
+        <div id="topology-panel"
+             hx-get="/admin/dashboard/topology-panel"
+             hx-trigger="load, every 60s"
+             hx-swap="innerHTML">
+            <p class="text-gray-500 text-xs p-4">Loading topology…</p>
+        </div>
+    </div>
+    <script>
+      document.getElementById('topology-panel').addEventListener('htmx:responseError', function() {
+        document.getElementById('topology-error-indicator').classList.remove('hidden');
+      });
+      document.getElementById('topology-panel').addEventListener('htmx:afterSwap', function() {
+        document.getElementById('topology-error-indicator').classList.add('hidden');
+      });
+    </script>
+
     <!-- Run All Bulk Controls -->
     <div class="bg-dark-steel rounded-lg p-4 border border-slate-700 mb-6">
         <div class="flex flex-wrap items-center gap-3">
-            <span class="text-sm text-gray-400 mr-2">Run All (every active client):</span>
+            <span class="text-sm text-gray-400 mr-2">Run All (every active client):{% set tooltip_text = "Trigger pipeline stages for all active clients at once. Scrape fetches new posts, Score evaluates them, Generate creates comment drafts." %}{% include "partials/block_tooltip.html" %}</span>
             <button hx-post="/admin/dashboard/run-all/scrape"
                     hx-target="#dashboard-toast" hx-swap="innerHTML"
                     hx-indicator="#run-all-spinner"
@@ -90,12 +152,23 @@
         </div>
     </div>
 
+    <!-- Pipeline Controls (Kill Switches) -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 mb-6">
+        <header class="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+            <h3 class="text-sm font-semibold text-gray-200">⚡ Pipeline Controls{% set tooltip_text = "Kill switches to instantly disable pipeline stages. Use in emergencies to stop all scraping, scoring, or generation." %}{% include "partials/block_tooltip.html" %}</h3>
+            <span class="text-xs text-gray-500">Kill switches — disable pipeline stages instantly</span>
+        </header>
+        <div id="pipeline-controls-panel" class="px-4 py-2">
+            {% include "partials/pipeline_controls.html" %}
+        </div>
+    </div>
+
     <!-- Two-column layout: client cards (left) + side panels (right) -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Client cards (wider) -->
         <div class="lg:col-span-2 space-y-4">
             <div class="flex items-center justify-between">
-                <h2 class="text-lg font-medium text-gray-300">Clients</h2>
+                <h2 class="text-lg font-medium text-gray-300">Clients{% set tooltip_text = "Per-client pipeline status cards. Shows today's threads scraped, scored, generated, and pending review. Click to open client detail." %}{% include "partials/block_tooltip.html" %}</h2>
                 <span class="text-xs text-gray-500">auto-refresh every 60s</span>
             </div>
             <div id="client-cards"
@@ -113,7 +186,7 @@
             <!-- Scrape Freshness -->
             <section class="bg-dark-steel rounded-lg border border-slate-700">
                 <header class="flex items-center justify-between px-4 py-3 border-b border-slate-700">
-                    <h3 class="text-sm font-semibold text-gray-200">Scrape Freshness</h3>
+                    <h3 class="text-sm font-semibold text-gray-200">Scrape Freshness{% set tooltip_text = "How recently each subreddit was scraped. Red = stale (overdue for scraping). Green = fresh." %}{% include "partials/block_tooltip.html" %}</h3>
                     <button class="text-xs text-gray-400 hover:text-white"
                             hx-get="/admin/dashboard/freshness"
                             hx-target="#freshness-panel"
@@ -131,7 +204,7 @@
             <!-- Avatar Health -->
             <section class="bg-dark-steel rounded-lg border border-slate-700">
                 <header class="flex items-center justify-between px-4 py-3 border-b border-slate-700">
-                    <h3 class="text-sm font-semibold text-gray-200">Avatar Health</h3>
+                    <h3 class="text-sm font-semibold text-gray-200">Avatar Health{% set tooltip_text = "Overview of avatar warming phases, karma status, and promotion eligibility. Flags avatars at risk of demotion." %}{% include "partials/block_tooltip.html" %}</h3>
                     <button class="text-xs text-gray-400 hover:text-white"
                             hx-get="/admin/dashboard/avatar-health"
                             hx-target="#avatar-health-panel"
@@ -149,7 +222,7 @@
             <!-- Schedule -->
             <section class="bg-dark-steel rounded-lg border border-slate-700">
                 <header class="flex items-center justify-between px-4 py-3 border-b border-slate-700">
-                    <h3 class="text-sm font-semibold text-gray-200">Schedule</h3>
+                    <h3 class="text-sm font-semibold text-gray-200">Schedule{% set tooltip_text = "Upcoming automated pipeline runs. Shows time until next execution for each scheduled task (scoring, generation, health checks)." %}{% include "partials/block_tooltip.html" %}</h3>
                     <button class="text-xs text-gray-400 hover:text-white"
                             hx-get="/admin/dashboard/schedule"
                             hx-target="#schedule-panel"
@@ -169,7 +242,7 @@
     <!-- Run History (full width below) -->
     <section class="mt-8 bg-dark-steel rounded-lg border border-slate-700">
         <header class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-slate-700">
-            <h3 class="text-sm font-semibold text-gray-200">Run History</h3>
+            <h3 class="text-sm font-semibold text-gray-200">Run History{% set tooltip_text = "Chronological log of recent pipeline executions — scrapes, scoring, and generation runs with results." %}{% include "partials/block_tooltip.html" %}</h3>
             <div class="flex items-center gap-2">
                 <select name="client_id"
                         hx-get="/admin/dashboard/run-history"

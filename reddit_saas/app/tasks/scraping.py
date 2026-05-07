@@ -49,6 +49,18 @@ def scrape_professional_subreddits(client_id: str):
         client_uuid = uuid.UUID(client_id)
         for sub in subreddits:
             try:
+                # Resolve subreddit_id from shared registry
+                subreddit_record = (
+                    db.query(Subreddit)
+                    .filter(Subreddit.subreddit_name.ilike(sub.subreddit_name))
+                    .first()
+                )
+                if not subreddit_record:
+                    subreddit_record = Subreddit(subreddit_name=sub.subreddit_name, is_active=True)
+                    db.add(subreddit_record)
+                    db.flush()
+                subreddit_id = subreddit_record.id
+
                 start = time.time()
                 posts = scrape_subreddit(sub.subreddit_name, limit=50, max_age_hours=24)
                 new_posts = deduplicate_posts(posts, existing_ids)
@@ -58,6 +70,7 @@ def scrape_professional_subreddits(client_id: str):
                 for post in new_posts:
                     thread = RedditThread(
                         client_id=client_id,
+                        subreddit_id=subreddit_id,
                         type="professional",
                         reddit_native_id=post["reddit_native_id"],
                         subreddit=post["subreddit"],
@@ -146,13 +159,21 @@ def scrape_hobby_subreddits(avatar_id: str):
     """Scrape hobby subreddits for an avatar."""
     db = SessionLocal()
     try:
+        from app.services.settings import is_scrape_enabled
+        if not is_scrape_enabled(db):
+            logger.info("scrape_hobby_subreddits: scrape_enabled=false, skipping")
+            return 0
+
         from app.models.avatar import Avatar
         from app.models.hobby import HobbySubreddit
 
         avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
         if not avatar:
             logger.error(f"Avatar {avatar_id} not found")
-            return
+            return 0
+        if avatar.is_frozen:
+            logger.info(f"scrape_hobby_subreddits: avatar {avatar.reddit_username} is frozen, skipping")
+            return 0
 
         hobby_subs_raw = avatar.hobby_subreddits or []
         if isinstance(hobby_subs_raw, str):

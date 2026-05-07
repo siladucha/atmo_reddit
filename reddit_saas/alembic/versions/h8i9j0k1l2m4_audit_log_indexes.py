@@ -1,14 +1,14 @@
 """Add performance indexes to audit_log table.
 
-Revision ID: h8i9j0k1l2m3
-Revises: g7h8i9j0k1l2
+Revision ID: h8i9j0k1l2m4
+Revises: h8i9j0k1l2m3
 Create Date: 2026-05-06
 """
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "h8i9j0k1l2m3"
-down_revision = "g7h8i9j0k1l2"
+revision = "h8i9j0k1l2m4"
+down_revision = "h8i9j0k1l2m3"
 branch_labels = None
 depends_on = None
 

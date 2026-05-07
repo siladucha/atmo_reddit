@@ -148,7 +148,7 @@ def test_avatar_health_summary(db, seeded):
 
 def test_schedule_display_orders_by_next_run():
     schedule = operations_dashboard.get_schedule_display()
-    assert len(schedule) == 5
+    assert len(schedule) == 6
     # Sorted soonest-first, only the head is flagged
     assert schedule[0]["is_next"] is True
     assert all(not e["is_next"] for e in schedule[1:])

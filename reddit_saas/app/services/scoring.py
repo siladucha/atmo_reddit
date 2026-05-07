@@ -19,6 +19,7 @@ from app.models.subreddit import ClientSubredditAssignment, Subreddit
 from app.models.thread import RedditThread
 from app.models.thread_score import ThreadScore
 from app.services.ai import call_llm_json, log_ai_usage
+from app.schemas.llm_outputs import ScoringOutput
 
 logger = logging.getLogger(__name__)
 
@@ -175,6 +176,7 @@ def score_thread_for_client(
             model=get_config("llm_scoring_model"),
             temperature=0.2,
             max_tokens=256,
+            schema=ScoringOutput,
         )
     except Exception as e:
         logger.error(

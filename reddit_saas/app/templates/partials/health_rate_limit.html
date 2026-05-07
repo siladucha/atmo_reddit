@@ -21,7 +21,21 @@
 <div id="widget-rate-limit"
      class="bg-dark-steel rounded-lg p-5 border {{ border_class }}">
     <div class="flex items-center justify-between mb-3">
-        <span class="text-sm text-gray-400 uppercase tracking-wide">Reddit Rate Limit</span>
+        <div class="flex items-center gap-2">
+            <span class="text-sm text-gray-400 uppercase tracking-wide">Reddit Rate Limit</span>
+            <div class="tooltip-container">
+                <span class="tooltip-trigger text-gray-600 hover:text-gray-400 transition-colors">
+                    <svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </span>
+                <div class="tooltip-content">
+                    <div class="font-semibold text-white mb-1">Reddit OAuth2 Rate Limit</div>
+                    Reddit allows 60 requests/min per OAuth token. This gauge shows how much of that budget is consumed.
+                    <div class="mt-2 text-gray-400 text-[11px]">Source: PRAW response headers (X-Ratelimit-Remaining). Resets every 60s. At 10 clients we use ~5 req/min — well within limits.</div>
+                </div>
+            </div>
+        </div>
         <span class="w-3 h-3 rounded-full shadow-lg {{ dot_class }}"></span>
     </div>
     {% if usage_pct is none %}

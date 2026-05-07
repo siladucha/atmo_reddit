@@ -1,0 +1,476 @@
+<div id="inspector-content">
+
+    <!-- Overall Status Banner -->
+    <div id="inspector-banner"
+         class="mb-6 p-4 rounded-lg
+                {% if report.status == 'critical' %}bg-red-500/10 border border-red-500/30
+                {% elif report.status == 'warning' %}bg-amber-500/10 border border-amber-500/30
+                {% else %}bg-emerald-500/10 border border-emerald-500/30{% endif %}">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                {% if report.status == 'critical' %}
+                <span class="text-2xl">🔴</span>
+                <div>
+                    <div class="text-red-400 font-semibold">{{ report.summary.critical }} critical issue{{ 's' if report.summary.critical != 1 else '' }}</div>
+                    <div class="text-red-400/70 text-sm">Immediate attention required</div>
+                </div>
+                {% elif report.status == 'warning' %}
+                <span class="text-2xl">🟡</span>
+                <div>
+                    <div class="text-amber-400 font-semibold">{{ report.summary.warning }} warning{{ 's' if report.summary.warning != 1 else '' }}</div>
+                    <div class="text-amber-400/70 text-sm">System operational but needs attention</div>
+                </div>
+                {% else %}
+                <span class="text-2xl">🟢</span>
+                <div>
+                    <div class="text-emerald-400 font-semibold">All systems normal</div>
+                    <div class="text-emerald-400/70 text-sm">Nothing requires your attention</div>
+                </div>
+                {% endif %}
+            </div>
+            <div class="text-right">
+                <div class="text-xs text-gray-500">{{ report.checked_at[:19] }}Z</div>
+                <button hx-get="/admin/inspector/refresh"
+                        hx-target="#inspector-content"
+                        hx-swap="outerHTML"
+                        class="mt-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
+                    ↻ Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recommendations -->
+    {% if recommendations %}
+    <div class="mb-6 bg-slate-800/50 rounded-lg border border-slate-700 p-4">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="text-sm font-medium text-white">⚡ Recommended Actions</span>
+            <div class="tooltip-container">
+                <span class="tooltip-trigger text-gray-500 hover:text-gray-300">
+                    <svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </span>
+                <div class="tooltip-content">Auto-generated suggestions based on current system state. High priority (red) = do now. Medium (yellow) = do when convenient.</div>
+            </div>
+        </div>
+        <div class="space-y-2">
+            {% for rec in recommendations %}
+            <div class="flex items-start gap-2">
+                <span class="text-xs mt-0.5 {% if rec.priority == 'high' %}text-red-400{% elif rec.priority == 'medium' %}text-amber-400{% else %}text-blue-400{% endif %}">●</span>
+                <div class="flex-1">
+                    <span class="text-sm text-gray-300">{{ rec.text }}</span>
+                    {% if rec.action_id %}
+                    <button hx-post="/admin/inspector/action/{{ rec.action_id }}"
+                            hx-target="#inspector-content"
+                            hx-swap="outerHTML"
+                            hx-confirm="{{ rec.confirm }}"
+                            class="ml-2 px-2 py-0.5 text-xs rounded bg-indigo-600/80 hover:bg-indigo-600 text-white transition-colors">
+                        {{ rec.action_label }}
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Pipeline Funnel -->
+    <div class="mb-8">
+        <div class="flex items-center gap-2 mb-4">
+            <h2 class="text-lg font-medium text-gray-300">Pipeline Funnel</h2>
+            <div class="tooltip-container">
+                <span class="tooltip-trigger text-gray-500 hover:text-gray-300">
+                    <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </span>
+                <div class="tooltip-content">
+                    <div class="font-semibold text-white mb-1">How to read the funnel</div>
+                    Shows how content flows through the pipeline over the last 7 days. Each bar = count at that stage. Percentages show conversion between stages.
+                    <div class="mt-1 text-gray-400">Red % = bottleneck (less than 30% passes through). Look for the biggest drop.</div>
+                </div>
+            </div>
+            <span class="text-xs text-gray-500 ml-auto">last 7 days</span>
+        </div>
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
+            <div class="flex items-end gap-1 mb-3" style="height: 60px;">
+                {% set stages = funnel.stages %}
+                {% set max_val = funnel.max_value %}
+                {% for stage in stages %}
+                <div class="flex-1 flex flex-col items-center justify-end h-full">
+                    <div class="w-full rounded-t-sm {{ stage.color }}" style="height: {{ [((stage.value / max_val) * 100)|int, 3]|max }}%"></div>
+                </div>
+                {% if not loop.last %}
+                <div class="text-gray-700 text-[10px] self-end mb-1">›</div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            <!-- Labels + values -->
+            <div class="flex items-center gap-1">
+                {% for stage in stages %}
+                <div class="flex-1 text-center">
+                    <div class="text-lg font-mono font-semibold {{ stage.text_color }}">{{ stage.value }}</div>
+                    <div class="text-[10px] text-gray-500 mt-0.5">{{ stage.label }}</div>
+                </div>
+                {% if not loop.last %}
+                <div class="text-transparent text-[10px]">›</div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            <!-- Conversion rates -->
+            <div class="flex items-center gap-1 border-t border-slate-700 pt-2 mt-3">
+                {% for rate in funnel.rates %}
+                <div class="flex-1 text-center">
+                    {% if loop.first %}
+                    <span class="text-[10px] text-gray-600">—</span>
+                    {% else %}
+                    <span class="text-[10px] font-mono {% if rate.pct < 30 %}text-red-400{% elif rate.pct < 60 %}text-amber-400{% else %}text-emerald-400{% endif %}">
+                        {{ rate.pct }}%
+                    </span>
+                    {% endif %}
+                </div>
+                {% if not loop.last %}
+                <div class="text-[10px] text-transparent">›</div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Per-Client Breakdown -->
+    {% if client_breakdown %}
+    <div class="mb-8">
+        <div class="flex items-center gap-2 mb-4">
+            <h2 class="text-lg font-medium text-gray-300">Per Client</h2>
+            <div class="tooltip-container">
+                <span class="tooltip-trigger text-gray-500 hover:text-gray-300">
+                    <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </span>
+                <div class="tooltip-content">
+                    <div class="font-semibold text-white mb-1">Client queue status</div>
+                    <b>Threads</b> = new Reddit threads scraped (7d).<br>
+                    <b>Pending</b> = comments waiting for your review.<br>
+                    <b>Approved</b> = reviewed but not yet posted to Reddit.<br>
+                    <b>Posted</b> = successfully posted in last 7 days.<br>
+                    <div class="mt-1 text-gray-400">Status flags: "queue overflow" = too many pending, "not posting" = approved piling up, "no threads" = scraper found nothing.</div>
+                </div>
+            </div>
+        </div>
+        <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-slate-700 text-gray-500 text-xs uppercase">
+                        <th class="text-left px-4 py-2">Client</th>
+                        <th class="text-center px-2 py-2">
+                            <div class="tooltip-container inline-block">
+                                <span class="tooltip-trigger">Threads</span>
+                                <div class="tooltip-content">New Reddit threads scraped in the last 7 days for this client</div>
+                            </div>
+                        </th>
+                        <th class="text-center px-2 py-2">
+                            <div class="tooltip-container inline-block">
+                                <span class="tooltip-trigger">Pending</span>
+                                <div class="tooltip-content">AI-generated comments waiting for human review right now</div>
+                            </div>
+                        </th>
+                        <th class="text-center px-2 py-2">
+                            <div class="tooltip-container inline-block">
+                                <span class="tooltip-trigger">Approved</span>
+                                <div class="tooltip-content">Comments you approved but haven't posted to Reddit yet</div>
+                            </div>
+                        </th>
+                        <th class="text-center px-2 py-2">
+                            <div class="tooltip-container inline-block">
+                                <span class="tooltip-trigger">Posted</span>
+                                <div class="tooltip-content">Comments successfully posted to Reddit in the last 7 days</div>
+                            </div>
+                        </th>
+                        <th class="text-center px-2 py-2">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for client in client_breakdown %}
+                    <tr class="border-b border-slate-700/50 hover:bg-slate-700/20">
+                        <td class="px-4 py-2 text-white font-medium">{{ client.name }}</td>
+                        <td class="text-center px-2 py-2 font-mono text-gray-400">{{ client.threads_7d }}</td>
+                        <td class="text-center px-2 py-2 font-mono {% if client.pending > 10 %}text-amber-400{% else %}text-gray-400{% endif %}">{{ client.pending }}</td>
+                        <td class="text-center px-2 py-2 font-mono {% if client.approved > 5 %}text-blue-400{% else %}text-gray-400{% endif %}">{{ client.approved }}</td>
+                        <td class="text-center px-2 py-2 font-mono text-emerald-400">{{ client.posted_7d }}</td>
+                        <td class="text-center px-2 py-2">
+                            {% if client.issue %}
+                            <div class="tooltip-container inline-block">
+                                <span class="tooltip-trigger px-1.5 py-0.5 text-xs rounded bg-amber-500/20 text-amber-400">{{ client.issue }}</span>
+                                <div class="tooltip-content">
+                                    {% if client.issue == 'queue overflow' %}Too many comments waiting for review. Go to Review Queue and process them.
+                                    {% elif client.issue == 'not posting' %}Comments are approved but nobody is posting them to Reddit. Post or reset.
+                                    {% elif client.issue == 'no threads' %}Scraper found no new threads for this client. Check subreddit config.
+                                    {% else %}{{ client.issue }}{% endif %}
+                                </div>
+                            </div>
+                            {% else %}
+                            <span class="text-xs text-gray-600">ok</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Pipeline Controls -->
+    <div class="mb-8">
+        <div class="flex items-center gap-2 mb-4">
+            <h2 class="text-lg font-medium text-gray-300">Pipeline Controls</h2>
+            <div class="tooltip-container">
+                <span class="tooltip-trigger text-gray-500 hover:text-gray-300">
+                    <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </span>
+                <div class="tooltip-content">
+                    <div class="font-semibold text-white mb-1">Kill switches</div>
+                    <b>Pipeline</b> = master switch for all AI tasks (scoring + generation).<br>
+                    <b>Generation</b> = only comment generation (scoring still runs so you see thread scores).<br>
+                    <b>Scraping</b> = Reddit data collection.<br>
+                    <div class="mt-1 text-gray-400">Use these to pause the system during maintenance or if something goes wrong. Changes take effect immediately.</div>
+                </div>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <!-- Scraping (1st in pipeline) -->
+            <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-sm text-gray-400">① Scraping</span>
+                        <div class="tooltip-container">
+                            <span class="tooltip-trigger text-gray-600 hover:text-gray-400">
+                                <svg class="w-3 h-3 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </span>
+                            <div class="tooltip-content">Collects new Reddit threads from configured subreddits. OFF = no new data comes in, but existing data stays.</div>
+                        </div>
+                    </div>
+                    {% if scrape_enabled %}
+                    <span class="px-2 py-0.5 text-xs rounded-full bg-emerald-500/20 text-emerald-400">ON</span>
+                    {% else %}
+                    <span class="px-2 py-0.5 text-xs rounded-full bg-red-500/20 text-red-400">OFF</span>
+                    {% endif %}
+                </div>
+                {% if scrape_enabled %}
+                <button hx-post="/admin/inspector/action/toggle-scraping?enabled=false"
+                        hx-target="#inspector-content"
+                        hx-swap="outerHTML"
+                        class="w-full px-3 py-1.5 text-xs rounded bg-red-600/80 hover:bg-red-600 text-white transition-colors">
+                    ⏸ Pause
+                </button>
+                {% else %}
+                <button hx-post="/admin/inspector/action/toggle-scraping?enabled=true"
+                        hx-target="#inspector-content"
+                        hx-swap="outerHTML"
+                        class="w-full px-3 py-1.5 text-xs rounded bg-emerald-600/80 hover:bg-emerald-600 text-white transition-colors">
+                    ▶ Resume
+                </button>
+                {% endif %}
+            </div>
+
+            <!-- Scoring + Generation (2nd+3rd, controlled together by pipeline switch) -->
+            <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-sm text-gray-400">② Scoring</span>
+                        <div class="tooltip-container">
+                            <span class="tooltip-trigger text-gray-600 hover:text-gray-400">
+                                <svg class="w-3 h-3 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </span>
+                            <div class="tooltip-content">AI evaluates scraped threads (relevance, quality). Tags them engage/monitor/skip.<br><br><b>⚠️ This is the master AI switch.</b> Pausing this also stops Generation (③).</div>
+                        </div>
+                    </div>
+                    {% if pipeline_enabled %}
+                    <span class="px-2 py-0.5 text-xs rounded-full bg-emerald-500/20 text-emerald-400">ON</span>
+                    {% else %}
+                    <span class="px-2 py-0.5 text-xs rounded-full bg-red-500/20 text-red-400">OFF</span>
+                    {% endif %}
+                </div>
+                <div class="text-[10px] text-gray-600 mb-2">Pausing stops ② + ③</div>
+                {% if pipeline_enabled %}
+                <button hx-post="/admin/inspector/action/toggle-pipeline?enabled=false"
+                        hx-target="#inspector-content"
+                        hx-swap="outerHTML"
+                        hx-confirm="Pause scoring AND generation? Both will stop."
+                        class="w-full px-3 py-1.5 text-xs rounded bg-red-600/80 hover:bg-red-600 text-white transition-colors">
+                    ⏸ Pause ②+③
+                </button>
+                {% else %}
+                <button hx-post="/admin/inspector/action/toggle-pipeline?enabled=true"
+                        hx-target="#inspector-content"
+                        hx-swap="outerHTML"
+                        class="w-full px-3 py-1.5 text-xs rounded bg-emerald-600/80 hover:bg-emerald-600 text-white transition-colors">
+                    ▶ Resume ②+③
+                </button>
+                {% endif %}
+            </div>
+
+            <!-- Generation (3rd in pipeline) -->
+            <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-sm text-gray-400">③ Generation</span>
+                        <div class="tooltip-container">
+                            <span class="tooltip-trigger text-gray-600 hover:text-gray-400">
+                                <svg class="w-3 h-3 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </span>
+                            <div class="tooltip-content">AI writes comment drafts for 'engage' threads. Pausing this keeps scoring running (you still see thread scores) but no new comments are created.<br><br>Also requires ② Scoring to be ON.</div>
+                        </div>
+                    </div>
+                    {% if generation_enabled and pipeline_enabled %}
+                    <span class="px-2 py-0.5 text-xs rounded-full bg-emerald-500/20 text-emerald-400">ON</span>
+                    {% elif not pipeline_enabled %}
+                    <span class="px-2 py-0.5 text-xs rounded-full bg-gray-500/20 text-gray-500">BLOCKED</span>
+                    {% else %}
+                    <span class="px-2 py-0.5 text-xs rounded-full bg-red-500/20 text-red-400">OFF</span>
+                    {% endif %}
+                </div>
+                {% if not pipeline_enabled %}
+                <div class="text-[10px] text-gray-600 mb-2">Blocked by ② being OFF</div>
+                <button disabled class="w-full px-3 py-1.5 text-xs rounded bg-slate-700 text-gray-500 cursor-not-allowed">
+                    Enable ② first
+                </button>
+                {% elif generation_enabled %}
+                <div class="text-[10px] text-gray-600 mb-2">Only generation (scoring stays on)</div>
+                <button hx-post="/admin/inspector/action/toggle-generation?enabled=false"
+                        hx-target="#inspector-content"
+                        hx-swap="outerHTML"
+                        class="w-full px-3 py-1.5 text-xs rounded bg-red-600/80 hover:bg-red-600 text-white transition-colors">
+                    ⏸ Pause ③ only
+                </button>
+                {% else %}
+                <div class="text-[10px] text-gray-600 mb-2">Only generation (scoring stays on)</div>
+                <button hx-post="/admin/inspector/action/toggle-generation?enabled=true"
+                        hx-target="#inspector-content"
+                        hx-swap="outerHTML"
+                        class="w-full px-3 py-1.5 text-xs rounded bg-emerald-600/80 hover:bg-emerald-600 text-white transition-colors">
+                    ▶ Resume ③
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Diagnostic Checks -->
+    <div class="mb-8">
+        <div class="flex items-center gap-2 mb-4">
+            <h2 class="text-lg font-medium text-gray-300">Checks</h2>
+            <div class="tooltip-container">
+                <span class="tooltip-trigger text-gray-500 hover:text-gray-300">
+                    <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </span>
+                <div class="tooltip-content">
+                    <div class="font-semibold text-white mb-1">Automated health checks</div>
+                    Each check inspects a specific aspect of the system. Click a problem row to expand and see the specific records causing the issue. Use the action button to fix automatically.
+                    <div class="mt-1 text-gray-400">🟢 = ok, 🟡 = warning (non-blocking), 🔴 = critical (needs fix)</div>
+                </div>
+            </div>
+            <span class="text-xs text-gray-500 ml-2">
+                {{ report.summary.ok }} ok · {{ report.summary.warning }} warn · {{ report.summary.critical }} crit
+            </span>
+        </div>
+
+        <div class="space-y-2">
+            {% for check in report.checks %}
+            {% if check.status != 'ok' or check.count > 0 %}
+            <details class="bg-dark-steel rounded-lg border group
+                        {% if check.status == 'critical' %}border-red-500/30
+                        {% elif check.status == 'warning' %}border-amber-500/30
+                        {% else %}border-slate-700{% endif %}">
+                <summary class="flex items-center justify-between p-3 cursor-pointer select-none hover:bg-slate-700/20 rounded-lg">
+                    <div class="flex items-center gap-3">
+                        {% if check.status == 'critical' %}
+                        <span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"></span>
+                        {% elif check.status == 'warning' %}
+                        <span class="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0"></span>
+                        {% else %}
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+                        {% endif %}
+                        <span class="text-sm text-white">{{ check.label }}</span>
+                        <span class="text-xs text-gray-500 hidden sm:inline">{{ check.details }}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        {% if check.count > 0 %}
+                        <span class="px-1.5 py-0.5 text-xs font-mono rounded
+                                     {% if check.status == 'critical' %}bg-red-500/20 text-red-400
+                                     {% elif check.status == 'warning' %}bg-amber-500/20 text-amber-400
+                                     {% else %}bg-slate-700 text-gray-400{% endif %}">
+                            {{ check.count }}
+                        </span>
+                        {% endif %}
+                        {% if check.actionable %}
+                        <button hx-post="/admin/inspector/action/{{ check.action_id }}"
+                                hx-target="#inspector-content"
+                                hx-swap="outerHTML"
+                                hx-confirm="{{ check.action_label }}? This will modify data."
+                                onclick="event.stopPropagation()"
+                                class="px-2 py-0.5 text-xs rounded bg-indigo-600/80 hover:bg-indigo-600 text-white transition-colors">
+                            {{ check.action_label }}
+                        </button>
+                        {% endif %}
+                        <svg class="w-4 h-4 text-gray-500 transition-transform group-open:rotate-180 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </div>
+                </summary>
+                <div class="px-4 pb-3 pt-1 border-t border-slate-700/50">
+                    {% if check.hint %}
+                    <p class="text-xs text-gray-400 mb-2">{{ check.hint }}</p>
+                    {% endif %}
+                    <p class="text-xs text-gray-500 sm:hidden mb-2">{{ check.details }}</p>
+                    {% if check.records %}
+                    <div class="max-h-48 overflow-y-auto">
+                        <table class="w-full text-xs font-mono">
+                            <thead>
+                                <tr class="text-gray-500">
+                                    {% for col in check.records_columns %}
+                                    <th class="text-left py-1 pr-3">{{ col }}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody class="text-gray-400">
+                                {% for row in check.records %}
+                                <tr class="border-t border-slate-700/30">
+                                    {% for val in row %}
+                                    <td class="py-1 pr-3 truncate max-w-[200px]">{{ val }}</td>
+                                    {% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                </div>
+            </details>
+            {% else %}
+            <div class="flex items-center gap-3 px-3 py-1.5 text-sm">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+                <span class="text-gray-500">{{ check.label }}</span>
+                <span class="text-xs text-gray-600">{{ check.details }}</span>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Action Log -->
+    {% if last_action %}
+    <div class="mb-6">
+        <div class="bg-dark-steel rounded-lg p-3 border border-indigo-500/30 flex items-center gap-2">
+            <span class="text-indigo-400 text-sm">Last action:</span>
+            {% if last_action.success %}
+            <span class="text-xs text-emerald-400">✓</span>
+            {% else %}
+            <span class="text-xs text-red-400">✗</span>
+            {% endif %}
+            <span class="text-sm text-gray-300">{{ last_action.message }}</span>
+            {% if last_action.affected > 0 %}
+            <span class="text-xs text-gray-500">({{ last_action.affected }} records)</span>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+</div><!-- /inspector-content -->

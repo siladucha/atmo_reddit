@@ -12,7 +12,26 @@
 <div id="widget-llm-metrics"
      class="bg-dark-steel rounded-lg p-5 border {{ border_class }}">
     <div class="flex items-center justify-between mb-4">
-        <span class="text-sm text-gray-400 uppercase tracking-wide">LLM API · last {{ metrics.window_minutes }}m</span>
+        <div class="flex items-center gap-2">
+            <span class="text-sm text-gray-400 uppercase tracking-wide">LLM API · last {{ metrics.window_minutes }}m</span>
+            <div class="tooltip-container">
+                <span class="tooltip-trigger text-gray-600 hover:text-gray-400 transition-colors">
+                    <svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </span>
+                <div class="tooltip-content">
+                    <div class="font-semibold text-white mb-1">LLM API Cost & Performance</div>
+                    Aggregated from <code class="text-blue-300">ai_usage_log</code> table via LiteLLM. Tracks token usage, cost, and latency per model.
+                    <div class="mt-2 text-[11px] text-gray-400">
+                        <div>Scoring: Gemini Flash (~$0.0003/call, ~1-2s)</div>
+                        <div>Generation: Claude Sonnet (~$0.039/call, ~3-5s)</div>
+                        <div class="mt-1">⚠ Warning: avg latency >5000ms or zero-token completions detected</div>
+                        <div>Budget: ~$1.17/client/day · 93% of total infra cost</div>
+                    </div>
+                </div>
+            </div>
+        </div>
         <span class="w-3 h-3 rounded-full shadow-lg {{ dot_class }}"></span>
     </div>
     <div class="grid grid-cols-3 gap-4 mb-4">

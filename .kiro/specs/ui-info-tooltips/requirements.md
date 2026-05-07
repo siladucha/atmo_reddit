@@ -111,6 +111,9 @@ This feature adds inline informational tooltip icons (ℹ️) throughout the Red
 6. THE Admin_Panel SHALL display an Info_Icon next to the "Scrape Freshness" panel header explaining that it shows how recently each subreddit was scraped
 7. THE Admin_Panel SHALL display an Info_Icon next to the "Avatar Health" panel header explaining that it shows karma levels and account status for all avatars
 8. THE Admin_Panel SHALL display an Info_Icon next to the "Schedule" panel header explaining that it shows upcoming scheduled pipeline runs
+9. THE Admin_Panel SHALL display an Info_Icon next to the "System Topology Timeline" panel header explaining that it shows real-time status of all pipeline nodes (scraping, scoring, generation, etc.) with a 24-hour activity heatmap
+10. THE Admin_Panel SHALL display an Info_Icon next to the "Clients" section header explaining that it shows per-client pipeline status cards with today's activity counts
+11. THE Admin_Panel SHALL display an Info_Icon next to the "Run History" section header explaining that it shows recent pipeline execution logs with timing and results
 
 ### Requirement 9: Clients Page Tooltips
 
@@ -158,3 +161,31 @@ This feature adds inline informational tooltip icons (ℹ️) throughout the Red
 1. THE Admin_Panel SHALL include the tooltip JavaScript in `admin_base.html` so it is available on every admin page
 2. THE Tooltip_Component SHALL require no per-page JavaScript initialization
 3. THE Tooltip_Component SHALL use less than 2KB of combined CSS and JavaScript (unminified) to minimize page weight impact
+
+### Requirement 13: Avatar Detail Page Tooltips
+
+**User Story:** As an admin user viewing an avatar's detail page, I want info icons explaining warming phases, progress metrics, and pipeline stats, so that I understand the avatar lifecycle without consulting external documentation.
+
+#### Acceptance Criteria
+
+1. THE Admin_Panel SHALL display an Info_Icon next to the "Active/Inactive" status badge explaining that an active avatar participates in the pipeline (scraping, scoring, generation) while an inactive avatar is excluded from all automated actions
+2. THE Admin_Panel SHALL display an Info_Icon next to the "Reddit: active/suspended/unknown" status badge explaining that this shows the real Reddit account status fetched from the Reddit API
+3. THE Admin_Panel SHALL display an Info_Icon next to the "Current Warming Phase" section header explaining the 3-phase warming system: Phase 1 is credibility building with zero brand mentions, Phase 2 is content seeding with external citations, and Phase 3 is brand integration when karma and trust thresholds are met
+4. THE Admin_Panel SHALL display an Info_Icon next to the "Eligible for Promotion" badge explaining that the avatar has met all requirements for the next warming phase and can be promoted
+5. THE Admin_Panel SHALL display an Info_Icon next to the "Phase Progress" section header explaining that these are the metrics the avatar must achieve before being promoted to the next warming phase
+6. THE Admin_Panel SHALL display an Info_Icon next to the "Karma" progress bar label explaining that this is the total Reddit karma the avatar needs to accumulate for phase promotion
+7. THE Admin_Panel SHALL display an Info_Icon next to the "Account Age (days)" progress bar label explaining that this is the minimum account age in days required to establish trust for phase promotion
+8. THE Admin_Panel SHALL display an Info_Icon next to the "Activity (comments)" progress bar label explaining that this is the minimum number of comments the avatar must post in the current phase before promotion
+9. THE Admin_Panel SHALL display an Info_Icon next to the "Survival Rate (%)" progress bar label explaining that this is the percentage of comments that were not removed by subreddit moderators
+10. THE Admin_Panel SHALL display an Info_Icon next to the "Avg Score" progress bar label explaining that this is the average upvote score on comments, required for Phase 2 to Phase 3 promotion
+11. THE Admin_Panel SHALL display an Info_Icon next to the "Phase Transition History" section header explaining that this is the audit log of all phase changes including promotions, automatic downgrades, and admin overrides
+12. THE Admin_Panel SHALL display an Info_Icon next to the "Pipeline Stats" section header explaining that these are the comment generation statistics for this specific avatar
+13. THE Admin_Panel SHALL display an Info_Icon next to the "Hobby Posts Scraped" metric explaining that these are posts found in hobby subreddits used for karma building
+14. THE Admin_Panel SHALL display an Info_Icon next to the "Hobby Pending" metric explaining that these are hobby comments generated but not yet posted to Reddit
+15. THE Admin_Panel SHALL display an Info_Icon next to the "Pro Pending" metric explaining that these are professional or brand-related comments awaiting human review
+16. THE Admin_Panel SHALL display an Info_Icon next to the "Pro Approved" metric explaining that these are professional comments approved and ready for manual posting to Reddit
+17. THE Admin_Panel SHALL display an Info_Icon next to the "Posted" metric explaining that this is the total count of comments successfully posted to Reddit by this avatar
+18. THE Admin_Panel SHALL display an Info_Icon next to the "AI Billing" section header explaining that this shows LLM API costs attributed to this avatar's comment generation operations
+19. THE Admin_Panel SHALL display an Info_Icon next to the "Phase Override" section header explaining that this allows an admin to manually set the avatar's warming phase, bypassing normal progression requirements
+20. THE Admin_Panel SHALL display an Info_Icon next to the "Professional Comments" section header explaining that these are AI-generated brand-related comment drafts pending review for this avatar
+21. THE Admin_Panel SHALL display an Info_Icon next to the "Hobby Comments" section header explaining that these are AI-generated karma-building comments for non-brand subreddits

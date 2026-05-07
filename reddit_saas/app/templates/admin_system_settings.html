@@ -8,23 +8,47 @@
 {% block content %}
 <div class="max-w-5xl mx-auto">
     <div class="flex items-center justify-between mb-6">
-        <h1 class="text-2xl font-semibold text-white">System Settings</h1>
-        <button type="button" onclick="bulkSave()"
-                class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-            Save All Changes
-        </button>
+        <div class="flex items-center gap-3">
+            <h1 class="text-2xl font-semibold text-white">System Settings</h1>
+            <div class="tooltip-container">
+                <span class="tooltip-trigger text-gray-500 hover:text-gray-300">
+                    <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </span>
+                <div class="tooltip-content">
+                    <div class="font-semibold text-white mb-1">How to edit settings</div>
+                    1. Click a tab to switch groups.<br>
+                    2. Click <b>Edit</b> next to any setting.<br>
+                    3. Change the value and click <b>Save</b>.<br>
+                    <div class="mt-1 text-gray-400">Settings marked "secret" are hidden by default. Click "reveal" to see them. Changes take effect immediately (no restart needed for most settings).</div>
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <div class="tooltip-container">
+                <span class="tooltip-trigger text-gray-500 hover:text-gray-300">
+                    <svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </span>
+                <div class="tooltip-content">Saves all settings that are currently in edit mode (open edit forms) at once. If no forms are open, nothing happens.</div>
+            </div>
+            <button type="button" onclick="bulkSave()"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                Save All Changes
+            </button>
+        </div>
     </div>
 
     <!-- Bulk save status -->
     <div id="bulk-save-status" class="mb-4"></div>
 
-    {% set group_order = ['database', 'redis', 'auth', 'reddit_api', 'llm', 'app', 'budget'] %}
+    {% set group_order = ['database', 'redis', 'auth', 'reddit_api', 'llm', 'scraping', 'scheduler', 'app', 'budget'] %}
     {% set group_labels = {
         'database': 'Database',
         'redis': 'Redis',
         'auth': 'Auth',
         'reddit_api': 'Reddit API',
         'llm': 'LLM',
+        'scraping': 'Scraping',
+        'scheduler': 'Scheduler',
         'app': 'App',
         'budget': 'Budget / Billing'
     } %}
@@ -34,11 +58,24 @@
         'auth': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/>',
         'reddit_api': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418"/>',
         'llm': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"/>',
+        'scraping': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m5.231 13.481L15 17.25m-4.5-15H5.625c-.621 0-1.125.504-1.125 1.125v16.5c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9zm3.75 11.625a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/>',
+        'scheduler': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>',
         'app': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.28z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>',
         'budget': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z"/>'
     } %}
 
     <!-- Tabs Navigation -->
+    {% set group_tooltips = {
+        'database': 'PostgreSQL connection. The database_url is read-only (set in .env file). Everything else is informational.',
+        'redis': 'Redis/Valkey connection for Celery task queue and caching. Used by the background worker.',
+        'auth': 'JWT authentication settings. secret_key signs tokens — changing it logs everyone out. admin_email/password are for the initial admin account only.',
+        'reddit_api': 'Reddit API credentials from reddit.com/prefs/apps. Required for scraping. Use "Test Connection" to verify they work.',
+        'llm': 'AI model configuration. llm_api_key = Anthropic/OpenRouter key for generation. gemini_api_key = Google key for scoring. Use "Test Connection" to verify.',
+        'scraping': 'Controls how often and how fast Reddit is scraped. scrape_enabled = master on/off. freshness_window = how often each subreddit is re-scraped. rate_limit = Reddit API calls per minute.',
+        'scheduler': 'Pipeline kill switches and task schedule. pipeline_enabled controls scoring+generation. schedule_* settings define when tasks run (UTC hours, comma-separated). Requires worker restart to take effect.',
+        'app': 'General application settings. dry_run_enabled = AI shows prompts instead of calling API (for testing). app_env = development/production.',
+        'budget': 'Cost tracking. monthly_budget_usd = AI spending limit (0 = unlimited). aws_credits_remaining = manual entry for tracking.'
+    } %}
     <div class="border-b border-slate-700 mb-6">
         <nav class="flex gap-1 overflow-x-auto pb-px" id="settings-tabs">
             {% for group_key in group_order %}
@@ -66,12 +103,22 @@
         <div class="bg-dark-steel rounded-lg border border-slate-700">
             <!-- Group Header with actions -->
             <div class="px-5 py-4 border-b border-slate-700 flex items-center justify-between">
-                <h2 class="text-lg font-medium text-white flex items-center gap-2">
-                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        {{ group_icons.get(group_key, group_icons['app'])|safe }}
-                    </svg>
-                    {{ group_labels.get(group_key, group_key|title) }}
-                </h2>
+                <div class="flex items-center gap-2">
+                    <h2 class="text-lg font-medium text-white flex items-center gap-2">
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {{ group_icons.get(group_key, group_icons['app'])|safe }}
+                        </svg>
+                        {{ group_labels.get(group_key, group_key|title) }}
+                    </h2>
+                    {% if group_key in group_tooltips %}
+                    <div class="tooltip-container">
+                        <span class="tooltip-trigger text-gray-500 hover:text-gray-300">
+                            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        </span>
+                        <div class="tooltip-content">{{ group_tooltips[group_key] }}</div>
+                    </div>
+                    {% endif %}
+                </div>
                 <div class="flex items-center gap-3">
                     {% if group_key == 'reddit_api' %}
                     <button type="button"

@@ -770,13 +770,24 @@ def seed_neuroyoga(db=None):
                 ))
         print(f"Created {len(subreddits)} professional subreddits for NeuroYoga")
 
-        # 3. Create avatars
-        silva = Avatar(
-            client_ids=[str(client.id)],
-            reddit_username="SilvaBreathCoach",
-            email_address=None,
-            active=True,
-            voice_profile_md="""Silva — The Evidence-Based Breathing Instructor
+        # 3. Create avatars (check if they already exist)
+        existing_silva = db.query(Avatar).filter(Avatar.reddit_username == "SilvaBreathCoach").first()
+        existing_billy = db.query(Avatar).filter(Avatar.reddit_username == "BillyBiohacks").first()
+
+        if existing_silva and existing_billy:
+            print("NeuroYoga avatars already exist. Skipping avatar creation.")
+            db.commit()
+            print("\n--- NeuroYoga Seed complete ---")
+            print(f"NeuroYoga Client ID: {client.id}")
+            return
+
+        if not existing_silva:
+            silva = Avatar(
+                client_ids=[str(client.id)],
+                reddit_username="SilvaBreathCoach",
+                email_address=None,
+                active=True,
+                voice_profile_md="""Silva — The Evidence-Based Breathing Instructor
 
 Voice in One Sentence: Silva sounds like a warm but no-nonsense instructor who's seen too many wellness fads come and go — she trusts the science, not the hype.
 
@@ -787,24 +798,25 @@ Tone Principles:
 2. Warm skeptic. Genuinely cares about people's wellbeing but rolls her eyes at pseudoscience.
 3. Practical over theoretical. Gives actionable advice, not philosophy.
 4. Anti-guru. Actively pushes back against wellness influencer culture.""",
-            tone_principles="Evidence-first. Warm skeptic. Practical over theoretical. Anti-guru.",
-            speech_patterns="The Study Reference (cites research casually). The Personal Practice Note (shares what she does daily). The Myth Buster (corrects common misconceptions).",
-            hill_i_die_on="Breathing Is Medicine. Proper breathing protocols have measurable physiological effects — HRV improvement, vagal tone activation, cortisol reduction. This isn't woo-woo, it's basic autonomic nervous system science.",
-            helpful_mode_topics="Breathing techniques for stress. HRV optimization. Acupressure basics. Anxiety management without medication. Building a daily practice routine.",
-            constraints="Never promote specific products directly. Never use wellness buzzwords like 'transformative journey' or 'unlock your potential'. Never claim breathing cures diseases. Never dismiss medication — breathing is complementary, not replacement.",
-            vocabulary_lean="Uses: protocol, HRV, vagal tone, parasympathetic, evidence-based, practice, routine, measurable. Avoids: transformative, journey, unlock, manifest, energy healing, chakra.",
-            hobby_subreddits=["running", "science", "nutrition"],
-            karma_post=0,
-            karma_comment=0,
-        )
-        db.add(silva)
+                tone_principles="Evidence-first. Warm skeptic. Practical over theoretical. Anti-guru.",
+                speech_patterns="The Study Reference (cites research casually). The Personal Practice Note (shares what she does daily). The Myth Buster (corrects common misconceptions).",
+                hill_i_die_on="Breathing Is Medicine. Proper breathing protocols have measurable physiological effects — HRV improvement, vagal tone activation, cortisol reduction. This isn't woo-woo, it's basic autonomic nervous system science.",
+                helpful_mode_topics="Breathing techniques for stress. HRV optimization. Acupressure basics. Anxiety management without medication. Building a daily practice routine.",
+                constraints="Never promote specific products directly. Never use wellness buzzwords like 'transformative journey' or 'unlock your potential'. Never claim breathing cures diseases. Never dismiss medication — breathing is complementary, not replacement.",
+                vocabulary_lean="Uses: protocol, HRV, vagal tone, parasympathetic, evidence-based, practice, routine, measurable. Avoids: transformative, journey, unlock, manifest, energy healing, chakra.",
+                hobby_subreddits=["running", "science", "nutrition"],
+                karma_post=0,
+                karma_comment=0,
+            )
+            db.add(silva)
 
-        billy = Avatar(
-            client_ids=[str(client.id)],
-            reddit_username="BillyBiohacks",
-            email_address=None,
-            active=True,
-            voice_profile_md="""Billy — The Biohacker Who Tried Everything
+        if not existing_billy:
+            billy = Avatar(
+                client_ids=[str(client.id)],
+                reddit_username="BillyBiohacks",
+                email_address=None,
+                active=True,
+                voice_profile_md="""Billy — The Biohacker Who Tried Everything
 
 Voice in One Sentence: Billy sounds like an enthusiastic experimenter who's been through every wellness trend and now knows what actually works — honest, data-driven, slightly self-deprecating.
 
@@ -815,17 +827,18 @@ Tone Principles:
 2. Honest about failures. Openly talks about things that didn't work for him.
 3. Enthusiastic but grounded. Gets excited about results but backs it up with numbers.
 4. Community-minded. Asks others about their experiences, genuinely curious.""",
-            tone_principles="N=1 experimenter. Honest about failures. Enthusiastic but grounded. Community-minded.",
-            speech_patterns="The Data Drop (shares specific numbers from his tracking). The 'I Tried That' (personal experience reports). The Comparison (X vs Y, what worked better).",
-            hill_i_die_on="Track Everything. If you can't measure it, you can't improve it. HRV is the single best biomarker for stress recovery, and most people have no idea what theirs looks like.",
-            helpful_mode_topics="HRV tracking and optimization. Wim Hof method experiences. Sleep optimization. Supplement stacks for stress. Comparing wellness devices and apps.",
-            constraints="Never sound like a salesperson. Never claim to be a medical professional. Never dismiss traditional medicine. Never be condescending to beginners.",
-            vocabulary_lean="Uses: baseline, protocol, n=1, data, HRV, recovery score, sleep latency, stack, experiment. Avoids: guru, master, enlightenment, spiritual, vibes.",
-            hobby_subreddits=["Nootropics", "whoop", "Garmin"],
-            karma_post=0,
-            karma_comment=0,
-        )
-        db.add(billy)
+                tone_principles="N=1 experimenter. Honest about failures. Enthusiastic but grounded. Community-minded.",
+                speech_patterns="The Data Drop (shares specific numbers from his tracking). The 'I Tried That' (personal experience reports). The Comparison (X vs Y, what worked better).",
+                hill_i_die_on="Track Everything. If you can't measure it, you can't improve it. HRV is the single best biomarker for stress recovery, and most people have no idea what theirs looks like.",
+                helpful_mode_topics="HRV tracking and optimization. Wim Hof method experiences. Sleep optimization. Supplement stacks for stress. Comparing wellness devices and apps.",
+                constraints="Never sound like a salesperson. Never claim to be a medical professional. Never dismiss traditional medicine. Never be condescending to beginners.",
+                vocabulary_lean="Uses: baseline, protocol, n=1, data, HRV, recovery score, sleep latency, stack, experiment. Avoids: guru, master, enlightenment, spiritual, vibes.",
+                hobby_subreddits=["Nootropics", "whoop", "Garmin"],
+                karma_post=0,
+                karma_comment=0,
+            )
+            db.add(billy)
+
         print("Created 2 NeuroYoga avatars: SilvaBreathCoach, BillyBiohacks")
 
         db.commit()

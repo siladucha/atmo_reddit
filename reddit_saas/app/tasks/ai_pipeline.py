@@ -21,8 +21,8 @@ from app.services.transparency import record_activity_event
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(name="score_threads")
-def score_threads(client_id: str):
+@celery_app.task(name="score_threads", bind=True, max_retries=3)
+def score_threads(self, client_id: str):
     """Score all unscored threads for a client.
 
     Uses the shared subreddit registry: finds threads in the client's assigned
@@ -30,6 +30,11 @@ def score_threads(client_id: str):
     """
     db = SessionLocal()
     try:
+        from app.services.settings import is_pipeline_enabled
+        if not is_pipeline_enabled(db):
+            logger.info("score_threads: pipeline_enabled=false, skipping")
+            return 0
+
         try:
             client = db.query(Client).filter(Client.id == client_id).first()
             if not client:
@@ -64,15 +69,15 @@ def score_threads(client_id: str):
 
             return count
 
-        except Exception as e:
+        except Exception as exc:
             # Record system error event
             try:
                 record_activity_event(
                     db,
                     "system",
-                    f"Scoring failed for client {client_id}: {e}",
+                    f"Scoring failed for client {client_id}: {exc}",
                     uuid.UUID(client_id),
-                    {"error": str(e)},
+                    {"error": str(exc)},
                 )
             except Exception:
                 logger.exception("Failed to record system error activity event")
@@ -84,24 +89,37 @@ def score_threads(client_id: str):
                     action="error",
                     entity_type="task",
                     client_id=uuid.UUID(client_id),
-                    details={"task": "score_threads", "error": str(e)[:500]},
+                    details={"task": "score_threads", "error": str(exc)[:500]},
                 )
             except Exception:
                 pass
-            raise
+            countdown = 60 * (2 ** self.request.retries)
+            logger.warning(
+                f"score_threads retry {self.request.retries + 1}/3 "
+                f"for client {client_id}, countdown={countdown}s: {exc}"
+            )
+            raise self.retry(exc=exc, countdown=countdown)
 
     finally:
         db.close()
 
 
-@celery_app.task(name="generate_comments")
-def generate_comments(client_id: str, max_comments: int = 15):
+@celery_app.task(name="generate_comments", bind=True, max_retries=3)
+def generate_comments(self, client_id: str, max_comments: int = 15):
     """Generate comments for top 'engage' threads.
 
     Full pipeline: select persona → generate comment → edit comment.
     """
     db = SessionLocal()
     try:
+        from app.services.settings import is_pipeline_enabled, is_generation_enabled
+        if not is_pipeline_enabled(db):
+            logger.info("generate_comments: pipeline_enabled=false, skipping")
+            return 0
+        if not is_generation_enabled(db):
+            logger.info("generate_comments: generation_enabled=false, skipping")
+            return 0
+
         try:
             client = db.query(Client).filter(Client.id == client_id).first()
             if not client:
@@ -114,10 +132,11 @@ def generate_comments(client_id: str, max_comments: int = 15):
                 .filter(Avatar.active.is_(True))
                 .all()
             )
-            # Filter avatars that serve this client
+            # Filter avatars that serve this client (skip frozen avatars)
             client_avatars = [
                 a for a in avatars
                 if a.client_ids and str(client.id) in a.client_ids
+                and not a.is_frozen
             ]
 
             if not client_avatars:
@@ -233,15 +252,15 @@ def generate_comments(client_id: str, max_comments: int = 15):
 
             return generated
 
-        except Exception as e:
+        except Exception as exc:
             # Record system error event
             try:
                 record_activity_event(
                     db,
                     "system",
-                    f"Comment generation failed for client {client_id}: {e}",
+                    f"Comment generation failed for client {client_id}: {exc}",
                     uuid.UUID(client_id),
-                    {"error": str(e)},
+                    {"error": str(exc)},
                 )
             except Exception:
                 logger.exception("Failed to record system error activity event")
@@ -253,103 +272,128 @@ def generate_comments(client_id: str, max_comments: int = 15):
                     action="error",
                     entity_type="task",
                     client_id=uuid.UUID(client_id),
-                    details={"task": "generate_comments", "error": str(e)[:500]},
+                    details={"task": "generate_comments", "error": str(exc)[:500]},
                 )
             except Exception:
                 pass
-            raise
+            countdown = 60 * (2 ** self.request.retries)
+            logger.warning(
+                f"generate_comments retry {self.request.retries + 1}/3 "
+                f"for client {client_id}, countdown={countdown}s: {exc}"
+            )
+            raise self.retry(exc=exc, countdown=countdown)
 
     finally:
         db.close()
 
 
-@celery_app.task(name="generate_hobby_comments")
-def generate_hobby_comments(avatar_id: str, max_comments: int = 10):
+@celery_app.task(name="generate_hobby_comments", bind=True, max_retries=3)
+def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10):
     """Generate hobby comments for karma building using Ori-style prompt with voice profile."""
     db = SessionLocal()
     try:
+        from app.services.settings import is_pipeline_enabled, is_generation_enabled
+        if not is_pipeline_enabled(db):
+            logger.info("generate_hobby_comments: pipeline_enabled=false, skipping")
+            return 0
+        if not is_generation_enabled(db):
+            logger.info("generate_hobby_comments: generation_enabled=false, skipping")
+            return 0
+
         from app.models.hobby import HobbySubreddit
         from app.services.ai import call_llm, log_ai_usage
 
         avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
         if not avatar:
             return 0
+        if avatar.is_frozen:
+            logger.info(f"generate_hobby_comments: avatar {avatar.reddit_username} is frozen, skipping")
+            return 0
 
-        # Get hobby posts without comments
-        posts = (
-            db.query(HobbySubreddit)
-            .filter(
-                HobbySubreddit.avatar_username == avatar.reddit_username,
-                HobbySubreddit.ai_comment.is_(None),
-                HobbySubreddit.status == "new",
-            )
-            .limit(max_comments)
-            .all()
-        )
-
-        # Get last 20 comments for diversity enforcement
-        recent_comments = (
-            db.query(HobbySubreddit.ai_comment)
-            .filter(
-                HobbySubreddit.avatar_username == avatar.reddit_username,
-                HobbySubreddit.ai_comment.isnot(None),
-            )
-            .order_by(HobbySubreddit.created_at.desc())
-            .limit(20)
-            .all()
-        )
-        previous_comments = [r[0] for r in recent_comments if r[0]]
-
-        generated = 0
-        for post in posts:
-            try:
-                # Build Ori-style hobby comment prompt
-                system_prompt = _build_hobby_system_prompt(avatar, previous_comments)
-                user_prompt = _build_hobby_user_prompt(post)
-
-                # Hobby comments: use scoring model (Gemini Flash when available, Sonnet as fallback)
-                # Professional comments use generation model (Sonnet — quality)
-                # This mirrors Ori's setup: Opus for pro, Flash for hobby
-                from app.config import get_config
-                gen_model = get_config("llm_scoring_model") or get_config("llm_generation_model")
-
-                result = call_llm(
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    model=gen_model,
-                    temperature=0.85,
-                    max_tokens=300,
+        try:
+            # Get hobby posts without comments
+            posts = (
+                db.query(HobbySubreddit)
+                .filter(
+                    HobbySubreddit.avatar_username == avatar.reddit_username,
+                    HobbySubreddit.ai_comment.is_(None),
+                    HobbySubreddit.status == "new",
                 )
+                .limit(max_comments)
+                .all()
+            )
 
-                log_ai_usage(db, None, "hobby_comment", result)
+            # Get last 20 comments for diversity enforcement
+            recent_comments = (
+                db.query(HobbySubreddit.ai_comment)
+                .filter(
+                    HobbySubreddit.avatar_username == avatar.reddit_username,
+                    HobbySubreddit.ai_comment.isnot(None),
+                )
+                .order_by(HobbySubreddit.created_at.desc())
+                .limit(20)
+                .all()
+            )
+            previous_comments = [r[0] for r in recent_comments if r[0]]
 
-                # Parse JSON response or use raw text
-                import json as json_mod
-                content = result["content"].strip()
+            generated = 0
+            for post in posts:
                 try:
-                    parsed = json_mod.loads(content)
-                    comment_text = parsed.get("comment", content)
-                except (json_mod.JSONDecodeError, TypeError):
-                    comment_text = content
+                    # Build Ori-style hobby comment prompt
+                    system_prompt = _build_hobby_system_prompt(avatar, previous_comments)
+                    user_prompt = _build_hobby_user_prompt(post)
 
-                post.ai_comment = comment_text
-                post.status = "pending"
-                db.commit()
-                generated += 1
+                    # Hobby comments: use scoring model (Gemini Flash when available, Sonnet as fallback)
+                    # Professional comments use generation model (Sonnet — quality)
+                    # This mirrors Ori's setup: Opus for pro, Flash for hobby
+                    from app.config import get_config
+                    gen_model = get_config("llm_scoring_model") or get_config("llm_generation_model")
 
-                # Add to previous_comments for diversity in this batch
-                previous_comments.insert(0, comment_text)
-                if len(previous_comments) > 20:
-                    previous_comments.pop()
+                    result = call_llm(
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        model=gen_model,
+                        temperature=0.85,
+                        max_tokens=300,
+                    )
 
-            except Exception as e:
-                logger.error(f"Failed hobby comment for post {post.id}: {e}")
-                continue
+                    log_ai_usage(db, None, "hobby_comment", result)
 
-        logger.info(f"Generated {generated} hobby comments for {avatar.reddit_username}")
-        return generated
+                    # Parse JSON response or use raw text
+                    import json as json_mod
+                    content = result["content"].strip()
+                    try:
+                        parsed = json_mod.loads(content)
+                        comment_text = parsed.get("comment", content)
+                    except (json_mod.JSONDecodeError, TypeError):
+                        comment_text = content
+
+                    post.ai_comment = comment_text
+                    post.status = "pending"
+                    db.commit()
+                    generated += 1
+
+                    # Add to previous_comments for diversity in this batch
+                    previous_comments.insert(0, comment_text)
+                    if len(previous_comments) > 20:
+                        previous_comments.pop()
+
+                except Exception as e:
+                    logger.error(f"Failed hobby comment for post {post.id}: {e}")
+                    continue
+
+            logger.info(f"Generated {generated} hobby comments for {avatar.reddit_username}")
+            return generated
+
+        except Exception as exc:
+            countdown = 60 * (2 ** self.request.retries)
+            logger.warning(
+                f"generate_hobby_comments retry {self.request.retries + 1}/3 "
+                f"for avatar {avatar_id}, countdown={countdown}s: {exc}"
+            )
+            raise self.retry(exc=exc, countdown=countdown)
 
     finally:
         db.close()
@@ -417,12 +461,218 @@ def _build_hobby_user_prompt(post) -> str:
 {comments_section}"""
 
 
-@celery_app.task(name="generate_posts")
-def generate_posts(client_id: str):
-    """Generate post drafts. Placeholder for now."""
-    # TODO: implement post generation pipeline
-    logger.info(f"Post generation for client {client_id} — not yet implemented")
-    return 0
+@celery_app.task(name="generate_posts", bind=True, max_retries=3)
+def generate_posts(self, client_id: str, max_posts: int = 3):
+    """Generate post drafts for a client.
+
+    Pipeline: topic generation → brief strategy → post writing.
+    Only generates for avatars in Phase 2+ (posts require established karma).
+    """
+    db = SessionLocal()
+    try:
+        from app.services.settings import is_pipeline_enabled, is_generation_enabled
+        from app.services.post_generation import (
+            generate_post_topic,
+            generate_post_brief,
+            generate_post,
+        )
+        from app.models.post_draft import PostDraft
+        from app.models.subreddit import ClientSubreddit
+
+        if not is_pipeline_enabled(db):
+            logger.info("generate_posts: pipeline_enabled=false, skipping")
+            return 0
+        if not is_generation_enabled(db):
+            logger.info("generate_posts: generation_enabled=false, skipping")
+            return 0
+
+        try:
+            client = db.query(Client).filter(Client.id == client_id).first()
+            if not client:
+                logger.error(f"Client {client_id} not found")
+                return 0
+
+            # Get active avatars for this client — Phase 2+ only (posts need karma)
+            avatars = (
+                db.query(Avatar)
+                .filter(Avatar.active.is_(True))
+                .all()
+            )
+            client_avatars = [
+                a for a in avatars
+                if a.client_ids and str(client.id) in a.client_ids
+                and not a.is_frozen
+                and a.warming_phase >= 2  # Phase gate: posts require Phase 2+
+            ]
+
+            if not client_avatars:
+                logger.info(f"No Phase 2+ avatars for client {client.client_name} — skipping post generation")
+                return 0
+
+            # Get client's subreddits (business subs preferred for posts)
+            from app.models.subreddit import ClientSubredditAssignment, Subreddit
+            assignments = (
+                db.query(ClientSubredditAssignment)
+                .filter(ClientSubredditAssignment.client_id == client.id)
+                .all()
+            )
+            subreddit_names = []
+            for a in assignments:
+                sub = db.query(Subreddit).filter(Subreddit.id == a.subreddit_id).first()
+                if sub:
+                    subreddit_names.append(sub.name)
+
+            if not subreddit_names:
+                # Fallback: use avatar business subreddits
+                for av in client_avatars:
+                    if av.business_subreddits:
+                        subreddit_names.extend(av.business_subreddits)
+                subreddit_names = list(set(subreddit_names))
+
+            if not subreddit_names:
+                logger.warning(f"No subreddits configured for client {client.client_name}")
+                return 0
+
+            # Get previous post titles for diversity check
+            previous_posts = (
+                db.query(PostDraft.ai_title)
+                .filter(
+                    PostDraft.client_id == client_id,
+                    PostDraft.ai_title.isnot(None),
+                )
+                .order_by(PostDraft.created_at.desc())
+                .limit(10)
+                .all()
+            )
+            prev_titles = [p[0] for p in previous_posts if p[0]]
+
+            # Check how many pending posts already exist (don't flood the queue)
+            pending_count = (
+                db.query(func.count(PostDraft.id))
+                .filter(
+                    PostDraft.client_id == client_id,
+                    PostDraft.status == "pending",
+                )
+                .scalar()
+            ) or 0
+
+            if pending_count >= 5:
+                logger.info(
+                    f"Client {client.client_name} already has {pending_count} pending posts — skipping"
+                )
+                return 0
+
+            # Limit generation to not exceed queue cap
+            posts_to_generate = min(max_posts, 5 - pending_count)
+
+            generated = 0
+            for i in range(posts_to_generate):
+                try:
+                    # Round-robin avatar selection
+                    avatar = client_avatars[i % len(client_avatars)]
+
+                    # Pick subreddit (prefer business subs the avatar has karma in)
+                    target_sub = _select_post_subreddit(
+                        db, avatar, subreddit_names, client_id
+                    )
+                    if not target_sub:
+                        continue
+
+                    # Step 1: Generate topic
+                    topic = generate_post_topic(
+                        db, client, avatar, target_sub, prev_titles
+                    )
+
+                    # Step 2: Generate strategic brief
+                    brief = generate_post_brief(
+                        db, client, avatar, target_sub, topic
+                    )
+
+                    # Step 3: Generate post
+                    draft = generate_post(
+                        db, client, avatar, target_sub, brief, prev_titles
+                    )
+
+                    prev_titles.insert(0, draft.ai_title or "")
+                    generated += 1
+
+                except Exception as e:
+                    logger.error(f"Failed to generate post {i+1} for {client.client_name}: {e}")
+                    continue
+
+            logger.info(f"Generated {generated} post drafts for {client.client_name}")
+
+            # Record activity event
+            try:
+                message = f"Generated {generated} post drafts"
+                metadata = {"drafts_generated": generated, "type": "post"}
+                record_activity_event(db, "generate", message, uuid.UUID(client_id), metadata)
+            except Exception:
+                logger.exception("Failed to record post generation activity event")
+
+            return generated
+
+        except Exception as exc:
+            try:
+                record_activity_event(
+                    db,
+                    "system",
+                    f"Post generation failed for client {client_id}: {exc}",
+                    uuid.UUID(client_id),
+                    {"error": str(exc)},
+                )
+            except Exception:
+                logger.exception("Failed to record system error activity event")
+            countdown = 60 * (2 ** self.request.retries)
+            logger.warning(
+                f"generate_posts retry {self.request.retries + 1}/3 "
+                f"for client {client_id}, countdown={countdown}s: {exc}"
+            )
+            raise self.retry(exc=exc, countdown=countdown)
+    finally:
+        db.close()
+
+
+def _select_post_subreddit(
+    db, avatar: Avatar, subreddit_names: list[str], client_id: str
+) -> str | None:
+    """Select the best subreddit for a post, preferring subs with established karma."""
+    from app.services import karma_tracker
+    from app.models.post_draft import PostDraft
+    from datetime import timedelta
+
+    now = datetime.now(timezone.utc)
+
+    # Get subreddits where avatar has karma (credibility)
+    scored_subs = []
+    for sub_name in subreddit_names:
+        record = karma_tracker.get_karma_in_subreddit(db, avatar.id, sub_name)
+        karma = record.total_karma if record else 0
+        scored_subs.append((sub_name, karma))
+
+    # Sort by karma (prefer subs where avatar is established)
+    scored_subs.sort(key=lambda x: -x[1])
+
+    # Avoid subreddits where we posted recently (7-day cooldown per sub per avatar)
+    for sub_name, karma in scored_subs:
+        recent_post = (
+            db.query(PostDraft)
+            .filter(
+                PostDraft.client_id == client_id,
+                PostDraft.avatar_id == avatar.id,
+                PostDraft.subreddit == sub_name,
+                PostDraft.created_at >= now - timedelta(days=7),
+            )
+            .first()
+        )
+        if not recent_post:
+            return sub_name
+
+    # If all subs have recent posts, pick the one with highest karma anyway
+    if scored_subs:
+        return scored_subs[0][0]
+
+    return None
 
 
 @celery_app.task(name="evaluate_all_avatar_phases")

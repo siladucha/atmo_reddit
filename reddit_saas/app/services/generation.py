@@ -15,6 +15,7 @@ from app.models.thread import RedditThread
 from app.models.avatar import Avatar
 from app.models.comment_draft import CommentDraft
 from app.services.ai import call_llm, call_llm_json, log_ai_usage
+from app.schemas.llm_outputs import CommentOutput
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,13 @@ def select_persona(
     Raises:
         RuntimeError: If LLM call fails after logging the error.
     """
+    # Runtime assertion: all candidate avatars must belong to this client
+    for avatar in avatars:
+        assert avatar.client_ids and str(client.id) in avatar.client_ids, (
+            f"Context isolation violation: avatar {avatar.reddit_username} "
+            f"does not belong to client {client.id}"
+        )
+
     from app.services import karma_tracker
 
     # Build personas summary for the prompt — include karma in this thread's
@@ -215,6 +223,12 @@ def generate_comment(
     Raises:
         RuntimeError: If LLM call fails.
     """
+    # Runtime assertion: avatar must belong to this client
+    assert avatar.client_ids and str(client.id) in avatar.client_ids, (
+        f"Context isolation violation: avatar {avatar.reddit_username} "
+        f"does not belong to client {client.id}"
+    )
+
     prev_comments_text = "\n---\n".join(previous_comments or [])
     if not prev_comments_text:
         prev_comments_text = "(no previous comments)"
@@ -251,6 +265,7 @@ def generate_comment(
             model=get_config("llm_generation_model"),
             temperature=0.7,
             max_tokens=512,
+            schema=CommentOutput,
         )
     except Exception as e:
         logger.error(

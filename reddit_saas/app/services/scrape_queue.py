@@ -200,12 +200,17 @@ def get_queue_status(
     speed = get_processing_speed(db)
 
     # ETA calculation
+    # If we have recent speed data, use it. Otherwise estimate from queue_tick
+    # interval (1 scrape per tick, tick every 60s = 1 req/min baseline).
     if speed > 0 and stale_count > 0:
         eta_minutes = round(stale_count / speed, 1)
     elif stale_count == 0:
         eta_minutes = 0.0
+    elif stale_count > 0:
+        # Fallback: queue_tick fires every 60s, processes ~1 sub per tick
+        eta_minutes = round(stale_count * 1.0, 1)  # ~1 min per stale sub
     else:
-        eta_minutes = None  # Cannot estimate (speed is 0)
+        eta_minutes = None
 
     # Rate limiter utilization
     try:
@@ -235,7 +240,65 @@ def get_queue_status(
         "rate_limiter": utilization,
         "currently_processing": currently_processing,
         "all_fresh": stale_count == 0,
+        "depth_by_client": _get_depth_by_client(db),
+        "stale_subreddits": _get_stale_subreddits(db, freshness_hours),
     }
+
+
+def _get_depth_by_client(db: Session) -> list[dict]:
+    """Queue depth broken down by client."""
+    rows = (
+        db.query(Client.client_name, sa_func.count(ClientSubreddit.id))
+        .join(Client, Client.id == ClientSubreddit.client_id)
+        .filter(
+            ClientSubreddit.is_active.is_(True),
+            Client.is_active.is_(True),
+        )
+        .group_by(Client.client_name)
+        .order_by(sa_func.count(ClientSubreddit.id).desc())
+        .all()
+    )
+    return [{"client_name": name, "count": count} for name, count in rows]
+
+
+def _get_stale_subreddits(db: Session, freshness_hours: int) -> list[dict]:
+    """List of stale subreddits with client name and age."""
+    now = datetime.now(timezone.utc)
+    threshold = now - timedelta(hours=freshness_hours)
+
+    rows = (
+        db.query(ClientSubreddit, Client.client_name)
+        .join(Client, Client.id == ClientSubreddit.client_id)
+        .filter(
+            ClientSubreddit.is_active.is_(True),
+            Client.is_active.is_(True),
+        )
+        .filter(
+            (ClientSubreddit.last_scraped_at.is_(None))
+            | (ClientSubreddit.last_scraped_at < threshold)
+        )
+        .order_by(ClientSubreddit.last_scraped_at.asc().nulls_first())
+        .limit(20)
+        .all()
+    )
+
+    result = []
+    for sub, client_name in rows:
+        if sub.last_scraped_at is None:
+            age_display = "Never"
+        else:
+            age_seconds = (now - sub.last_scraped_at).total_seconds()
+            age_hours = age_seconds / 3600
+            if age_hours >= 24:
+                age_display = f"{int(age_hours // 24)}d {int(age_hours % 24)}h ago"
+            else:
+                age_display = f"{int(age_hours)}h {int((age_hours % 1) * 60)}m ago"
+        result.append({
+            "subreddit_name": sub.subreddit_name,
+            "client_name": client_name,
+            "age_display": age_display,
+        })
+    return result
 
 
 def get_pipeline_metrics(db: Session, freshness_hours: int) -> dict:

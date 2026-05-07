@@ -1,0 +1,12 @@
+{% extends "admin_base.html" %}
+{% block title %}System Inspector{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> / <span class="text-white">System Inspector</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    {% include "partials/inspector_content.html" %}
+</div>
+{% endblock %}

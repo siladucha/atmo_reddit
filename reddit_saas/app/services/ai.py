@@ -9,6 +9,7 @@ import logging
 from decimal import Decimal
 
 import litellm
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
 from app.config import get_config
@@ -136,11 +137,23 @@ def call_llm_json(
     model: str | None = None,
     temperature: float = 0.3,
     max_tokens: int = 1024,
+    schema: type[BaseModel] | None = None,
 ) -> dict:
     """Make an LLM call expecting JSON output. Parses the response.
 
+    Args:
+        messages: List of message dicts.
+        model: Model identifier.
+        temperature: Sampling temperature.
+        max_tokens: Max output tokens.
+        schema: Optional Pydantic model class to validate the parsed JSON against.
+
     Returns:
-        Dict with keys: data (parsed JSON), input_tokens, output_tokens, cost_usd, duration_ms, model
+        Dict with keys: data (parsed+validated JSON), input_tokens, output_tokens,
+        cost_usd, duration_ms, model
+
+    Raises:
+        ValidationError: If schema is provided and the LLM response fails validation.
     """
     result = call_llm(
         messages=messages,
@@ -160,6 +173,11 @@ def call_llm_json(
         elif "```" in content:
             content = content.split("```")[1].split("```")[0].strip()
         data = json.loads(content)
+
+    # Validate against schema if provided
+    if schema is not None:
+        validated = schema.model_validate(data)
+        data = validated.model_dump()
 
     result["data"] = data
     return result

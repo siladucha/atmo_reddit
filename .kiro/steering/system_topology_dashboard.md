@@ -1,9 +1,22 @@
 ---
 inclusion: auto
-fileMatchPattern: "**/admin_dashboard*,**/admin_health*,**/dashboard*,**/transparency*"
+fileMatchPattern: "**/admin_dashboard*,**/admin_health*,**/dashboard*,**/topology*,**/transparency*"
 ---
 
 # System Topology Dashboard — Design Specification
+
+## Implementation Status: 90% COMPLETE
+
+**What's done:**
+- `app/services/topology.py` — full service with 9 nodes, state detection, 24h heatmap, forecast
+- `app/templates/partials/topology_panel.html` — HTMX partial with heatmap grid
+- `/admin/dashboard/topology-panel` — endpoint exists, auto-refreshes on dashboard
+- All data sources wired: ScrapeLog, ActivityEvent, AIUsageLog, CommentDraft
+
+**What's remaining (nice-to-have, not blocking pilot):**
+- Dedicated `/admin/topology` full page with worker count + queue depth
+- Celery worker inspection (`celery_app.control.inspect()`)
+- Redis queue depth (`llen("celery")`)
 
 ## Overview
 

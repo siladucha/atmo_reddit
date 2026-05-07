@@ -1120,19 +1120,133 @@ def check_system_health(db: Session) -> dict[str, dict]:
             "action": "settings",
         }
     else:
+        scoring_model = get_config("llm_scoring_model", db) or "not set"
+        generation_model = get_config("llm_generation_model", db) or "not set"
+        scoring_short = scoring_model.split("/")[-1] if "/" in scoring_model else scoring_model
+        generation_short = generation_model.split("/")[-1] if "/" in generation_model else generation_model
         health["llm"] = {
             "status": "ok",
-            "message": f"Key configured",
-            "detail": f"Scoring: {get_config('llm_scoring_model', db)}, Generation: {get_config('llm_generation_model', db)}",
+            "message": "API key configured — models active",
+            "detail": f"Scoring: {scoring_short} · Generation: {generation_short}",
         }
 
     return health
 
 
 def check_single_service(service_name: str, db: Session) -> dict:
-    """Run health check for a single service. Used by the HTMX test button."""
-    full = check_system_health(db)
-    return full.get(service_name, {"status": "critical", "message": "Unknown service"})
+    """Run health check for a single service only (avoids checking all services)."""
+    import time
+    from app.config import get_config, get_settings
+
+    bootstrap = get_settings()
+
+    if service_name == "postgresql":
+        try:
+            t0 = time.monotonic()
+            version = db.execute(text("SELECT version()")).scalar()
+            latency = round((time.monotonic() - t0) * 1000)
+            short_ver = version.split(",")[0] if version else "unknown"
+            return {
+                "status": "ok",
+                "message": f"Connected — {short_ver}",
+                "detail": f"Latency: {latency}ms",
+            }
+        except Exception as e:
+            return {"status": "critical", "message": "Cannot connect", "detail": str(e)[:200]}
+
+    elif service_name == "redis":
+        try:
+            import redis as redis_lib
+
+            t0 = time.monotonic()
+            r = redis_lib.from_url(bootstrap.redis_url, socket_timeout=2)
+            r.ping()
+            latency = round((time.monotonic() - t0) * 1000)
+            info = r.info(section="memory")
+            used_mem = info.get("used_memory_human", "?")
+            return {
+                "status": "ok",
+                "message": f"Connected — memory {used_mem}",
+                "detail": f"Latency: {latency}ms",
+            }
+        except Exception as e:
+            return {"status": "critical", "message": "Cannot connect", "detail": str(e)[:200]}
+
+    elif service_name == "celery":
+        try:
+            from app.tasks.worker import celery_app
+
+            inspector = celery_app.control.inspect(timeout=1.5)
+            active = inspector.active()
+            if active:
+                worker_names = list(active.keys())
+                task_count = sum(len(tasks) for tasks in active.values())
+                return {
+                    "status": "ok",
+                    "message": f"{len(worker_names)} worker(s) active",
+                    "detail": f"Running tasks: {task_count}. Workers: {', '.join(worker_names)}",
+                }
+            else:
+                return {
+                    "status": "critical",
+                    "message": "No active workers — pipeline cannot run",
+                    "detail": "Start with: celery -A app.tasks.worker worker --loglevel=info",
+                }
+        except Exception as e:
+            return {"status": "critical", "message": "Cannot inspect workers", "detail": str(e)[:200]}
+
+    elif service_name == "reddit":
+        reddit_client_id = get_config("reddit_client_id", db)
+        reddit_client_secret = get_config("reddit_client_secret", db)
+        if not reddit_client_id or not reddit_client_secret:
+            return {
+                "status": "critical",
+                "message": "API credentials not configured",
+                "detail": "Set reddit_client_id and reddit_client_secret in Admin > System Settings",
+                "action": "settings",
+            }
+        try:
+            import praw
+
+            t0 = time.monotonic()
+            reddit = praw.Reddit(
+                client_id=reddit_client_id,
+                client_secret=reddit_client_secret,
+                user_agent=get_config("reddit_user_agent", db),
+            )
+            sub = reddit.subreddit("test")
+            _ = sub.display_name
+            latency = round((time.monotonic() - t0) * 1000)
+            return {"status": "ok", "message": "API connected", "detail": f"Latency: {latency}ms"}
+        except Exception as e:
+            return {
+                "status": "warning",
+                "message": "Credentials set but API test failed",
+                "detail": str(e)[:200],
+                "action": "settings",
+            }
+
+    elif service_name == "llm":
+        llm_api_key = get_config("llm_api_key", db)
+        if not llm_api_key:
+            return {
+                "status": "critical",
+                "message": "API key not configured — scoring and generation disabled",
+                "detail": "Set llm_api_key in Admin > System Settings",
+                "action": "settings",
+            }
+        scoring_model = get_config("llm_scoring_model", db) or "not set"
+        generation_model = get_config("llm_generation_model", db) or "not set"
+        # Extract short model names for readability
+        scoring_short = scoring_model.split("/")[-1] if "/" in scoring_model else scoring_model
+        generation_short = generation_model.split("/")[-1] if "/" in generation_model else generation_model
+        return {
+            "status": "ok",
+            "message": "API key configured — models active",
+            "detail": f"Scoring: {scoring_short} · Generation: {generation_short}",
+        }
+
+    return {"status": "critical", "message": "Unknown service"}
 
 
 def get_db_statistics(db: Session) -> dict:

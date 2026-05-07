@@ -15,12 +15,12 @@ logger = logging.getLogger(__name__)
 
 @celery_app.task(name="run_full_pipeline_all_clients")
 def run_full_pipeline_all_clients():
-    """Run score → generate for all active clients.
+    """Run score → generate comments → generate posts for all active clients.
 
     Scraping is handled separately by the queue_tick task (continuous,
     priority-based). This task only processes already-scraped threads.
     """
-    from app.tasks.ai_pipeline import score_threads, generate_comments
+    from app.tasks.ai_pipeline import score_threads, generate_comments, generate_posts
 
     db = SessionLocal()
     try:
@@ -30,10 +30,11 @@ def run_full_pipeline_all_clients():
         for client in clients:
             cid = str(client.id)
             try:
-                # Chain: score → generate (scraping removed — handled by queue_tick)
+                # Chain: score → generate comments → generate posts
                 chain = (
                     score_threads.si(cid)
                     | generate_comments.si(cid)
+                    | generate_posts.si(cid)
                 )
                 chain.apply_async()
                 logger.info(f"AI pipeline queued for {client.client_name}")

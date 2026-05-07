@@ -5,7 +5,25 @@
 <div id="widget-scrape-freshness"
      class="bg-dark-steel rounded-lg p-5 border {{ border_class }}">
     <div class="flex items-center justify-between mb-4">
-        <span class="text-sm text-gray-400 uppercase tracking-wide">Scrape Freshness</span>
+        <div class="flex items-center gap-2">
+            <span class="text-sm text-gray-400 uppercase tracking-wide">Scrape Freshness</span>
+            <div class="tooltip-container">
+                <span class="tooltip-trigger text-gray-600 hover:text-gray-400 transition-colors">
+                    <svg class="w-3.5 h-3.5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </span>
+                <div class="tooltip-content">
+                    <div class="font-semibold text-white mb-1">Subreddit Scrape Freshness</div>
+                    Tracks <code class="text-blue-300">last_scraped_at</code> on each active ClientSubreddit. Stale = not scraped within configured interval.
+                    <div class="mt-2 text-[11px] text-gray-400">
+                        <div>Default interval: 6h. Stale threshold: {{ freshness.stale_hours }}h.</div>
+                        <div>Formula: active_subreddits × (24h / interval) = scrapes/day</div>
+                        <div class="mt-1">"Never scraped" = subreddit added but pipeline hasn't run yet. Check Celery workers.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
         <span class="w-3 h-3 rounded-full shadow-lg {{ dot_class }}"></span>
     </div>
     <div class="grid grid-cols-3 gap-3 mb-4">

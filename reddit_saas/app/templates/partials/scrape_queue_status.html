@@ -1,9 +1,10 @@
 <!-- Scrape Queue Status Cards Partial -->
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
     <!-- Queue Depth -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-4 cursor-pointer hover:border-slate-500 transition-colors"
+         onclick="document.getElementById('detail-queue-depth').classList.toggle('hidden')">
         <div class="flex items-center justify-between">
-            <span class="text-sm text-gray-400">Queue Depth</span>
+            <span class="text-sm text-gray-400">Queue Depth{% set tooltip_text = "Total number of active subreddits being monitored across all clients. Click to see breakdown by client." %}{% include "partials/block_tooltip.html" %}</span>
             <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z"/>
             </svg>
@@ -13,9 +14,10 @@
     </div>
 
     <!-- Stale Count -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-4 cursor-pointer hover:border-slate-500 transition-colors"
+         onclick="document.getElementById('detail-stale').classList.toggle('hidden')">
         <div class="flex items-center justify-between">
-            <span class="text-sm text-gray-400">Stale</span>
+            <span class="text-sm text-gray-400">Stale{% set tooltip_text = "Subreddits that haven't been scraped within the freshness window. Click to see which ones are overdue." %}{% include "partials/block_tooltip.html" %}</span>
             {% if status.stale_count > 0 %}
             <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
             {% else %}
@@ -33,7 +35,7 @@
     <!-- Processing Speed -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
         <div class="flex items-center justify-between">
-            <span class="text-sm text-gray-400">Speed</span>
+            <span class="text-sm text-gray-400">Speed{% set tooltip_text = "Average scraping rate over the last 5 minutes. Measures how fast the queue is being processed." %}{% include "partials/block_tooltip.html" %}</span>
             <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/>
             </svg>
@@ -45,7 +47,7 @@
     <!-- ETA -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
         <div class="flex items-center justify-between">
-            <span class="text-sm text-gray-400">ETA to Fresh</span>
+            <span class="text-sm text-gray-400">ETA to Fresh{% set tooltip_text = "Estimated time until all stale subreddits are scraped, based on current processing speed and queue depth." %}{% include "partials/block_tooltip.html" %}</span>
             <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
@@ -54,19 +56,69 @@
             {% if status.eta_minutes is none %}
                 N/A
             {% elif status.eta_minutes == 0 %}
-                —
+                ✓ Fresh
             {% else %}
-                {{ status.eta_minutes }} min
+                ~{{ status.eta_minutes|int }} min
             {% endif %}
         </p>
-        <p class="text-xs text-gray-500 mt-1">estimated time to empty</p>
+        <p class="text-xs text-gray-500 mt-1">
+            {% if status.stale_count == 0 %}all subreddits up to date
+            {% elif status.eta_minutes %}{{ status.stale_count }} stale × ~1 min each
+            {% else %}estimated time to scrape all stale{% endif %}
+        </p>
     </div>
+</div>
+
+<!-- Zoom-in: Queue Depth detail -->
+<div id="detail-queue-depth" class="hidden mt-3 bg-slate-night rounded-lg border border-slate-700 p-4 fade-in">
+    <div class="flex items-center justify-between mb-2">
+        <span class="text-sm font-medium text-gray-300">Queue Breakdown by Client</span>
+        <button onclick="document.getElementById('detail-queue-depth').classList.add('hidden')" class="text-xs text-gray-500 hover:text-white">✕ close</button>
+    </div>
+    {% if status.depth_by_client %}
+    <div class="space-y-2">
+        {% for item in status.depth_by_client %}
+        <div class="flex items-center justify-between px-3 py-1.5 rounded bg-dark-steel border border-slate-700">
+            <span class="text-xs text-gray-300">{{ item.client_name }}</span>
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-mono text-white">{{ item.count }}</span>
+                <span class="text-xs text-gray-500">subs</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-xs text-gray-500">No data available.</p>
+    {% endif %}
+</div>
+
+<!-- Zoom-in: Stale detail -->
+<div id="detail-stale" class="hidden mt-3 bg-slate-night rounded-lg border border-slate-700 p-4 fade-in">
+    <div class="flex items-center justify-between mb-2">
+        <span class="text-sm font-medium text-gray-300">Stale Subreddits</span>
+        <button onclick="document.getElementById('detail-stale').classList.add('hidden')" class="text-xs text-gray-500 hover:text-white">✕ close</button>
+    </div>
+    {% if status.stale_subreddits %}
+    <div class="space-y-1">
+        {% for sub in status.stale_subreddits %}
+        <div class="flex items-center justify-between px-3 py-1.5 rounded bg-dark-steel border border-slate-700">
+            <span class="text-xs text-gray-300">r/{{ sub.subreddit_name }}</span>
+            <div class="flex items-center gap-3">
+                <span class="text-xs text-gray-500">{{ sub.client_name }}</span>
+                <span class="text-xs font-mono {% if sub.age_display == 'Never' %}text-red-400{% else %}text-amber-400{% endif %}">{{ sub.age_display }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-xs text-green-400">All subreddits are fresh ✓</p>
+    {% endif %}
 </div>
 
 <!-- Rate Limiter Bar -->
 <div class="mt-4 bg-dark-steel rounded-lg border border-slate-700 p-4">
     <div class="flex items-center justify-between mb-2">
-        <span class="text-sm text-gray-400">Rate Limiter Utilization</span>
+        <span class="text-sm text-gray-400">Rate Limiter Utilization{% set tooltip_text = "Current Reddit API usage vs configured limit. Red = near limit, may trigger backoff. BACKOFF badge means the system is pausing to avoid rate limiting." %}{% include "partials/block_tooltip.html" %}</span>
         <span class="text-sm font-mono text-gray-300">
             {{ status.rate_limiter.current_count }}/{{ status.rate_limiter.effective_limit }} rpm
             {% if status.rate_limiter.in_backoff %}

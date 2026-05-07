@@ -376,11 +376,14 @@ def test_health_page_renders_with_widgets(admin_client):
     body = r.text
     assert "API Metrics" in body
     assert "Reddit Rate Limit" in body
-    # HTMX wires for widget polling
+    # HTMX wires for widget polling (lazy-load + periodic refresh)
     assert "/admin/health/widget/rate-limit" in body
-    assert 'hx-trigger="every 30s"' in body
-    assert 'hx-trigger="every 60s"' in body
-    assert 'hx-trigger="every 120s"' in body
+    assert "every 30s" in body
+    assert "every 60s" in body
+    assert "every 120s" in body
+    # Lazy-loaded service cards
+    assert "/admin/health/service/postgresql" in body
+    assert "/admin/health/service/redis" in body
 
 
 def test_widget_endpoints_render(admin_client):
@@ -393,6 +396,14 @@ def test_widget_endpoints_render(admin_client):
         r = admin_client.get(url)
         assert r.status_code == 200, f"{url} returned {r.status_code}"
         assert "<div" in r.text
+
+
+def test_service_card_lazy_load(admin_client):
+    """Each service card can be loaded individually via HTMX."""
+    for service in ("postgresql", "redis", "celery", "reddit", "llm"):
+        r = admin_client.get(f"/admin/health/service/{service}")
+        assert r.status_code == 200, f"{service} returned {r.status_code}"
+        assert f'id="health-{service}"' in r.text
 
 
 def test_metrics_json_endpoint_shape(admin_client):
