@@ -20,11 +20,11 @@
                 · {{ av.reddit_status or 'unknown' }}
             </div>
         </div>
-        <form method="post" action="/admin/avatars/assign-to-client">
+        <form method="post" action="/admin/avatars/assign-to-client" class="flex-shrink-0">
             <input type="hidden" name="avatar_id" value="{{ av.id }}">
             <input type="hidden" name="client_id" value="{{ client.id }}">
             <button type="submit"
-                    class="px-3 py-1 rounded text-xs font-medium bg-green-700 hover:bg-green-600 text-white transition-colors">
+                    class="px-3 py-1.5 rounded text-xs font-medium bg-green-700 hover:bg-green-600 text-white transition-colors cursor-pointer">
                 Assign
             </button>
         </form>

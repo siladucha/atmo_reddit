@@ -18,10 +18,20 @@
     <!-- Header -->
     <div>
         <h1 class="text-2xl font-semibold text-white">Create New Avatar</h1>
-        <p class="text-sm text-gray-400 mt-1">An avatar is a Reddit account with a unique persona used for community engagement.</p>
+        <p class="text-sm text-gray-400 mt-1">An avatar is a Reddit account with a unique persona used for community engagement.
+            {% if client %} Creating for <span class="text-indigo-400">{{ client.client_name }}</span>.{% endif %}
+        </p>
     </div>
 
     <form method="POST" action="/admin/avatars/new" class="space-y-6">
+        {% if client_id %}
+        <input type="hidden" name="client_id" value="{{ client_id }}">
+        <div class="bg-indigo-900/20 border border-indigo-700/30 rounded-lg p-3 text-sm text-indigo-300">
+            This avatar will be automatically assigned to
+            {% if client %}<strong class="text-white">{{ client.client_name }}</strong>{% else %}the client{% endif %}
+            after creation.
+        </div>
+        {% endif %}
         <!-- Account Info -->
         <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 space-y-4">
             <h2 class="font-semibold text-white text-sm uppercase tracking-wide">Account Info</h2>

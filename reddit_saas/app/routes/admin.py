@@ -19,6 +19,7 @@ from app.models.user import User
 from app.services import admin as admin_service
 from app.services import audit as audit_service
 from app.services import health_metrics
+from app.services import inspector as inspector_service
 from app.services import operations_dashboard
 from app.services import transparency
 from app.services.dry_run import is_dry_run_enabled_global
@@ -67,8 +68,17 @@ def admin_dashboard(
     avatar-health / schedule are filled in via HTMX partials so the page can
     auto-refresh without a full reload.
     """
+    from app.services.settings import get_setting
+
     metrics = operations_dashboard.get_top_metrics(db)
     clients_list = operations_dashboard.list_active_clients(db)
+
+    # Pipeline control settings for the toggle panel
+    pipeline_controls = {
+        "pipeline_enabled": get_setting(db, "pipeline_enabled").lower() == "true",
+        "generation_enabled": get_setting(db, "generation_enabled").lower() == "true",
+        "scrape_enabled": get_setting(db, "scrape_enabled").lower() == "true",
+    }
 
     return templates.TemplateResponse(
         name="admin_dashboard.html",
@@ -77,6 +87,7 @@ def admin_dashboard(
             "active_nav": "dashboard",
             "metrics": metrics,
             "clients": clients_list,
+            "pipeline_controls": pipeline_controls,
         },
         request=request,
     )
@@ -196,6 +207,45 @@ def dashboard_schedule(
         context={"request": request, "schedule": schedule},
         request=request,
     )
+
+
+@router.get("/dashboard/topology-panel", response_class=HTMLResponse)
+def topology_panel(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superuser),
+):
+    """Returns HTMX partial for the topology timeline panel."""
+    from app.services.topology import get_topology_data
+
+    topology_data = get_topology_data(db)
+    return templates.TemplateResponse(
+        name="partials/topology_panel.html",
+        context={"request": request, "topology": topology_data},
+        request=request,
+    )
+
+
+@router.get("/dashboard/topology")
+def topology_json(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superuser),
+):
+    """Returns topology data as JSON for programmatic access."""
+    from dataclasses import asdict
+
+    from app.services.topology import get_topology_data
+
+    topology_data = get_topology_data(db)
+    # Serialize dataclasses to JSON-compatible dict
+    data = asdict(topology_data)
+    # Convert datetime objects to ISO 8601 strings
+    data["generated_at"] = topology_data.generated_at.isoformat()
+    for node in data["nodes"]:
+        if node["last_run_at"]:
+            node["last_run_at"] = node["last_run_at"].isoformat()
+    return JSONResponse(content=data)
 
 
 @router.post("/dashboard/trigger/{action}/{client_id}", response_class=HTMLResponse)
@@ -1088,12 +1138,20 @@ def admin_avatars_check_visible(
 @router.get("/avatars/new", response_class=HTMLResponse)
 def admin_avatar_new_page(
     request: Request,
+    client_id: str = "",
     current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
 ):
     """Admin page to create a new avatar."""
+    client = None
+    if client_id:
+        try:
+            client = db.query(Client).filter(Client.id == uuid.UUID(client_id)).first()
+        except (ValueError, AttributeError):
+            pass
     return templates.TemplateResponse(
         name="admin_avatar_new.html",
-        context={"request": request, "active_nav": "avatars"},
+        context={"request": request, "active_nav": "avatars", "client_id": client_id, "client": client},
         request=request,
     )
 
@@ -1109,10 +1167,11 @@ def admin_avatar_create_submit(
     helpful_mode_topics: str = Form(""),
     constraints: str = Form(""),
     hobby_subreddits: str = Form(""),
+    client_id: str = Form(""),
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
-    """Create a new avatar from the admin panel."""
+    """Create a new avatar from the admin panel. Auto-assigns to client if client_id provided."""
     hobby_list = [s.strip() for s in hobby_subreddits.split(",") if s.strip()] if hobby_subreddits else []
     avatar = Avatar(
         reddit_username=reddit_username,
@@ -1136,7 +1195,18 @@ def admin_avatar_create_submit(
         entity_id=avatar.id,
         details={"reddit_username": reddit_username},
     )
-    return RedirectResponse(url="/admin/avatars", status_code=303)
+
+    # Auto-assign to client if created from client context
+    redirect_url = "/admin/avatars"
+    if client_id:
+        try:
+            cid = uuid.UUID(client_id)
+            admin_service.assign_avatars_to_client(db, cid, [avatar.id], current_user.id)
+            redirect_url = f"/admin/avatars?client_id={client_id}"
+        except (ValueError, Exception):
+            pass
+
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 
 @router.post("/avatars/assign-to-client", response_class=HTMLResponse)
@@ -1188,6 +1258,7 @@ def admin_available_avatars_for_client(
             "client": client,
             "available_avatars": available,
         },
+        request=request,
     )
 
 
@@ -1274,8 +1345,12 @@ def admin_avatar_detail(
 
     # AI costs for this avatar (via client_ids)
     ai_costs = []
+    assigned_clients = []
     if avatar.client_ids:
         for cid in avatar.client_ids:
+            c = db.query(Client).filter(Client.id == uuid.UUID(cid)).first()
+            if c:
+                assigned_clients.append(c)
             costs = db.query(
                 AIUsageLog.operation,
                 func.count(AIUsageLog.id).label("calls"),
@@ -1286,6 +1361,14 @@ def admin_avatar_detail(
                 AIUsageLog.client_id == cid,
             ).group_by(AIUsageLog.operation).all()
             ai_costs = costs
+
+    # All active clients for the assign dropdown
+    all_clients = db.query(Client).filter(Client.is_active.is_(True)).order_by(Client.client_name).all()
+    unassigned_clients = [c for c in all_clients if str(c.id) not in (avatar.client_ids or [])]
+
+    # Karma history (30 days)
+    from app.services.karma_history import get_karma_history
+    karma_history = get_karma_history(db, avatar.id, days=30)
 
     return templates.TemplateResponse(
         name="admin_avatar_detail.html",
@@ -1305,9 +1388,35 @@ def admin_avatar_detail(
                 "pro_posted": pro_posted,
             },
             "ai_costs": ai_costs,
+            "assigned_clients": assigned_clients,
+            "unassigned_clients": unassigned_clients,
+            "karma_history": karma_history,
         },
         request=request,
     )
+
+
+@router.get("/avatars/{avatar_id}/refresh", response_class=HTMLResponse)
+def admin_avatar_refresh(
+    request: Request,
+    avatar_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Refresh Reddit data for a single avatar (karma, status) and redirect back."""
+    from app.services.reddit_status import check_reddit_status
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        return HTMLResponse("Avatar not found", status_code=404)
+
+    try:
+        check_reddit_status(db, avatar)
+        db.commit()
+    except Exception:
+        pass  # Non-critical — page will still load with stale data
+
+    return RedirectResponse(url=f"/admin/avatars/{avatar_id}", status_code=303)
 
 
 @router.post("/avatars/{avatar_id}/toggle-active", response_class=HTMLResponse)
@@ -1424,6 +1533,104 @@ def admin_avatar_phase_override(
     return RedirectResponse(url="/admin/avatars", status_code=303)
 
 
+@router.post("/avatars/{avatar_id}/freeze", response_class=HTMLResponse)
+def admin_freeze_avatar(
+    request: Request,
+    avatar_id: uuid.UUID,
+    freeze_reason: str = Form(...),
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Freeze an avatar — sets is_frozen=True, records reason and timestamp."""
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        return HTMLResponse("Avatar not found", status_code=404)
+
+    avatar.is_frozen = True
+    avatar.freeze_reason = freeze_reason
+    avatar.frozen_at = datetime.now(timezone.utc)
+    db.commit()
+
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="freeze",
+        entity_type="avatar",
+        entity_id=avatar.id,
+        details={"reason": freeze_reason},
+    )
+
+    return RedirectResponse(url=f"/admin/avatars/{avatar_id}", status_code=303)
+
+
+@router.post("/avatars/{avatar_id}/unfreeze", response_class=HTMLResponse)
+def admin_unfreeze_avatar(
+    request: Request,
+    avatar_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Unfreeze an avatar — clears frozen state."""
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        return HTMLResponse("Avatar not found", status_code=404)
+
+    avatar.is_frozen = False
+    avatar.freeze_reason = None
+    avatar.frozen_at = None
+    db.commit()
+
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="unfreeze",
+        entity_type="avatar",
+        entity_id=avatar.id,
+    )
+
+    return RedirectResponse(url=f"/admin/avatars/{avatar_id}", status_code=303)
+
+
+@router.post("/settings/pipeline-controls", response_class=HTMLResponse)
+def admin_toggle_pipeline_control(
+    request: Request,
+    setting_key: str = Form(...),
+    setting_value: str = Form(...),
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Toggle a pipeline control setting (pipeline_enabled, generation_enabled, scrape_enabled)."""
+    allowed_keys = {"pipeline_enabled", "generation_enabled", "scrape_enabled"}
+    if setting_key not in allowed_keys:
+        return HTMLResponse("Invalid setting", status_code=400)
+
+    from app.services.settings import get_setting, set_setting
+    set_setting(db, setting_key, setting_value, user_id=current_user.id)
+
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="toggle_kill_switch",
+        entity_type="system_setting",
+        details={"key": setting_key, "value": setting_value},
+    )
+
+    # If HTMX request, return the updated pipeline controls partial
+    if request.headers.get("HX-Request", "").lower() == "true":
+        pipeline_controls = {
+            "pipeline_enabled": get_setting(db, "pipeline_enabled").lower() == "true",
+            "generation_enabled": get_setting(db, "generation_enabled").lower() == "true",
+            "scrape_enabled": get_setting(db, "scrape_enabled").lower() == "true",
+        }
+        return templates.TemplateResponse(
+            name="partials/pipeline_controls.html",
+            context={"request": request, "pipeline_controls": pipeline_controls},
+            request=request,
+        )
+
+    return RedirectResponse(url="/admin/", status_code=303)
+
+
 @router.get("/subreddits/{client_id}", response_class=HTMLResponse)
 def admin_subreddits(
     request: Request,
@@ -1531,12 +1738,10 @@ def admin_tasks(
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
-    try:
-        from app.tasks.worker import celery_app
-        tasks = admin_service.get_recent_tasks(celery_app)
-    except Exception:
-        tasks = []
-
+    schedule = operations_dashboard.get_schedule_with_history(db)
+    run_history = operations_dashboard.get_run_history(
+        db, limit=30, event_types=operations_dashboard._ALL_EVENT_TYPES
+    )
     clients_list = db.query(Client).filter(Client.is_active.is_(True)).order_by(Client.client_name).all()
 
     return templates.TemplateResponse(
@@ -1544,7 +1749,8 @@ def admin_tasks(
         context={
             "request": request,
             "active_nav": "tasks",
-            "tasks": tasks,
+            "schedule": schedule,
+            "run_history": run_history,
             "clients": clients_list,
             "error": None,
         },
@@ -1575,12 +1781,10 @@ def admin_trigger_pipeline(
     except Exception as e:
         error = str(e)
 
-    try:
-        from app.tasks.worker import celery_app
-        tasks = admin_service.get_recent_tasks(celery_app)
-    except Exception:
-        tasks = []
-
+    schedule = operations_dashboard.get_schedule_with_history(db)
+    run_history = operations_dashboard.get_run_history(
+        db, limit=30, event_types=operations_dashboard._ALL_EVENT_TYPES
+    )
     clients_list = db.query(Client).filter(Client.is_active.is_(True)).order_by(Client.client_name).all()
 
     return templates.TemplateResponse(
@@ -1588,7 +1792,8 @@ def admin_trigger_pipeline(
         context={
             "request": request,
             "active_nav": "tasks",
-            "tasks": tasks,
+            "schedule": schedule,
+            "run_history": run_history,
             "clients": clients_list,
             "error": error,
             "success": f"Pipeline triggered (task: {task_id})" if task_id else None,
@@ -1621,29 +1826,42 @@ def admin_health(
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
-    health = admin_service.check_system_health(db)
+    """Render health page shell instantly; heavy checks load via HTMX."""
     db_stats = admin_service.get_db_statistics(db)
     collector = _get_collector(request)
     window_minutes = collector.get_window_minutes()
 
-    rate_limit_state = collector.get_rate_limit()
-    reddit_metrics = health_metrics.get_reddit_api_metrics(db, window_minutes=window_minutes)
-    llm_metrics = health_metrics.get_llm_api_metrics(db, window_minutes=window_minutes)
-    freshness = health_metrics.get_all_scrape_freshness(db)
+    # Service names for lazy-loaded cards
+    services = ["postgresql", "redis", "celery", "reddit", "llm"]
 
     return templates.TemplateResponse(
         name="admin_health.html",
         context={
             "request": request,
             "active_nav": "health",
-            "health": health,
+            "services": services,
             "db_stats": db_stats,
-            "rate_limit": rate_limit_state,
-            "rate_limit_color": gauge_color(rate_limit_state.usage_pct),
-            "reddit_metrics": reddit_metrics,
-            "llm_metrics": llm_metrics,
-            "freshness": freshness,
             "window_minutes": window_minutes,
+        },
+        request=request,
+    )
+
+
+@router.get("/health/service/{service_name}", response_class=HTMLResponse)
+def admin_health_service_card(
+    service_name: str,
+    request: Request,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """HTMX endpoint: lazy-load a single service health card."""
+    info = admin_service.check_single_service(service_name, db)
+    return templates.TemplateResponse(
+        name="partials/admin_health_card.html",
+        context={
+            "request": request,
+            "service": service_name,
+            "info": info,
         },
         request=request,
     )
@@ -2516,6 +2734,8 @@ def admin_billing(
 @router.get("/scrape-queue", response_class=HTMLResponse)
 def admin_scrape_queue(
     request: Request,
+    toast: str | None = None,
+    toast_type: str | None = None,
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
@@ -2551,6 +2771,8 @@ def admin_scrape_queue(
                 "freshness_hours": freshness_hours,
                 "max_rpm": max_rpm,
             },
+            "toast": toast,
+            "toast_type": toast_type or "info",
         },
         request=request,
     )
@@ -2684,18 +2906,20 @@ def admin_scrape_queue_trigger(
 
     Runs the scrape directly in the HTTP request (no Celery worker needed).
     Takes 5-15 seconds depending on Reddit API response time.
+    Returns a toast with results showing what was scraped and the outcome.
     """
     import time
     import uuid
     from datetime import datetime, timezone
+    from urllib.parse import urlencode
 
     from app.models.scrape_log import ScrapeLog
-    from app.models.subreddit import ClientSubreddit
+    from app.models.subreddit import ClientSubreddit, Subreddit
     from app.models.thread import RedditThread
     from app.services.reddit import scrape_subreddit, deduplicate_posts
     from app.services.transparency import record_activity_event
 
-    # Query next stale subreddit
+    # Query next stale subreddit (using shared registry)
     candidates = (
         db.query(
             ClientSubreddit.subreddit_name,
@@ -2716,13 +2940,28 @@ def admin_scrape_queue_trigger(
     )
 
     if not candidates:
-        return RedirectResponse(url="/admin/scrape-queue", status_code=303)
+        params = urlencode({"toast": "No active subreddits to scrape", "toast_type": "warning"})
+        return RedirectResponse(url=f"/admin/scrape-queue?{params}", status_code=303)
 
     candidate = candidates[0]
     subreddit_name = candidate.subreddit_name
     client_id = str(candidate.client_id)
     client_uuid = uuid.UUID(client_id)
     start_time = time.time()
+
+    # Resolve subreddit_id from shared registry
+    subreddit_record = (
+        db.query(Subreddit)
+        .filter(Subreddit.subreddit_name.ilike(subreddit_name))
+        .first()
+    )
+    if not subreddit_record:
+        # Create subreddit in shared registry if missing
+        subreddit_record = Subreddit(subreddit_name=subreddit_name, is_active=True)
+        db.add(subreddit_record)
+        db.flush()
+
+    subreddit_id = subreddit_record.id
 
     try:
         # Record start event
@@ -2736,11 +2975,11 @@ def admin_scrape_queue_trigger(
         # Scrape subreddit
         posts = scrape_subreddit(subreddit_name, limit=50, max_age_hours=24)
 
-        # Deduplicate
+        # Deduplicate against ALL threads for this subreddit (not just per-client)
         existing_ids = set(
             row[0]
             for row in db.query(RedditThread.reddit_native_id)
-            .filter(RedditThread.client_id == client_id)
+            .filter(RedditThread.subreddit_id == subreddit_id)
             .all()
         )
         new_posts = deduplicate_posts(posts, existing_ids)
@@ -2748,7 +2987,8 @@ def admin_scrape_queue_trigger(
         # Save new threads
         for post in new_posts:
             thread = RedditThread(
-                client_id=client_id,
+                client_id=client_uuid,
+                subreddit_id=subreddit_id,
                 type="professional",
                 reddit_native_id=post["reddit_native_id"],
                 subreddit=post["subreddit"],
@@ -2765,7 +3005,7 @@ def admin_scrape_queue_trigger(
             db.add(thread)
         db.commit()
 
-        # Update last_scraped_at
+        # Update last_scraped_at on both legacy and shared models
         sub_record = (
             db.query(ClientSubreddit)
             .filter(
@@ -2777,10 +3017,13 @@ def admin_scrape_queue_trigger(
         if sub_record:
             sub_record.last_scraped_at = datetime.now(timezone.utc)
 
+        subreddit_record.last_scraped_at = datetime.now(timezone.utc)
+
         # Record ScrapeLog
         duration_ms = int((time.time() - start_time) * 1000)
         scrape_log = ScrapeLog(
             client_id=client_uuid,
+            subreddit_id=subreddit_id,
             subreddit_name=subreddit_name,
             posts_found=len(posts),
             posts_new=len(new_posts),
@@ -2798,7 +3041,13 @@ def admin_scrape_queue_trigger(
             {"subreddit_name": subreddit_name, "posts_found": len(posts), "posts_new": len(new_posts), "duration_ms": duration_ms, "trigger": "manual"},
         )
 
+        # Redirect with success toast
+        msg = f"✅ r/{subreddit_name} → {len(posts)} found, {len(new_posts)} new ({duration_ms}ms) — client: {candidate.client_name}"
+        params = urlencode({"toast": msg, "toast_type": "success"})
+        return RedirectResponse(url=f"/admin/scrape-queue?{params}", status_code=303)
+
     except Exception as e:
+        db.rollback()
         # Record error
         record_activity_event(
             db, "system",
@@ -2806,8 +3055,11 @@ def admin_scrape_queue_trigger(
             client_uuid,
             {"subreddit_name": subreddit_name, "error": str(e)[:500], "trigger": "manual"},
         )
+        db.commit()
 
-    return RedirectResponse(url="/admin/scrape-queue", status_code=303)
+        msg = f"❌ r/{subreddit_name} failed: {str(e)[:100]}"
+        params = urlencode({"toast": msg, "toast_type": "error"})
+        return RedirectResponse(url=f"/admin/scrape-queue?{params}", status_code=303)
 
 
 # ---------------------------------------------------------------------------
@@ -2819,6 +3071,9 @@ def admin_threads(
     request: Request,
     client_id: str | None = None,
     tag: str | None = None,
+    page: int = 1,
+    sort: str = "relevance",
+    order: str = "desc",
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
@@ -2830,6 +3085,7 @@ def admin_threads(
     from sqlalchemy import func as sa_func
     from sqlalchemy.orm import selectinload
 
+    per_page = 50
     filter_client_uuid = None
     threads_data = []
 
@@ -2840,7 +3096,6 @@ def admin_threads(
             pass
 
     if filter_client_uuid:
-        # Use the scoring service to get threads with per-client scores (already has LIMIT)
         results = get_client_threads_with_scores(db, filter_client_uuid, tag=tag if tag in ("engage", "monitor", "skip") else None)
         for thread, score in results:
             threads_data.append({
@@ -2848,7 +3103,6 @@ def admin_threads(
                 "score": score,
             })
     else:
-        # No client filter — use a LEFT JOIN to get scores in one query instead of N+1
         query = (
             db.query(RedditThread, ThreadScore)
             .outerjoin(ThreadScore, ThreadScore.thread_id == RedditThread.id)
@@ -2856,12 +3110,70 @@ def admin_threads(
         if tag and tag in ("engage", "monitor", "skip"):
             query = query.filter(ThreadScore.tag == tag)
 
-        rows = query.order_by(RedditThread.created_at.desc()).limit(200).all()
+        rows = query.order_by(RedditThread.created_at.desc()).limit(1000).all()
         for thread, score in rows:
             threads_data.append({
                 "thread": thread,
                 "score": score,
             })
+
+    # Sorting
+    _tag_priority = {"engage": 0, "monitor": 1, "skip": 2}
+    is_desc = order == "desc"
+
+    if sort == "relevance":
+        def _sort_key(item):
+            score = item.get("score")
+            t = item.get("thread")
+            tag_val = score.tag if score else None
+            priority = _tag_priority.get(tag_val, 3)
+            composite = -(score.composite or 0) if score else 0
+            created = t.created_at if t else datetime.min
+            return (priority, composite, -created.timestamp() if created else 0)
+        threads_data.sort(key=_sort_key, reverse=not is_desc)  # desc is default for relevance
+    elif sort == "tag":
+        threads_data.sort(
+            key=lambda i: _tag_priority.get((i["score"].tag if i["score"] else None), 3),
+            reverse=is_desc,
+        )
+    elif sort == "title":
+        threads_data.sort(
+            key=lambda i: (i["thread"].post_title or "").lower(),
+            reverse=is_desc,
+        )
+    elif sort == "subreddit":
+        threads_data.sort(
+            key=lambda i: (i["thread"].subreddit or "").lower(),
+            reverse=is_desc,
+        )
+    elif sort == "composite":
+        threads_data.sort(
+            key=lambda i: (i["score"].composite or 0) if i["score"] else 0,
+            reverse=is_desc,
+        )
+    elif sort == "ups":
+        threads_data.sort(
+            key=lambda i: i["thread"].ups or 0,
+            reverse=is_desc,
+        )
+    elif sort == "scraped":
+        threads_data.sort(
+            key=lambda i: i["thread"].scraped_at or datetime.min,
+            reverse=is_desc,
+        )
+    elif sort == "author":
+        threads_data.sort(
+            key=lambda i: (i["thread"].author or "").lower(),
+            reverse=is_desc,
+        )
+
+    # Pagination
+    total = len(threads_data)
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    page = max(1, min(page, total_pages))
+    start = (page - 1) * per_page
+    end = start + per_page
+    threads_page = threads_data[start:end]
 
     clients_list = (
         db.query(Client)
@@ -2892,13 +3204,19 @@ def admin_threads(
         context={
             "request": request,
             "active_nav": "threads",
-            "threads": threads_data,
+            "threads": threads_page,
             "clients": clients_list,
             "client_map": client_map,
             "filter_client_id": client_id or "",
             "filter_tag": tag or "",
+            "sort": sort,
+            "order": order,
             "last_scoring_log": last_scoring_log,
             "ai_cost_24h": float(ai_cost_24h),
+            "page": page,
+            "total_pages": total_pages,
+            "total": total,
+            "per_page": per_page,
         },
         request=request,
     )
@@ -2913,18 +3231,148 @@ def admin_review(
     request: Request,
     status: str = "pending",
     client_id: str | None = None,
+    sort: str = "score",
+    subreddit: str | None = None,
+    avatar_id: str | None = None,
+    age: str | None = None,
+    content_type: str = "comments",
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
-    """Admin review queue — approve / reject / edit comment drafts."""
+    """Admin review queue — approve / reject / edit comment and post drafts.
+
+    Filters: status, client, subreddit, avatar, age, content_type.
+    Sort: score (highest composite first), newest, oldest.
+    """
+    from datetime import timedelta
     from app.models.comment_draft import CommentDraft
+    from app.models.post_draft import PostDraft
     from app.models.thread import RedditThread
     from app.models.thread_score import ThreadScore
     from sqlalchemy.orm import joinedload
 
     if status not in ("pending", "approved", "posted", "rejected"):
         status = "pending"
+    if content_type not in ("comments", "posts", "all"):
+        content_type = "comments"
 
+    now = datetime.now(timezone.utc)
+
+    # --- Post drafts query (when content_type == "posts") ---
+    if content_type == "posts":
+        post_query = (
+            db.query(PostDraft)
+            .options(joinedload(PostDraft.avatar))
+            .filter(PostDraft.status == status)
+        )
+
+        filter_client_uuid = None
+        if client_id:
+            try:
+                filter_client_uuid = uuid.UUID(client_id)
+                post_query = post_query.filter(PostDraft.client_id == filter_client_uuid)
+            except ValueError:
+                pass
+
+        if subreddit:
+            post_query = post_query.filter(PostDraft.subreddit == subreddit)
+
+        if avatar_id:
+            try:
+                post_query = post_query.filter(PostDraft.avatar_id == uuid.UUID(avatar_id))
+            except ValueError:
+                pass
+
+        if age == "fresh":
+            post_query = post_query.filter(PostDraft.created_at >= now - timedelta(hours=4))
+        elif age == "today":
+            post_query = post_query.filter(PostDraft.created_at >= now - timedelta(hours=24))
+        elif age == "stale":
+            post_query = post_query.filter(PostDraft.created_at < now - timedelta(hours=24))
+
+        if sort == "newest":
+            post_query = post_query.order_by(PostDraft.created_at.desc())
+        elif sort == "oldest":
+            post_query = post_query.order_by(PostDraft.created_at.asc())
+        else:
+            post_query = post_query.order_by(PostDraft.created_at.desc())
+
+        post_drafts = post_query.limit(100).all()
+
+        enriched = []
+        for draft in post_drafts:
+            enriched.append({
+                "draft": draft,
+                "thread": None,
+                "avatar": draft.avatar,
+                "score": None,
+                "karma_summary": None,
+                "is_post": True,
+            })
+
+        subreddit_options = sorted(set(
+            d.subreddit for d in post_drafts if d.subreddit
+        ))
+        avatar_options = sorted(
+            set((str(d.avatar.id), d.avatar.reddit_username) for d in post_drafts if d.avatar),
+            key=lambda x: x[1],
+        )
+
+        total_pending = db.query(PostDraft).filter(PostDraft.status == "pending").count()
+        oldest_pending = (
+            db.query(PostDraft.created_at)
+            .filter(PostDraft.status == "pending")
+            .order_by(PostDraft.created_at.asc())
+            .first()
+        )
+        oldest_age_hours = None
+        if oldest_pending and oldest_pending.created_at:
+            oldest_age_hours = int((now - oldest_pending.created_at).total_seconds() / 3600)
+
+        avg_score = None
+        avatar_breakdown = []
+
+        # Counts for tab badges
+        pending_posts_count = db.query(PostDraft).filter(PostDraft.status == "pending").count()
+        pending_comments_count = db.query(CommentDraft).filter(CommentDraft.status == "pending").count()
+
+        clients_list = (
+            db.query(Client)
+            .filter(Client.is_active.is_(True))
+            .order_by(Client.client_name)
+            .all()
+        )
+
+        return templates.TemplateResponse(
+            name="admin_review.html",
+            context={
+                "request": request,
+                "active_nav": "review",
+                "drafts": enriched,
+                "status": status,
+                "clients": clients_list,
+                "selected_client": client_id or "",
+                "sort": sort,
+                "subreddit_filter": subreddit or "",
+                "avatar_filter": avatar_id or "",
+                "age_filter": age or "",
+                "content_type": content_type,
+                "subreddit_options": subreddit_options,
+                "avatar_options": avatar_options,
+                "stats": {
+                    "total_pending": total_pending,
+                    "oldest_age_hours": oldest_age_hours,
+                    "avg_score": avg_score,
+                    "showing": len(enriched),
+                    "pending_posts": pending_posts_count,
+                    "pending_comments": pending_comments_count,
+                },
+                "avatar_breakdown": avatar_breakdown,
+            },
+            request=request,
+        )
+
+    # --- Comment drafts query (default) ---
     query = (
         db.query(CommentDraft)
         .options(joinedload(CommentDraft.thread), joinedload(CommentDraft.avatar))
@@ -2939,7 +3387,35 @@ def admin_review(
         except ValueError:
             pass
 
-    drafts = query.order_by(CommentDraft.created_at.desc()).limit(50).all()
+    # Subreddit filter
+    if subreddit:
+        query = query.join(CommentDraft.thread).filter(RedditThread.subreddit == subreddit)
+
+    # Avatar filter
+    if avatar_id:
+        try:
+            query = query.filter(CommentDraft.avatar_id == uuid.UUID(avatar_id))
+        except ValueError:
+            pass
+
+    # Age filter
+    if age == "fresh":
+        query = query.filter(CommentDraft.created_at >= now - timedelta(hours=4))
+    elif age == "today":
+        query = query.filter(CommentDraft.created_at >= now - timedelta(hours=24))
+    elif age == "stale":
+        query = query.filter(CommentDraft.created_at < now - timedelta(hours=24))
+
+    # Sorting
+    if sort == "newest":
+        query = query.order_by(CommentDraft.created_at.desc())
+    elif sort == "oldest":
+        query = query.order_by(CommentDraft.created_at.asc())
+    else:
+        # Default: sort by score (highest first) — need to join ThreadScore
+        query = query.order_by(CommentDraft.created_at.desc())  # fallback ordering
+
+    drafts = query.limit(100).all()
 
     # Batch-fetch ThreadScores for all drafts in one query
     thread_client_pairs = [
@@ -2961,9 +3437,21 @@ def admin_review(
 
     enriched = []
     for draft in drafts:
-        thread = draft.thread  # already loaded via joinedload
-        avatar = draft.avatar  # already loaded via joinedload
+        thread = draft.thread
+        avatar = draft.avatar
         score = scores_map.get((draft.thread_id, draft.client_id))
+
+        # Compute comment count from comments_json
+        if thread and thread.comments_json:
+            try:
+                import json as _json
+                _comments = _json.loads(thread.comments_json)
+                thread.comment_count = len(_comments) if isinstance(_comments, list) else 0
+            except Exception:
+                thread.comment_count = 0
+        elif thread:
+            thread.comment_count = 0
+
         item = {"draft": draft, "thread": thread, "avatar": avatar, "score": score}
 
         # For posted status, include karma summary per avatar
@@ -2975,12 +3463,136 @@ def admin_review(
 
         enriched.append(item)
 
+    # Sort in Python (since join is complex with joinedload)
+    if sort == "newest":
+        enriched.sort(key=lambda x: x["draft"].created_at, reverse=True)
+    elif sort == "oldest":
+        enriched.sort(key=lambda x: x["draft"].created_at)
+    else:
+        # Default "score" = karma potential:
+        # Prioritize fresh posts with high engagement potential.
+        # Formula: composite_score + freshness_bonus + popularity_bonus - competition_penalty
+        def _karma_potential(x):
+            composite = x["score"].composite if x["score"] and x["score"].composite else 0
+            thread = x["thread"]
+            if not thread:
+                return composite
+
+            # Freshness: posts < 4h get full bonus, 4-12h partial, >12h zero
+            age_hours = (now - thread.created_at).total_seconds() / 3600 if thread.created_at else 24
+            if age_hours < 4:
+                freshness = 20
+            elif age_hours < 8:
+                freshness = 10
+            elif age_hours < 12:
+                freshness = 5
+            else:
+                freshness = 0
+
+            # Popularity: more upvotes = more visibility for our comment
+            ups = thread.ups or thread.score or 0
+            popularity = min(ups, 30)  # cap at 30 bonus points
+
+            # Competition: more comments = harder to stand out
+            comment_count = getattr(thread, 'comment_count', 0) or 0
+            competition = min(comment_count * 2, 20)  # penalty up to 20
+
+            return composite + freshness + popularity - competition
+
+        enriched.sort(key=_karma_potential, reverse=True)
+
+    # Collect filter options from current status (for dropdowns)
+    all_pending = (
+        db.query(CommentDraft)
+        .options(joinedload(CommentDraft.thread), joinedload(CommentDraft.avatar))
+        .filter(CommentDraft.status == status)
+    )
+    if filter_client_uuid:
+        all_pending = all_pending.filter(CommentDraft.client_id == filter_client_uuid)
+
+    # Get unique subreddits and avatars for filter dropdowns
+    subreddit_options = sorted(set(
+        d.thread.subreddit for d in drafts if d.thread and d.thread.subreddit
+    ))
+    avatar_options = sorted(
+        set((str(d.avatar.id), d.avatar.reddit_username) for d in drafts if d.avatar),
+        key=lambda x: x[1],
+    )
+
+    # Quick stats
+    total_pending = db.query(CommentDraft).filter(CommentDraft.status == "pending").count()
+    oldest_pending = (
+        db.query(CommentDraft.created_at)
+        .filter(CommentDraft.status == "pending")
+        .order_by(CommentDraft.created_at.asc())
+        .first()
+    )
+    oldest_age_hours = None
+    if oldest_pending and oldest_pending.created_at:
+        oldest_age_hours = int((now - oldest_pending.created_at).total_seconds() / 3600)
+
+    avg_score = None
+    if enriched:
+        scores_list = [x["score"].composite for x in enriched if x["score"] and x["score"].composite]
+        if scores_list:
+            avg_score = round(sum(scores_list) / len(scores_list), 1)
+
+    # Avatar breakdown for decision-making header
+    avatar_breakdown = []
+    if status == "pending":
+        from sqlalchemy import func as sa_func_local
+        avatar_stats = (
+            db.query(
+                Avatar.id,
+                Avatar.reddit_username,
+                Avatar.warming_phase,
+                sa_func_local.count(CommentDraft.id).label("pending_count"),
+            )
+            .join(CommentDraft, CommentDraft.avatar_id == Avatar.id)
+            .filter(CommentDraft.status == "pending")
+            .group_by(Avatar.id, Avatar.reddit_username, Avatar.warming_phase)
+            .order_by(sa_func_local.count(CommentDraft.id).desc())
+            .all()
+        )
+        # Also get today's approved count per avatar
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        approved_today = (
+            db.query(
+                CommentDraft.avatar_id,
+                sa_func_local.count(CommentDraft.id),
+            )
+            .filter(
+                CommentDraft.status.in_(["approved", "posted"]),
+                CommentDraft.created_at >= today_start,
+            )
+            .group_by(CommentDraft.avatar_id)
+            .all()
+        )
+        approved_map = {row[0]: row[1] for row in approved_today}
+
+        for av_id, username, phase, pending_count in avatar_stats:
+            avatar_breakdown.append({
+                "avatar_id": str(av_id),
+                "username": username,
+                "phase": phase,
+                "pending": pending_count,
+                "approved_today": approved_map.get(av_id, 0),
+            })
+
     clients_list = (
         db.query(Client)
         .filter(Client.is_active.is_(True))
         .order_by(Client.client_name)
         .all()
     )
+
+    # Counts for tab badges
+    pending_posts_count = db.query(PostDraft).filter(PostDraft.status == "pending").count()
+    pending_comments_count = db.query(CommentDraft).filter(CommentDraft.status == "pending").count()
+
+    # Mark items as comments (not posts)
+    for item in enriched:
+        item["is_post"] = False
 
     return templates.TemplateResponse(
         name="admin_review.html",
@@ -2991,6 +3603,22 @@ def admin_review(
             "status": status,
             "clients": clients_list,
             "selected_client": client_id or "",
+            "sort": sort,
+            "subreddit_filter": subreddit or "",
+            "avatar_filter": avatar_id or "",
+            "age_filter": age or "",
+            "content_type": content_type,
+            "subreddit_options": subreddit_options,
+            "avatar_options": avatar_options,
+            "stats": {
+                "total_pending": total_pending,
+                "oldest_age_hours": oldest_age_hours,
+                "avg_score": avg_score,
+                "showing": len(enriched),
+                "pending_posts": pending_posts_count,
+                "pending_comments": pending_comments_count,
+            },
+            "avatar_breakdown": avatar_breakdown,
         },
         request=request,
     )
@@ -3003,10 +3631,13 @@ def admin_review(
 @router.get("/keywords", response_class=HTMLResponse)
 def admin_keywords_global(
     request: Request,
+    client_id: str = "",
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
-    """Global keywords page — keywords for every client at a glance."""
+    """Global keywords page — keywords per client with analytics."""
+    from app.services.keyword_analytics import get_keyword_stats_for_client
+
     clients_list = (
         db.query(Client)
         .filter(Client.is_active.is_(True))
@@ -3014,10 +3645,15 @@ def admin_keywords_global(
         .all()
     )
 
+    # Only load analytics when a specific client is selected
     groups = []
-    for c in clients_list:
-        kws = admin_service.get_client_keywords(db, c.id)
-        groups.append({"client": c, "keywords": kws})
+    selected_client = None
+    if client_id:
+        selected_client = next((c for c in clients_list if str(c.id) == client_id), None)
+        if selected_client:
+            kws = admin_service.get_client_keywords(db, selected_client.id)
+            kw_stats = get_keyword_stats_for_client(db, selected_client.id, days=90)
+            groups.append({"client": selected_client, "keywords": kws, "keyword_stats": kw_stats})
 
     return templates.TemplateResponse(
         name="admin_keywords_global.html",
@@ -3025,6 +3661,128 @@ def admin_keywords_global(
             "request": request,
             "active_nav": "keywords",
             "groups": groups,
+            "clients_list": clients_list,
+            "selected_client_id": client_id,
         },
         request=request,
     )
+
+# ---------------------------------------------------------------------------
+# System Inspector — diagnostics + controls
+# ---------------------------------------------------------------------------
+
+
+def _inspector_context(db: Session, last_action: dict | None = None) -> dict:
+    """Build the full context dict for the inspector page/partial."""
+    from app.services.settings import get_setting
+
+    report = inspector_service.run_all_checks(db)
+    funnel = inspector_service.get_pipeline_funnel(db)
+    client_breakdown = inspector_service.get_client_breakdown(db)
+
+    # Pipeline switch states
+    pipeline_enabled = get_setting(db, "pipeline_enabled").lower() == "true"
+    generation_enabled = get_setting(db, "generation_enabled").lower() == "true"
+    scrape_enabled = get_setting(db, "scrape_enabled").lower() == "true"
+
+    # Recommendations
+    recommendations = inspector_service.get_recommendations(
+        db, report, funnel, pipeline_enabled, generation_enabled, scrape_enabled
+    )
+
+    return {
+        "report": report,
+        "funnel": funnel,
+        "client_breakdown": client_breakdown,
+        "recommendations": recommendations,
+        "pipeline_enabled": pipeline_enabled,
+        "generation_enabled": generation_enabled,
+        "scrape_enabled": scrape_enabled,
+        "last_action": last_action,
+    }
+
+
+@router.get("/inspector", response_class=HTMLResponse)
+def admin_inspector(
+    request: Request,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """System Inspector — diagnostics, data integrity, pipeline controls."""
+    ctx = _inspector_context(db)
+    ctx["request"] = request
+    ctx["active_nav"] = "inspector"
+
+    return templates.TemplateResponse(
+        name="admin_inspector.html",
+        context=ctx,
+        request=request,
+    )
+
+
+@router.get("/inspector/refresh", response_class=HTMLResponse)
+def admin_inspector_refresh(
+    request: Request,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """HTMX partial: re-run checks and return only the content div."""
+    ctx = _inspector_context(db)
+    ctx["request"] = request
+
+    return templates.TemplateResponse(
+        name="partials/inspector_content.html",
+        context=ctx,
+        request=request,
+    )
+
+
+@router.post("/inspector/action/{action_id}", response_class=HTMLResponse)
+def admin_inspector_action(
+    action_id: str,
+    request: Request,
+    enabled: str = "",
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Execute a corrective action (including toggle switches) and return updated partial."""
+    # Handle toggle actions
+    if action_id == "toggle-pipeline":
+        is_enabled = enabled.lower() == "true"
+        result = inspector_service.action_toggle_pipeline(db, is_enabled)
+        audit_service.log_action(db=db, user_id=current_user.id, action="toggle_pipeline",
+                                 entity_type="system", details={"enabled": is_enabled})
+    elif action_id == "toggle-generation":
+        is_enabled = enabled.lower() == "true"
+        result = inspector_service.action_toggle_generation(db, is_enabled)
+        audit_service.log_action(db=db, user_id=current_user.id, action="toggle_generation",
+                                 entity_type="system", details={"enabled": is_enabled})
+    elif action_id == "toggle-scraping":
+        is_enabled = enabled.lower() == "true"
+        result = inspector_service.action_toggle_scraping(db, is_enabled)
+        audit_service.log_action(db=db, user_id=current_user.id, action="toggle_scraping",
+                                 entity_type="system", details={"enabled": is_enabled})
+    else:
+        result = inspector_service.execute_action(db, action_id)
+        audit_service.log_action(db=db, user_id=current_user.id, action="inspector_action",
+                                 entity_type="system", details={"action_id": action_id, "result": result})
+
+    ctx = _inspector_context(db, last_action=result)
+    ctx["request"] = request
+
+    return templates.TemplateResponse(
+        name="partials/inspector_content.html",
+        context=ctx,
+        request=request,
+    )
+
+
+@router.get("/inspector/json")
+def admin_inspector_json(
+    request: Request,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """JSON API for inspector results (for programmatic access)."""
+    report = inspector_service.run_all_checks(db)
+    return JSONResponse(report)

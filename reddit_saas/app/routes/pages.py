@@ -638,7 +638,28 @@ def approve_comment(comment_id: UUID, request: Request, db: Session = Depends(ge
         client_id=draft.client_id,
         details={"avatar_username": draft.avatar.reddit_username if draft.avatar else None},
     )
-    return HTMLResponse('<span class="text-green-600 font-medium">✓ Approved</span>')
+    # Return inline "posting mode" panel so user can mark as posted without switching tabs
+    thread_url = ""
+    if draft.thread and draft.thread.url:
+        thread_url = draft.thread.url
+    return HTMLResponse(f'''
+    <div id="action-panel-{comment_id}" class="px-4 py-3 border-t border-green-700/50 bg-green-900/10">
+        <div class="flex items-center gap-2 mb-2">
+            <span class="text-green-400 text-xs font-medium">✓ Approved</span>
+            <span class="text-gray-500 text-xs">— post to Reddit, then mark as posted:</span>
+        </div>
+        <form hx-post="/review/{comment_id}/posted" hx-target="#action-panel-{comment_id}" hx-swap="outerHTML"
+              class="flex flex-wrap gap-2 items-center">
+            <input type="url" name="reddit_comment_url" placeholder="Paste Reddit comment URL (optional)"
+                   class="flex-1 min-w-[200px] px-3 py-1.5 bg-slate-night border border-slate-600 text-gray-200 rounded text-sm focus:outline-none focus:border-indigo-500">
+            <button type="submit"
+                    class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded text-sm font-medium">
+                📤 Mark as Posted
+            </button>
+            {"<a href='" + thread_url + "' target='_blank' rel='noopener' class='text-xs text-indigo-400 hover:text-indigo-300'>Open thread ↗</a>" if thread_url else ""}
+        </form>
+    </div>
+    ''')
 
 
 @router.post("/review/{comment_id}/reject", response_class=HTMLResponse)
@@ -663,7 +684,36 @@ def reject_comment(comment_id: UUID, request: Request, db: Session = Depends(get
         client_id=draft.client_id,
         details={"avatar_username": draft.avatar.reddit_username if draft.avatar else None},
     )
-    return HTMLResponse('<span class="text-red-600 font-medium">✗ Rejected</span>')
+    return HTMLResponse(f'<div id="action-panel-{comment_id}" class="px-3 py-2 border-t border-red-700/30 bg-red-900/10 flex items-center gap-2"><span class="text-red-400 text-xs font-medium">✗ Rejected</span></div>')
+
+
+@router.post("/review/{comment_id}/revert", response_class=HTMLResponse)
+def revert_comment(comment_id: UUID, request: Request, db: Session = Depends(get_db)):
+    """Revert a rejected/approved draft back to pending for re-review."""
+    current_user = _get_current_user(request, db)
+    if not current_user:
+        raise HTTPException(status_code=403, detail="Authentication required")
+    draft = db.query(CommentDraft).filter(CommentDraft.id == comment_id).first()
+    if not draft:
+        raise HTTPException(status_code=404)
+    if not current_user.is_superuser:
+        if current_user.client_id != draft.client_id:
+            raise HTTPException(status_code=403)
+    if draft.status == "posted":
+        return HTMLResponse('<span class="text-amber-400 font-medium">Cannot revert posted comments</span>')
+    old_status = draft.status
+    draft.status = "pending"
+    db.commit()
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="revert_to_pending",
+        entity_type="comment_draft",
+        entity_id=draft.id,
+        client_id=draft.client_id,
+        details={"from_status": old_status, "avatar_username": draft.avatar.reddit_username if draft.avatar else None},
+    )
+    return HTMLResponse('<span class="text-indigo-400 font-medium">↩ Reverted to pending</span>')
 
 
 @router.post("/review/{comment_id}/edit", response_class=HTMLResponse)
@@ -752,7 +802,7 @@ def mark_posted(
     except Exception:
         pass  # Never break the posting flow
 
-    return HTMLResponse('<span class="text-purple-600 font-medium">✓ Posted</span>')
+    return HTMLResponse(f'<div id="action-panel-{comment_id}" class="px-3 py-2 border-t border-purple-700/30 bg-purple-900/10 flex items-center gap-2"><span class="text-purple-400 text-xs font-medium">✓ Posted</span><span class="text-gray-500 text-xs">— karma tracking will update automatically</span></div>')
 
 
 @router.post("/review/{comment_id}/update-score", response_class=HTMLResponse)

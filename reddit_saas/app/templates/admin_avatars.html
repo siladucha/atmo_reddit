@@ -43,7 +43,7 @@
                 + Assign Existing Avatar
             </button>
             {% endif %}
-            <a href="/admin/avatars/new"
+            <a href="/admin/avatars/new{% if f.client_id %}?client_id={{ f.client_id }}{% endif %}"
                class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
                 + New Avatar
             </a>
@@ -52,13 +52,19 @@
 
     {% if f.client_id %}
     <!-- Assign Avatar Modal -->
-    <div id="assign-avatar-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-        <div class="bg-slate-800 border border-slate-700 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+    <div id="assign-avatar-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+         onclick="if(event.target===this) this.classList.add('hidden')">
+        <div class="bg-slate-800 border border-slate-700 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col"
+             onclick="event.stopPropagation()">
             <div class="flex items-center justify-between px-5 py-4 border-b border-slate-700">
-                <h2 class="text-lg font-semibold text-white">Assign Avatar to Client</h2>
+                <h2 class="text-lg font-semibold text-white">Assign Avatar to Client
+                    {% for c in page_obj.available_clients if (c.id|string) == f.client_id %}
+                    <span class="text-indigo-400">· {{ c.client_name }}</span>
+                    {% endfor %}
+                </h2>
                 <button type="button"
                         onclick="document.getElementById('assign-avatar-modal').classList.add('hidden')"
-                        class="text-gray-400 hover:text-white text-xl">&times;</button>
+                        class="text-gray-400 hover:text-white text-xl leading-none px-2 py-1">&times;</button>
             </div>
             <div id="assign-avatar-modal-body" class="p-5 overflow-y-auto flex-1">
                 <p class="text-gray-400 text-sm">Loading available avatars…</p>

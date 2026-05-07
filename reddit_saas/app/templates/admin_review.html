@@ -20,38 +20,133 @@
 <div class="space-y-6">
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-semibold text-white">Review Queue</h1>
+            <h1 class="text-2xl font-semibold text-white">Review Queue{% set tooltip_text = "AI-generated comment drafts awaiting human review. Approve to mark ready for posting, reject to discard, or edit before approving." %}{% include "partials/block_tooltip.html" %}</h1>
             <p class="text-sm text-gray-400 mt-1">{{ drafts|length }} {{ status }} draft{{ 's' if drafts|length != 1 }}</p>
         </div>
     </div>
 
-    <!-- Status + Client filters -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-4 flex flex-wrap items-center gap-3">
-        <span class="text-xs uppercase tracking-wider text-gray-500 font-medium">Status:</span>
-        {% for s in ['pending', 'approved', 'posted', 'rejected'] %}
-        <a href="/admin/review?status={{ s }}{% if selected_client %}&client_id={{ selected_client }}{% endif %}"
-           class="px-2.5 py-1 rounded text-xs font-medium capitalize transition-colors
-                  {% if status == s %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
-            {{ s }}
-        </a>
-        {% endfor %}
+    <!-- Filters (compact single row) -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 px-4 py-2.5">
+        <div class="flex flex-wrap items-center gap-2">
+            {% for s in ['pending', 'approved', 'posted', 'rejected'] %}
+            <a href="/admin/review?status={{ s }}{% if selected_client %}&client_id={{ selected_client }}{% endif %}&sort={{ sort }}"
+               class="px-2 py-0.5 rounded text-xs font-medium capitalize transition-colors
+                      {% if status == s %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
+                {{ s }}
+            </a>
+            {% endfor %}
 
-        <span class="mx-2 h-4 w-px bg-slate-600"></span>
+            <span class="h-4 w-px bg-slate-600"></span>
 
-        <span class="text-xs uppercase tracking-wider text-gray-500 font-medium">Client:</span>
-        <a href="/admin/review?status={{ status }}"
-           class="px-2.5 py-1 rounded text-xs font-medium transition-colors
-                  {% if not selected_client %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
-            All
-        </a>
-        {% for c in clients %}
-        <a href="/admin/review?status={{ status }}&client_id={{ c.id }}"
-           class="px-2.5 py-1 rounded text-xs font-medium transition-colors
-                  {% if selected_client == (c.id|string) %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
-            {{ c.client_name }}
-        </a>
-        {% endfor %}
+            <a href="/admin/review?status={{ status }}&sort={{ sort }}"
+               class="px-2 py-0.5 rounded text-xs font-medium transition-colors
+                      {% if not selected_client %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
+                All
+            </a>
+            {% for c in clients %}
+            <a href="/admin/review?status={{ status }}&client_id={{ c.id }}&sort={{ sort }}"
+               class="px-2 py-0.5 rounded text-xs font-medium transition-colors
+                      {% if selected_client == (c.id|string) %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
+                {{ c.client_name }}
+            </a>
+            {% endfor %}
+
+            <span class="h-4 w-px bg-slate-600"></span>
+
+            {% for s_val, s_label in [('score', '⭐'), ('newest', '🕐'), ('oldest', '⏳')] %}
+            <a href="/admin/review?status={{ status }}{% if selected_client %}&client_id={{ selected_client }}{% endif %}&sort={{ s_val }}{% if subreddit_filter %}&subreddit={{ subreddit_filter }}{% endif %}{% if avatar_filter %}&avatar_id={{ avatar_filter }}{% endif %}{% if age_filter %}&age={{ age_filter }}{% endif %}"
+               class="px-2 py-0.5 rounded text-xs font-medium transition-colors
+                      {% if sort == s_val %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}"
+               title="{{ s_val }}">
+                {{ s_label }}
+            </a>
+            {% endfor %}
+
+            <span class="h-4 w-px bg-slate-600"></span>
+
+            {% for a_val, a_label in [('fresh', '🟢'), ('today', '🟡'), ('stale', '🔴')] %}
+            <a href="/admin/review?status={{ status }}{% if selected_client %}&client_id={{ selected_client }}{% endif %}&sort={{ sort }}&age={{ a_val }}{% if subreddit_filter %}&subreddit={{ subreddit_filter }}{% endif %}{% if avatar_filter %}&avatar_id={{ avatar_filter }}{% endif %}"
+               class="px-1.5 py-0.5 rounded text-xs transition-colors
+                      {% if age_filter == a_val %}bg-indigo-600 text-white{% else %}hover:bg-slate-700{% endif %}"
+               title="{{ a_val }}">
+                {{ a_label }}
+            </a>
+            {% endfor %}
+            {% if age_filter %}
+            <a href="/admin/review?status={{ status }}{% if selected_client %}&client_id={{ selected_client }}{% endif %}&sort={{ sort }}"
+               class="text-[10px] text-gray-500 hover:text-white">✕</a>
+            {% endif %}
+
+            {% if subreddit_options %}
+            <select onchange="if(this.value) window.location='/admin/review?status={{ status }}{% if selected_client %}&client_id={{ selected_client }}{% endif %}&sort={{ sort }}{% if age_filter %}&age={{ age_filter }}{% endif %}&subreddit='+this.value; else window.location='/admin/review?status={{ status }}{% if selected_client %}&client_id={{ selected_client }}{% endif %}&sort={{ sort }}{% if age_filter %}&age={{ age_filter }}{% endif %}';"
+                    class="bg-slate-700 border border-slate-600 text-gray-300 text-xs rounded px-2 py-0.5 focus:outline-none focus:border-indigo-500">
+                <option value="">r/all</option>
+                {% for sub in subreddit_options %}
+                <option value="{{ sub }}" {% if subreddit_filter == sub %}selected{% endif %}>r/{{ sub }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+
+            {% if avatar_options %}
+            <select onchange="if(this.value) window.location='/admin/review?status={{ status }}{% if selected_client %}&client_id={{ selected_client }}{% endif %}&sort={{ sort }}{% if age_filter %}&age={{ age_filter }}{% endif %}{% if subreddit_filter %}&subreddit={{ subreddit_filter }}{% endif %}&avatar_id='+this.value; else window.location='/admin/review?status={{ status }}{% if selected_client %}&client_id={{ selected_client }}{% endif %}&sort={{ sort }}{% if age_filter %}&age={{ age_filter }}{% endif %}{% if subreddit_filter %}&subreddit={{ subreddit_filter }}{% endif %}';"
+                    class="bg-slate-700 border border-slate-600 text-gray-300 text-xs rounded px-2 py-0.5 focus:outline-none focus:border-indigo-500">
+                <option value="">u/all</option>
+                {% for av_id, av_name in avatar_options %}
+                <option value="{{ av_id }}" {% if avatar_filter == av_id %}selected{% endif %}>u/{{ av_name }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+        </div>
     </div>
+
+    <!-- Quick Stats Bar -->
+    {% if status == 'pending' %}
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="bg-dark-steel rounded-lg border border-slate-700 px-4 py-3">
+            <div class="text-xs text-gray-500">Total Pending {% set tooltip_text = "Total number of drafts awaiting review across all clients." %}{% include "partials/block_tooltip.html" %}</div>
+            <div class="text-xl font-mono font-semibold {% if stats.total_pending > 50 %}text-amber-400{% else %}text-white{% endif %}">{{ stats.total_pending }}</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg border border-slate-700 px-4 py-3">
+            <div class="text-xs text-gray-500">Showing {% set tooltip_text = "Number of drafts displayed after applying current filters." %}{% include "partials/block_tooltip.html" %}</div>
+            <div class="text-xl font-mono font-semibold text-white">{{ stats.showing }}</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg border border-slate-700 px-4 py-3">
+            <div class="text-xs text-gray-500">Avg Score {% set tooltip_text = "Average composite relevance score of pending drafts. Higher = more relevant threads." %}{% include "partials/block_tooltip.html" %}</div>
+            <div class="text-xl font-mono font-semibold text-white">{{ stats.avg_score or '—' }}</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg border border-slate-700 px-4 py-3">
+            <div class="text-xs text-gray-500">Oldest Draft {% set tooltip_text = "Age of the oldest pending draft. Red (>24h) means stale — review urgently or reject." %}{% include "partials/block_tooltip.html" %}</div>
+            <div class="text-xl font-mono font-semibold {% if stats.oldest_age_hours and stats.oldest_age_hours > 24 %}text-red-400{% elif stats.oldest_age_hours and stats.oldest_age_hours > 8 %}text-amber-400{% else %}text-white{% endif %}">
+                {% if stats.oldest_age_hours is not none %}{{ stats.oldest_age_hours }}h{% else %}—{% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Avatar Breakdown — decision helper -->
+    {% if avatar_breakdown %}
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
+        <div class="text-xs text-gray-500 uppercase tracking-wider font-medium mb-2">Per Avatar{% set tooltip_text = "Pending drafts per avatar. 'Today' shows how many were already approved/posted today. Click an avatar to filter." %}{% include "partials/block_tooltip.html" %}</div>
+        <div class="flex flex-wrap gap-2">
+            {% for av in avatar_breakdown %}
+            <a href="/admin/review?status=pending&avatar_id={{ av.avatar_id }}&sort={{ sort }}{% if selected_client %}&client_id={{ selected_client }}{% endif %}"
+               class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors
+                      {% if avatar_filter == av.avatar_id %}bg-indigo-900/30 border-indigo-600{% else %}bg-slate-night border-slate-700 hover:border-slate-500{% endif %}">
+                <span class="text-xs text-gray-300 font-medium">u/{{ av.username }}</span>
+                <span class="px-1.5 py-0.5 rounded text-xs font-mono
+                    {% if av.phase == 1 %}bg-blue-900/50 text-blue-300
+                    {% elif av.phase == 2 %}bg-amber-900/50 text-amber-300
+                    {% else %}bg-green-900/50 text-green-300{% endif %}">P{{ av.phase }}</span>
+                <span class="text-xs font-mono text-white">{{ av.pending }}</span>
+                <span class="text-[10px] text-gray-500">pending</span>
+                {% if av.approved_today > 0 %}
+                <span class="text-[10px] text-green-400">+{{ av.approved_today }} today</span>
+                {% endif %}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
 
     {% if not drafts %}
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-12 text-center text-gray-500">
@@ -59,82 +154,114 @@
     </div>
     {% endif %}
 
-    <div class="space-y-4">
+    <div class="space-y-3">
         {% for item in drafts %}
-        <div id="comment-{{ item.draft.id }}" class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+        <div id="comment-{{ item.draft.id }}" class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden flex">
+            <!-- Color stripe by client -->
+            <div class="w-1 shrink-0 {% if loop.index % 2 == 0 %}bg-indigo-600{% else %}bg-cyan-600{% endif %}"></div>
+            <div class="flex-1 min-w-0">
             <!-- Header -->
-            <div class="px-4 py-3 border-b border-slate-700 bg-slate-800 flex justify-between items-start">
+            <div class="px-3 py-2 border-b border-slate-700 bg-slate-800 flex justify-between items-center">
                 <div class="min-w-0">
-                    <div class="font-medium text-white truncate">
+                    <div class="text-sm font-medium text-white truncate">
                         {{ item.thread.post_title if item.thread else 'Unknown thread' }}
                     </div>
-                    <div class="text-xs text-gray-400 mt-1">
-                        r/{{ item.thread.subreddit if item.thread else '?' }}
-                        · u/{{ item.avatar.reddit_username if item.avatar else '?' }}
-                        · {{ item.draft.engagement_mode or 'unknown' }} mode
-                        {% if item.draft.comment_approach %} · {{ item.draft.comment_approach }}{% endif %}
+                    <div class="text-[11px] text-gray-400 flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                        <span>r/{{ item.thread.subreddit if item.thread else '?' }}</span>
+                        <span>· u/{{ item.avatar.reddit_username if item.avatar else '?' }}</span>
+                        <span>· {{ item.draft.engagement_mode or 'unknown' }}</span>
+                        {% if item.draft.comment_approach %}<span>· {{ item.draft.comment_approach }}</span>{% endif %}
+                        {% if item.thread %}
+                        <span class="text-gray-500">│</span>
+                        <span title="Post upvotes">⬆{{ item.thread.ups or item.thread.score or 0 }}</span>
+                        <span title="Comments on post">💬{{ item.thread.comment_count or 0 }}</span>
+                        {% if item.thread.author %}<span title="Post author" class="text-gray-500">by {{ item.thread.author }}</span>{% endif %}
+                        {% endif %}
                     </div>
                 </div>
-                <div class="flex items-center gap-2 shrink-0 ml-3">
+                <div class="flex items-center gap-2 shrink-0 ml-2">
                     {% if item.score and item.score.alert %}
-                    <span class="px-2 py-0.5 rounded text-xs font-medium bg-red-900/50 text-red-400 border border-red-700">ALERT</span>
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/50 text-red-400">ALERT</span>
                     {% endif %}
                     {% if item.score %}
-                    <span class="px-2 py-0.5 rounded text-xs font-medium bg-slate-700 text-gray-300 border border-slate-600 font-mono">
-                        score: {{ item.score.composite or 0 }}
-                    </span>
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-700 text-gray-300" title="R:{{ item.score.relevance or '?' }} Q:{{ item.score.quality or '?' }} S:{{ item.score.strategic or '?' }}{% if item.score.intent %} | {{ item.score.intent }}{% endif %}">{{ item.score.composite or 0 }}</span>
                     {% endif %}
                 </div>
             </div>
 
-            <!-- Original post preview -->
+            <!-- Original post preview (truncated) -->
             {% if item.thread and item.thread.post_body %}
-            <div class="px-4 py-3 border-b border-slate-700 bg-slate-900/40">
-                <div class="text-xs text-indigo-400 font-medium mb-1">Original Post</div>
-                <div class="text-sm text-gray-300">{{ item.thread.post_body[:300] }}{% if item.thread.post_body|length > 300 %}…{% endif %}</div>
+            <div class="px-3 py-2 border-b border-slate-700 bg-slate-900/40">
+                <div class="text-xs text-gray-400">{{ item.thread.post_body[:150] }}{% if item.thread.post_body|length > 150 %}…{% endif %}</div>
             </div>
             {% endif %}
 
             <!-- Comment to (parent comment) -->
             {% if item.draft.comment_to and item.draft.comment_to != 'post' %}
-            <div class="px-4 py-2 border-b border-slate-700 bg-amber-900/20">
-                <div class="text-xs text-amber-400 font-medium">Replying to:</div>
-                <div class="text-sm text-gray-300 italic">{{ item.draft.comment_to[:200] }}</div>
+            <div class="px-3 py-1.5 border-b border-slate-700 bg-amber-900/10">
+                <div class="text-[11px] text-amber-400">↩ {{ item.draft.comment_to[:120] }}{% if item.draft.comment_to|length > 120 %}…{% endif %}</div>
             </div>
             {% endif %}
 
-            <!-- AI Draft -->
-            <div class="p-4">
-                <div class="text-xs text-gray-500 mb-1">AI Draft</div>
-                <div class="text-gray-200 leading-relaxed whitespace-pre-wrap">{{ item.draft.edited_draft or item.draft.ai_draft or '(empty)' }}</div>
-                {% if item.draft.location_reasoning %}
-                <div class="mt-2 text-xs text-gray-500">Location: {{ item.draft.location_reasoning }}</div>
+            <!-- AI Draft — copy-ready text -->
+            <div class="px-3 py-2 relative group/copy">
+                <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-[10px] uppercase tracking-wider text-gray-500 font-medium">Comment text</span>
+                    <button onclick="navigator.clipboard.writeText(this.closest('.group\\/copy').querySelector('[data-copy-text]').innerText).then(()=>{this.textContent='✓ Copied';setTimeout(()=>this.textContent='📋 Copy',1500)})"
+                            class="text-[11px] text-gray-500 hover:text-indigo-400 transition-colors px-2 py-0.5 rounded bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50">
+                        📋 Copy
+                    </button>
+                </div>
+                <div data-copy-text class="text-sm text-gray-100 leading-relaxed whitespace-pre-wrap bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2.5 select-all">{{ item.draft.edited_draft or item.draft.ai_draft or '(empty)' }}</div>
+            </div>
+
+            <!-- Reddit link (all statuses) -->
+            {% if item.draft.reddit_comment_url or (item.thread and item.thread.url) %}
+            <div class="px-3 py-1.5 border-t border-slate-700/50 flex items-center gap-3">
+                {% if item.draft.reddit_comment_url %}
+                <a href="{{ item.draft.reddit_comment_url }}" target="_blank" rel="noopener"
+                   class="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                    View comment on Reddit
+                </a>
+                {% endif %}
+                {% if item.thread and item.thread.url %}
+                <a href="{{ item.thread.url }}" target="_blank" rel="noopener"
+                   class="inline-flex items-center gap-1 text-xs {% if item.draft.reddit_comment_url %}text-gray-500 hover:text-gray-400{% else %}text-indigo-400 hover:text-indigo-300{% endif %} transition-colors">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                    Open thread on Reddit
+                </a>
                 {% endif %}
             </div>
+            {% endif %}
 
             <!-- Actions -->
             {% if status == 'pending' %}
-            <div class="px-4 py-3 border-t border-slate-700 bg-slate-800/50 flex flex-wrap gap-2 items-center">
-                <button hx-post="/review/{{ item.draft.id }}/approve" hx-target="#actions-{{ item.draft.id }}" hx-swap="innerHTML"
-                        class="bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded text-sm font-medium">
+            <div id="action-panel-{{ item.draft.id }}" class="px-3 py-2 border-t border-slate-700 bg-slate-800/50 flex items-center gap-2">
+                <button hx-post="/review/{{ item.draft.id }}/approve" hx-target="#action-panel-{{ item.draft.id }}" hx-swap="outerHTML"
+                        class="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-xs font-medium">
                     ✓ Approve
                 </button>
-                <button hx-post="/review/{{ item.draft.id }}/reject" hx-target="#actions-{{ item.draft.id }}" hx-swap="innerHTML"
-                        class="bg-red-900/50 hover:bg-red-800/60 text-red-300 border border-red-700 px-3 py-1.5 rounded text-sm font-medium">
-                    ✗ Reject
+                <button hx-post="/review/{{ item.draft.id }}/reject" hx-target="#action-panel-{{ item.draft.id }}" hx-swap="outerHTML"
+                        class="text-gray-500 hover:text-red-400 px-2 py-1 rounded text-xs transition-colors">
+                    ✗
+                </button>
+                <button onclick="document.getElementById('edit-{{ item.draft.id }}').classList.toggle('hidden')"
+                        class="text-gray-500 hover:text-indigo-400 px-2 py-1 rounded text-xs transition-colors">
+                    ✎
                 </button>
                 {% if item.thread %}
-                <a href="{{ item.thread.url }}" target="_blank" rel="noopener" class="text-xs text-indigo-400 hover:text-indigo-300 ml-auto">Open on Reddit ↗</a>
+                <a href="{{ item.thread.url }}" target="_blank" rel="noopener" class="text-[11px] text-indigo-400 hover:text-indigo-300 ml-auto">Reddit ↗</a>
                 {% endif %}
-                <span id="actions-{{ item.draft.id }}" class="text-sm"></span>
             </div>
-            <div class="px-4 py-3 border-t border-slate-700">
+            <!-- Hidden edit form -->
+            <div id="edit-{{ item.draft.id }}" class="hidden px-3 py-2 border-t border-slate-700">
                 <form hx-post="/review/{{ item.draft.id }}/edit" hx-target="#edit-status-{{ item.draft.id }}" hx-swap="innerHTML"
                       class="flex gap-2 items-end">
                     <textarea name="edited_text" rows="2"
-                              class="flex-1 px-3 py-2 bg-slate-night border border-slate-600 text-gray-200 rounded text-sm resize-none focus:outline-none focus:border-indigo-500"
-                              placeholder="Edit the comment…">{{ item.draft.edited_draft or item.draft.ai_draft or '' }}</textarea>
-                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded text-sm">Save Edit</button>
+                              class="flex-1 px-2 py-1.5 bg-slate-night border border-slate-600 text-gray-200 rounded text-sm resize-none focus:outline-none focus:border-indigo-500"
+                              placeholder="Edit…">{{ item.draft.edited_draft or item.draft.ai_draft or '' }}</textarea>
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded text-xs">Save</button>
                 </form>
                 <span id="edit-status-{{ item.draft.id }}" class="text-xs"></span>
             </div>
@@ -149,9 +276,6 @@
                             class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded text-sm font-medium">
                         📤 Mark as Posted
                     </button>
-                    {% if item.thread %}
-                    <a href="{{ item.thread.url }}" target="_blank" rel="noopener" class="text-xs text-indigo-400 hover:text-indigo-300 ml-auto">Open on Reddit ↗</a>
-                    {% endif %}
                 </form>
                 <span id="actions-{{ item.draft.id }}" class="text-sm mt-1"></span>
             </div>
@@ -187,19 +311,6 @@
                     </button>
                     <span id="karma-spinner-{{ item.draft.id }}" class="htmx-indicator text-xs text-gray-500">checking…</span>
 
-                    <!-- Reddit comment link -->
-                    {% if item.draft.reddit_comment_url %}
-                    <a href="{{ item.draft.reddit_comment_url }}" target="_blank" rel="noopener"
-                       class="text-xs text-indigo-400 hover:text-indigo-300">
-                        View on Reddit ↗
-                    </a>
-                    {% elif item.thread and item.thread.url %}
-                    <a href="{{ item.thread.url }}" target="_blank" rel="noopener"
-                       class="text-xs text-gray-500 hover:text-gray-400">
-                        Thread ↗
-                    </a>
-                    {% endif %}
-
                     <!-- Avatar phase indicator -->
                     {% if item.avatar %}
                     <span class="mx-1 h-4 w-px bg-slate-600"></span>
@@ -220,21 +331,7 @@
                     <span class="text-xs text-gray-500">Posted: {{ item.draft.posted_at.strftime('%b %d, %H:%M') }}</span>
                     {% endif %}
 
-                    <!-- Update score form (manual) -->
-                    <form hx-post="/review/{{ item.draft.id }}/update-score"
-                          hx-target="#score-result-{{ item.draft.id }}"
-                          hx-swap="innerHTML"
-                          class="flex items-center gap-2 ml-auto">
-                        <input type="number" name="reddit_score"
-                               value="{{ item.draft.reddit_score if item.draft.reddit_score is not none else '' }}"
-                               placeholder="Score"
-                               class="w-20 px-2 py-1 bg-slate-night border border-slate-600 text-gray-200 rounded text-sm focus:outline-none focus:border-indigo-500">
-                        <button type="submit"
-                                class="bg-slate-700 hover:bg-slate-600 text-gray-300 px-2.5 py-1 rounded text-xs font-medium border border-slate-600">
-                            Update
-                        </button>
-                    </form>
-                    <span id="score-result-{{ item.draft.id }}" class="text-sm"></span>
+                    <span id="score-result-{{ item.draft.id }}" class="text-sm ml-auto"></span>
                 </div>
 
                 <!-- Karma risk warning -->
@@ -254,7 +351,8 @@
                 {% endif %}
             </div>
             {% endif %}
-        </div>
+        </div><!-- /flex-1 -->
+        </div><!-- /flex card -->
         {% endfor %}
     </div>
 </div>

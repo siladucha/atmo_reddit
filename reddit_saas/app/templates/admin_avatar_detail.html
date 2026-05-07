@@ -52,6 +52,137 @@
                 </div>
             </div>
         </div>
+        <!-- Refresh Data Button -->
+        <div class="flex items-center gap-2">
+            <a href="/admin/avatars/{{ avatar.id }}/refresh"
+               class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-700 hover:bg-slate-600 text-gray-200 border border-slate-600">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh Reddit Data
+            </a>
+            <a href="/admin/avatars/{{ avatar.id }}"
+               class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-700 hover:bg-slate-600 text-gray-200 border border-slate-600"
+               title="Reload page">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+            </a>
+        </div>
+    </div>
+
+    <!-- Client Assignment -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Client Assignment</h2>
+        {% if assigned_clients %}
+        <div class="space-y-2 mb-4">
+            {% for c in assigned_clients %}
+            <div class="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                <div class="flex items-center gap-3">
+                    <span class="w-8 h-8 rounded-full bg-indigo-900/50 border border-indigo-700 flex items-center justify-center text-indigo-300 text-xs font-bold">
+                        {{ c.client_name[0]|upper }}
+                    </span>
+                    <div>
+                        <a href="/admin/clients/{{ c.id }}" class="text-sm font-medium text-white hover:text-indigo-400 transition-colors">{{ c.client_name }}</a>
+                        <div class="text-[11px] text-gray-500">{{ c.brand_name }}</div>
+                    </div>
+                </div>
+                <form method="post" action="/admin/avatars/{{ avatar.id }}/unassign-from-client">
+                    <input type="hidden" name="client_id" value="{{ c.id }}">
+                    <button type="submit"
+                            class="px-2.5 py-1 rounded text-xs font-medium bg-red-900/30 hover:bg-red-900/50 text-red-400 border border-red-700/50 transition-colors"
+                            onclick="return confirm('Unassign from {{ c.client_name }}?')">
+                        Unassign
+                    </button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500 text-sm mb-4">This avatar is not assigned to any client.</p>
+        {% endif %}
+
+        {% if unassigned_clients %}
+        <form method="post" action="/admin/avatars/assign-to-client" class="flex items-end gap-3">
+            <input type="hidden" name="avatar_id" value="{{ avatar.id }}">
+            <div class="flex-1">
+                <label class="block text-xs text-gray-400 mb-1">Assign to client</label>
+                <select name="client_id" required
+                        class="w-full text-sm bg-slate-night border border-slate-600 text-gray-200 rounded px-3 py-2 focus:outline-none focus:border-indigo-500">
+                    <option value="">Select client…</option>
+                    {% for c in unassigned_clients %}
+                    <option value="{{ c.id }}">{{ c.client_name }} ({{ c.brand_name }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit"
+                    class="px-4 py-2 rounded-lg text-sm font-medium bg-green-700 hover:bg-green-600 text-white transition-colors">
+                Assign
+            </button>
+        </form>
+        {% endif %}
+    </div>
+
+    <!-- Freeze Status -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Freeze Status</h2>
+        <div class="flex items-center gap-4 mb-4">
+            {% if avatar.is_frozen %}
+            <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-red-900/40 text-red-300 border border-red-700">
+                <span class="w-3 h-3 rounded-full bg-red-400"></span>
+                Frozen
+            </span>
+            {% else %}
+            <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-green-900/40 text-green-400 border border-green-700">
+                <span class="w-3 h-3 rounded-full bg-green-400"></span>
+                Active
+            </span>
+            {% endif %}
+        </div>
+
+        {% if avatar.is_frozen %}
+        <!-- Frozen details -->
+        <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 mb-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <span class="text-xs text-gray-400 uppercase tracking-wide">Reason</span>
+                    <p class="text-sm text-gray-200 mt-1">{{ avatar.freeze_reason or 'No reason provided' }}</p>
+                </div>
+                <div>
+                    <span class="text-xs text-gray-400 uppercase tracking-wide">Frozen At</span>
+                    <p class="text-sm text-gray-200 mt-1">{{ avatar.frozen_at.strftime('%Y-%m-%d %H:%M UTC') if avatar.frozen_at else 'Unknown' }}</p>
+                </div>
+            </div>
+        </div>
+        <!-- Unfreeze button -->
+        <form method="post" action="/admin/avatars/{{ avatar.id }}/unfreeze"
+              hx-post="/admin/avatars/{{ avatar.id }}/unfreeze"
+              hx-swap="none">
+            <button type="submit"
+                    class="px-4 py-2 rounded-lg text-sm font-medium bg-green-600 hover:bg-green-700 text-white transition-colors">
+                Unfreeze Avatar
+            </button>
+        </form>
+        {% else %}
+        <!-- Freeze form -->
+        <form method="post" action="/admin/avatars/{{ avatar.id }}/freeze"
+              hx-post="/admin/avatars/{{ avatar.id }}/freeze"
+              hx-swap="none"
+              class="flex items-end gap-4 flex-wrap">
+            <div class="flex-1 min-w-[200px]">
+                <label for="freeze_reason" class="block text-sm text-gray-400 mb-1">Reason</label>
+                <input type="text" name="freeze_reason" id="freeze_reason" required
+                       placeholder="Reason for freezing this avatar..."
+                       class="w-full bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-500">
+            </div>
+            <button type="submit"
+                    class="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 hover:bg-red-700 text-white transition-colors">
+                Freeze Avatar
+            </button>
+        </form>
+        {% endif %}
     </div>
 
     <!-- Current Warming Phase (large badge) -->
@@ -265,6 +396,114 @@
                 <div class="text-xs text-gray-400 mt-1">Posted</div>
             </div>
         </div>
+    </div>
+    {% endif %}
+
+    <!-- Karma History (30 days) -->
+    {% if karma_history and (karma_history.total_comments > 0 or karma_history.total_posts > 0) %}
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Karma — Last 30 Days</h2>
+            <div class="flex items-center gap-3">
+                <span class="text-xs text-gray-500">Reddit total: <span class="text-white font-mono">{{ karma_history.reddit_total_karma }}</span></span>
+                <span class="px-2 py-0.5 rounded text-xs font-medium
+                    {% if karma_history.trend == 'up' %}bg-green-900/50 text-green-400 border border-green-700
+                    {% elif karma_history.trend == 'down' %}bg-red-900/50 text-red-400 border border-red-700
+                    {% else %}bg-slate-700 text-gray-400 border border-slate-600{% endif %}">
+                    {% if karma_history.trend == 'up' %}↑ Trending up
+                    {% elif karma_history.trend == 'down' %}↓ Trending down
+                    {% else %}→ Flat{% endif %}
+                </span>
+            </div>
+        </div>
+
+        <!-- Summary stats -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+            <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 text-center">
+                <div class="text-xl font-bold {% if karma_history.total_karma > 0 %}text-green-400{% elif karma_history.total_karma < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
+                    {% if karma_history.total_karma > 0 %}+{% endif %}{{ karma_history.total_karma }}
+                </div>
+                <div class="text-[10px] text-gray-500 mt-1">Total Karma Earned</div>
+            </div>
+            <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 text-center">
+                <div class="text-xl font-bold text-blue-400">{{ karma_history.total_comments }}</div>
+                <div class="text-[10px] text-gray-500 mt-1">Comments Posted</div>
+            </div>
+            <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 text-center">
+                <div class="text-xl font-bold text-purple-400">{{ karma_history.total_posts }}</div>
+                <div class="text-[10px] text-gray-500 mt-1">Posts Created</div>
+            </div>
+            <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 text-center">
+                <div class="text-xl font-bold text-gray-300">{{ karma_history.avg_daily_karma }}</div>
+                <div class="text-[10px] text-gray-500 mt-1">Avg Daily Karma</div>
+            </div>
+        </div>
+
+        <!-- Daily sparkline (CSS bar chart) -->
+        <div class="mb-5">
+            <h3 class="text-xs text-gray-500 mb-2">Daily karma (30 days)</h3>
+            <div class="flex items-end gap-px h-16">
+                {% set max_karma = namespace(val=1) %}
+                {% for d in karma_history.days %}
+                    {% if d.total|abs > max_karma.val %}
+                        {% set max_karma.val = d.total|abs %}
+                    {% endif %}
+                {% endfor %}
+                {% for d in karma_history.days %}
+                {% set height_pct = ((d.total|abs) / max_karma.val * 100)|int if max_karma.val > 0 else 0 %}
+                <div class="flex-1 min-w-0 rounded-t-sm transition-all
+                    {% if d.total > 0 %}bg-green-600/70 hover:bg-green-500
+                    {% elif d.total < 0 %}bg-red-600/70 hover:bg-red-500
+                    {% else %}bg-slate-700 hover:bg-slate-600{% endif %}"
+                    style="height: {{ [height_pct, 4]|max }}%"
+                    title="{{ d.date }}: {{ d.total }} karma ({{ d.comments_posted }} comments, {{ d.posts_posted }} posts)">
+                </div>
+                {% endfor %}
+            </div>
+            <div class="flex justify-between mt-1">
+                <span class="text-[9px] text-gray-600">{{ karma_history.days[0].date[5:] if karma_history.days else '' }}</span>
+                <span class="text-[9px] text-gray-600">today</span>
+            </div>
+        </div>
+
+        <!-- By subreddit breakdown -->
+        {% if karma_history.by_subreddit %}
+        <h3 class="text-xs text-gray-500 mb-2">Karma by subreddit</h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 border-b border-slate-700">
+                        <th class="pb-2 text-[10px] uppercase tracking-wider font-medium">Subreddit</th>
+                        <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">Comments</th>
+                        <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">Total Karma</th>
+                        <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">Avg</th>
+                        <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">Best</th>
+                        <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">Worst</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-700/50">
+                    {% for s in karma_history.by_subreddit %}
+                    <tr class="hover:bg-slate-700/20">
+                        <td class="py-2 text-gray-200">r/{{ s.subreddit }}</td>
+                        <td class="py-2 text-center font-mono text-xs text-gray-400">{{ s.comment_count }}</td>
+                        <td class="py-2 text-center font-mono text-xs
+                            {% if s.total_karma > 0 %}text-green-400{% elif s.total_karma < 0 %}text-red-400{% else %}text-gray-500{% endif %}">
+                            {% if s.total_karma > 0 %}+{% endif %}{{ s.total_karma }}
+                        </td>
+                        <td class="py-2 text-center font-mono text-xs text-gray-400">{{ s.avg_score }}</td>
+                        <td class="py-2 text-center font-mono text-xs text-green-400">+{{ s.best_score }}</td>
+                        <td class="py-2 text-center font-mono text-xs {% if s.worst_score < 0 %}text-red-400{% else %}text-gray-500{% endif %}">{{ s.worst_score }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+    {% elif karma_history %}
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Karma — Last 30 Days</h2>
+        <p class="text-gray-500 text-sm">No posted comments or posts in the last 30 days. Karma tracking starts after the first post is marked as "posted".</p>
     </div>
     {% endif %}
 
