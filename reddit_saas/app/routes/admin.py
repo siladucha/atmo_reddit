@@ -842,8 +842,10 @@ def admin_subreddits_all(
     type: Optional[str] = None,
     status: Optional[str] = None,
     q: Optional[str] = None,
+    page: int = 1,
+    per_page: int = 25,
 ):
-    """Global subreddits management page — all clients, with pause/resume."""
+    """Global subreddits management page — all clients, with pause/resume and pagination."""
     from sqlalchemy import func as sa_func
 
     # Build query with filters
@@ -876,11 +878,44 @@ def admin_subreddits_all(
         search_term = q.strip().lower()
         query = query.filter(sa_func.lower(Subreddit.subreddit_name).contains(search_term))
 
+    # Total count before pagination
+    total = query.count()
+    active_count = query.filter(ClientSubredditAssignment.is_active.is_(True)).count()
+    # Reset filter for the actual query (active_count filter modified the query object)
+    # Rebuild to avoid side effects
+    query = (
+        db.query(ClientSubredditAssignment)
+        .join(Subreddit, ClientSubredditAssignment.subreddit_id == Subreddit.id)
+        .join(Client, Client.id == ClientSubredditAssignment.client_id)
+    )
+    if client_id:
+        try:
+            cid = uuid.UUID(client_id)
+            query = query.filter(ClientSubredditAssignment.client_id == cid)
+        except ValueError:
+            pass
+    if type and type in ("professional", "hobby"):
+        query = query.filter(ClientSubredditAssignment.type == type)
+    if status == "active":
+        query = query.filter(ClientSubredditAssignment.is_active.is_(True))
+    elif status == "paused":
+        query = query.filter(ClientSubredditAssignment.is_active.is_(False))
+    if q and q.strip():
+        search_term = q.strip().lower()
+        query = query.filter(sa_func.lower(Subreddit.subreddit_name).contains(search_term))
+
+    paused_count = total - active_count
+
+    # Pagination
+    total_pages = max(1, math.ceil(total / per_page))
+    page = max(1, min(page, total_pages))
+    offset = (page - 1) * per_page
+
     assignments = query.order_by(
         ClientSubredditAssignment.is_active.desc(),
         Subreddit.last_scraped_at.asc().nulls_first(),
         Subreddit.subreddit_name.asc(),
-    ).all()
+    ).offset(offset).limit(per_page).all()
 
     enriched = []
     now_utc = datetime.now(timezone.utc)
@@ -913,13 +948,22 @@ def admin_subreddits_all(
             "age_display": age_display,
         })
 
-    # Stats (reflect filtered results)
-    total = len(enriched)
-    active_count = sum(1 for item in enriched if item["is_active"])
-    paused_count = total - active_count
+    # Get all clients for filter dropdown (include inactive — they may have subreddit assignments)
+    clients = db.query(Client).order_by(Client.client_name).all()
 
-    # Get all clients for filter dropdown
-    clients = db.query(Client).filter(Client.is_active.is_(True)).order_by(Client.client_name).all()
+    # Build pagination query string
+    def _build_qs(**overrides):
+        params = {}
+        if client_id:
+            params["client_id"] = client_id
+        if type:
+            params["type"] = type
+        if status:
+            params["status"] = status
+        if q:
+            params["q"] = q
+        params.update(overrides)
+        return "&".join(f"{k}={v}" for k, v in params.items() if v)
 
     return templates.TemplateResponse(
         name="admin_subreddits_all.html",
@@ -936,6 +980,59 @@ def admin_subreddits_all(
             "filter_type": type or "",
             "filter_status": status or "",
             "filter_q": q or "",
+            "page": page,
+            "per_page": per_page,
+            "total_pages": total_pages,
+            "build_qs": _build_qs,
+        },
+        request=request,
+    )
+
+
+@router.get("/subreddits/detail/{subreddit_name}", response_class=HTMLResponse)
+def admin_subreddit_detail(
+    request: Request,
+    subreddit_name: str,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Subreddit zoom-in detail page — intelligence, avatar monitoring, leaders."""
+    from app.services import subreddit_intel
+
+    overview = subreddit_intel.get_subreddit_overview(db, subreddit_name)
+    if not overview:
+        return RedirectResponse(url="/admin/subreddits", status_code=303)
+
+    scrape_history = subreddit_intel.get_scrape_history(db, subreddit_name, limit=15)
+    avatar_performance = subreddit_intel.get_avatar_performance(db, subreddit_name)
+    community_leaders = subreddit_intel.get_top_community_users(db, subreddit_name, limit=15)
+    recent_threads = subreddit_intel.get_recent_threads(db, subreddit_name, limit=15)
+    timeline = subreddit_intel.get_engagement_timeline(db, subreddit_name, days=14)
+    ai_costs = subreddit_intel.get_ai_costs(db, subreddit_name, limit=20)
+
+    now_utc = datetime.now(timezone.utc)
+    sub = overview["subreddit"]
+    last_scraped = sub.last_scraped_at
+    if last_scraped:
+        age_hours = (now_utc - last_scraped).total_seconds() / 3600
+    else:
+        age_hours = None
+
+    return templates.TemplateResponse(
+        name="admin_subreddit_detail.html",
+        context={
+            "request": request,
+            "active_nav": "subreddits",
+            "subreddit_name": subreddit_name,
+            "overview": overview,
+            "scrape_history": scrape_history,
+            "avatar_performance": avatar_performance,
+            "community_leaders": community_leaders,
+            "recent_threads": recent_threads,
+            "timeline": timeline,
+            "ai_costs": ai_costs,
+            "age_hours": age_hours,
+            "now_utc": now_utc,
         },
         request=request,
     )
@@ -1018,13 +1115,34 @@ def admin_avatars(
         visible_ids.extend(a.id for a in g.avatars)
     top_by_avatar = karma_tracker.top_subreddits_for_avatars(db, visible_ids, limit=3)
 
+    # Batch-fetch AI costs per avatar (uses avatar_id column added in migration)
+    from app.models.ai_usage import AIUsageLog
+    from sqlalchemy import func as sa_func
+    ai_costs_by_avatar: dict = {}
+    if visible_ids:
+        cost_rows = (
+            db.query(
+                AIUsageLog.avatar_id,
+                sa_func.count(AIUsageLog.id).label("calls"),
+                sa_func.coalesce(sa_func.sum(AIUsageLog.cost_usd), 0).label("cost"),
+            )
+            .filter(AIUsageLog.avatar_id.in_(visible_ids))
+            .group_by(AIUsageLog.avatar_id)
+            .all()
+        )
+        ai_costs_by_avatar = {str(r.avatar_id): {"calls": r.calls, "cost": float(r.cost)} for r in cost_rows}
+
     def _to_view(a):
-        return build_avatar_view(
+        view_dict = build_avatar_view(
             a,
             get_avatar_health(db, a),
             avatar_page.client_by_id,
             top_subreddits=top_by_avatar.get(str(a.id), []),
         )
+        ai = ai_costs_by_avatar.get(str(a.id), {"calls": 0, "cost": 0.0})
+        view_dict["ai_calls"] = ai["calls"]
+        view_dict["ai_cost"] = ai["cost"]
+        return view_dict
 
     flat = [_to_view(a) for a in avatar_page.items]
     grouped = []
@@ -1274,9 +1392,8 @@ def admin_avatar_detail(
     from app.models.comment_draft import CommentDraft
     from app.models.hobby import HobbySubreddit
     from app.models.thread import RedditThread
-    from app.models.ai_usage import AIUsageLog
     from app.services.safety import get_avatar_health
-    from sqlalchemy import func
+    from sqlalchemy import func, or_
 
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
@@ -1290,7 +1407,10 @@ def admin_avatar_detail(
         db.query(ActivityEvent)
         .filter(
             ActivityEvent.event_type.in_(("phase_promotion", "auto_downgrade", "phase_override")),
-            ActivityEvent.event_metadata["avatar_id"].astext == str(avatar.id),
+            or_(
+                ActivityEvent.event_metadata["avatar_id"].astext == str(avatar.id),
+                ActivityEvent.message.ilike(f"%{avatar.reddit_username}%"),
+            ),
         )
         .order_by(ActivityEvent.created_at.desc())
         .all()
@@ -1344,6 +1464,9 @@ def admin_avatar_detail(
     ).scalar() or 0
 
     # AI costs for this avatar (via client_ids)
+    # NOTE: AIUsageLog tracks costs at client level, not avatar level.
+    # We show client costs here only as context — these are NOT avatar-specific costs.
+    # TODO: Add avatar_id to AIUsageLog for accurate per-avatar billing.
     ai_costs = []
     assigned_clients = []
     if avatar.client_ids:
@@ -1351,19 +1474,9 @@ def admin_avatar_detail(
             c = db.query(Client).filter(Client.id == uuid.UUID(cid)).first()
             if c:
                 assigned_clients.append(c)
-            costs = db.query(
-                AIUsageLog.operation,
-                func.count(AIUsageLog.id).label("calls"),
-                func.sum(AIUsageLog.cost_usd).label("total_cost"),
-                func.sum(AIUsageLog.input_tokens).label("input_tokens"),
-                func.sum(AIUsageLog.output_tokens).label("output_tokens"),
-            ).filter(
-                AIUsageLog.client_id == cid,
-            ).group_by(AIUsageLog.operation).all()
-            ai_costs = costs
 
-    # All active clients for the assign dropdown
-    all_clients = db.query(Client).filter(Client.is_active.is_(True)).order_by(Client.client_name).all()
+    # All clients for the assign dropdown (include inactive — avatar can belong to any client)
+    all_clients = db.query(Client).order_by(Client.client_name).all()
     unassigned_clients = [c for c in all_clients if str(c.id) not in (avatar.client_ids or [])]
 
     # Karma history (30 days)
@@ -1453,17 +1566,10 @@ def admin_unassign_avatar_from_client(
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
-    """Unassign an avatar from a client from the avatars list page."""
-    from app.services import admin as admin_service
-
-    try:
-        admin_service.unassign_avatar_from_client(db, client_id, avatar_id, current_user.id)
-    except ValueError:
-        pass
-
-    return RedirectResponse(
-        url=f"/admin/avatars?client_id={client_id}",
-        status_code=303,
+    """Block direct avatar detachment outside the client lifecycle path."""
+    return HTMLResponse(
+        "Avatar assignments are released only when the client is deleted or deactivated.",
+        status_code=409,
     )
 
 
@@ -1493,6 +1599,7 @@ def admin_avatar_phase_override(
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
         return HTMLResponse("Avatar not found", status_code=404)
+    previous_phase = avatar.warming_phase
 
     # Create Redis client and lock
     settings = get_settings()
@@ -1521,6 +1628,7 @@ def admin_avatar_phase_override(
         entity_id=avatar.id,
         details={
             "reddit_username": avatar.reddit_username,
+            "previous_phase": previous_phase,
             "target_phase": target_phase,
             "reason": reason,
         },
@@ -1631,6 +1739,18 @@ def admin_toggle_pipeline_control(
     return RedirectResponse(url="/admin/", status_code=303)
 
 
+def _client_subreddit_counts(subreddits: list[dict]) -> dict:
+    """Summarize assigned subreddit coverage for a client page."""
+    return {
+        "total": len(subreddits),
+        "active": sum(1 for sub in subreddits if sub.get("is_active")),
+        "paused": sum(1 for sub in subreddits if not sub.get("is_active")),
+        "scraped": sum(1 for sub in subreddits if sub.get("last_scraped_at")),
+        "never_scraped": sum(1 for sub in subreddits if not sub.get("last_scraped_at")),
+        "shared": sum(1 for sub in subreddits if sub.get("shared")),
+    }
+
+
 @router.get("/subreddits/{client_id}", response_class=HTMLResponse)
 def admin_subreddits(
     request: Request,
@@ -1638,11 +1758,31 @@ def admin_subreddits(
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
+    from app.models.ai_usage import AIUsageLog
+    from sqlalchemy import func as sa_func
+
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
         return HTMLResponse("Client not found", status_code=404)
 
     subreddits = admin_service.list_client_subreddits(db, client_id)
+    subreddit_counts = _client_subreddit_counts(subreddits)
+
+    # AI costs for this client
+    ai_costs_by_op = (
+        db.query(
+            AIUsageLog.operation,
+            sa_func.count(AIUsageLog.id).label("calls"),
+            sa_func.coalesce(sa_func.sum(AIUsageLog.cost_usd), 0).label("cost"),
+            sa_func.coalesce(sa_func.sum(AIUsageLog.input_tokens), 0).label("input_tokens"),
+            sa_func.coalesce(sa_func.sum(AIUsageLog.output_tokens), 0).label("output_tokens"),
+        )
+        .filter(AIUsageLog.client_id == client_id)
+        .group_by(AIUsageLog.operation)
+        .all()
+    )
+    ai_total_cost = sum(float(r.cost) for r in ai_costs_by_op)
+    ai_total_calls = sum(r.calls for r in ai_costs_by_op)
 
     return templates.TemplateResponse(
         name="admin_subreddits.html",
@@ -1651,8 +1791,12 @@ def admin_subreddits(
             "active_nav": "subreddits",
             "client": client,
             "subreddits": subreddits,
+            "subreddit_counts": subreddit_counts,
             "error": None,
             "now_utc": datetime.now(timezone.utc),
+            "ai_costs_by_op": ai_costs_by_op,
+            "ai_total_cost": ai_total_cost,
+            "ai_total_calls": ai_total_calls,
         },
         request=request,
     )
@@ -1671,6 +1815,7 @@ def admin_add_subreddit(
     if not valid:
         client = db.query(Client).filter(Client.id == client_id).first()
         subreddits = admin_service.list_client_subreddits(db, client_id)
+        subreddit_counts = _client_subreddit_counts(subreddits)
         return templates.TemplateResponse(
             name="admin_subreddits.html",
             context={
@@ -1678,6 +1823,7 @@ def admin_add_subreddit(
                 "active_nav": "subreddits",
                 "client": client,
                 "subreddits": subreddits,
+                "subreddit_counts": subreddit_counts,
                 "error": err,
                 "now_utc": datetime.now(timezone.utc),
             },
@@ -1689,6 +1835,7 @@ def admin_add_subreddit(
     except ValueError as e:
         client = db.query(Client).filter(Client.id == client_id).first()
         subreddits = admin_service.list_client_subreddits(db, client_id)
+        subreddit_counts = _client_subreddit_counts(subreddits)
         return templates.TemplateResponse(
             name="admin_subreddits.html",
             context={
@@ -1696,6 +1843,7 @@ def admin_add_subreddit(
                 "active_nav": "subreddits",
                 "client": client,
                 "subreddits": subreddits,
+                "subreddit_counts": subreddit_counts,
                 "error": str(e),
                 "now_utc": datetime.now(timezone.utc),
             },
@@ -1975,17 +2123,24 @@ def admin_ai_costs(
     request: Request,
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
+    client_id: str | None = None,
 ):
     summary = admin_service.get_ai_cost_summary(db)
     by_client = admin_service.get_ai_costs_by_client(db)
     by_operation = admin_service.get_ai_costs_by_operation(db)
     by_model = admin_service.get_ai_costs_by_model(db)
+    timeline = admin_service.get_ai_costs_daily_timeline(db, days=14)
+    recent_calls = admin_service.get_ai_costs_recent_calls(db, limit=30, client_id=client_id)
+    efficiency = admin_service.get_ai_cost_efficiency(db)
 
     # Budget from settings or default
     from app.services.settings import get_setting
     budget_str = get_setting(db, "monthly_budget_usd")
     budget = float(budget_str) if budget_str else 100.0
     budget_pct = (summary["total_cost"] / budget * 100) if budget > 0 else 0
+
+    # Clients for filter dropdown (include inactive — they have cost history)
+    clients = db.query(Client).order_by(Client.client_name).all()
 
     return templates.TemplateResponse(
         name="admin_ai_costs.html",
@@ -1996,8 +2151,13 @@ def admin_ai_costs(
             "by_client": by_client,
             "by_operation": by_operation,
             "by_model": by_model,
+            "timeline": timeline,
+            "recent_calls": recent_calls,
+            "efficiency": efficiency,
             "budget": budget,
             "budget_pct": budget_pct,
+            "clients": clients,
+            "filter_client_id": client_id or "",
         },
         request=request,
     )
@@ -2091,6 +2251,65 @@ def admin_audit_logs(
         },
         request=request,
     )
+
+
+@router.post("/audit-logs/delete-all")
+def admin_audit_logs_delete_all(
+    request: Request,
+    user_id: str | None = Form(None),
+    client_id: str | None = Form(None),
+    action: str | None = Form(None),
+    entity_type: str | None = Form(None),
+    search: str | None = Form(None),
+    date_from: str | None = Form(None),
+    date_to: str | None = Form(None),
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Delete all audit logs, or filtered subset if filters are provided."""
+    filter_user_id = None
+    filter_client_id = None
+    filter_date_from = None
+    filter_date_to = None
+
+    if user_id:
+        try:
+            filter_user_id = uuid.UUID(user_id)
+        except ValueError:
+            pass
+    if client_id:
+        try:
+            filter_client_id = uuid.UUID(client_id)
+        except ValueError:
+            pass
+    if date_from:
+        try:
+            filter_date_from = datetime.fromisoformat(date_from)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            filter_date_to = datetime.fromisoformat(date_to)
+        except ValueError:
+            pass
+
+    has_filters = any([filter_user_id, filter_client_id, action, entity_type, search, filter_date_from, filter_date_to])
+
+    if has_filters:
+        deleted = audit_service.delete_filtered_audit_logs(
+            db,
+            user_id=filter_user_id,
+            client_id=filter_client_id,
+            action=action if action else None,
+            entity_type=entity_type if entity_type else None,
+            search=search if search else None,
+            date_from=filter_date_from,
+            date_to=filter_date_to,
+        )
+    else:
+        deleted = audit_service.delete_all_audit_logs(db)
+
+    return RedirectResponse(url="/admin/audit-logs", status_code=303)
 
 
 # ---------------------------------------------------------------------------
@@ -3702,6 +3921,24 @@ def _inspector_context(db: Session, last_action: dict | None = None) -> dict:
     }
 
 
+def _inspector_export_payload(db: Session, current_user: User) -> dict:
+    """Build a JSON-safe system inspector export snapshot."""
+    ctx = _inspector_context(db)
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_by": current_user.email,
+        "report": ctx["report"],
+        "funnel": ctx["funnel"],
+        "client_breakdown": ctx["client_breakdown"],
+        "recommendations": ctx["recommendations"],
+        "settings": {
+            "pipeline_enabled": ctx["pipeline_enabled"],
+            "generation_enabled": ctx["generation_enabled"],
+            "scrape_enabled": ctx["scrape_enabled"],
+        },
+    }
+
+
 @router.get("/inspector", response_class=HTMLResponse)
 def admin_inspector(
     request: Request,
@@ -3784,5 +4021,22 @@ def admin_inspector_json(
     db: Session = Depends(get_db),
 ):
     """JSON API for inspector results (for programmatic access)."""
-    report = inspector_service.run_all_checks(db)
-    return JSONResponse(report)
+    return JSONResponse(_inspector_export_payload(db, current_user))
+
+
+@router.get("/inspector/export.json")
+def admin_inspector_export_json(
+    request: Request,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Download the full inspector snapshot as a JSON file."""
+    exported_at = datetime.now(timezone.utc)
+    filename = f"inspector_{exported_at.strftime('%Y%m%d_%H%M%SZ')}.json"
+    return JSONResponse(
+        content={
+            "exported_at": exported_at.isoformat(),
+            "data": _inspector_export_payload(db, current_user),
+        },
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

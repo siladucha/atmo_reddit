@@ -11,7 +11,24 @@
 {% endblock %}
 {% block content %}
 <div class="max-w-7xl mx-auto">
-    <h1 class="text-2xl font-semibold text-white mb-6">Audit Logs</h1>
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-semibold text-white">Audit Logs</h1>
+        <form method="post" action="/admin/audit-logs/delete-all"
+              onsubmit="return confirm('Are you sure you want to delete ALL audit logs? This cannot be undone.');">
+            <!-- Pass current filters so we can delete only filtered set -->
+            <input type="hidden" name="user_id" value="{{ filters.user_id }}">
+            <input type="hidden" name="client_id" value="{{ filters.client_id }}">
+            <input type="hidden" name="action" value="{{ filters.action }}">
+            <input type="hidden" name="entity_type" value="{{ filters.entity_type }}">
+            <input type="hidden" name="search" value="{{ filters.search }}">
+            <input type="hidden" name="date_from" value="{{ filters.date_from }}">
+            <input type="hidden" name="date_to" value="{{ filters.date_to }}">
+            <button type="submit"
+                    class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                🗑️ Delete {% if filters.user_id or filters.client_id or filters.action or filters.entity_type or filters.search or filters.date_from or filters.date_to %}Filtered{% else %}All{% endif %} ({{ pagination.total }})
+            </button>
+        </form>
+    </div>
 
     <!-- Filters -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-6">
