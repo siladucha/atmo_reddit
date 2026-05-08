@@ -33,4 +33,6 @@ class ThreadScore(Base):
     __table_args__ = (
         UniqueConstraint("thread_id", "client_id", name="uq_thread_client_score"),
         Index("ix_thread_scores_client_tag", "client_id", "tag"),
+        # Index-only scan for NOT IN subquery in score_unscored_threads
+        Index("ix_thread_scores_client_thread", "client_id", "thread_id"),
     )

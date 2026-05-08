@@ -20,5 +20,6 @@ class ActivityEvent(Base):
 
     __table_args__ = (
         Index("ix_activity_events_type_created", "event_type", "created_at"),
-        Index("ix_activity_events_client_id", "client_id"),
+        # Composite: client filter + time ordering (replaces single-column client_id index)
+        Index("ix_activity_events_client_created", "client_id", "created_at"),
     )

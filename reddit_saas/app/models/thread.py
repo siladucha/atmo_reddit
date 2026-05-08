@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Index, Integer, String, Text, DateTime, ForeignKey, func
+from sqlalchemy import Boolean, Index, Integer, String, Text, DateTime, ForeignKey, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -31,6 +31,10 @@ class RedditThread(Base):
     scraped_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    # Thread liveness
+    is_locked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    locked_detected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Legacy scoring fields (kept for backward compatibility; canonical scores in ThreadScore)
     tag: Mapped[str | None] = mapped_column(String(50), nullable=True)
     alert: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
@@ -44,4 +48,16 @@ class RedditThread(Base):
         Index("ix_reddit_threads_client_id", "client_id"),
         Index("ix_reddit_threads_subreddit_id", "subreddit_id"),
         Index("ix_reddit_threads_created_at", "created_at"),
+        # Partial: scoring pipeline filters non-locked threads by subreddit
+        Index(
+            "ix_reddit_threads_subreddit_not_locked",
+            "subreddit_id",
+            postgresql_where=text("is_locked = false"),
+        ),
+        # Partial: liveness checks find stale non-locked threads
+        Index(
+            "ix_reddit_threads_scraped_at",
+            "scraped_at",
+            postgresql_where=text("is_locked = false"),
+        ),
     )

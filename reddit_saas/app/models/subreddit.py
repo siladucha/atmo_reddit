@@ -67,4 +67,6 @@ class ClientSubredditAssignment(Base):
 
     __table_args__ = (
         UniqueConstraint("client_id", "subreddit_id", name="uq_client_subreddit_assignment"),
+        # Covering index for scoring pipeline: WHERE client_id=? AND is_active=true → subreddit_id
+        Index("ix_csa_client_active_subreddit", "client_id", "is_active", "subreddit_id"),
     )

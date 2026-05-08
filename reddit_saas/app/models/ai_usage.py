@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import String, Integer, DateTime, Numeric, ForeignKey, func
+from sqlalchemy import Index, String, Integer, DateTime, Numeric, ForeignKey, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -23,4 +23,11 @@ class AIUsageLog(Base):
     output_tokens: Mapped[int] = mapped_column(Integer, default=0)
     cost_usd: Mapped[Decimal] = mapped_column(Numeric(10, 6), default=0)
     duration_ms: Mapped[int] = mapped_column(Integer, default=0)
+    triggered_by: Mapped[str | None] = mapped_column(String(100), nullable=True)  # scheduler | manual | orchestrator | api | test_run
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_ai_usage_log_client_created", "client_id", "created_at"),
+        Index("ix_ai_usage_log_operation", "operation"),
+        Index("ix_ai_usage_log_created_at", "created_at"),
+    )

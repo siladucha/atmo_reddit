@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Index, String, Text, Boolean, Integer, DateTime, ForeignKey, func
+from sqlalchemy import Index, String, Text, Boolean, Integer, DateTime, ForeignKey, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -49,4 +49,12 @@ class CommentDraft(Base):
         Index("ix_comment_drafts_status", "status"),
         Index("ix_comment_drafts_client_status", "client_id", "status"),
         Index("ix_comment_drafts_created_at", "created_at"),
+        # Partial: liveness join — only pending drafts need thread_id lookup
+        Index(
+            "ix_comment_drafts_thread_pending",
+            "thread_id",
+            postgresql_where=text("status = 'pending'"),
+        ),
+        # Avatar performance tracking
+        Index("ix_comment_drafts_avatar_status", "avatar_id", "status"),
     )
