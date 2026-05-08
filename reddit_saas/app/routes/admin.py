@@ -125,14 +125,14 @@ def _trigger_client_pipeline(action: str, client_id: uuid.UUID) -> str:
     if action == "scrape":
         return scrape_professional_subreddits.delay(cid).id
     if action == "score":
-        return score_threads.delay(cid).id
+        return score_threads.delay(cid, triggered_by="manual").id
     if action == "generate":
-        return generate_comments.delay(cid).id
+        return generate_comments.delay(cid, triggered_by="manual").id
     if action == "full-pipeline":
         chain = (
             scrape_professional_subreddits.si(cid)
-            | score_threads.si(cid)
-            | generate_comments.si(cid)
+            | score_threads.si(cid, triggered_by="manual")
+            | generate_comments.si(cid, triggered_by="manual")
         )
         return chain.apply_async().id
     raise ValueError(f"Unknown pipeline action: {action}")
@@ -917,6 +917,26 @@ def admin_subreddits_all(
         Subreddit.subreddit_name.asc(),
     ).offset(offset).limit(per_page).all()
 
+    # Query AI costs per subreddit (last 30 days)
+    from app.models.ai_usage import AIUsageLog
+    from sqlalchemy import func as sqla_func
+    from datetime import timedelta
+
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+    ai_cost_rows = (
+        db.query(
+            AIUsageLog.subreddit_name,
+            sqla_func.sum(AIUsageLog.cost_usd).label("total_cost"),
+        )
+        .filter(
+            AIUsageLog.subreddit_name.isnot(None),
+            AIUsageLog.created_at >= thirty_days_ago,
+        )
+        .group_by(AIUsageLog.subreddit_name)
+        .all()
+    )
+    ai_cost_map = {row.subreddit_name: float(row.total_cost or 0) for row in ai_cost_rows}
+
     enriched = []
     now_utc = datetime.now(timezone.utc)
     for assignment in assignments:
@@ -946,6 +966,7 @@ def admin_subreddits_all(
             "client_id": assignment.client_id,
             "age_hours": age_hours,
             "age_display": age_display,
+            "ai_cost_30d": ai_cost_map.get(sub.subreddit_name, 0.0),
         })
 
     # Get all clients for filter dropdown (include inactive — they may have subreddit assignments)
@@ -1393,7 +1414,7 @@ def admin_avatar_detail(
     from app.models.hobby import HobbySubreddit
     from app.models.thread import RedditThread
     from app.services.safety import get_avatar_health
-    from sqlalchemy import func, or_
+    from sqlalchemy import desc, func, or_
 
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
@@ -1463,11 +1484,71 @@ def admin_avatar_detail(
         CommentDraft.status == "posted",
     ).scalar() or 0
 
-    # AI costs for this avatar (via client_ids)
-    # NOTE: AIUsageLog tracks costs at client level, not avatar level.
-    # We show client costs here only as context — these are NOT avatar-specific costs.
-    # TODO: Add avatar_id to AIUsageLog for accurate per-avatar billing.
+    # AI costs for this avatar
+    from app.models.ai_usage import AIUsageLog
+    from decimal import Decimal
+
+    # Per-avatar costs (where avatar_id is set)
+    avatar_cost_rows = (
+        db.query(
+            AIUsageLog.operation,
+            func.count(AIUsageLog.id).label("call_count"),
+            func.sum(AIUsageLog.cost_usd).label("total_cost"),
+            func.sum(AIUsageLog.input_tokens).label("total_input"),
+            func.sum(AIUsageLog.output_tokens).label("total_output"),
+        )
+        .filter(AIUsageLog.avatar_id == avatar.id)
+        .group_by(AIUsageLog.operation)
+        .all()
+    )
+
+    ai_costs_total = Decimal("0")
     ai_costs = []
+    for row in avatar_cost_rows:
+        cost = float(row.total_cost or 0)
+        ai_costs_total += Decimal(str(row.total_cost or 0))
+        ai_costs.append({
+            "operation": row.operation,
+            "call_count": row.call_count,
+            "total_cost": cost,
+            "total_input": row.total_input or 0,
+            "total_output": row.total_output or 0,
+        })
+
+    # Recent individual calls (last 30, for detail view)
+    ai_recent_calls = (
+        db.query(AIUsageLog)
+        .filter(AIUsageLog.avatar_id == avatar.id)
+        .order_by(desc(AIUsageLog.created_at))
+        .limit(30)
+        .all()
+    )
+
+    # Last 7 days cost
+    from datetime import timedelta
+    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    ai_cost_7d = (
+        db.query(func.sum(AIUsageLog.cost_usd))
+        .filter(AIUsageLog.avatar_id == avatar.id, AIUsageLog.created_at >= week_ago)
+        .scalar()
+    ) or Decimal("0")
+
+    # Last 30 days cost
+    month_ago = datetime.now(timezone.utc) - timedelta(days=30)
+    ai_cost_30d = (
+        db.query(func.sum(AIUsageLog.cost_usd))
+        .filter(AIUsageLog.avatar_id == avatar.id, AIUsageLog.created_at >= month_ago)
+        .scalar()
+    ) or Decimal("0")
+
+    ai_billing = {
+        "costs_by_operation": ai_costs,
+        "total_cost": float(ai_costs_total),
+        "cost_7d": float(ai_cost_7d),
+        "cost_30d": float(ai_cost_30d),
+        "total_calls": sum(r["call_count"] for r in ai_costs),
+        "recent_calls": ai_recent_calls,
+    }
     assigned_clients = []
     if avatar.client_ids:
         for cid in avatar.client_ids:
@@ -1501,6 +1582,7 @@ def admin_avatar_detail(
                 "pro_posted": pro_posted,
             },
             "ai_costs": ai_costs,
+            "ai_billing": ai_billing,
             "assigned_clients": assigned_clients,
             "unassigned_clients": unassigned_clients,
             "karma_history": karma_history,
@@ -3183,12 +3265,14 @@ def admin_scrape_queue_trigger(
     subreddit_id = subreddit_record.id
 
     try:
-        # Record start event
-        record_activity_event(
-            db, "scrape",
-            f"Manual scrape started: r/{subreddit_name} for {candidate.client_name}",
-            client_uuid,
-            {"subreddit_name": subreddit_name, "phase": "start", "trigger": "manual"},
+        # Audit log for manual trigger
+        audit_service.log_action(
+            db=db,
+            user_id=current_user.id,
+            action="manual_scrape",
+            entity_type="subreddit",
+            client_id=client_uuid,
+            details={"subreddit_name": subreddit_name},
         )
 
         # Scrape subreddit
