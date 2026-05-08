@@ -203,10 +203,10 @@
         </table>
     </div>
 
-    <!-- Recent Calls (Activity Log) -->
+    <!-- Recent Calls (Full Audit Log) -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
         <div class="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
-            <h2 class="text-sm font-medium text-white">Recent AI Calls</h2>
+            <h2 class="text-sm font-medium text-white">AI Call Audit Log</h2>
             <!-- Client filter -->
             <div class="flex items-center gap-2">
                 <span class="text-xs text-gray-500">Filter:</span>
@@ -224,30 +224,58 @@
                 {% endfor %}
             </div>
         </div>
+        <!-- Legend -->
+        <div class="px-4 py-2 border-b border-slate-700/50 flex flex-wrap gap-3 text-xs text-gray-500">
+            <span>Trigger:</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span> scheduler</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-yellow-500"></span> manual</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-500"></span> orchestrator</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-500"></span> wizard/test</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-600"></span> unknown</span>
+        </div>
         <div class="overflow-x-auto">
             <table class="w-full text-sm text-left">
                 <thead>
                     <tr class="border-b border-slate-700">
-                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">Time</th>
+                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">When</th>
+                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">Trigger</th>
                         <th class="px-3 py-2 text-gray-500 uppercase text-xs">Client</th>
                         <th class="px-3 py-2 text-gray-500 uppercase text-xs">Operation</th>
-                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">Model</th>
-                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">Tokens</th>
-                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">Duration</th>
+                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">Target</th>
+                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">AI Model</th>
+                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">Tokens (in→out)</th>
+                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">Time</th>
                         <th class="px-3 py-2 text-gray-500 uppercase text-xs text-right">Cost</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for call in recent_calls %}
                     <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
-                        <td class="px-3 py-2 text-gray-500 font-mono text-xs whitespace-nowrap">{{ call.created_at.strftime('%m/%d %H:%M') }}</td>
+                        <!-- WHEN -->
+                        <td class="px-3 py-2 text-gray-500 font-mono text-xs whitespace-nowrap">{{ call.created_at.strftime('%m/%d %H:%M:%S') }}</td>
+                        <!-- TRIGGER (на каком основании) -->
                         <td class="px-3 py-2 text-xs">
-                            {% if call.client_name == 'system' %}
-                            <span class="text-gray-600">system</span>
+                            {% if call.triggered_by == 'scheduler' %}
+                            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span><span class="text-green-400">scheduler</span></span>
+                            {% elif call.triggered_by == 'manual' %}
+                            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-yellow-500"></span><span class="text-yellow-400">manual</span></span>
+                            {% elif call.triggered_by == 'orchestrator' %}
+                            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-500"></span><span class="text-blue-400">orchestrator</span></span>
+                            {% elif call.triggered_by in ('wizard', 'test_run') %}
+                            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-500"></span><span class="text-purple-400">{{ call.triggered_by }}</span></span>
                             {% else %}
-                            <span class="text-gray-300">{{ call.client_name }}</span>
+                            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-600"></span><span class="text-gray-600">{{ call.triggered_by or '—' }}</span></span>
                             {% endif %}
                         </td>
+                        <!-- CLIENT (кто) -->
+                        <td class="px-3 py-2 text-xs">
+                            {% if call.client_name == 'system' %}
+                            <span class="text-gray-600 italic">system</span>
+                            {% else %}
+                            <span class="text-gray-300 font-medium">{{ call.client_name }}</span>
+                            {% endif %}
+                        </td>
+                        <!-- OPERATION (зачем) -->
                         <td class="px-3 py-2">
                             <span class="px-1.5 py-0.5 rounded text-xs font-medium
                                 {% if call.operation == 'scoring' %}bg-blue-900/50 text-blue-400
@@ -255,22 +283,66 @@
                                 {% elif call.operation == 'persona_select' %}bg-indigo-900/50 text-indigo-400
                                 {% elif call.operation == 'editing' %}bg-cyan-900/50 text-cyan-400
                                 {% elif call.operation == 'hobby_comment' %}bg-amber-900/50 text-amber-400
+                                {% elif call.operation == 'post_topic' %}bg-rose-900/50 text-rose-400
+                                {% elif call.operation == 'post_brief' %}bg-rose-900/50 text-rose-400
+                                {% elif call.operation == 'post_generation' %}bg-rose-900/50 text-rose-400
                                 {% else %}bg-slate-700 text-gray-400{% endif %}">
                                 {{ call.operation }}
                             </span>
                         </td>
-                        <td class="px-3 py-2 text-gray-500 font-mono text-xs">{{ call.model.split('/')[-1][:20] }}</td>
-                        <td class="px-3 py-2 text-gray-400 font-mono text-xs">{{ "{:,}".format(call.input_tokens) }}→{{ "{:,}".format(call.output_tokens) }}</td>
-                        <td class="px-3 py-2 text-gray-500 font-mono text-xs">{{ call.duration_ms }}ms</td>
-                        <td class="px-3 py-2 text-white font-mono text-xs text-right">${{ "%.4f"|format(call.cost_usd) }}</td>
+                        <!-- TARGET (что именно обрабатывалось) -->
+                        <td class="px-3 py-2 text-xs max-w-[280px]">
+                            <div class="flex flex-col gap-0.5">
+                                {% if call.subreddit_name %}
+                                <span class="text-orange-400 font-mono">r/{{ call.subreddit_name }}</span>
+                                {% endif %}
+                                {% if call.avatar_name %}
+                                <span class="text-green-400">↳ @{{ call.avatar_name }}</span>
+                                {% endif %}
+                                {% if call.thread_title %}
+                                <span class="text-gray-500 truncate block" title="{{ call.thread_title }}">↳ {{ call.thread_title[:50] }}{% if call.thread_title|length > 50 %}…{% endif %}</span>
+                                {% endif %}
+                                {% if not call.subreddit_name and not call.avatar_name and not call.thread_title %}
+                                <span class="text-gray-700">—</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <!-- AI MODEL (в какой AI) -->
+                        <td class="px-3 py-2 font-mono text-xs">
+                            {% set model_short = call.model.split('/')[-1][:25] %}
+                            {% if 'claude' in call.model %}
+                            <span class="text-orange-300">{{ model_short }}</span>
+                            {% elif 'gemini' in call.model %}
+                            <span class="text-blue-300">{{ model_short }}</span>
+                            {% else %}
+                            <span class="text-gray-400">{{ model_short }}</span>
+                            {% endif %}
+                        </td>
+                        <!-- TOKENS -->
+                        <td class="px-3 py-2 text-gray-400 font-mono text-xs whitespace-nowrap">{{ "{:,}".format(call.input_tokens) }} → {{ "{:,}".format(call.output_tokens) }}</td>
+                        <!-- DURATION -->
+                        <td class="px-3 py-2 font-mono text-xs whitespace-nowrap
+                            {% if call.duration_ms > 10000 %}text-red-400
+                            {% elif call.duration_ms > 5000 %}text-amber-400
+                            {% else %}text-gray-500{% endif %}">{{ "%.1f"|format(call.duration_ms / 1000) }}s</td>
+                        <!-- COST -->
+                        <td class="px-3 py-2 font-mono text-xs text-right
+                            {% if call.cost_usd > 0.05 %}text-amber-300 font-semibold
+                            {% elif call.cost_usd > 0.01 %}text-white
+                            {% else %}text-gray-400{% endif %}">${{ "%.4f"|format(call.cost_usd) }}</td>
                     </tr>
                     {% endfor %}
                     {% if not recent_calls %}
-                    <tr><td colspan="7" class="px-4 py-6 text-center text-gray-500">No recent calls</td></tr>
+                    <tr><td colspan="9" class="px-4 py-8 text-center text-gray-500">No AI calls recorded yet</td></tr>
                     {% endif %}
                 </tbody>
             </table>
         </div>
+        {% if recent_calls %}
+        <div class="px-4 py-2 border-t border-slate-700/50 text-xs text-gray-600">
+            Showing last {{ recent_calls|length }} calls. Each row answers: When? Who triggered? For which client? What operation? On what target? Which AI model? How much did it cost?
+        </div>
+        {% endif %}
     </div>
 
 </div>

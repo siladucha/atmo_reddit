@@ -36,6 +36,7 @@
                     <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Active</th>
                     <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Subreddits</th>
                     <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Avatars</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">AI Cost (month)</th>
                     <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Created</th>
                     <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Actions</th>
                 </tr>
@@ -57,6 +58,12 @@
                     </td>
                     <td class="px-4 py-3 text-gray-300 font-mono">{{ item.subreddit_count }}</td>
                     <td class="px-4 py-3 text-gray-300 font-mono">{{ item.avatar_count }}</td>
+                    <td class="px-4 py-3">
+                        <div class="flex flex-col">
+                            <span class="text-white font-mono text-xs">${{ "%.2f"|format(item.ai_cost_month) }}</span>
+                            <span class="text-gray-600 text-xs">{{ item.ai_calls_month }} calls · ${{ "%.2f"|format(item.ai_cost_total) }} total</span>
+                        </div>
+                    </td>
                     <td class="px-4 py-3 text-gray-500 text-xs font-mono">
                         {{ item.client.created_at.strftime('%Y-%m-%d') if item.client.created_at else '—' }}
                     </td>
@@ -68,7 +75,7 @@
                 {% endfor %}
                 {% if not clients %}
                 <tr>
-                    <td colspan="7" class="px-4 py-8 text-center text-gray-500">No clients yet</td>
+                    <td colspan="8" class="px-4 py-8 text-center text-gray-500">No clients yet</td>
                 </tr>
                 {% endif %}
             </tbody>

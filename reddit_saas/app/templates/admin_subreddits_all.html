@@ -110,6 +110,7 @@
                     <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Client</th>
                     <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Type</th>
                     <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Last Scraped</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">AI Cost (30d)</th>
                     <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Actions</th>
                 </tr>
             </thead>
@@ -151,6 +152,16 @@
                             {{ item.age_display }}
                         </span>
                     </td>
+                    <!-- AI Cost (30d) -->
+                    <td class="px-4 py-3">
+                        {% if item.ai_cost_30d > 0 %}
+                        <span class="text-xs font-mono {% if item.ai_cost_30d >= 5 %}text-amber-400{% elif item.ai_cost_30d >= 1 %}text-blue-400{% else %}text-gray-400{% endif %}">
+                            ${{ "%.2f"|format(item.ai_cost_30d) }}
+                        </span>
+                        {% else %}
+                        <span class="text-xs font-mono text-gray-600">—</span>
+                        {% endif %}
+                    </td>
                     <!-- Actions -->
                     <td class="px-4 py-3">
                         <div class="flex items-center gap-2">
@@ -181,7 +192,7 @@
                 {% endfor %}
                 {% if not subreddits %}
                 <tr id="no-results-row">
-                    <td colspan="6" class="px-4 py-8 text-center text-gray-500">No subreddits match the current filters.</td>
+                    <td colspan="7" class="px-4 py-8 text-center text-gray-500">No subreddits match the current filters.</td>
                 </tr>
                 {% endif %}
             </tbody>

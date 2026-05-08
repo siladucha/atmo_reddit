@@ -99,6 +99,7 @@ reddit_saas/
 │   │   ├── safety.py          # Content safety checks
 │   │   ├── scoring.py         # Post scoring pipeline
 │   │   ├── settings.py        # System settings service
+│   │   ├── thread_liveness.py # Thread locked/removed/archived detection
 │   │   └── transparency.py    # Activity events, pipeline stats, scrape freshness
 │   ├── tasks/                 # SQS-based background tasks (migrating from Celery)
 │   │   ├── sqs_consumer.py    # SQS long-poll consumer loop
@@ -114,7 +115,7 @@ reddit_saas/
 │   │   └── partials/          # HTMX partials
 │   └── static/
 ├── alembic/                   # DB migrations
-├── tests/                     # 93 tests (all passing)
+├── tests/                     # 187 tests (all passing)
 ├── pyproject.toml
 ├── Dockerfile
 └── docker-compose.yml
@@ -126,7 +127,7 @@ reddit_saas/
 - **NeuroYoga seed data**: first client (ATMO) with subreddits, keywords, persona
 - **User-facing pages**: dashboard, review queue, threads, avatars, settings
 - **Pipeline**: scrape → score → generate → edit (SQS tasks, migrating from Celery)
-- **93 tests passing** (pytest)
+- **187 tests passing** (pytest)
 
 ## What's Built — Activity Feed & Transparency (new)
 - `ActivityEvent` model + `ScrapeLog` model + `last_scraped_at` on ClientSubreddit
@@ -135,6 +136,15 @@ reddit_saas/
 - Admin dashboard Activity Feed (HTMX async load, client filter)
 - Client Transparency Dashboard at `/admin/clients/{id}/transparency`
 - Subreddit freshness tracking with stale indicators
+
+## What's Built — Thread Liveness Protection (new)
+- `is_locked` + `locked_detected_at` on `RedditThread` model
+- Scraping: locked threads skipped at source (PRAW `submission.locked`)
+- Scoring: locked threads excluded from scoring queries
+- Generation: locked threads filtered in SQL + stale thread liveness check (PRAW re-verify for threads >12h old)
+- `services/thread_liveness.py` — check_and_filter_thread, bulk_refresh_locked_status, expire_drafts_for_locked_threads
+- `refresh_thread_liveness` periodic Celery task (auto-rejects pending drafts for locked threads)
+- Review Queue UI: 🔒 LOCKED badge visible to operator
 
 ## What's NOT Built Yet
 - **Avatar Profile & Subreddit Intelligence** — adaptive learning per avatar per subreddit, rule extraction, culture profiling, outcome tracking (spec in `.kiro/steering/avatar_profile_and_subreddit_intelligence.md`)
@@ -154,11 +164,12 @@ reddit_saas/
 - Auto-generated PDF reports — deferred
 
 ## Key Data Flow
-1. SQS worker scrapes subreddits → saves RedditThread records
-2. AI scores threads (relevance/quality/strategic) → tags: engage/monitor/skip
-3. AI generates comment drafts for "engage" threads
-4. Human reviews drafts → approve/reject/edit
+1. SQS worker scrapes subreddits → saves RedditThread records (skips locked threads)
+2. AI scores threads (relevance/quality/strategic) → tags: engage/monitor/skip (skips locked)
+3. AI generates comment drafts for "engage" threads (liveness check for stale threads)
+4. Human reviews drafts → approve/reject/edit (locked indicator visible)
 5. Approved comments posted manually to Reddit
+6. Periodic liveness refresh auto-rejects drafts for newly locked threads
 
 ## Task Architecture (Target)
 - **Producer**: FastAPI app / scheduler sends messages to SQS queues
