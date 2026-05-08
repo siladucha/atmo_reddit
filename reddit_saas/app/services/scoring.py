@@ -275,6 +275,7 @@ def score_unscored_threads_for_client(db: Session, client: Client) -> int:
         db.query(RedditThread)
         .filter(
             RedditThread.subreddit_id.in_(assigned_subreddit_ids),
+            RedditThread.is_locked.is_(False),
             ~RedditThread.id.in_(scored_thread_ids),
         )
         .all()

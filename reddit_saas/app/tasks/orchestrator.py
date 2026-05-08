@@ -32,9 +32,9 @@ def run_full_pipeline_all_clients():
             try:
                 # Chain: score → generate comments → generate posts
                 chain = (
-                    score_threads.si(cid)
-                    | generate_comments.si(cid)
-                    | generate_posts.si(cid)
+                    score_threads.si(cid, triggered_by="orchestrator")
+                    | generate_comments.si(cid, triggered_by="orchestrator")
+                    | generate_posts.si(cid, triggered_by="orchestrator")
                 )
                 chain.apply_async()
                 logger.info(f"AI pipeline queued for {client.client_name}")
@@ -61,7 +61,7 @@ def run_hobby_pipeline_all_avatars():
             try:
                 chain = (
                     scrape_hobby_subreddits.si(aid)
-                    | generate_hobby_comments.si(aid)
+                    | generate_hobby_comments.si(aid, triggered_by="orchestrator")
                 )
                 chain.apply_async()
                 logger.info(f"Hobby pipeline queued for {avatar.reddit_username}")

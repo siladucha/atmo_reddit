@@ -281,10 +281,41 @@ def list_clients_paginated(
             .scalar()
         )
 
+        # AI costs for this client (total + this month)
+        ai_cost_total = float(
+            db.query(func.coalesce(func.sum(AIUsageLog.cost_usd), 0))
+            .filter(AIUsageLog.client_id == client.id)
+            .scalar()
+        )
+
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        ai_cost_month = float(
+            db.query(func.coalesce(func.sum(AIUsageLog.cost_usd), 0))
+            .filter(
+                AIUsageLog.client_id == client.id,
+                AIUsageLog.created_at >= month_start,
+            )
+            .scalar()
+        )
+
+        ai_calls_month = (
+            db.query(func.count(AIUsageLog.id))
+            .filter(
+                AIUsageLog.client_id == client.id,
+                AIUsageLog.created_at >= month_start,
+            )
+            .scalar()
+        )
+
         result.append({
             "client": client,
             "subreddit_count": subreddit_count,
             "avatar_count": avatar_count,
+            "ai_cost_total": ai_cost_total,
+            "ai_cost_month": ai_cost_month,
+            "ai_calls_month": ai_calls_month,
         })
 
     return result, total
@@ -1487,6 +1518,22 @@ def get_ai_costs_recent_calls(db: Session, limit: int = 30, client_id: str | Non
         clients = db.query(Client.id, Client.client_name).filter(Client.id.in_(client_ids)).all()
         client_names = {c.id: c.client_name for c in clients}
 
+    # Get avatar names for display
+    avatar_ids = {r.avatar_id for r in rows if r.avatar_id}
+    avatar_names = {}
+    if avatar_ids:
+        from app.models.avatar import Avatar
+        avatars = db.query(Avatar.id, Avatar.reddit_username).filter(Avatar.id.in_(avatar_ids)).all()
+        avatar_names = {a.id: a.reddit_username for a in avatars}
+
+    # Get thread titles for display
+    thread_ids = {r.thread_id for r in rows if r.thread_id}
+    thread_titles = {}
+    if thread_ids:
+        from app.models.thread import RedditThread
+        threads = db.query(RedditThread.id, RedditThread.post_title).filter(RedditThread.id.in_(thread_ids)).all()
+        thread_titles = {t.id: t.post_title for t in threads}
+
     return [
         {
             "id": str(row.id)[:8],
@@ -1498,6 +1545,10 @@ def get_ai_costs_recent_calls(db: Session, limit: int = 30, client_id: str | Non
             "cost_usd": float(row.cost_usd),
             "duration_ms": row.duration_ms,
             "created_at": row.created_at,
+            "subreddit_name": row.subreddit_name,
+            "avatar_name": avatar_names.get(row.avatar_id) if row.avatar_id else None,
+            "thread_title": thread_titles.get(row.thread_id) if row.thread_id else None,
+            "triggered_by": row.triggered_by,
         }
         for row in rows
     ]

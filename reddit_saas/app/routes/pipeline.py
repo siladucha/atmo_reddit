@@ -69,7 +69,7 @@ def trigger_scoring(
 ):
     """Trigger thread scoring for a client."""
     try:
-        task = score_threads.delay(str(client_id))
+        task = score_threads.delay(str(client_id), triggered_by="manual")
     except Exception as e:
         logger.error(f"Failed to dispatch scoring task for client {client_id}: {e}")
         raise HTTPException(status_code=503, detail="Task queue unavailable") from e
@@ -83,7 +83,7 @@ def trigger_generation(
 ):
     """Trigger comment generation for a client."""
     try:
-        task = generate_comments.delay(str(client_id))
+        task = generate_comments.delay(str(client_id), triggered_by="manual")
     except Exception as e:
         logger.error(f"Failed to dispatch generation task for client {client_id}: {e}")
         raise HTTPException(status_code=503, detail="Task queue unavailable") from e
@@ -127,8 +127,8 @@ def trigger_full_pipeline(
 
         # Chain score → generate (runs after scrapes complete independently)
         chain = (
-            score_threads.si(str(client_id))
-            | generate_comments.si(str(client_id))
+            score_threads.si(str(client_id), triggered_by="manual")
+            | generate_comments.si(str(client_id), triggered_by="manual")
         )
         result = chain.apply_async(countdown=30)  # 30s delay to let scrapes finish
     except Exception as e:

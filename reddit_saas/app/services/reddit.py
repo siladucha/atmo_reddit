@@ -96,6 +96,7 @@ def scrape_subreddit(
         posts = []
         skipped_stickied = 0
         skipped_old = 0
+        skipped_locked = 0
         api_calls_estimate = 1  # Initial listing request
 
         for submission in submissions:
@@ -110,6 +111,11 @@ def scrape_subreddit(
                 skipped_old += 1
                 continue
 
+            # Skip locked posts (cannot comment on them)
+            if submission.locked:
+                skipped_locked += 1
+                continue
+
             post = _submission_to_dict(submission)
             api_calls_estimate += 1  # Each submission's comments = 1 API call
             posts.append(post)
@@ -119,9 +125,9 @@ def scrape_subreddit(
 
         logger.info(
             "REDDIT_API_RESULT | action=scrape_subreddit | subreddit=r/%s | "
-            "posts_returned=%d | skipped_stickied=%d | skipped_old=%d | "
+            "posts_returned=%d | skipped_stickied=%d | skipped_old=%d | skipped_locked=%d | "
             "est_api_calls=%d | duration_ms=%d",
-            subreddit_name, len(posts), skipped_stickied, skipped_old,
+            subreddit_name, len(posts), skipped_stickied, skipped_old, skipped_locked,
             api_calls_estimate, duration_ms,
         )
         return posts
@@ -269,6 +275,7 @@ def _submission_to_dict(submission: Submission) -> dict:
         "post_image": post_image,
         "created_utc": submission.created_utc,
         "num_comments": submission.num_comments,
+        "is_locked": submission.locked,
     }
 
 
@@ -318,3 +325,90 @@ def deduplicate_posts(posts: list[dict], existing_ids: set[str]) -> list[dict]:
         len(posts), len(posts) - len(new_posts), len(new_posts),
     )
     return new_posts
+
+
+def check_thread_liveness(reddit_native_id: str) -> dict:
+    """Check if a Reddit thread is still open for comments.
+
+    Makes a lightweight PRAW call to fetch the submission and check its
+    locked/removed/archived status. Use this before showing old threads
+    in the review queue or before posting.
+
+    Args:
+        reddit_native_id: The Reddit submission ID (e.g. "1abc2de").
+
+    Returns:
+        Dict with keys:
+            - is_locked: bool — thread is locked by mods
+            - is_removed: bool — thread was removed
+            - is_archived: bool — thread is archived (>6 months, auto-locked)
+            - is_commentable: bool — True only if comments can still be posted
+            - score: int — current score (useful for freshness)
+            - num_comments: int — current comment count
+    """
+    logger.info(
+        "REDDIT_API_CALL | action=check_thread_liveness | submission_id=%s",
+        reddit_native_id,
+    )
+    start_time = time.time()
+
+    try:
+        reddit = get_reddit_client()
+        submission = reddit.submission(id=reddit_native_id)
+
+        # Access attributes to trigger the API call
+        is_locked = submission.locked
+        is_removed = submission.removed_by_category is not None
+        is_archived = submission.archived
+
+        is_commentable = not (is_locked or is_removed or is_archived)
+
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.info(
+            "REDDIT_API_RESULT | action=check_thread_liveness | submission_id=%s | "
+            "locked=%s | removed=%s | archived=%s | commentable=%s | duration_ms=%d",
+            reddit_native_id, is_locked, is_removed, is_archived,
+            is_commentable, duration_ms,
+        )
+
+        return {
+            "is_locked": is_locked,
+            "is_removed": is_removed,
+            "is_archived": is_archived,
+            "is_commentable": is_commentable,
+            "score": submission.score,
+            "num_comments": submission.num_comments,
+        }
+
+    except (NotFound, Forbidden) as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.warning(
+            "REDDIT_API_RESULT | action=check_thread_liveness | submission_id=%s | "
+            "error=%s | duration_ms=%d — treating as non-commentable",
+            reddit_native_id, type(e).__name__, duration_ms,
+        )
+        return {
+            "is_locked": True,
+            "is_removed": True,
+            "is_archived": False,
+            "is_commentable": False,
+            "score": 0,
+            "num_comments": 0,
+        }
+
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.error(
+            "REDDIT_API_ERROR | action=check_thread_liveness | submission_id=%s | "
+            "error=%s | duration_ms=%d",
+            reddit_native_id, type(e).__name__, duration_ms,
+        )
+        # On error, don't block the pipeline — assume commentable
+        return {
+            "is_locked": False,
+            "is_removed": False,
+            "is_archived": False,
+            "is_commentable": True,
+            "score": 0,
+            "num_comments": 0,
+        }

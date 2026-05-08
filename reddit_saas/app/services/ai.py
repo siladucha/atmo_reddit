@@ -6,6 +6,7 @@ Handles model routing, token tracking, cost calculation, and logging.
 import json
 import time
 import logging
+from contextvars import ContextVar
 from decimal import Decimal
 
 import litellm
@@ -19,6 +20,10 @@ logger = logging.getLogger(__name__)
 
 # Disable LiteLLM's verbose logging
 litellm.set_verbose = False
+
+# Context variable: set once at task/route level, auto-propagates to all log_ai_usage calls
+# Values: "scheduler", "manual", "orchestrator", "api", "test_run", "wizard"
+ai_trigger_context: ContextVar[str | None] = ContextVar("ai_trigger_context", default=None)
 
 # Cost per 1M tokens (update as prices change)
 MODEL_COSTS = {
@@ -192,6 +197,7 @@ def log_ai_usage(
     avatar_id: str | None = None,
     thread_id: str | None = None,
     subreddit_name: str | None = None,
+    triggered_by: str | None = None,
 ) -> None:
     """Log an AI call to the ai_usage_log table.
 
@@ -203,6 +209,7 @@ def log_ai_usage(
         avatar_id: Avatar UUID string (optional, for per-avatar cost tracking)
         thread_id: Thread UUID string (optional, for per-thread cost tracking)
         subreddit_name: Subreddit name (optional, for per-subreddit cost tracking)
+        triggered_by: What initiated this call (scheduler, manual, orchestrator, api, test_run)
     """
     log = AIUsageLog(
         client_id=client_id,
@@ -215,6 +222,7 @@ def log_ai_usage(
         output_tokens=result["output_tokens"],
         cost_usd=Decimal(str(result["cost_usd"])),
         duration_ms=result["duration_ms"],
+        triggered_by=triggered_by or ai_trigger_context.get(),
     )
     db.add(log)
     db.commit()

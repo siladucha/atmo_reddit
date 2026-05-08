@@ -17,17 +17,19 @@ from app.models.comment_draft import CommentDraft
 from app.services.scoring import score_unscored_threads_for_client
 from app.services.generation import select_persona, generate_comment, edit_comment
 from app.services.transparency import record_activity_event
+from app.services.ai import ai_trigger_context
 
 logger = logging.getLogger(__name__)
 
 
 @celery_app.task(name="score_threads", bind=True, max_retries=3)
-def score_threads(self, client_id: str):
+def score_threads(self, client_id: str, triggered_by: str = "scheduler"):
     """Score all unscored threads for a client.
 
     Uses the shared subreddit registry: finds threads in the client's assigned
     subreddits that lack a ThreadScore record for this client.
     """
+    ai_trigger_context.set(triggered_by)
     db = SessionLocal()
     try:
         from app.services.settings import is_pipeline_enabled
@@ -105,11 +107,12 @@ def score_threads(self, client_id: str):
 
 
 @celery_app.task(name="generate_comments", bind=True, max_retries=3)
-def generate_comments(self, client_id: str, max_comments: int = 15):
+def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by: str = "scheduler"):
     """Generate comments for top 'engage' threads.
 
     Full pipeline: select persona → generate comment → edit comment.
     """
+    ai_trigger_context.set(triggered_by)
     db = SessionLocal()
     try:
         from app.services.settings import is_pipeline_enabled, is_generation_enabled
@@ -169,6 +172,7 @@ def generate_comments(self, client_id: str, max_comments: int = 15):
                     ThreadScore.client_id == client_id,
                     ThreadScore.tag == "engage",
                     RedditThread.subreddit_id.in_(active_subreddit_ids),
+                    RedditThread.is_locked.is_(False),
                     ~RedditThread.id.in_(db.query(threads_with_drafts.c.thread_id)),
                 )
                 .order_by(
@@ -200,6 +204,12 @@ def generate_comments(self, client_id: str, max_comments: int = 15):
             generated = 0
             for thread in engage_threads:
                 try:
+                    # Step 0: Liveness check for stale threads (avoid wasting LLM on locked threads)
+                    from app.services.thread_liveness import check_and_filter_thread
+                    if not check_and_filter_thread(db, thread):
+                        logger.info(f"Thread {thread.reddit_native_id} is locked/removed, skipping generation")
+                        continue
+
                     # Step 1: Safety check
                     from app.services.safety import check_avatar_can_post, check_subreddit_limit
 
@@ -300,8 +310,9 @@ def generate_comments(self, client_id: str, max_comments: int = 15):
 
 
 @celery_app.task(name="generate_hobby_comments", bind=True, max_retries=3)
-def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10):
+def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, triggered_by: str = "scheduler"):
     """Generate hobby comments for karma building using Ori-style prompt with voice profile."""
+    ai_trigger_context.set(triggered_by)
     db = SessionLocal()
     try:
         from app.services.settings import is_pipeline_enabled, is_generation_enabled
@@ -478,12 +489,13 @@ def _build_hobby_user_prompt(post) -> str:
 
 
 @celery_app.task(name="generate_posts", bind=True, max_retries=3)
-def generate_posts(self, client_id: str, max_posts: int = 3):
+def generate_posts(self, client_id: str, max_posts: int = 3, triggered_by: str = "scheduler"):
     """Generate post drafts for a client.
 
     Pipeline: topic generation → brief strategy → post writing.
     Only generates for avatars in Phase 2+ (posts require established karma).
     """
+    ai_trigger_context.set(triggered_by)
     db = SessionLocal()
     try:
         from app.services.settings import is_pipeline_enabled, is_generation_enabled
@@ -774,3 +786,25 @@ def evaluate_all_avatar_phases():
     finally:
         db.close()
         redis_client.close()
+
+
+@celery_app.task(name="refresh_thread_liveness")
+def refresh_thread_liveness(max_threads: int = 50):
+    """Periodic task: check locked status for stale threads with pending drafts.
+
+    Prevents operators from reviewing comments for threads that are no longer
+    commentable. Also auto-rejects pending drafts for locked threads.
+
+    Should be scheduled every 2-4 hours via Celery Beat.
+    """
+    db = SessionLocal()
+    try:
+        from app.services.thread_liveness import bulk_refresh_locked_status
+        result = bulk_refresh_locked_status(db, max_threads=max_threads)
+        logger.info("refresh_thread_liveness: %s", result)
+        return result
+    except Exception as e:
+        logger.error("refresh_thread_liveness failed: %s", e)
+        return {"error": str(e)}
+    finally:
+        db.close()

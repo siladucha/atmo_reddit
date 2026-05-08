@@ -82,6 +82,7 @@ def scrape_professional_subreddits(client_id: str):
                         score=post["score"],
                         ups=post["ups"],
                         downs=post["downs"],
+                        is_locked=post.get("is_locked", False),
                         scraped_at=datetime.now(timezone.utc),
                     )
                     db.add(thread)
@@ -330,6 +331,7 @@ def scrape_subreddit_shared(self, subreddit_id: str) -> dict:
                 score=post["score"],
                 ups=post["ups"],
                 downs=post["downs"],
+                is_locked=post.get("is_locked", False),
                 scraped_at=datetime.now(timezone.utc),
             )
             db.add(thread)
