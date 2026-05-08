@@ -10,124 +10,268 @@
 {% include "partials/export_button.html" %}
 {% endblock %}
 {% block content %}
-<div class="max-w-7xl mx-auto">
-    <h1 class="text-2xl font-semibold text-white mb-6">AI Cost Tracking</h1>
+<div class="max-w-7xl mx-auto space-y-8">
+    <h1 class="text-2xl font-semibold text-white">AI Cost Tracking</h1>
 
     <!-- Budget Warning -->
     {% if budget_pct >= 80 %}
-    <div class="mb-4 p-3 bg-amber-900/50 border border-amber-700 rounded-lg text-amber-300 text-sm">
+    <div class="p-3 bg-amber-900/50 border border-amber-700 rounded-lg text-amber-300 text-sm">
         ⚠️ AI spending is at {{ "%.1f"|format(budget_pct) }}% of the monthly budget (${{ "%.2f"|format(budget) }}).
     </div>
     {% endif %}
 
     <!-- Summary Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
-            <div class="text-sm text-gray-400 mb-1">Total Cost</div>
-            <div class="text-3xl font-mono font-semibold text-white">${{ "%.2f"|format(summary.total_cost) }}</div>
+            <div class="text-xs text-gray-500 uppercase tracking-wider">Total Cost</div>
+            <div class="text-2xl font-mono font-semibold text-white mt-1">${{ "%.2f"|format(summary.total_cost) }}</div>
         </div>
         <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
-            <div class="text-sm text-gray-400 mb-1">Total API Calls</div>
-            <div class="text-3xl font-mono font-semibold text-white">{{ summary.total_calls }}</div>
+            <div class="text-xs text-gray-500 uppercase tracking-wider">API Calls</div>
+            <div class="text-2xl font-mono font-semibold text-white mt-1">{{ summary.total_calls }}</div>
         </div>
         <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
-            <div class="text-sm text-gray-400 mb-1">Input Tokens</div>
-            <div class="text-3xl font-mono font-semibold text-white">{{ "{:,}".format(summary.total_input_tokens) }}</div>
+            <div class="text-xs text-gray-500 uppercase tracking-wider">Input Tokens</div>
+            <div class="text-2xl font-mono font-semibold text-white mt-1">{{ "{:,}".format(summary.total_input_tokens) }}</div>
         </div>
         <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
-            <div class="text-sm text-gray-400 mb-1">Output Tokens</div>
-            <div class="text-3xl font-mono font-semibold text-white">{{ "{:,}".format(summary.total_output_tokens) }}</div>
+            <div class="text-xs text-gray-500 uppercase tracking-wider">Output Tokens</div>
+            <div class="text-2xl font-mono font-semibold text-white mt-1">{{ "{:,}".format(summary.total_output_tokens) }}</div>
         </div>
     </div>
 
-    <!-- By Client -->
-    <h2 class="text-lg font-medium text-gray-300 mb-4">Cost by Client</h2>
-    <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden mb-8">
-        <table class="w-full text-sm text-left">
-            <thead>
-                <tr class="border-b border-slate-700">
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Client</th>
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Calls</th>
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Cost</th>
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Input Tokens</th>
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Output Tokens</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for row in by_client %}
-                <tr class="border-b border-slate-700 hover:bg-slate-700/30">
-                    <td class="px-4 py-3 text-gray-300">{{ row.client_name }}</td>
-                    <td class="px-4 py-3 text-gray-300 font-mono">{{ row.calls }}</td>
-                    <td class="px-4 py-3 text-gray-300 font-mono">${{ "%.4f"|format(row.cost) }}</td>
-                    <td class="px-4 py-3 text-gray-300 font-mono">{{ "{:,}".format(row.input_tokens) }}</td>
-                    <td class="px-4 py-3 text-gray-300 font-mono">{{ "{:,}".format(row.output_tokens) }}</td>
-                </tr>
-                {% endfor %}
-                {% if not by_client %}
-                <tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No data</td></tr>
-                {% endif %}
-            </tbody>
-        </table>
+    <!-- Efficiency Metrics -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">Cost Efficiency</h2>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div>
+                <div class="text-xs text-gray-500">Cost / Scored Thread</div>
+                <div class="text-lg font-mono text-white">${{ "%.4f"|format(efficiency.cost_per_scored_thread) }}</div>
+                <div class="text-xs text-gray-600">{{ efficiency.threads_scored }} threads</div>
+            </div>
+            <div>
+                <div class="text-xs text-gray-500">Cost / Generated Comment</div>
+                <div class="text-lg font-mono text-white">${{ "%.4f"|format(efficiency.cost_per_generated_comment) }}</div>
+                <div class="text-xs text-gray-600">{{ efficiency.comments_generated }} comments</div>
+            </div>
+            <div>
+                <div class="text-xs text-gray-500">Cost / Posted Comment</div>
+                <div class="text-lg font-mono text-{% if efficiency.cost_per_posted_comment > 0.5 %}amber-400{% else %}white{% endif %}">${{ "%.4f"|format(efficiency.cost_per_posted_comment) }}</div>
+                <div class="text-xs text-gray-600">{{ efficiency.comments_posted }} posted</div>
+            </div>
+            <div>
+                <div class="text-xs text-gray-500">Cost / Hobby Comment</div>
+                <div class="text-lg font-mono text-white">${{ "%.4f"|format(efficiency.cost_per_hobby_comment) }}</div>
+                <div class="text-xs text-gray-600">{{ efficiency.hobby_generated }} hobby</div>
+            </div>
+        </div>
     </div>
 
-    <!-- By Operation -->
-    <h2 class="text-lg font-medium text-gray-300 mb-4">Cost by Operation</h2>
-    <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden mb-8">
-        <table class="w-full text-sm text-left">
-            <thead>
-                <tr class="border-b border-slate-700">
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Operation</th>
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Calls</th>
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Cost</th>
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Input Tokens</th>
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Output Tokens</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for row in by_operation %}
-                <tr class="border-b border-slate-700 hover:bg-slate-700/30">
-                    <td class="px-4 py-3 text-gray-300">{{ row.operation }}</td>
-                    <td class="px-4 py-3 text-gray-300 font-mono">{{ row.calls }}</td>
-                    <td class="px-4 py-3 text-gray-300 font-mono">${{ "%.4f"|format(row.cost) }}</td>
-                    <td class="px-4 py-3 text-gray-300 font-mono">{{ "{:,}".format(row.input_tokens) }}</td>
-                    <td class="px-4 py-3 text-gray-300 font-mono">{{ "{:,}".format(row.output_tokens) }}</td>
-                </tr>
-                {% endfor %}
-                {% if not by_operation %}
-                <tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No data</td></tr>
-                {% endif %}
-            </tbody>
-        </table>
+    <!-- Daily Timeline (14 days) -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">Daily Spend (14 days)</h2>
+        <div class="flex items-center gap-4 mb-3 text-xs text-gray-500">
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-blue-600"></span> Scoring</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-purple-600"></span> Generation</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-indigo-600"></span> Persona</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-cyan-600"></span> Editing</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-amber-600"></span> Hobby</span>
+        </div>
+        {% set max_daily = namespace(val=0.01) %}
+        {% for day in timeline %}
+            {% if day.total > max_daily.val %}{% set max_daily.val = day.total %}{% endif %}
+        {% endfor %}
+        <div class="space-y-1">
+            {% for day in timeline %}
+            <div class="flex items-center gap-2 group">
+                <span class="text-xs text-gray-600 font-mono w-12 shrink-0">{{ day.date.strftime('%m/%d') }}</span>
+                <div class="flex-1 flex h-5 rounded overflow-hidden bg-slate-800" title="${{ '%.4f'|format(day.total) }} · {{ day.calls }} calls">
+                    {% if day.scoring > 0 %}
+                    <div class="bg-blue-600 h-full" style="width: {{ (day.scoring / max_daily.val * 100)|round(1) }}%"></div>
+                    {% endif %}
+                    {% if day.generation > 0 %}
+                    <div class="bg-purple-600 h-full" style="width: {{ (day.generation / max_daily.val * 100)|round(1) }}%"></div>
+                    {% endif %}
+                    {% if day.persona_select > 0 %}
+                    <div class="bg-indigo-600 h-full" style="width: {{ (day.persona_select / max_daily.val * 100)|round(1) }}%"></div>
+                    {% endif %}
+                    {% if day.editing > 0 %}
+                    <div class="bg-cyan-600 h-full" style="width: {{ (day.editing / max_daily.val * 100)|round(1) }}%"></div>
+                    {% endif %}
+                    {% if day.hobby_comment > 0 %}
+                    <div class="bg-amber-600 h-full" style="width: {{ (day.hobby_comment / max_daily.val * 100)|round(1) }}%"></div>
+                    {% endif %}
+                </div>
+                <span class="text-xs font-mono text-gray-400 w-16 text-right">${{ "%.3f"|format(day.total) }}</span>
+                <span class="text-xs text-gray-600 w-10 text-right">{{ day.calls }}c</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Two-column: By Client + By Operation -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <!-- By Client -->
+        <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-700">
+                <h2 class="text-sm font-medium text-white">Cost by Client</h2>
+            </div>
+            <table class="w-full text-sm text-left">
+                <thead>
+                    <tr class="border-b border-slate-700">
+                        <th class="px-4 py-2 text-gray-500 uppercase text-xs">Client</th>
+                        <th class="px-4 py-2 text-gray-500 uppercase text-xs">Calls</th>
+                        <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">Cost</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in by_client %}
+                    <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
+                        <td class="px-4 py-2 text-gray-300">{{ row.client_name }}</td>
+                        <td class="px-4 py-2 text-gray-400 font-mono text-xs">{{ row.calls }}</td>
+                        <td class="px-4 py-2 text-white font-mono text-xs text-right">${{ "%.4f"|format(row.cost) }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% if not by_client %}
+                    <tr><td colspan="3" class="px-4 py-6 text-center text-gray-500">No data</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- By Operation -->
+        <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-700">
+                <h2 class="text-sm font-medium text-white">Cost by Operation</h2>
+            </div>
+            <table class="w-full text-sm text-left">
+                <thead>
+                    <tr class="border-b border-slate-700">
+                        <th class="px-4 py-2 text-gray-500 uppercase text-xs">Operation</th>
+                        <th class="px-4 py-2 text-gray-500 uppercase text-xs">Calls</th>
+                        <th class="px-4 py-2 text-gray-500 uppercase text-xs">Tokens</th>
+                        <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">Cost</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in by_operation %}
+                    <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
+                        <td class="px-4 py-2 text-gray-300">{{ row.operation }}</td>
+                        <td class="px-4 py-2 text-gray-400 font-mono text-xs">{{ row.calls }}</td>
+                        <td class="px-4 py-2 text-gray-400 font-mono text-xs">{{ "{:,}".format(row.input_tokens + row.output_tokens) }}</td>
+                        <td class="px-4 py-2 text-white font-mono text-xs text-right">${{ "%.4f"|format(row.cost) }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% if not by_operation %}
+                    <tr><td colspan="4" class="px-4 py-6 text-center text-gray-500">No data</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <!-- By Model -->
-    <h2 class="text-lg font-medium text-gray-300 mb-4">Cost by Model</h2>
     <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-700">
+            <h2 class="text-sm font-medium text-white">Cost by Model</h2>
+        </div>
         <table class="w-full text-sm text-left">
             <thead>
                 <tr class="border-b border-slate-700">
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Model</th>
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Calls</th>
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Cost</th>
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Input Tokens</th>
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Output Tokens</th>
+                    <th class="px-4 py-2 text-gray-500 uppercase text-xs">Model</th>
+                    <th class="px-4 py-2 text-gray-500 uppercase text-xs">Calls</th>
+                    <th class="px-4 py-2 text-gray-500 uppercase text-xs">Input Tokens</th>
+                    <th class="px-4 py-2 text-gray-500 uppercase text-xs">Output Tokens</th>
+                    <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">Cost</th>
                 </tr>
             </thead>
             <tbody>
                 {% for row in by_model %}
-                <tr class="border-b border-slate-700 hover:bg-slate-700/30">
-                    <td class="px-4 py-3 text-gray-300 font-mono">{{ row.model }}</td>
-                    <td class="px-4 py-3 text-gray-300 font-mono">{{ row.calls }}</td>
-                    <td class="px-4 py-3 text-gray-300 font-mono">${{ "%.4f"|format(row.cost) }}</td>
-                    <td class="px-4 py-3 text-gray-300 font-mono">{{ "{:,}".format(row.input_tokens) }}</td>
-                    <td class="px-4 py-3 text-gray-300 font-mono">{{ "{:,}".format(row.output_tokens) }}</td>
+                <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
+                    <td class="px-4 py-2 text-gray-300 font-mono text-xs">{{ row.model }}</td>
+                    <td class="px-4 py-2 text-gray-400 font-mono text-xs">{{ row.calls }}</td>
+                    <td class="px-4 py-2 text-gray-400 font-mono text-xs">{{ "{:,}".format(row.input_tokens) }}</td>
+                    <td class="px-4 py-2 text-gray-400 font-mono text-xs">{{ "{:,}".format(row.output_tokens) }}</td>
+                    <td class="px-4 py-2 text-white font-mono text-xs text-right">${{ "%.4f"|format(row.cost) }}</td>
                 </tr>
                 {% endfor %}
                 {% if not by_model %}
-                <tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No data</td></tr>
+                <tr><td colspan="5" class="px-4 py-6 text-center text-gray-500">No data</td></tr>
                 {% endif %}
             </tbody>
         </table>
     </div>
+
+    <!-- Recent Calls (Activity Log) -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
+            <h2 class="text-sm font-medium text-white">Recent AI Calls</h2>
+            <!-- Client filter -->
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-500">Filter:</span>
+                <a href="/admin/ai-costs"
+                   class="px-2 py-1 rounded text-xs font-medium transition-colors
+                          {% if not filter_client_id %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
+                    All
+                </a>
+                {% for c in clients %}
+                <a href="/admin/ai-costs?client_id={{ c.id }}"
+                   class="px-2 py-1 rounded text-xs font-medium transition-colors
+                          {% if filter_client_id == (c.id|string) %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
+                    {{ c.client_name }}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+                <thead>
+                    <tr class="border-b border-slate-700">
+                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">Time</th>
+                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">Client</th>
+                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">Operation</th>
+                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">Model</th>
+                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">Tokens</th>
+                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">Duration</th>
+                        <th class="px-3 py-2 text-gray-500 uppercase text-xs text-right">Cost</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for call in recent_calls %}
+                    <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
+                        <td class="px-3 py-2 text-gray-500 font-mono text-xs whitespace-nowrap">{{ call.created_at.strftime('%m/%d %H:%M') }}</td>
+                        <td class="px-3 py-2 text-xs">
+                            {% if call.client_name == 'system' %}
+                            <span class="text-gray-600">system</span>
+                            {% else %}
+                            <span class="text-gray-300">{{ call.client_name }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-2">
+                            <span class="px-1.5 py-0.5 rounded text-xs font-medium
+                                {% if call.operation == 'scoring' %}bg-blue-900/50 text-blue-400
+                                {% elif call.operation == 'generation' %}bg-purple-900/50 text-purple-400
+                                {% elif call.operation == 'persona_select' %}bg-indigo-900/50 text-indigo-400
+                                {% elif call.operation == 'editing' %}bg-cyan-900/50 text-cyan-400
+                                {% elif call.operation == 'hobby_comment' %}bg-amber-900/50 text-amber-400
+                                {% else %}bg-slate-700 text-gray-400{% endif %}">
+                                {{ call.operation }}
+                            </span>
+                        </td>
+                        <td class="px-3 py-2 text-gray-500 font-mono text-xs">{{ call.model.split('/')[-1][:20] }}</td>
+                        <td class="px-3 py-2 text-gray-400 font-mono text-xs">{{ "{:,}".format(call.input_tokens) }}→{{ "{:,}".format(call.output_tokens) }}</td>
+                        <td class="px-3 py-2 text-gray-500 font-mono text-xs">{{ call.duration_ms }}ms</td>
+                        <td class="px-3 py-2 text-white font-mono text-xs text-right">${{ "%.4f"|format(call.cost_usd) }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% if not recent_calls %}
+                    <tr><td colspan="7" class="px-4 py-6 text-center text-gray-500">No recent calls</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
 </div>
 {% endblock %}

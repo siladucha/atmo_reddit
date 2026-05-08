@@ -188,17 +188,27 @@ def log_ai_usage(
     client_id: str | None,
     operation: str,
     result: dict,
+    *,
+    avatar_id: str | None = None,
+    thread_id: str | None = None,
+    subreddit_name: str | None = None,
 ) -> None:
     """Log an AI call to the ai_usage_log table.
 
     Args:
         db: Database session
         client_id: Client UUID string (or None for system operations)
-        operation: Operation name (scoring, persona_select, generation, editing)
+        operation: Operation name (scoring, persona_select, generation, editing, hobby_comment)
         result: Dict returned by call_llm or call_llm_json
+        avatar_id: Avatar UUID string (optional, for per-avatar cost tracking)
+        thread_id: Thread UUID string (optional, for per-thread cost tracking)
+        subreddit_name: Subreddit name (optional, for per-subreddit cost tracking)
     """
     log = AIUsageLog(
         client_id=client_id,
+        avatar_id=avatar_id,
+        thread_id=thread_id,
+        subreddit_name=subreddit_name,
         operation=operation,
         model=result["model"],
         input_tokens=result["input_tokens"],

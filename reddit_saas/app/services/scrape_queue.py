@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.models.activity_event import ActivityEvent
 from app.models.client import Client
-from app.models.subreddit import ClientSubreddit
+from app.models.subreddit import Subreddit, ClientSubredditAssignment
 from app.services.distributed_lock import ScrapeDistributedLock
 from app.services.rate_limiter import ScrapeRateLimiter
 
@@ -25,13 +25,15 @@ def get_queue_depth(db: Session) -> int:
     """Get total number of active subreddits in the queue.
 
     This is the total count of subreddits that could potentially be scraped
-    (active subreddit + active client).
+    (active subreddit + active assignment + active client).
     """
     count = (
-        db.query(sa_func.count(ClientSubreddit.id))
-        .join(Client, Client.id == ClientSubreddit.client_id)
+        db.query(sa_func.count(sa_func.distinct(Subreddit.id)))
+        .join(ClientSubredditAssignment, ClientSubredditAssignment.subreddit_id == Subreddit.id)
+        .join(Client, Client.id == ClientSubredditAssignment.client_id)
         .filter(
-            ClientSubreddit.is_active.is_(True),
+            Subreddit.is_active.is_(True),
+            ClientSubredditAssignment.is_active.is_(True),
             Client.is_active.is_(True),
         )
         .scalar()
@@ -53,15 +55,17 @@ def get_stale_count(db: Session, freshness_hours: int) -> int:
     threshold = now - timedelta(hours=freshness_hours)
 
     count = (
-        db.query(sa_func.count(ClientSubreddit.id))
-        .join(Client, Client.id == ClientSubreddit.client_id)
+        db.query(sa_func.count(sa_func.distinct(Subreddit.id)))
+        .join(ClientSubredditAssignment, ClientSubredditAssignment.subreddit_id == Subreddit.id)
+        .join(Client, Client.id == ClientSubredditAssignment.client_id)
         .filter(
-            ClientSubreddit.is_active.is_(True),
+            Subreddit.is_active.is_(True),
+            ClientSubredditAssignment.is_active.is_(True),
             Client.is_active.is_(True),
         )
         .filter(
-            (ClientSubreddit.last_scraped_at.is_(None))
-            | (ClientSubreddit.last_scraped_at < threshold)
+            (Subreddit.last_scraped_at.is_(None))
+            | (Subreddit.last_scraped_at < threshold)
         )
         .scalar()
     )
@@ -118,21 +122,24 @@ def get_waiting_list(
     """
     now = datetime.now(timezone.utc)
 
+    # Query subreddits with their assigned clients (one row per assignment)
     candidates = (
         db.query(
-            ClientSubreddit.subreddit_name,
-            ClientSubreddit.client_id,
+            Subreddit.subreddit_name,
+            ClientSubredditAssignment.client_id,
             Client.client_name,
-            ClientSubreddit.last_scraped_at,
+            Subreddit.last_scraped_at,
         )
-        .join(Client, Client.id == ClientSubreddit.client_id)
+        .join(ClientSubredditAssignment, ClientSubredditAssignment.subreddit_id == Subreddit.id)
+        .join(Client, Client.id == ClientSubredditAssignment.client_id)
         .filter(
-            ClientSubreddit.is_active.is_(True),
+            Subreddit.is_active.is_(True),
+            ClientSubredditAssignment.is_active.is_(True),
             Client.is_active.is_(True),
         )
         .order_by(
-            ClientSubreddit.last_scraped_at.asc().nulls_first(),
-            ClientSubreddit.subreddit_name.asc(),
+            Subreddit.last_scraped_at.asc().nulls_first(),
+            Subreddit.subreddit_name.asc(),
         )
         .limit(limit)
         .all()
@@ -248,14 +255,16 @@ def get_queue_status(
 def _get_depth_by_client(db: Session) -> list[dict]:
     """Queue depth broken down by client."""
     rows = (
-        db.query(Client.client_name, sa_func.count(ClientSubreddit.id))
-        .join(Client, Client.id == ClientSubreddit.client_id)
+        db.query(Client.client_name, sa_func.count(sa_func.distinct(Subreddit.id)))
+        .join(ClientSubredditAssignment, ClientSubredditAssignment.client_id == Client.id)
+        .join(Subreddit, Subreddit.id == ClientSubredditAssignment.subreddit_id)
         .filter(
-            ClientSubreddit.is_active.is_(True),
+            Subreddit.is_active.is_(True),
+            ClientSubredditAssignment.is_active.is_(True),
             Client.is_active.is_(True),
         )
         .group_by(Client.client_name)
-        .order_by(sa_func.count(ClientSubreddit.id).desc())
+        .order_by(sa_func.count(sa_func.distinct(Subreddit.id)).desc())
         .all()
     )
     return [{"client_name": name, "count": count} for name, count in rows]
@@ -267,17 +276,19 @@ def _get_stale_subreddits(db: Session, freshness_hours: int) -> list[dict]:
     threshold = now - timedelta(hours=freshness_hours)
 
     rows = (
-        db.query(ClientSubreddit, Client.client_name)
-        .join(Client, Client.id == ClientSubreddit.client_id)
+        db.query(Subreddit, Client.client_name)
+        .join(ClientSubredditAssignment, ClientSubredditAssignment.subreddit_id == Subreddit.id)
+        .join(Client, Client.id == ClientSubredditAssignment.client_id)
         .filter(
-            ClientSubreddit.is_active.is_(True),
+            Subreddit.is_active.is_(True),
+            ClientSubredditAssignment.is_active.is_(True),
             Client.is_active.is_(True),
         )
         .filter(
-            (ClientSubreddit.last_scraped_at.is_(None))
-            | (ClientSubreddit.last_scraped_at < threshold)
+            (Subreddit.last_scraped_at.is_(None))
+            | (Subreddit.last_scraped_at < threshold)
         )
-        .order_by(ClientSubreddit.last_scraped_at.asc().nulls_first())
+        .order_by(Subreddit.last_scraped_at.asc().nulls_first())
         .limit(20)
         .all()
     )
@@ -348,17 +359,19 @@ def get_pipeline_metrics(db: Session, freshness_hours: int) -> dict:
     # --- Stalest subreddits (top 5 oldest last_scraped_at) ---
     stalest = (
         db.query(
-            ClientSubreddit.subreddit_name,
+            Subreddit.subreddit_name,
             Client.client_name,
-            ClientSubreddit.last_scraped_at,
+            Subreddit.last_scraped_at,
         )
-        .join(Client, Client.id == ClientSubreddit.client_id)
+        .join(ClientSubredditAssignment, ClientSubredditAssignment.subreddit_id == Subreddit.id)
+        .join(Client, Client.id == ClientSubredditAssignment.client_id)
         .filter(
-            ClientSubreddit.is_active.is_(True),
+            Subreddit.is_active.is_(True),
+            ClientSubredditAssignment.is_active.is_(True),
             Client.is_active.is_(True),
         )
         .order_by(
-            ClientSubreddit.last_scraped_at.asc().nulls_first(),
+            Subreddit.last_scraped_at.asc().nulls_first(),
         )
         .limit(5)
         .all()
@@ -410,10 +423,13 @@ def scrape_subreddit_immediate(db: Session, subreddit_name: str, client_id: str)
     waiting for the queue_tick cycle. Respects rate limits but bypasses
     the queue priority system.
 
+    Uses the shared subreddit registry: resolves Subreddit record, creates
+    threads with subreddit_id (no client_id), updates Subreddit.last_scraped_at.
+
     Args:
         db: Database session.
         subreddit_name: Subreddit to scrape (without r/ prefix).
-        client_id: UUID string of the client.
+        client_id: UUID string of the client (for activity logging only).
 
     Returns:
         Dict with posts_found, posts_new, duration_ms, or error info.
@@ -421,7 +437,10 @@ def scrape_subreddit_immediate(db: Session, subreddit_name: str, client_id: str)
     import time
     import uuid
 
+    from sqlalchemy import func as sa_func
+
     from app.models.scrape_log import ScrapeLog
+    from app.models.subreddit import Subreddit
     from app.models.thread import RedditThread
     from app.services.reddit import scrape_subreddit, deduplicate_posts
     from app.services.transparency import record_activity_event
@@ -430,22 +449,33 @@ def scrape_subreddit_immediate(db: Session, subreddit_name: str, client_id: str)
     start_time = time.time()
 
     try:
+        # Resolve subreddit_id from shared registry
+        subreddit_record = (
+            db.query(Subreddit)
+            .filter(sa_func.lower(Subreddit.subreddit_name) == subreddit_name.lower())
+            .first()
+        )
+        if not subreddit_record:
+            subreddit_record = Subreddit(subreddit_name=subreddit_name, is_active=True)
+            db.add(subreddit_record)
+            db.flush()
+
+        subreddit_uuid = subreddit_record.id
+
         # Scrape
         posts = scrape_subreddit(subreddit_name, limit=50, max_age_hours=24)
 
-        # Deduplicate
+        # Deduplicate globally by reddit_native_id
         existing_ids = set(
             row[0]
-            for row in db.query(RedditThread.reddit_native_id)
-            .filter(RedditThread.client_id == client_id)
-            .all()
+            for row in db.query(RedditThread.reddit_native_id).all()
         )
         new_posts = deduplicate_posts(posts, existing_ids)
 
-        # Save new threads
+        # Save new threads with subreddit_id (shared model)
         for post in new_posts:
             thread = RedditThread(
-                client_id=client_id,
+                subreddit_id=subreddit_uuid,
                 type="professional",
                 reddit_native_id=post["reddit_native_id"],
                 subreddit=post["subreddit"],
@@ -462,21 +492,13 @@ def scrape_subreddit_immediate(db: Session, subreddit_name: str, client_id: str)
             db.add(thread)
         db.commit()
 
-        # Update last_scraped_at
-        sub_record = (
-            db.query(ClientSubreddit)
-            .filter(
-                ClientSubreddit.client_id == client_id,
-                ClientSubreddit.subreddit_name == subreddit_name,
-            )
-            .first()
-        )
-        if sub_record:
-            sub_record.last_scraped_at = datetime.now(timezone.utc)
+        # Update Subreddit.last_scraped_at (shared model)
+        subreddit_record.last_scraped_at = datetime.now(timezone.utc)
 
-        # Record ScrapeLog
+        # Record ScrapeLog with subreddit_id
         duration_ms = int((time.time() - start_time) * 1000)
         scrape_log = ScrapeLog(
+            subreddit_id=subreddit_uuid,
             client_id=client_uuid,
             subreddit_name=subreddit_name,
             posts_found=len(posts),

@@ -137,6 +137,7 @@ reddit_saas/
 - Subreddit freshness tracking with stale indicators
 
 ## What's NOT Built Yet
+- **Avatar Profile & Subreddit Intelligence** — adaptive learning per avatar per subreddit, rule extraction, culture profiling, outcome tracking (spec in `.kiro/steering/avatar_profile_and_subreddit_intelligence.md`)
 - **System Topology Timeline** — real-time pipeline node visualization with history + forecast (spec in `.kiro/steering/system_topology_dashboard.md`)
 - Self-service client access (multi-tenancy, role-based views)
 - Customer Success Dashboard (business metrics per client)

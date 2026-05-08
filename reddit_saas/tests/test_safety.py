@@ -18,9 +18,18 @@ from app.services.safety import (
     MAX_COMMENTS_PER_DAY,
 )
 from app.services.phase_types import PolicyStatus, PolicyResult
+from app.services.phase import PhaseTransitionManager
 
 
 # --- Content check tests (unchanged) ---
+
+
+class _AlwaysPhaseLock:
+    def acquire(self, avatar_id: str) -> bool:
+        return True
+
+    def release(self, avatar_id: str) -> None:
+        return None
 
 
 def test_normal_comment_passes():
@@ -224,3 +233,31 @@ def test_policy_block_logs_activity_event(db: Session, sample_avatar: Avatar, sa
     assert event.event_metadata is not None
     assert event.event_metadata["avatar_id"] == str(sample_avatar.id)
     assert event.event_metadata["phase"] == 1
+
+
+def test_phase_override_records_activity_history_metadata(db: Session, sample_avatar: Avatar):
+    """Admin phase override records avatar id and transition details for UI history."""
+    manager = PhaseTransitionManager(_AlwaysPhaseLock())
+
+    assert manager.admin_override(
+        db=db,
+        avatar=sample_avatar,
+        target_phase=2,
+        admin_user_id="admin-test-id",
+        reason="Manual pilot readiness check",
+    )
+
+    event = (
+        db.query(ActivityEvent)
+        .filter(ActivityEvent.event_type == "phase_override")
+        .order_by(ActivityEvent.created_at.desc())
+        .first()
+    )
+
+    assert event is not None
+    assert event.event_metadata["avatar_id"] == str(sample_avatar.id)
+    assert event.event_metadata["reddit_username"] == sample_avatar.reddit_username
+    assert event.event_metadata["previous_phase"] == 1
+    assert event.event_metadata["new_phase"] == 2
+    assert event.event_metadata["admin_user_id"] == "admin-test-id"
+    assert event.event_metadata["reason"] == "Manual pilot readiness check"

@@ -19,7 +19,7 @@ from app.models.activity_event import ActivityEvent
 from app.models.avatar import Avatar
 from app.models.client import Client
 from app.models.comment_draft import CommentDraft
-from app.models.subreddit import ClientSubreddit
+from app.models.subreddit import Subreddit, ClientSubredditAssignment
 from app.models.subreddit_karma import SubredditKarma
 from app.models.thread import RedditThread
 from app.models.thread_score import ThreadScore
@@ -324,13 +324,15 @@ def get_scrape_freshness_grouped(
     stale_threshold = now - timedelta(hours=stale_hours)
 
     rows = (
-        db.query(ClientSubreddit, Client)
-        .join(Client, ClientSubreddit.client_id == Client.id)
+        db.query(Subreddit, Client)
+        .join(ClientSubredditAssignment, ClientSubredditAssignment.subreddit_id == Subreddit.id)
+        .join(Client, Client.id == ClientSubredditAssignment.client_id)
         .filter(
-            ClientSubreddit.is_active.is_(True),
+            Subreddit.is_active.is_(True),
+            ClientSubredditAssignment.is_active.is_(True),
             Client.is_active.is_(True),
         )
-        .order_by(Client.client_name, ClientSubreddit.subreddit_name)
+        .order_by(Client.client_name, Subreddit.subreddit_name)
         .all()
     )
 

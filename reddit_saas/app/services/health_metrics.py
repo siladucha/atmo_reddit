@@ -2,7 +2,7 @@
 
 Reddit API metrics are aggregated from the ``scrape_log`` table. LLM API
 metrics are aggregated from ``ai_usage_log``. Scrape freshness is computed
-from ``client_subreddits.last_scraped_at`` across all active clients.
+from ``subreddits.last_scraped_at`` via active client assignments.
 
 The in-memory ``MetricsCollector`` only contributes the most recent
 PRAW rate-limit snapshot — multi-process aggregation lives in the DB.
@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from app.models.ai_usage import AIUsageLog
 from app.models.client import Client
 from app.models.scrape_log import ScrapeLog
-from app.models.subreddit import ClientSubreddit
+from app.models.subreddit import Subreddit, ClientSubredditAssignment
 from app.services.metrics_collector import (
     MetricsCollector,
     RateLimitState,
@@ -208,20 +208,22 @@ def get_all_scrape_freshness(db: Session, stale_hours: int = 24) -> dict[str, An
     stale_threshold = now - timedelta(hours=stale_hours)
 
     rows = (
-        db.query(ClientSubreddit, Client.client_name)
-        .join(Client, ClientSubreddit.client_id == Client.id)
+        db.query(Subreddit, Client.client_name, ClientSubredditAssignment.client_id)
+        .join(ClientSubredditAssignment, ClientSubredditAssignment.subreddit_id == Subreddit.id)
+        .join(Client, Client.id == ClientSubredditAssignment.client_id)
         .filter(
-            ClientSubreddit.is_active.is_(True),
+            Subreddit.is_active.is_(True),
+            ClientSubredditAssignment.is_active.is_(True),
             Client.is_active.is_(True),
         )
-        .order_by(Client.client_name, ClientSubreddit.subreddit_name)
+        .order_by(Client.client_name, Subreddit.subreddit_name)
         .all()
     )
 
     subreddits: list[dict[str, Any]] = []
     stale_count = 0
     never_scraped_count = 0
-    for sub, client_name in rows:
+    for sub, client_name, client_id in rows:
         last_scraped = sub.last_scraped_at
         is_never_scraped = last_scraped is None
         is_stale = is_never_scraped or last_scraped < stale_threshold
@@ -232,7 +234,7 @@ def get_all_scrape_freshness(db: Session, stale_hours: int = 24) -> dict[str, An
         subreddits.append({
             "subreddit_name": sub.subreddit_name,
             "client_name": client_name,
-            "client_id": str(sub.client_id),
+            "client_id": str(client_id),
             "subreddit_id": str(sub.id),
             "last_scraped_at": last_scraped,
             "is_stale": is_stale,

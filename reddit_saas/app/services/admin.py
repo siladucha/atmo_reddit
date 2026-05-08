@@ -267,10 +267,10 @@ def list_clients_paginated(
     result: list[dict] = []
     for client in clients:
         subreddit_count = (
-            db.query(func.count(ClientSubreddit.id))
+            db.query(func.count(ClientSubredditAssignment.id))
             .filter(
-                ClientSubreddit.client_id == client.id,
-                ClientSubreddit.is_active.is_(True),
+                ClientSubredditAssignment.client_id == client.id,
+                ClientSubredditAssignment.is_active.is_(True),
             )
             .scalar()
         )
@@ -398,7 +398,13 @@ def deactivate_client(
 
     client.is_active = False
 
-    # Cascade: deactivate all subreddits for this client
+    # Cascade: deactivate all subreddit assignments for this client (new model)
+    db.query(ClientSubredditAssignment).filter(
+        ClientSubredditAssignment.client_id == client_id,
+        ClientSubredditAssignment.is_active.is_(True),
+    ).update({"is_active": False})
+
+    # Cascade: deactivate legacy subreddits (if any remain)
     db.query(ClientSubreddit).filter(
         ClientSubreddit.client_id == client_id,
         ClientSubreddit.is_active.is_(True),
@@ -915,12 +921,10 @@ def assign_avatars_to_client(
     """
     client_id_str = str(client_id)
 
-    # Verify client exists and is active
+    # Verify client exists
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
         raise ValueError("Client not found")
-    if not client.is_active:
-        raise ValueError("Cannot assign avatars to inactive client")
 
     for avatar_id in avatar_ids:
         avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
@@ -1403,6 +1407,152 @@ def get_ai_costs_by_model(db: Session) -> list[dict]:
         }
         for row in rows
     ]
+
+
+def get_ai_costs_daily_timeline(db: Session, days: int = 14) -> list[dict]:
+    """Return daily AI cost breakdown for timeline visualization.
+
+    Returns per-day totals with operation breakdown.
+    """
+    from datetime import timedelta, timezone, datetime as dt
+
+    cutoff = dt.now(timezone.utc) - timedelta(days=days)
+
+    rows = (
+        db.query(
+            func.date_trunc("day", AIUsageLog.created_at).label("day"),
+            AIUsageLog.operation,
+            func.count(AIUsageLog.id).label("calls"),
+            func.coalesce(func.sum(AIUsageLog.cost_usd), 0).label("cost"),
+        )
+        .filter(AIUsageLog.created_at >= cutoff)
+        .group_by("day", AIUsageLog.operation)
+        .order_by("day")
+        .all()
+    )
+
+    # Build per-day aggregation
+    from collections import defaultdict
+    daily: dict = defaultdict(lambda: {"total": 0.0, "calls": 0, "ops": {}})
+    for row in rows:
+        day_key = row.day.date()
+        daily[day_key]["total"] += float(row.cost)
+        daily[day_key]["calls"] += row.calls
+        daily[day_key]["ops"][row.operation] = {
+            "calls": row.calls,
+            "cost": float(row.cost),
+        }
+
+    # Fill gaps
+    result = []
+    for i in range(days):
+        day = (dt.now(timezone.utc) - timedelta(days=days - 1 - i)).date()
+        entry = daily.get(day, {"total": 0.0, "calls": 0, "ops": {}})
+        result.append({
+            "date": day,
+            "total": entry["total"],
+            "calls": entry["calls"],
+            "scoring": entry["ops"].get("scoring", {}).get("cost", 0),
+            "generation": entry["ops"].get("generation", {}).get("cost", 0),
+            "persona_select": entry["ops"].get("persona_select", {}).get("cost", 0),
+            "editing": entry["ops"].get("editing", {}).get("cost", 0),
+            "hobby_comment": entry["ops"].get("hobby_comment", {}).get("cost", 0),
+        })
+
+    return result
+
+
+def get_ai_costs_recent_calls(db: Session, limit: int = 30, client_id: str | None = None) -> list[dict]:
+    """Return recent individual AI calls for drill-down analysis.
+
+    Shows the last N calls with full detail so the operator can see
+    exactly what was spent and when.
+    """
+    query = db.query(AIUsageLog).order_by(AIUsageLog.created_at.desc())
+
+    if client_id:
+        import uuid as _uuid
+        try:
+            cid = _uuid.UUID(client_id)
+            query = query.filter(AIUsageLog.client_id == cid)
+        except ValueError:
+            pass
+
+    rows = query.limit(limit).all()
+
+    # Get client names for display
+    client_ids = {r.client_id for r in rows if r.client_id}
+    client_names = {}
+    if client_ids:
+        clients = db.query(Client.id, Client.client_name).filter(Client.id.in_(client_ids)).all()
+        client_names = {c.id: c.client_name for c in clients}
+
+    return [
+        {
+            "id": str(row.id)[:8],
+            "client_name": client_names.get(row.client_id, "—") if row.client_id else "system",
+            "operation": row.operation,
+            "model": row.model,
+            "input_tokens": row.input_tokens,
+            "output_tokens": row.output_tokens,
+            "cost_usd": float(row.cost_usd),
+            "duration_ms": row.duration_ms,
+            "created_at": row.created_at,
+        }
+        for row in rows
+    ]
+
+
+def get_ai_cost_efficiency(db: Session) -> dict:
+    """Calculate cost efficiency metrics.
+
+    Returns cost-per-comment-posted, cost-per-thread-scored, etc.
+    """
+    from datetime import timedelta, timezone, datetime as dt
+    from app.models.comment_draft import CommentDraft
+
+    # Total costs by operation
+    total_scoring_cost = float(
+        db.query(func.coalesce(func.sum(AIUsageLog.cost_usd), 0))
+        .filter(AIUsageLog.operation == "scoring")
+        .scalar()
+    )
+    total_generation_cost = float(
+        db.query(func.coalesce(func.sum(AIUsageLog.cost_usd), 0))
+        .filter(AIUsageLog.operation.in_(["generation", "persona_select", "editing"]))
+        .scalar()
+    )
+    total_hobby_cost = float(
+        db.query(func.coalesce(func.sum(AIUsageLog.cost_usd), 0))
+        .filter(AIUsageLog.operation == "hobby_comment")
+        .scalar()
+    )
+
+    # Counts
+    threads_scored = db.query(func.count(AIUsageLog.id)).filter(AIUsageLog.operation == "scoring").scalar() or 0
+    comments_generated = db.query(func.count(AIUsageLog.id)).filter(AIUsageLog.operation == "generation").scalar() or 0
+    comments_posted = db.query(func.count(CommentDraft.id)).filter(CommentDraft.status == "posted").scalar() or 0
+    hobby_generated = db.query(func.count(AIUsageLog.id)).filter(AIUsageLog.operation == "hobby_comment").scalar() or 0
+
+    # Efficiency ratios
+    cost_per_scored = total_scoring_cost / threads_scored if threads_scored > 0 else 0
+    cost_per_generated = total_generation_cost / comments_generated if comments_generated > 0 else 0
+    cost_per_posted = (total_generation_cost + total_scoring_cost) / comments_posted if comments_posted > 0 else 0
+    cost_per_hobby = total_hobby_cost / hobby_generated if hobby_generated > 0 else 0
+
+    return {
+        "cost_per_scored_thread": cost_per_scored,
+        "cost_per_generated_comment": cost_per_generated,
+        "cost_per_posted_comment": cost_per_posted,
+        "cost_per_hobby_comment": cost_per_hobby,
+        "threads_scored": threads_scored,
+        "comments_generated": comments_generated,
+        "comments_posted": comments_posted,
+        "hobby_generated": hobby_generated,
+        "total_scoring_cost": total_scoring_cost,
+        "total_generation_cost": total_generation_cost,
+        "total_hobby_cost": total_hobby_cost,
+    }
 
 
 # ---------------------------------------------------------------------------

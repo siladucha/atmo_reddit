@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies.admin import require_superuser
 from app.models.user import User
-from app.tasks.scraping import scrape_professional_subreddits, scrape_hobby_subreddits
+from app.tasks.scraping import scrape_subreddit_shared, scrape_hobby_subreddits
 from app.tasks.ai_pipeline import score_threads, generate_comments, generate_hobby_comments
 
 logger = logging.getLogger(__name__)
@@ -19,15 +19,47 @@ router = APIRouter()
 @router.post("/scrape/{client_id}")
 def trigger_scrape(
     client_id: UUID,
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_superuser),
 ):
-    """Trigger professional subreddit scraping for a client."""
-    try:
-        task = scrape_professional_subreddits.delay(str(client_id))
-    except Exception as e:
-        logger.error(f"Failed to dispatch scrape task for client {client_id}: {e}")
-        raise HTTPException(status_code=503, detail="Task queue unavailable") from e
-    return {"task_id": task.id, "status": "queued", "action": "scrape_professional"}
+    """Trigger subreddit scraping for a client.
+
+    Dispatches shared scrape tasks for all subreddits assigned to this client.
+    """
+    from app.models.client import Client
+    from app.models.subreddit import Subreddit, ClientSubredditAssignment
+
+    client = db.query(Client).filter(Client.id == client_id, Client.is_active.is_(True)).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found or inactive")
+
+    # Get all active subreddit assignments for this client
+    assignments = (
+        db.query(ClientSubredditAssignment)
+        .join(Subreddit, Subreddit.id == ClientSubredditAssignment.subreddit_id)
+        .filter(
+            ClientSubredditAssignment.client_id == client_id,
+            ClientSubredditAssignment.is_active.is_(True),
+            Subreddit.is_active.is_(True),
+        )
+        .all()
+    )
+
+    if not assignments:
+        raise HTTPException(status_code=404, detail="No active subreddits for this client")
+
+    task_ids = []
+    for assignment in assignments:
+        try:
+            task = scrape_subreddit_shared.delay(str(assignment.subreddit_id))
+            task_ids.append(task.id)
+        except Exception as e:
+            logger.error(f"Failed to dispatch scrape for subreddit {assignment.subreddit_id}: {e}")
+
+    if not task_ids:
+        raise HTTPException(status_code=503, detail="Task queue unavailable")
+
+    return {"task_ids": task_ids, "status": "queued", "action": "scrape_shared", "count": len(task_ids)}
 
 
 @router.post("/score/{client_id}")
@@ -61,16 +93,44 @@ def trigger_generation(
 @router.post("/full-pipeline/{client_id}")
 def trigger_full_pipeline(
     client_id: UUID,
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_superuser),
 ):
-    """Trigger the full pipeline: scrape → score → generate."""
+    """Trigger the full pipeline: scrape → score → generate.
+
+    Dispatches shared scrape tasks for all client subreddits, then chains
+    score and generate tasks.
+    """
+    from app.models.client import Client
+    from app.models.subreddit import Subreddit, ClientSubredditAssignment
+
+    client = db.query(Client).filter(Client.id == client_id, Client.is_active.is_(True)).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found or inactive")
+
+    # Get all active subreddit assignments for this client
+    assignments = (
+        db.query(ClientSubredditAssignment)
+        .join(Subreddit, Subreddit.id == ClientSubredditAssignment.subreddit_id)
+        .filter(
+            ClientSubredditAssignment.client_id == client_id,
+            ClientSubredditAssignment.is_active.is_(True),
+            Subreddit.is_active.is_(True),
+        )
+        .all()
+    )
+
     try:
+        # Dispatch scrape tasks for all subreddits
+        for assignment in assignments:
+            scrape_subreddit_shared.delay(str(assignment.subreddit_id))
+
+        # Chain score → generate (runs after scrapes complete independently)
         chain = (
-            scrape_professional_subreddits.si(str(client_id))
-            | score_threads.si(str(client_id))
+            score_threads.si(str(client_id))
             | generate_comments.si(str(client_id))
         )
-        result = chain.apply_async()
+        result = chain.apply_async(countdown=30)  # 30s delay to let scrapes finish
     except Exception as e:
         logger.error(f"Failed to dispatch full pipeline for client {client_id}: {e}")
         raise HTTPException(status_code=503, detail="Task queue unavailable") from e

@@ -186,7 +186,11 @@ def score_thread_for_client(
         raise RuntimeError(f"Thread scoring LLM failed: {e}") from e
 
     try:
-        log_ai_usage(db, str(client.id), "scoring", result)
+        log_ai_usage(
+            db, str(client.id), "scoring", result,
+            thread_id=str(thread.id),
+            subreddit_name=thread.subreddit,
+        )
     except Exception:
         logger.warning("Failed to log AI usage for scoring")
 
@@ -259,14 +263,12 @@ def score_unscored_threads_for_client(db: Session, client: Client) -> int:
             ClientSubredditAssignment.client_id == client.id,
             ClientSubredditAssignment.is_active.is_(True),
         )
-        .subquery()
     )
 
     # Find threads in those subreddits that don't have a ThreadScore for this client
     scored_thread_ids = (
         db.query(ThreadScore.thread_id)
         .filter(ThreadScore.client_id == client.id)
-        .subquery()
     )
 
     unscored = (

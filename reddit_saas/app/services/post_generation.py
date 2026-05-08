@@ -241,7 +241,11 @@ def generate_post_topic(
     )
 
     try:
-        log_ai_usage(db, str(client.id), "post_topic", result)
+        log_ai_usage(
+            db, str(client.id), "post_topic", result,
+            avatar_id=str(avatar.id),
+            subreddit_name=subreddit,
+        )
     except Exception:
         logger.warning("Failed to log AI usage for post_topic")
 
@@ -293,7 +297,11 @@ def generate_post_brief(
         raise RuntimeError(f"Post brief generation LLM failed: {e}") from e
 
     try:
-        log_ai_usage(db, str(client.id), "post_brief", result)
+        log_ai_usage(
+            db, str(client.id), "post_brief", result,
+            avatar_id=str(avatar.id),
+            subreddit_name=subreddit,
+        )
     except Exception:
         logger.warning("Failed to log AI usage for post_brief")
 
@@ -364,7 +372,11 @@ def generate_post(
         raise RuntimeError(f"Post generation LLM failed: {e}") from e
 
     try:
-        log_ai_usage(db, str(client.id), "post_generation", result)
+        log_ai_usage(
+            db, str(client.id), "post_generation", result,
+            avatar_id=str(avatar.id),
+            subreddit_name=subreddit,
+        )
     except Exception:
         logger.warning("Failed to log AI usage for post_generation")
 

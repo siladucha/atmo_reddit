@@ -150,6 +150,17 @@ def generate_comments(self, client_id: str, max_comments: int = 15):
                 .subquery()
             )
 
+            # Only consider threads in subreddits still actively assigned to this client
+            from app.models.subreddit import ClientSubredditAssignment
+            active_subreddit_ids = (
+                db.query(ClientSubredditAssignment.subreddit_id)
+                .filter(
+                    ClientSubredditAssignment.client_id == client_id,
+                    ClientSubredditAssignment.is_active.is_(True),
+                )
+                .subquery()
+            )
+
             # Query threads via ThreadScore for this client with tag='engage'
             engage_threads = (
                 db.query(RedditThread)
@@ -157,6 +168,7 @@ def generate_comments(self, client_id: str, max_comments: int = 15):
                 .filter(
                     ThreadScore.client_id == client_id,
                     ThreadScore.tag == "engage",
+                    RedditThread.subreddit_id.in_(active_subreddit_ids),
                     ~RedditThread.id.in_(db.query(threads_with_drafts.c.thread_id)),
                 )
                 .order_by(
@@ -359,7 +371,11 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10):
                         max_tokens=300,
                     )
 
-                    log_ai_usage(db, None, "hobby_comment", result)
+                    log_ai_usage(
+                        db, None, "hobby_comment", result,
+                        avatar_id=str(avatar.id),
+                        subreddit_name=post.subreddit if hasattr(post, 'subreddit') else None,
+                    )
 
                     # Parse JSON response or use raw text
                     import json as json_mod
@@ -520,7 +536,7 @@ def generate_posts(self, client_id: str, max_posts: int = 3):
             for a in assignments:
                 sub = db.query(Subreddit).filter(Subreddit.id == a.subreddit_id).first()
                 if sub:
-                    subreddit_names.append(sub.name)
+                    subreddit_names.append(sub.subreddit_name)
 
             if not subreddit_names:
                 # Fallback: use avatar business subreddits

@@ -1,14 +1,36 @@
 {# Dark-themed avatar table — required ctx: rows (list of view dicts) #}
+{# f (AvatarFilter) is available from parent context for sort links #}
+{% macro sort_header(label, sort_asc, sort_desc) %}
+{% set current = f.sort if f is defined else 'username' %}
+{% set next_sort = sort_desc if current == sort_asc else sort_asc %}
+{% set is_active = current in [sort_asc, sort_desc] %}
+<a href="/admin/avatars?{{ f.query_string(sort=next_sort, page=1) }}"
+   hx-get="/admin/avatars?{{ f.query_string(sort=next_sort, page=1) }}"
+   hx-target="#admin-avatars-results"
+   hx-swap="innerHTML"
+   hx-push-url="true"
+   class="inline-flex items-center gap-1 {% if is_active %}text-indigo-400{% else %}text-gray-400 hover:text-gray-200{% endif %} transition-colors cursor-pointer">
+    {{ label }}
+    {% if current == sort_asc %}
+    <span class="text-[9px]">▲</span>
+    {% elif current == sort_desc %}
+    <span class="text-[9px]">▼</span>
+    {% endif %}
+</a>
+{% endmacro %}
+
 <table class="w-full text-sm text-left">
     <thead>
         <tr class="border-b border-slate-700">
-            <th class="px-4 py-2 text-gray-400 uppercase text-[10px] tracking-wider font-medium">Status</th>
-            <th class="px-4 py-2 text-gray-400 uppercase text-[10px] tracking-wider font-medium">Username</th>
-            <th class="px-4 py-2 text-gray-400 uppercase text-[10px] tracking-wider font-medium">Reddit</th>
-            <th class="px-4 py-2 text-gray-400 uppercase text-[10px] tracking-wider font-medium">Phase</th>
-            <th class="px-4 py-2 text-gray-400 uppercase text-[10px] tracking-wider font-medium">Karma</th>
-            <th class="px-4 py-2 text-gray-400 uppercase text-[10px] tracking-wider font-medium">Health</th>
-            <th class="px-4 py-2 text-gray-400 uppercase text-[10px] tracking-wider font-medium">Actions</th>
+            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Status</th>
+            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">{{ sort_header('Username', 'username', 'username_desc') }}</th>
+            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">{{ sort_header('Client', 'client', 'client_desc') }}</th>
+            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Reddit</th>
+            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">{{ sort_header('Phase', 'phase_asc', 'phase_desc') }}</th>
+            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">{{ sort_header('Karma', 'karma_asc', 'karma_desc') }}</th>
+            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">AI Cost</th>
+            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Health</th>
+            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Actions</th>
         </tr>
     </thead>
     <tbody>
@@ -28,10 +50,18 @@
             <td class="px-4 py-2">
                 <a href="/admin/avatars/{{ a.id }}" class="text-white hover:text-indigo-400 font-medium">u/{{ a.username }}</a>
                 {% if a.email_address %}<div class="text-[11px] text-gray-500">{{ a.email_address }}</div>{% endif %}
+            </td>
+            <td class="px-4 py-2">
                 {% if a.clients %}
-                <div class="text-[11px] text-gray-400 mt-0.5">
-                    {% for c in a.clients %}<span class="mr-1">{{ c.name }}</span>{% endfor %}
+                <div class="flex flex-wrap gap-1">
+                    {% for c in a.clients %}
+                    <a href="/admin/clients/{{ c.id }}" class="px-1.5 py-0.5 rounded text-[11px] font-medium bg-indigo-900/30 text-indigo-300 border border-indigo-700/50 hover:bg-indigo-800/40 transition-colors">
+                        {{ c.name }}
+                    </a>
+                    {% endfor %}
                 </div>
+                {% else %}
+                <span class="text-xs text-gray-600">unassigned</span>
                 {% endif %}
             </td>
             <td class="px-4 py-2">
@@ -71,6 +101,14 @@
                 {% endif %}
             </td>
             <td class="px-4 py-2">
+                {% if a.ai_cost is defined and a.ai_cost > 0 %}
+                <div class="font-mono text-xs text-white">${{ "%.3f"|format(a.ai_cost) }}</div>
+                <div class="text-[10px] text-gray-500">{{ a.ai_calls }} calls</div>
+                {% else %}
+                <span class="text-xs text-gray-600">—</span>
+                {% endif %}
+            </td>
+            <td class="px-4 py-2">
                 {% if a.health_color == 'green' %}
                 <span class="inline-block w-2 h-2 rounded-full bg-green-400" title="Healthy"></span>
                 {% elif a.health_color == 'yellow' %}
@@ -97,16 +135,6 @@
                             class="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-700 text-gray-200 border border-slate-600 hover:bg-slate-600">
                         Check
                     </button>
-                    {% if f is defined and f.client_id %}
-                    <form method="post" action="/admin/avatars/{{ a.id }}/unassign-from-client" class="inline">
-                        <input type="hidden" name="client_id" value="{{ f.client_id }}">
-                        <button type="submit"
-                                onclick="return confirm('Unassign this avatar from the client?')"
-                                class="px-2 py-0.5 rounded text-[11px] font-medium bg-red-900/50 text-red-400 border border-red-700 hover:bg-red-800/50">
-                            Unassign
-                        </button>
-                    </form>
-                    {% endif %}
                 </div>
             </td>
         </tr>

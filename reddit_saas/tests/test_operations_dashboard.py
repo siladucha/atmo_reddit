@@ -8,7 +8,7 @@ from app.models.activity_event import ActivityEvent
 from app.models.avatar import Avatar
 from app.models.client import Client
 from app.models.comment_draft import CommentDraft
-from app.models.subreddit import ClientSubreddit, Subreddit
+from app.models.subreddit import ClientSubreddit, Subreddit, ClientSubredditAssignment
 from app.models.thread import RedditThread
 from app.services import operations_dashboard
 
@@ -29,16 +29,19 @@ def seeded(db):
     db.flush()
 
     # Shared subreddit registry entry (required FK for threads)
-    sub = Subreddit(subreddit_name="alpha_fresh", is_active=True)
-    db.add(sub)
+    sub = Subreddit(subreddit_name="alpha_fresh", is_active=True, last_scraped_at=now - timedelta(hours=2))
+    sub_stale = Subreddit(subreddit_name="alpha_stale", is_active=True, last_scraped_at=now - timedelta(hours=48))
+    sub_never = Subreddit(subreddit_name="alpha_never", is_active=True, last_scraped_at=None)
+    sub_bravo = Subreddit(subreddit_name="bravo_fresh", is_active=True, last_scraped_at=now - timedelta(hours=1))
+    db.add_all([sub, sub_stale, sub_never, sub_bravo])
     db.flush()
 
-    # Subreddits — c1 has one fresh, one stale, one never-scraped
+    # ClientSubredditAssignment — new model (used by updated services)
     db.add_all([
-        ClientSubreddit(client_id=c1.id, subreddit_name="alpha_fresh", last_scraped_at=now - timedelta(hours=2)),
-        ClientSubreddit(client_id=c1.id, subreddit_name="alpha_stale", last_scraped_at=now - timedelta(hours=48)),
-        ClientSubreddit(client_id=c1.id, subreddit_name="alpha_never", last_scraped_at=None),
-        ClientSubreddit(client_id=c2.id, subreddit_name="bravo_fresh", last_scraped_at=now - timedelta(hours=1)),
+        ClientSubredditAssignment(client_id=c1.id, subreddit_id=sub.id, is_active=True),
+        ClientSubredditAssignment(client_id=c1.id, subreddit_id=sub_stale.id, is_active=True),
+        ClientSubredditAssignment(client_id=c1.id, subreddit_id=sub_never.id, is_active=True),
+        ClientSubredditAssignment(client_id=c2.id, subreddit_id=sub_bravo.id, is_active=True),
     ])
 
     # Threads in last 24h

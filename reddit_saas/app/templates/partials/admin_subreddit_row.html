@@ -11,7 +11,9 @@
         {% endif %}
     </td>
     <td class="px-4 py-3 text-gray-300">
+        <a href="/admin/subreddits/detail/{{ sub.subreddit_name }}" class="hover:text-indigo-400 transition-colors">
         r/{{ sub.subreddit_name }}
+        </a>
         {% if sub.shared %}
         <span class="ml-1 px-1.5 py-0.5 rounded text-xs bg-purple-900/50 text-purple-400 border border-purple-700" title="Shared with other clients">Shared</span>
         {% endif %}

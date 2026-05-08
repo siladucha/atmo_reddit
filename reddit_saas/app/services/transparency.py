@@ -9,7 +9,6 @@ from app.models.activity_event import ActivityEvent
 from app.models.ai_usage import AIUsageLog
 from app.models.comment_draft import CommentDraft
 from app.models.scrape_log import ScrapeLog
-from app.models.subreddit import ClientSubreddit
 from app.models.thread import RedditThread
 
 
@@ -207,30 +206,35 @@ def get_scrape_freshness(db: Session, client_id: uuid.UUID) -> list[dict]:
             "is_stale": bool,  # last_scraped_at > 24h ago or None
         }
     """
+    from app.models.subreddit import Subreddit, ClientSubredditAssignment
+
     now = datetime.now(timezone.utc)
     stale_threshold = now - timedelta(hours=24)
 
-    # Get active subreddits for this client
-    subreddits = (
-        db.query(ClientSubreddit)
+    # Get active subreddits for this client via shared registry
+    assignments = (
+        db.query(ClientSubredditAssignment)
         .filter(
-            ClientSubreddit.client_id == client_id,
-            ClientSubreddit.is_active == True,  # noqa: E712
+            ClientSubredditAssignment.client_id == client_id,
+            ClientSubredditAssignment.is_active.is_(True),
         )
         .all()
     )
 
     results = []
-    for sub in subreddits:
-        # Aggregate ScrapeLog data for this subreddit
+    for assignment in assignments:
+        subreddit = db.query(Subreddit).filter(Subreddit.id == assignment.subreddit_id).first()
+        if not subreddit:
+            continue
+
+        # Aggregate ScrapeLog data for this subreddit (by subreddit_name or subreddit_id)
         agg = (
             db.query(
                 sa_func.sum(ScrapeLog.posts_found).label("total_posts_found"),
                 sa_func.avg(ScrapeLog.posts_new).label("avg_posts_new"),
             )
             .filter(
-                ScrapeLog.client_id == client_id,
-                ScrapeLog.subreddit_name == sub.subreddit_name,
+                ScrapeLog.subreddit_name == subreddit.subreddit_name,
             )
             .one()
         )
@@ -238,11 +242,11 @@ def get_scrape_freshness(db: Session, client_id: uuid.UUID) -> list[dict]:
         total_posts_found = int(agg.total_posts_found) if agg.total_posts_found is not None else 0
         avg_posts_new = float(agg.avg_posts_new) if agg.avg_posts_new is not None else 0.0
 
-        last_scraped = sub.last_scraped_at
+        last_scraped = subreddit.last_scraped_at
         is_stale = last_scraped is None or last_scraped < stale_threshold
 
         results.append({
-            "subreddit_name": sub.subreddit_name,
+            "subreddit_name": subreddit.subreddit_name,
             "last_scraped_at": last_scraped,
             "total_posts_found": total_posts_found,
             "avg_posts_new": avg_posts_new,

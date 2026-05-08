@@ -232,6 +232,32 @@ def test_subreddit_add_success(admin_client, db):
     assert r.status_code == 303
 
 
+def test_client_subreddits_page_shows_scrape_counts(admin_client, db):
+    """Client subreddit page separates assigned count from scrape coverage."""
+    from datetime import datetime, timezone
+
+    from app.models.client import Client
+    from app.models.subreddit import ClientSubredditAssignment, Subreddit
+
+    c = Client(client_name="Sub Counts", brand_name="Sub Counts")
+    scraped = Subreddit(subreddit_name="counts_scraped", last_scraped_at=datetime.now(timezone.utc))
+    never = Subreddit(subreddit_name="counts_never")
+    db.add_all([c, scraped, never])
+    db.flush()
+    db.add_all([
+        ClientSubredditAssignment(client_id=c.id, subreddit_id=scraped.id, is_active=True),
+        ClientSubredditAssignment(client_id=c.id, subreddit_id=never.id, is_active=True),
+    ])
+    db.commit()
+
+    r = admin_client.get(f"/admin/subreddits/{c.id}")
+
+    assert r.status_code == 200
+    assert "2 assigned" in r.text
+    assert "1 scraped" in r.text
+    assert "1 never scraped" in r.text
+
+
 def test_subreddit_invalid_name(admin_client, db):
     """Invalid subreddit name rejected."""
     from app.models.client import Client

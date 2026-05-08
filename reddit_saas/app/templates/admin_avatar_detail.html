@@ -73,6 +73,41 @@
         </div>
     </div>
 
+    <div class="sticky top-0 z-10 -mx-1 bg-slate-night/95 py-2 backdrop-blur">
+        <div class="flex flex-wrap gap-1 rounded-lg border border-slate-700 bg-dark-steel p-1">
+            <button type="button" data-avatar-detail-tab="overview"
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium bg-indigo-600 text-white">
+                Overview
+            </button>
+            <button type="button" data-avatar-detail-tab="safety"
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
+                Safety
+            </button>
+            <button type="button" data-avatar-detail-tab="phase"
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
+                Phase
+            </button>
+            <button type="button" data-avatar-detail-tab="performance"
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
+                Performance
+            </button>
+            <button type="button" data-avatar-detail-tab="drafts"
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
+                Drafts
+            </button>
+            <button type="button" data-avatar-detail-tab="billing"
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
+                Billing
+            </button>
+            <button type="button" data-avatar-detail-tab="actions"
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
+                Actions
+            </button>
+        </div>
+    </div>
+
+    <div data-avatar-detail-panel="overview" class="avatar-detail-panel space-y-6">
+
     <!-- Client Assignment -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
         <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Client Assignment</h2>
@@ -89,14 +124,9 @@
                         <div class="text-[11px] text-gray-500">{{ c.brand_name }}</div>
                     </div>
                 </div>
-                <form method="post" action="/admin/avatars/{{ avatar.id }}/unassign-from-client">
-                    <input type="hidden" name="client_id" value="{{ c.id }}">
-                    <button type="submit"
-                            class="px-2.5 py-1 rounded text-xs font-medium bg-red-900/30 hover:bg-red-900/50 text-red-400 border border-red-700/50 transition-colors"
-                            onclick="return confirm('Unassign from {{ c.client_name }}?')">
-                        Unassign
-                    </button>
-                </form>
+                <span class="px-2.5 py-1 rounded text-xs font-medium bg-slate-800 text-gray-500 border border-slate-700">
+                    Client lifecycle
+                </span>
             </div>
             {% endfor %}
         </div>
@@ -124,6 +154,9 @@
         </form>
         {% endif %}
     </div>
+
+    </div>
+    <div data-avatar-detail-panel="safety" class="avatar-detail-panel hidden space-y-6">
 
     <!-- Freeze Status -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
@@ -184,6 +217,9 @@
         </form>
         {% endif %}
     </div>
+
+    </div>
+    <div data-avatar-detail-panel="phase" class="avatar-detail-panel hidden space-y-6">
 
     <!-- Current Warming Phase (large badge) -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
@@ -359,6 +395,11 @@
                             Reason: {{ event.event_metadata.get('reason') }}
                         {% endif %}
                     </p>
+                    {% if event.event_type == 'phase_override' and event.event_metadata.get('admin_user_id') %}
+                    <p class="text-xs text-gray-600 mt-1">Override by: {{ event.event_metadata.get('admin_user_id') }}</p>
+                    {% endif %}
+                    {% else %}
+                    <p class="text-xs text-gray-500 mt-1">{{ event.message }}</p>
                     {% endif %}
                     <p class="text-xs text-gray-600 mt-1">{{ event.created_at.strftime('%Y-%m-%d %H:%M UTC') }}</p>
                 </div>
@@ -369,6 +410,9 @@
         <p class="text-gray-500 text-sm">No phase transitions recorded yet.</p>
         {% endif %}
     </div>
+
+    </div>
+    <div data-avatar-detail-panel="performance" class="avatar-detail-panel hidden space-y-6">
 
     <!-- Pipeline Stats -->
     {% if stats %}
@@ -484,7 +528,12 @@
                 <tbody class="divide-y divide-slate-700/50">
                     {% for s in karma_history.by_subreddit %}
                     <tr class="hover:bg-slate-700/20">
-                        <td class="py-2 text-gray-200">r/{{ s.subreddit }}</td>
+                        <td class="py-2">
+                            <a href="/admin/subreddits/detail/{{ s.subreddit }}"
+                               class="text-gray-200 hover:text-indigo-400 transition-colors">
+                                r/{{ s.subreddit }}
+                            </a>
+                        </td>
                         <td class="py-2 text-center font-mono text-xs text-gray-400">{{ s.comment_count }}</td>
                         <td class="py-2 text-center font-mono text-xs
                             {% if s.total_karma > 0 %}text-green-400{% elif s.total_karma < 0 %}text-red-400{% else %}text-gray-500{% endif %}">
@@ -507,36 +556,27 @@
     </div>
     {% endif %}
 
+    </div>
+    <div data-avatar-detail-panel="billing" class="avatar-detail-panel hidden space-y-6">
+
     <!-- AI Costs (Billing) -->
-    {% if ai_costs %}
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
         <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">AI Billing</h2>
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="text-left text-gray-400 border-b border-slate-700">
-                        <th class="pb-2">Operation</th>
-                        <th class="pb-2">Calls</th>
-                        <th class="pb-2">Input Tokens</th>
-                        <th class="pb-2">Output Tokens</th>
-                        <th class="pb-2 text-right">Cost</th>
-                    </tr>
-                </thead>
-                <tbody class="text-gray-300">
-                    {% for row in ai_costs %}
-                    <tr class="border-b border-slate-700/50">
-                        <td class="py-2 font-medium">{{ row.operation }}</td>
-                        <td class="py-2 font-mono text-xs">{{ row.calls }}</td>
-                        <td class="py-2 font-mono text-xs">{{ '{:,}'.format(row.input_tokens or 0) }}</td>
-                        <td class="py-2 font-mono text-xs">{{ '{:,}'.format(row.output_tokens or 0) }}</td>
-                        <td class="py-2 font-mono text-xs text-right">${{ '%.4f'|format(row.total_cost or 0) }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+        <p class="text-sm text-gray-500 mb-3">
+            AI costs are tracked at the client level, not per avatar.
+            {% if assigned_clients %}
+            View costs on the client page:
+            {% for c in assigned_clients %}
+            <a href="/admin/clients/{{ c.id }}" class="text-indigo-400 hover:text-indigo-300">{{ c.client_name }}</a>{% if not loop.last %}, {% endif %}
+            {% endfor %}
+            {% else %}
+            This avatar is not assigned to any client.
+            {% endif %}
+        </p>
     </div>
-    {% endif %}
+
+    </div>
+    <div data-avatar-detail-panel="drafts" class="avatar-detail-panel hidden space-y-6">
 
     <!-- Pending Actions: Professional Comments -->
     {% if pro_drafts %}
@@ -645,6 +685,9 @@
     </div>
     {% endif %}
 
+    </div>
+    <div data-avatar-detail-panel="actions" class="avatar-detail-panel hidden space-y-6">
+
     <!-- Phase Override Form -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
         <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Phase Override</h2>
@@ -674,5 +717,32 @@
         </form>
     </div>
 
+    </div>
+
 </div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const tabs = Array.from(document.querySelectorAll("[data-avatar-detail-tab]"));
+        const panels = Array.from(document.querySelectorAll("[data-avatar-detail-panel]"));
+
+        function activateTab(tabName) {
+            tabs.forEach((tab) => {
+                const active = tab.dataset.avatarDetailTab === tabName;
+                tab.classList.toggle("bg-indigo-600", active);
+                tab.classList.toggle("text-white", active);
+                tab.classList.toggle("text-gray-400", !active);
+                tab.classList.toggle("hover:text-white", !active);
+            });
+
+            panels.forEach((panel) => {
+                panel.classList.toggle("hidden", panel.dataset.avatarDetailPanel !== tabName);
+            });
+        }
+
+        tabs.forEach((tab) => {
+            tab.addEventListener("click", () => activateTab(tab.dataset.avatarDetailTab));
+        });
+    });
+</script>
 {% endblock %}

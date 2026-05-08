@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import re
+import uuid
 from datetime import datetime, timezone, timedelta
 
 from sqlalchemy import func as sa_func
@@ -1043,7 +1044,20 @@ class PhaseTransitionManager:
             new_phase: The phase after transition.
             metadata: Additional context to store as JSONB.
         """
-        client_id = avatar.client_ids[0] if avatar.client_ids else None
+        client_id = None
+        if avatar.client_ids:
+            try:
+                client_id = uuid.UUID(str(avatar.client_ids[0]))
+            except (TypeError, ValueError):
+                client_id = None
+
+        event_metadata = {
+            "avatar_id": str(avatar.id),
+            "reddit_username": avatar.reddit_username,
+            "previous_phase": previous_phase,
+            "new_phase": new_phase,
+            **metadata,
+        }
 
         message = (
             f"Avatar {avatar.reddit_username} "
@@ -1055,6 +1069,6 @@ class PhaseTransitionManager:
             event_type=event_type,
             client_id=client_id,
             message=message,
-            event_metadata=metadata,
+            event_metadata=event_metadata,
         )
         db.add(event)

@@ -699,6 +699,17 @@ def seed_neuroyoga(db=None):
         close_db = True
 
     try:
+        neuroyoga_subreddits = [
+            "breathing", "Breathwork",
+            "Meditation", "Mindfulness",
+            "yoga",
+            "ChineseMedicine", "acupuncture",
+            "stress",
+            "biohackers",
+            "QuantifiedSelf",
+            "Anxiety",
+        ]
+
         # Check if already seeded
         existing = db.query(Client).filter(Client.client_name == "NeuroYoga").first()
         if existing:
@@ -708,12 +719,12 @@ def seed_neuroyoga(db=None):
                 .filter(ClientSubredditAssignment.client_id == existing.id)
                 .count()
             )
-            if assignment_count > 0:
+            if assignment_count >= len(neuroyoga_subreddits):
                 print("NeuroYoga already seeded. Skipping.")
                 return
-            # Client exists but no assignments — continue to create them
+            # Client exists but assignments are incomplete — repair them.
             client = existing
-            print(f"NeuroYoga client exists but missing assignments. Creating them...")
+            print("NeuroYoga client exists but has incomplete assignments. Repairing them...")
         else:
             client = None
 
@@ -740,17 +751,7 @@ def seed_neuroyoga(db=None):
             print(f"Created NeuroYoga client (id: {client.id})")
 
         # 2. Create subreddits
-        subreddits = [
-            "breathing", "Breathwork",
-            "Meditation", "Mindfulness",
-            "yoga",
-            "ChineseMedicine", "acupuncture",
-            "stress",
-            "biohackers",
-            "QuantifiedSelf",
-            "Anxiety",
-        ]
-        for sub in subreddits:
+        for sub in neuroyoga_subreddits:
             subreddit = get_or_create_subreddit(db, sub)
             # Create assignment if it doesn't already exist
             existing_assignment = (
@@ -768,11 +769,19 @@ def seed_neuroyoga(db=None):
                     type="professional",
                     is_active=True,
                 ))
-        print(f"Created {len(subreddits)} professional subreddits for NeuroYoga")
+        print(f"Created {len(neuroyoga_subreddits)} professional subreddits for NeuroYoga")
 
         # 3. Create avatars (check if they already exist)
         existing_silva = db.query(Avatar).filter(Avatar.reddit_username == "SilvaBreathCoach").first()
         existing_billy = db.query(Avatar).filter(Avatar.reddit_username == "BillyBiohacks").first()
+
+        for existing_avatar in (existing_silva, existing_billy):
+            if existing_avatar:
+                client_id = str(client.id)
+                if not existing_avatar.client_ids:
+                    existing_avatar.client_ids = [client_id]
+                elif client_id not in existing_avatar.client_ids:
+                    existing_avatar.client_ids = existing_avatar.client_ids + [client_id]
 
         if existing_silva and existing_billy:
             print("NeuroYoga avatars already exist. Skipping avatar creation.")

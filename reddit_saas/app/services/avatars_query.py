@@ -22,8 +22,12 @@ PAGE_SIZE_TABLE = 50
 SORT_OPTIONS: list[tuple[str, str]] = [
     ("username", "Username A→Z"),
     ("username_desc", "Username Z→A"),
+    ("client", "Client A→Z"),
+    ("client_desc", "Client Z→A"),
     ("karma_desc", "Karma (high→low)"),
     ("karma_asc", "Karma (low→high)"),
+    ("phase_desc", "Phase (high→low)"),
+    ("phase_asc", "Phase (low→high)"),
     ("checked_desc", "Recently checked"),
     ("checked_asc", "Stalest first"),
     ("created_desc", "Newest first"),
@@ -146,10 +150,19 @@ def _apply_sort(query, sort: str):
         return query.order_by(Avatar.reddit_username.asc())
     if sort == "username_desc":
         return query.order_by(Avatar.reddit_username.desc())
+    if sort == "client":
+        # Sort by first client_id (alphabetical grouping by client)
+        return query.order_by(Avatar.client_ids.asc().nullslast(), Avatar.reddit_username.asc())
+    if sort == "client_desc":
+        return query.order_by(Avatar.client_ids.desc().nullsfirst(), Avatar.reddit_username.asc())
     if sort == "karma_desc":
         return query.order_by(Avatar.reddit_karma_comment.desc(), Avatar.reddit_username.asc())
     if sort == "karma_asc":
         return query.order_by(Avatar.reddit_karma_comment.asc(), Avatar.reddit_username.asc())
+    if sort == "phase_desc":
+        return query.order_by(Avatar.warming_phase.desc(), Avatar.reddit_username.asc())
+    if sort == "phase_asc":
+        return query.order_by(Avatar.warming_phase.asc(), Avatar.reddit_username.asc())
     if sort == "checked_desc":
         return query.order_by(Avatar.reddit_status_checked_at.desc().nullslast(), Avatar.reddit_username.asc())
     if sort == "checked_asc":
@@ -205,9 +218,10 @@ def get_status_counts(db: Session, viewer_client_id) -> dict:
 
 
 def list_available_clients(db: Session, viewer_client_id) -> list[Client]:
+    """List clients for filter dropdown. Includes inactive clients since avatars can belong to any."""
     if viewer_client_id:
-        return db.query(Client).filter(Client.id == viewer_client_id, Client.is_active.is_(True)).all()
-    return db.query(Client).filter(Client.is_active.is_(True)).order_by(Client.client_name.asc()).all()
+        return db.query(Client).filter(Client.id == viewer_client_id).all()
+    return db.query(Client).order_by(Client.client_name.asc()).all()
 
 
 def list_avatars_page(

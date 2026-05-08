@@ -14,7 +14,10 @@ class AIUsageLog(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     client_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=True)
-    operation: Mapped[str] = mapped_column(String(100), nullable=False)  # scoring | persona_select | generation | editing
+    avatar_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("avatars.id"), nullable=True)
+    thread_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("reddit_threads.id"), nullable=True)
+    subreddit_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    operation: Mapped[str] = mapped_column(String(100), nullable=False)  # scoring | persona_select | generation | editing | hobby_comment
     model: Mapped[str] = mapped_column(String(255), nullable=False)
     input_tokens: Mapped[int] = mapped_column(Integer, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, default=0)

@@ -256,14 +256,16 @@ def unassign_avatar(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_superuser),
 ):
-    """Remove an avatar from a client."""
+    """Block direct avatar detachment.
+
+    Avatar assignments are released only by the client lifecycle path so an
+    account cannot be accidentally orphaned outside client deletion/deactivation.
+    """
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
         raise HTTPException(status_code=404, detail="Avatar not found")
 
-    client_id_str = str(client_id)
-    if avatar.client_ids and client_id_str in avatar.client_ids:
-        avatar.client_ids = [cid for cid in avatar.client_ids if cid != client_id_str]
-        db.commit()
-
-    return {"status": "unassigned", "avatar": avatar.reddit_username}
+    raise HTTPException(
+        status_code=409,
+        detail="Avatar assignments are released only when the client is deleted or deactivated.",
+    )

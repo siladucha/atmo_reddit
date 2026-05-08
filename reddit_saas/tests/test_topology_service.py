@@ -319,6 +319,9 @@ class TestAggregateTimelineFiltering:
 
     def test_events_outside_24h_excluded(self, db):
         """Events older than 24 hours are not included."""
+        db.query(ActivityEvent).filter(ActivityEvent.event_type == "score").delete(
+            synchronize_session=False
+        )
         now = datetime.now(timezone.utc)
         old_time = now - timedelta(hours=25)
         _make_activity_event(db, "score", old_time)

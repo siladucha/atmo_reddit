@@ -14,7 +14,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="space-y-6 max-w-2xl">
+<div class="space-y-6 max-w-4xl">
     <!-- Header -->
     <div>
         <h1 class="text-2xl font-semibold text-white">Create New Avatar</h1>
@@ -32,8 +32,26 @@
             after creation.
         </div>
         {% endif %}
+
+        <div class="sticky top-0 z-10 -mx-1 bg-slate-night/95 py-2 backdrop-blur">
+            <div class="inline-flex rounded-lg border border-slate-700 bg-dark-steel p-1">
+                <button type="button" data-avatar-tab="account"
+                        class="avatar-tab px-3 py-1.5 rounded-md text-sm font-medium bg-indigo-600 text-white">
+                    Basics
+                </button>
+                <button type="button" data-avatar-tab="voice"
+                        class="avatar-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
+                    Voice
+                </button>
+                <button type="button" data-avatar-tab="communities"
+                        class="avatar-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
+                    Communities
+                </button>
+            </div>
+        </div>
+
         <!-- Account Info -->
-        <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 space-y-4">
+        <div data-avatar-panel="account" class="avatar-panel bg-dark-steel rounded-lg border border-slate-700 p-5 space-y-4">
             <h2 class="font-semibold text-white text-sm uppercase tracking-wide">Account Info</h2>
             <div class="grid grid-cols-2 gap-4">
                 <div>
@@ -50,7 +68,7 @@
         </div>
 
         <!-- Voice Profile -->
-        <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 space-y-4">
+        <div data-avatar-panel="voice" class="avatar-panel hidden bg-dark-steel rounded-lg border border-slate-700 p-5 space-y-4">
             <div>
                 <h2 class="font-semibold text-white text-sm uppercase tracking-wide">Voice Profile</h2>
                 <p class="text-xs text-gray-500 mt-1">How this avatar talks. The AI uses this to match the persona's style.</p>
@@ -85,7 +103,7 @@
         </div>
 
         <!-- Subreddits -->
-        <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 space-y-3">
+        <div data-avatar-panel="communities" class="avatar-panel hidden bg-dark-steel rounded-lg border border-slate-700 p-5 space-y-3">
             <div>
                 <h2 class="font-semibold text-white text-sm uppercase tracking-wide">Hobby Subreddits</h2>
                 <p class="text-xs text-gray-500 mt-1">For karma building. Comma-separated, without r/ prefix.</p>
@@ -104,4 +122,29 @@
         </div>
     </form>
 </div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const tabs = Array.from(document.querySelectorAll("[data-avatar-tab]"));
+        const panels = Array.from(document.querySelectorAll("[data-avatar-panel]"));
+
+        function activateTab(tabName) {
+            tabs.forEach((tab) => {
+                const active = tab.dataset.avatarTab === tabName;
+                tab.classList.toggle("bg-indigo-600", active);
+                tab.classList.toggle("text-white", active);
+                tab.classList.toggle("text-gray-400", !active);
+                tab.classList.toggle("hover:text-white", !active);
+            });
+
+            panels.forEach((panel) => {
+                panel.classList.toggle("hidden", panel.dataset.avatarPanel !== tabName);
+            });
+        }
+
+        tabs.forEach((tab) => {
+            tab.addEventListener("click", () => activateTab(tab.dataset.avatarTab));
+        });
+    });
+</script>
 {% endblock %}

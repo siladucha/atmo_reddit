@@ -149,7 +149,11 @@ Alert: {thread.alert}
         raise RuntimeError(f"Persona selection LLM failed: {e}") from e
 
     try:
-        log_ai_usage(db, str(client.id), "persona_select", result)
+        log_ai_usage(
+            db, str(client.id), "persona_select", result,
+            thread_id=str(thread.id),
+            subreddit_name=thread.subreddit,
+        )
     except Exception:
         logger.warning("Failed to log AI usage for persona_select")
 
@@ -275,7 +279,12 @@ def generate_comment(
         raise RuntimeError(f"Comment generation LLM failed: {e}") from e
 
     try:
-        log_ai_usage(db, str(client.id), "generation", result)
+        log_ai_usage(
+            db, str(client.id), "generation", result,
+            avatar_id=str(avatar.id),
+            thread_id=str(thread.id),
+            subreddit_name=thread.subreddit,
+        )
     except Exception:
         logger.warning("Failed to log AI usage for generation")
 
@@ -402,7 +411,12 @@ def edit_comment(
         return draft.ai_draft or ""
 
     try:
-        log_ai_usage(db, str(client.id), "editing", result)
+        log_ai_usage(
+            db, str(client.id), "editing", result,
+            avatar_id=str(draft.avatar_id),
+            thread_id=str(thread.id),
+            subreddit_name=thread.subreddit,
+        )
     except Exception:
         logger.warning("Failed to log AI usage for editing")
 

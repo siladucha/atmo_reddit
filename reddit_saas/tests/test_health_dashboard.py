@@ -22,7 +22,7 @@ import pytest
 from app.models.ai_usage import AIUsageLog
 from app.models.client import Client
 from app.models.scrape_log import ScrapeLog
-from app.models.subreddit import ClientSubreddit
+from app.models.subreddit import ClientSubreddit, Subreddit, ClientSubredditAssignment
 from app.services import health_metrics
 from app.services.metrics_collector import (
     MetricsCollector,
@@ -206,7 +206,13 @@ def _make_scrape_log(
     return log
 
 
+def _clear_scrape_logs(db) -> None:
+    db.query(ScrapeLog).delete()
+    db.commit()
+
+
 def test_reddit_metrics_empty_window(db):
+    _clear_scrape_logs(db)
     metrics = health_metrics.get_reddit_api_metrics(db, window_minutes=60)
     assert metrics["total_calls"] == 0
     assert metrics["error_count"] == 0
@@ -219,6 +225,7 @@ def test_reddit_metrics_empty_window(db):
 
 
 def test_reddit_metrics_aggregation_counts_and_errors(db):
+    _clear_scrape_logs(db)
     client = _make_client(db, name=f"Reddit Metrics {uuid.uuid4()}")
     _make_scrape_log(db, client.id, duration_ms=200)
     _make_scrape_log(db, client.id, duration_ms=400)
@@ -250,6 +257,7 @@ def test_reddit_metrics_aggregation_counts_and_errors(db):
 
 
 def test_reddit_metrics_excludes_old_rows(db):
+    _clear_scrape_logs(db)
     client = _make_client(db, name=f"Old Rows {uuid.uuid4()}")
     _make_scrape_log(db, client.id, duration_ms=100, minutes_ago=5)
     _make_scrape_log(db, client.id, duration_ms=200, minutes_ago=120)  # outside 60m window
@@ -260,6 +268,7 @@ def test_reddit_metrics_excludes_old_rows(db):
 
 
 def test_reddit_metrics_latency_warning(db):
+    _clear_scrape_logs(db)
     client = _make_client(db, name=f"Latency {uuid.uuid4()}")
     for ms in (3500, 4000, 3800):
         _make_scrape_log(db, client.id, duration_ms=ms)
@@ -328,28 +337,31 @@ def test_llm_metrics_error_count_flags_zero_token_rows(db):
 def test_scrape_freshness_classification(db):
     client = _make_client(db, name=f"Fresh {uuid.uuid4()}")
 
-    fresh_sub = ClientSubreddit(
-        client_id=client.id,
+    # Create subreddits in the shared registry
+    fresh_sub = Subreddit(
         subreddit_name=f"fresh{uuid.uuid4().hex[:6]}",
-        type="professional",
         is_active=True,
         last_scraped_at=datetime.now(timezone.utc) - timedelta(hours=1),
     )
-    stale_sub = ClientSubreddit(
-        client_id=client.id,
+    stale_sub = Subreddit(
         subreddit_name=f"stale{uuid.uuid4().hex[:6]}",
-        type="professional",
         is_active=True,
         last_scraped_at=datetime.now(timezone.utc) - timedelta(hours=48),
     )
-    never_sub = ClientSubreddit(
-        client_id=client.id,
+    never_sub = Subreddit(
         subreddit_name=f"never{uuid.uuid4().hex[:6]}",
-        type="professional",
         is_active=True,
         last_scraped_at=None,
     )
     db.add_all([fresh_sub, stale_sub, never_sub])
+    db.flush()
+
+    # Create assignments linking client to subreddits
+    db.add_all([
+        ClientSubredditAssignment(client_id=client.id, subreddit_id=fresh_sub.id, is_active=True),
+        ClientSubredditAssignment(client_id=client.id, subreddit_id=stale_sub.id, is_active=True),
+        ClientSubredditAssignment(client_id=client.id, subreddit_id=never_sub.id, is_active=True),
+    ])
     db.commit()
 
     data = health_metrics.get_all_scrape_freshness(db)
