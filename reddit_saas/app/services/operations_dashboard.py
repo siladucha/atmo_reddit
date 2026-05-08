@@ -374,7 +374,7 @@ def get_scrape_freshness_grouped(
 
 _PIPELINE_EVENT_TYPES = ("scrape", "score", "generate")
 
-_ALL_EVENT_TYPES = ("scrape", "score", "generate", "review", "system", "karma_tracking")
+_ALL_EVENT_TYPES = ("scrape", "score", "generate", "review", "system", "karma_tracking", "karma_sync")
 
 
 def get_run_history(
@@ -606,14 +606,79 @@ def get_schedule_display(now: datetime | None = None) -> list[dict[str, Any]]:
 
 
 # Mapping from schedule key to the event_type(s) used in activity_events.
+# Priority order matters: first type is the preferred "summary" event,
+# subsequent types are fallback (will be aggregated into a single display entry).
 _SCHEDULE_KEY_TO_EVENT_TYPES: dict[str, list[str]] = {
     "ai-pipeline-morning": ["score", "generate"],
     "ai-pipeline-afternoon": ["score", "generate"],
     "hobby-pipeline-daily": ["scrape"],
     "avatar-health-check": ["system"],
     "evaluate-avatar-phases-daily": ["system"],
-    "karma-tracking-4h": ["karma_tracking"],
+    "karma-tracking-4h": ["karma_tracking", "karma_sync"],
 }
+
+# Keys whose fallback events should be aggregated into batch summaries
+# (many per-avatar events within a short window = one logical "run").
+_BATCH_AGGREGATE_KEYS: set[str] = {"karma-tracking-4h"}
+
+# Events within this window are considered part of the same batch run.
+_BATCH_WINDOW_SECONDS = 300  # 5 minutes
+
+
+def _aggregate_batch_events(
+    events: list[ActivityEvent], now: datetime
+) -> tuple[dict | None, dict | None]:
+    """Group per-item events into batch runs and return (last_run, prev_run) dicts.
+
+    Events within _BATCH_WINDOW_SECONDS of each other are considered one batch.
+    Returns summary dicts with keys: run_at, since, message.
+    """
+    if not events:
+        return None, None
+
+    # Split events into batches by time gaps
+    batches: list[list[ActivityEvent]] = []
+    current_batch: list[ActivityEvent] = [events[0]]
+
+    for i in range(1, len(events)):
+        gap = (current_batch[-1].created_at - events[i].created_at).total_seconds()
+        if gap <= _BATCH_WINDOW_SECONDS:
+            current_batch.append(events[i])
+        else:
+            batches.append(current_batch)
+            current_batch = [events[i]]
+    batches.append(current_batch)
+
+    def _batch_to_summary(batch: list[ActivityEvent]) -> dict:
+        # Use the latest event timestamp as the batch time
+        batch_time = batch[0].created_at
+        count = len(batch)
+        # Extract unique avatar usernames from messages
+        avatars_mentioned = set()
+        for e in batch:
+            msg = e.message or ""
+            if "u/" in msg:
+                # Extract "u/username" from message
+                start = msg.find("u/")
+                end = msg.find(" ", start)
+                if end == -1:
+                    end = len(msg)
+                avatars_mentioned.add(msg[start:end])
+
+        if avatars_mentioned:
+            message = f"Karma sync: {count} avatar(s) processed ({', '.join(sorted(avatars_mentioned)[:3])}{'…' if len(avatars_mentioned) > 3 else ''})"
+        else:
+            message = f"Karma sync: {count} event(s)"
+
+        return {
+            "run_at": batch_time,
+            "since": _human_since(batch_time, now),
+            "message": message,
+        }
+
+    last_run = _batch_to_summary(batches[0]) if batches else None
+    prev_run = _batch_to_summary(batches[1]) if len(batches) > 1 else None
+    return last_run, prev_run
 
 
 def get_schedule_with_history(db: Session, now: datetime | None = None) -> list[dict[str, Any]]:
@@ -623,7 +688,7 @@ def get_schedule_with_history(db: Session, now: datetime | None = None) -> list[
 
     schedule = get_schedule_display(now)
 
-    # Fetch recent activity events (last 24h) to match against schedule entries
+    # Fetch recent activity events (last 48h) to match against schedule entries
     cutoff = now - timedelta(hours=48)
     recent_events = (
         db.query(ActivityEvent)
@@ -643,26 +708,75 @@ def get_schedule_with_history(db: Session, now: datetime | None = None) -> list[
             if e.event_type in event_types
         ]
 
-        if matching:
-            last = matching[0]
-            entry["last_run_at"] = last.created_at
-            entry["last_run_since"] = _human_since(last.created_at, now)
-            entry["last_run_message"] = last.message
-            entry["last_run_type"] = last.event_type
-        else:
-            entry["last_run_at"] = None
-            entry["last_run_since"] = "Never"
-            entry["last_run_message"] = None
-            entry["last_run_type"] = None
+        if key in _BATCH_AGGREGATE_KEYS:
+            # For batch tasks: prefer summary events (first event_type in list),
+            # fall back to aggregated per-item events.
+            summary_type = event_types[0] if event_types else None
+            summary_events = [e for e in matching if e.event_type == summary_type]
 
-        if len(matching) > 1:
-            prev = matching[1]
-            entry["prev_run_at"] = prev.created_at
-            entry["prev_run_since"] = _human_since(prev.created_at, now)
-            entry["prev_run_message"] = prev.message
+            if summary_events:
+                # We have a proper summary event — use it directly
+                last = summary_events[0]
+                entry["last_run_at"] = last.created_at
+                entry["last_run_since"] = _human_since(last.created_at, now)
+                entry["last_run_message"] = last.message
+                entry["last_run_type"] = last.event_type
+
+                if len(summary_events) > 1:
+                    prev = summary_events[1]
+                    entry["prev_run_at"] = prev.created_at
+                    entry["prev_run_since"] = _human_since(prev.created_at, now)
+                    entry["prev_run_message"] = prev.message
+                else:
+                    entry["prev_run_at"] = None
+                    entry["prev_run_since"] = None
+                    entry["prev_run_message"] = None
+            else:
+                # No summary — aggregate per-item events into batch runs
+                fallback_events = [e for e in matching if e.event_type != summary_type]
+                last_run, prev_run = _aggregate_batch_events(fallback_events, now)
+
+                if last_run:
+                    entry["last_run_at"] = last_run["run_at"]
+                    entry["last_run_since"] = last_run["since"]
+                    entry["last_run_message"] = last_run["message"]
+                    entry["last_run_type"] = "karma_sync"
+                else:
+                    entry["last_run_at"] = None
+                    entry["last_run_since"] = "Never"
+                    entry["last_run_message"] = None
+                    entry["last_run_type"] = None
+
+                if prev_run:
+                    entry["prev_run_at"] = prev_run["run_at"]
+                    entry["prev_run_since"] = prev_run["since"]
+                    entry["prev_run_message"] = prev_run["message"]
+                else:
+                    entry["prev_run_at"] = None
+                    entry["prev_run_since"] = None
+                    entry["prev_run_message"] = None
         else:
-            entry["prev_run_at"] = None
-            entry["prev_run_since"] = None
-            entry["prev_run_message"] = None
+            # Standard logic: use individual events directly
+            if matching:
+                last = matching[0]
+                entry["last_run_at"] = last.created_at
+                entry["last_run_since"] = _human_since(last.created_at, now)
+                entry["last_run_message"] = last.message
+                entry["last_run_type"] = last.event_type
+            else:
+                entry["last_run_at"] = None
+                entry["last_run_since"] = "Never"
+                entry["last_run_message"] = None
+                entry["last_run_type"] = None
+
+            if len(matching) > 1:
+                prev = matching[1]
+                entry["prev_run_at"] = prev.created_at
+                entry["prev_run_since"] = _human_since(prev.created_at, now)
+                entry["prev_run_message"] = prev.message
+            else:
+                entry["prev_run_at"] = None
+                entry["prev_run_since"] = None
+                entry["prev_run_message"] = None
 
     return schedule
