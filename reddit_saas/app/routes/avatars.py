@@ -4,6 +4,7 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi import Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
@@ -202,21 +203,29 @@ def reactivate(
 @router.post("/{avatar_id}/check-reddit-status")
 def check_reddit_status_api(
     avatar_id: UUID,
+    force: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_superuser),
 ):
     """Trigger a Reddit status check for one avatar; return cached fields as JSON."""
     from app.services.reddit_status import check_reddit_status
+    from app.services.reddit_freshness import is_reddit_status_fresh
 
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
         raise HTTPException(status_code=404, detail="Avatar not found")
 
-    status = check_reddit_status(db, avatar)
+    skipped = False
+    if force or not is_reddit_status_fresh(db, avatar):
+        status = check_reddit_status(db, avatar)
+    else:
+        skipped = True
+        status = None
     return {
         "avatar_id": str(avatar.id),
         "username": avatar.reddit_username,
-        "result": status.to_dict(),
+        "result": status.to_dict() if status else {"status": avatar.reddit_status, "skipped": "fresh_cache"},
+        "skipped": skipped,
         "cached": {
             "reddit_status": avatar.reddit_status,
             "reddit_karma_comment": avatar.reddit_karma_comment,
@@ -237,14 +246,20 @@ def check_reddit_status_api(
 
 @router.post("/check-reddit-status-all")
 def check_reddit_status_all_api(
+    force: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_superuser),
 ):
     """Trigger Reddit status check for all active avatars; return summary."""
     from app.services.reddit_status import check_all_reddit_statuses
+    from app.services.reddit_freshness import reddit_status_manual_batch_limit
 
     avatars = db.query(Avatar).filter(Avatar.active.is_(True)).all()
-    results = check_all_reddit_statuses(db, avatars)
+    results = check_all_reddit_statuses(
+        db,
+        avatars[:reddit_status_manual_batch_limit(db)],
+        force=force,
+    )
     summary = {"checked": len(results), "by_status": {}}
     for r in results:
         summary["by_status"][r["status"]] = summary["by_status"].get(r["status"], 0) + 1

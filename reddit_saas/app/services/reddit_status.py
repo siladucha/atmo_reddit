@@ -235,6 +235,8 @@ def check_all_reddit_statuses(
     db: Session,
     avatars: list[Avatar],
     delay_seconds: float = 2.0,
+    *,
+    force: bool = False,
 ) -> list[dict]:
     """Check Reddit status for many avatars with rate limiting.
 
@@ -250,15 +252,30 @@ def check_all_reddit_statuses(
         len(avatars), delay_seconds, apply_delay,
     )
 
+    from app.services.reddit_freshness import is_reddit_status_fresh
+
     for i, avatar in enumerate(avatars):
         try:
-            status = check_reddit_status(db, avatar)
-            results.append({
-                "avatar_id": str(avatar.id),
-                "username": avatar.reddit_username,
-                "status": status.status_label,
-                "error": status.error,
-            })
+            if not force and is_reddit_status_fresh(db, avatar):
+                logger.info(
+                    "REDDIT_STATUS_CHECK_SKIPPED | username=u/%s | reason=fresh_cache | checked_at=%s",
+                    avatar.reddit_username, avatar.reddit_status_checked_at,
+                )
+                results.append({
+                    "avatar_id": str(avatar.id),
+                    "username": avatar.reddit_username,
+                    "status": avatar.reddit_status,
+                    "error": None,
+                    "skipped": "fresh_cache",
+                })
+            else:
+                status = check_reddit_status(db, avatar)
+                results.append({
+                    "avatar_id": str(avatar.id),
+                    "username": avatar.reddit_username,
+                    "status": status.status_label,
+                    "error": status.error,
+                })
         except Exception as exc:  # pragma: no cover — defensive
             logger.exception("Failed status check for u/%s", avatar.reddit_username)
             results.append({
