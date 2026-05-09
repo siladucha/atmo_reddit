@@ -1,13 +1,6 @@
 services:
   app:
     build: .
-    command: >
-      sh -c "
-        until getent hosts db && getent hosts redis; do echo 'waiting for docker dns...'; sleep 2; done;
-        until nc -z db 5432; do echo 'waiting for postgres...'; sleep 2; done;
-        until nc -z redis 6379; do echo 'waiting for redis...'; sleep 2; done;
-        uvicorn app.main:app --host 0.0.0.0 --port 8000
-      "
     ports:
       - "8000:8000"
     env_file:
