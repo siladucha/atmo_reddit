@@ -12,6 +12,11 @@
             <div class="text-gray-500">Unknown</div>
             <div class="font-mono text-lg text-gray-300">{{ summary.status_counts.unknown }}</div>
         </a>
+        <a href="/admin/avatars?status=limited"
+           class="rounded px-3 py-2 border block {% if summary.status_counts.limited > 0 %}bg-yellow-900/20 border-yellow-700 hover:border-yellow-500{% else %}bg-slate-night border-slate-700 hover:border-slate-500{% endif %}">
+            <div class="text-gray-500">Limited</div>
+            <div class="font-mono text-lg {% if summary.status_counts.limited > 0 %}text-yellow-400{% else %}text-gray-300{% endif %}">{{ summary.status_counts.limited }}</div>
+        </a>
         <a href="/admin/avatars?status=shadowbanned"
            class="rounded px-3 py-2 border block {% if summary.status_counts.shadowbanned > 0 %}bg-red-900/20 border-red-700 hover:border-red-500{% else %}bg-slate-night border-slate-700 hover:border-slate-500{% endif %}">
             <div class="text-gray-500">Shadowbanned</div>

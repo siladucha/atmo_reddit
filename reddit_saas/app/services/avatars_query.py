@@ -38,6 +38,8 @@ STATUS_OPTIONS: list[tuple[str, str]] = [
     ("", "All statuses"),
     ("active", "Active"),
     ("suspended", "Suspended"),
+    ("limited", "Limited"),
+    ("shadowbanned", "Shadowbanned"),
     ("not_found", "Not Found"),
     ("unknown", "Unknown"),
     ("stale", "Stale (>24h)"),
@@ -183,7 +185,13 @@ def _apply_status_filter(query, status: str):
         ))
     if status == "never_checked":
         return query.filter(Avatar.reddit_status_checked_at.is_(None))
-    if status in ("active", "suspended", "not_found", "unknown"):
+    if status in ("limited", "shadowbanned"):
+        return query.filter(Avatar.health_status == status)
+    if status == "suspended":
+        return query.filter(or_(Avatar.reddit_status == status, Avatar.health_status == status))
+    if status == "unknown":
+        return query.filter(or_(Avatar.reddit_status == status, Avatar.health_status == status))
+    if status in ("active", "not_found"):
         return query.filter(Avatar.reddit_status == status)
     return query
 
@@ -338,10 +346,23 @@ def _group_by_client(
 
 def _aggregate_group_status(avatars: list[Avatar]) -> dict:
     cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-    out = {"total": len(avatars), "active": 0, "suspended": 0, "not_found": 0, "unknown": 0, "stale": 0}
+    out = {
+        "total": len(avatars),
+        "active": 0,
+        "suspended": 0,
+        "limited": 0,
+        "shadowbanned": 0,
+        "not_found": 0,
+        "unknown": 0,
+        "stale": 0,
+    }
     for a in avatars:
         if a.reddit_status in out:
             out[a.reddit_status] += 1
+        if a.health_status in ("limited", "shadowbanned"):
+            out[a.health_status] += 1
+        elif a.health_status == "suspended" and a.reddit_status != "suspended":
+            out["suspended"] += 1
         if not a.reddit_status_checked_at or a.reddit_status_checked_at < cutoff:
             out["stale"] += 1
     return out

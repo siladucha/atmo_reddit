@@ -45,9 +45,9 @@ _SCHEDULE_ENTRIES: list[dict[str, Any]] = [
         "cron": crontab(hour=14, minute=0),
     },
     {
-        "key": "avatar-health-check",
-        "label": "Avatar health check",
-        "cron": crontab(hour="*/12", minute=30),
+        "key": "avatar-visibility-health-check",
+        "label": "Avatar visibility health check",
+        "cron": crontab(hour="7,13", minute=30),
     },
     {
         "key": "evaluate-avatar-phases-daily",
@@ -450,12 +450,20 @@ def get_avatar_health_summary(db: Session) -> dict[str, Any]:
     promotion_threshold = now - timedelta(days=30)
 
     status_rows = (
-        db.query(Avatar.reddit_status, sa_func.count(Avatar.id))
+        db.query(Avatar.health_status, sa_func.count(Avatar.id))
         .filter(Avatar.active.is_(True))
-        .group_by(Avatar.reddit_status)
+        .group_by(Avatar.health_status)
         .all()
     )
-    status_counts = {row[0] or "unknown": row[1] for row in status_rows}
+    status_counts = {
+        "active": 0,
+        "limited": 0,
+        "shadowbanned": 0,
+        "suspended": 0,
+        "unknown": 0,
+    }
+    for status, count in status_rows:
+        status_counts[status if status in status_counts else "unknown"] += count
 
     phase_rows = (
         db.query(Avatar.warming_phase, sa_func.count(Avatar.id))
@@ -509,6 +517,7 @@ def get_avatar_health_summary(db: Session) -> dict[str, Any]:
     return {
         "status_counts": {
             "active": status_counts.get("active", 0),
+            "limited": status_counts.get("limited", 0),
             "shadowbanned": status_counts.get("shadowbanned", 0),
             "suspended": status_counts.get("suspended", 0),
             "unknown": status_counts.get("unknown", 0),
@@ -612,7 +621,7 @@ _SCHEDULE_KEY_TO_EVENT_TYPES: dict[str, list[str]] = {
     "ai-pipeline-morning": ["score", "generate"],
     "ai-pipeline-afternoon": ["score", "generate"],
     "hobby-pipeline-daily": ["scrape"],
-    "avatar-health-check": ["system"],
+    "avatar-visibility-health-check": ["system"],
     "evaluate-avatar-phases-daily": ["system"],
     "karma-tracking-4h": ["karma_tracking", "karma_sync"],
 }

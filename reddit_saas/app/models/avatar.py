@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models.health_status import HealthStatus  # noqa: F401 — referenced for validation/documentation
 
 
 class Avatar(Base):
@@ -34,7 +35,14 @@ class Avatar(Base):
     karma_post: Mapped[int] = mapped_column(Integer, default=0)
     karma_comment: Mapped[int] = mapped_column(Integer, default=0)
     is_shadowbanned: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Visibility health, populated by services/health_checker.py.
+    # Requires migration p6q7r8s9t0u1_add_avatar_health_check_fields.
     last_health_check: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    health_status: Mapped[str] = mapped_column(String(20), default="unknown", server_default="unknown")
+    health_status_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    health_check_details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    consecutive_check_failures: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
     # Reddit status cache (populated by services/reddit_status.py)
     reddit_status: Mapped[str] = mapped_column(String(20), default="unknown", server_default="unknown")
@@ -57,5 +65,9 @@ class Avatar(Base):
     is_frozen: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     freeze_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     frozen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Subreddit presence scan
+    presence_last_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    presence_scan_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -398,6 +398,9 @@ def get_avatar_health(db: Session, avatar: Avatar) -> dict:
         "brand_ratio": round(brand_ratio, 2),
         "brand_ratio_ok": brand_ratio <= MAX_BRAND_RATIO,
         "last_health_check": avatar.last_health_check.isoformat() if avatar.last_health_check else None,
+        "health_status": avatar.health_status or "unknown",
+        "health_color": _health_status_to_color(avatar.health_status),
+        "health_check_relative": _format_relative_time(avatar.last_health_check, now) if avatar.last_health_check else "Never checked",
         # Reddit status cache
         "reddit_status": avatar.reddit_status,
         "reddit_karma_comment": avatar.reddit_karma_comment,
@@ -410,6 +413,18 @@ def get_avatar_health(db: Session, avatar: Avatar) -> dict:
         "reddit_status_stale": reddit_status_stale,
         "karma_discrepancy": karma_discrepancy,
     }
+
+
+def _health_status_to_color(health_status: str | None) -> str:
+    """Map health_status to a color name for template badges."""
+    status = (health_status or "unknown").lower()
+    if status == "active":
+        return "green"
+    elif status == "limited":
+        return "yellow"
+    elif status in ("shadowbanned", "suspended"):
+        return "red"
+    return "grey"
 
 
 def _format_relative_time(when: datetime, now: datetime) -> str:
