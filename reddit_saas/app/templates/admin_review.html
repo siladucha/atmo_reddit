@@ -253,6 +253,10 @@
                         class="text-gray-500 hover:text-indigo-400 px-2 py-1 rounded text-xs transition-colors">
                     ✎
                 </button>
+                <button onclick="document.getElementById('status-change-{{ item.draft.id }}').classList.toggle('hidden')"
+                        class="text-gray-500 hover:text-amber-400 px-2 py-1 rounded text-xs transition-colors" title="Change status directly">
+                    ↕
+                </button>
                 {% if item.thread %}
                 <a href="{{ item.thread.url }}" target="_blank" rel="noopener" class="text-[11px] text-indigo-400 hover:text-indigo-300 ml-auto">Reddit ↗</a>
                 {% endif %}
@@ -268,6 +272,22 @@
                 </form>
                 <span id="edit-status-{{ item.draft.id }}" class="text-xs"></span>
             </div>
+            <!-- Direct status override (e.g. mark as posted directly) -->
+            <div id="status-change-{{ item.draft.id }}" class="hidden px-3 py-2 border-t border-slate-700">
+                <form hx-post="/review/{{ item.draft.id }}/set-status"
+                      hx-target="#status-change-{{ item.draft.id }}"
+                      hx-swap="innerHTML"
+                      class="flex flex-wrap gap-2 items-end">
+                    <select name="new_status" class="bg-slate-700 border border-slate-600 text-gray-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-indigo-500">
+                        <option value="posted">📤 Posted (skip approve)</option>
+                        <option value="approved">✓ Approved</option>
+                        <option value="rejected">✗ Rejected</option>
+                    </select>
+                    <input type="text" name="reason" placeholder="Reason (optional)"
+                           class="flex-1 min-w-[150px] px-2 py-1 bg-slate-night border border-slate-600 text-gray-200 rounded text-xs focus:outline-none focus:border-indigo-500">
+                    <button type="submit" class="bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded text-xs">Apply</button>
+                </form>
+            </div>
             {% elif status == 'approved' %}
             <div class="px-4 py-3 border-t border-slate-700 bg-slate-800/50">
                 <form hx-post="/review/{{ item.draft.id }}/posted" hx-target="#actions-{{ item.draft.id }}" hx-swap="innerHTML"
@@ -281,6 +301,26 @@
                     </button>
                 </form>
                 <span id="actions-{{ item.draft.id }}" class="text-sm mt-1"></span>
+                <!-- Status change controls -->
+                <div id="status-change-{{ item.draft.id }}" class="mt-2 pt-2 border-t border-slate-700/50">
+                    <details class="group">
+                        <summary class="text-[11px] text-gray-500 hover:text-gray-300 cursor-pointer select-none">
+                            ↕ Change status…
+                        </summary>
+                        <form hx-post="/review/{{ item.draft.id }}/set-status"
+                              hx-target="#status-change-{{ item.draft.id }}"
+                              hx-swap="innerHTML"
+                              class="mt-2 flex flex-wrap gap-2 items-end">
+                            <select name="new_status" class="bg-slate-700 border border-slate-600 text-gray-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-indigo-500">
+                                <option value="pending">↩ Pending</option>
+                                <option value="rejected">✗ Rejected</option>
+                            </select>
+                            <input type="text" name="reason" placeholder="Reason (required for backward)"
+                                   class="flex-1 min-w-[150px] px-2 py-1 bg-slate-night border border-slate-600 text-gray-200 rounded text-xs focus:outline-none focus:border-indigo-500">
+                            <button type="submit" class="bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded text-xs">Apply</button>
+                        </form>
+                    </details>
+                </div>
             </div>
             {% elif status == 'posted' %}
             <!-- Karma tracking for posted comments -->
@@ -337,6 +377,28 @@
                     <span id="score-result-{{ item.draft.id }}" class="text-sm ml-auto"></span>
                 </div>
 
+                <!-- Status change controls -->
+                <div id="status-change-{{ item.draft.id }}" class="mt-2 pt-2 border-t border-slate-700/50">
+                    <details class="group">
+                        <summary class="text-[11px] text-gray-500 hover:text-gray-300 cursor-pointer select-none">
+                            ↕ Change status…
+                        </summary>
+                        <form hx-post="/review/{{ item.draft.id }}/set-status"
+                              hx-target="#status-change-{{ item.draft.id }}"
+                              hx-swap="innerHTML"
+                              class="mt-2 flex flex-wrap gap-2 items-end">
+                            <select name="new_status" class="bg-slate-700 border border-slate-600 text-gray-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-indigo-500">
+                                <option value="pending">↩ Pending</option>
+                                <option value="approved">✓ Approved</option>
+                                <option value="rejected">✗ Rejected</option>
+                            </select>
+                            <input type="text" name="reason" placeholder="Reason (required for backward)"
+                                   class="flex-1 min-w-[150px] px-2 py-1 bg-slate-night border border-slate-600 text-gray-200 rounded text-xs focus:outline-none focus:border-indigo-500">
+                            <button type="submit" class="bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded text-xs">Apply</button>
+                        </form>
+                    </details>
+                </div>
+
                 <!-- Karma risk warning -->
                 {% if item.karma_summary and item.karma_summary.at_risk %}
                 <div class="mt-2 px-3 py-1.5 bg-red-900/30 border border-red-800 rounded text-xs text-red-300">
@@ -352,6 +414,28 @@
                     Last checked: {{ item.draft.last_karma_check_at.strftime('%b %d, %H:%M') }}
                 </div>
                 {% endif %}
+            </div>
+            {% elif status == 'rejected' %}
+            <!-- Status change controls for rejected -->
+            <div id="status-change-{{ item.draft.id }}" class="px-4 py-3 border-t border-slate-700 bg-slate-800/50">
+                <details class="group">
+                    <summary class="text-[11px] text-gray-500 hover:text-gray-300 cursor-pointer select-none">
+                        ↕ Change status…
+                    </summary>
+                    <form hx-post="/review/{{ item.draft.id }}/set-status"
+                          hx-target="#status-change-{{ item.draft.id }}"
+                          hx-swap="innerHTML"
+                          class="mt-2 flex flex-wrap gap-2 items-end">
+                        <select name="new_status" class="bg-slate-700 border border-slate-600 text-gray-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-indigo-500">
+                            <option value="pending">↩ Pending</option>
+                            <option value="approved">✓ Approved</option>
+                            <option value="posted">📤 Posted</option>
+                        </select>
+                        <input type="text" name="reason" placeholder="Reason (optional)"
+                               class="flex-1 min-w-[150px] px-2 py-1 bg-slate-night border border-slate-600 text-gray-200 rounded text-xs focus:outline-none focus:border-indigo-500">
+                        <button type="submit" class="bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded text-xs">Apply</button>
+                    </form>
+                </details>
             </div>
             {% endif %}
         </div><!-- /flex-1 -->

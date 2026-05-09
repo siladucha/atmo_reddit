@@ -31,13 +31,27 @@
         <table class="w-full text-sm text-left">
             <thead>
                 <tr class="border-b border-slate-700">
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Client Name</th>
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Brand</th>
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Active</th>
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Subreddits</th>
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Avatars</th>
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">AI Cost (month)</th>
-                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Created</th>
+                    {% macro sort_header(label, key) %}
+                    {% set is_active = (sort == key) %}
+                    {% set next_order = 'asc' if (is_active and order == 'desc') else 'desc' %}
+                    <th class="px-4 py-3">
+                        <a href="/admin/clients?sort={{ key }}&order={{ next_order }}&page={{ pagination.page }}"
+                           class="flex items-center gap-1 text-xs uppercase font-medium
+                                  {% if is_active %}text-indigo-400{% else %}text-gray-400 hover:text-gray-200{% endif %}">
+                            {{ label }}
+                            {% if is_active %}
+                                {% if order == 'asc' %}↑{% else %}↓{% endif %}
+                            {% endif %}
+                        </a>
+                    </th>
+                    {% endmacro %}
+                    {{ sort_header("Client Name", "name") }}
+                    {{ sort_header("Brand", "brand") }}
+                    {{ sort_header("Active", "active") }}
+                    {{ sort_header("Subreddits", "subreddits") }}
+                    {{ sort_header("Avatars", "avatars") }}
+                    {{ sort_header("AI Cost (month)", "cost") }}
+                    {{ sort_header("Created", "created") }}
                     <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Actions</th>
                 </tr>
             </thead>
@@ -85,12 +99,12 @@
     {% if pagination.total_pages > 1 %}
     <div class="flex justify-center gap-2 mt-6">
         {% if pagination.has_prev %}
-        <a href="/admin/clients?page={{ pagination.page - 1 }}"
+        <a href="/admin/clients?page={{ pagination.page - 1 }}&sort={{ sort }}&order={{ order }}"
            class="px-3 py-1 bg-dark-steel border border-slate-700 rounded text-sm text-gray-400 hover:text-white hover:border-slate-500">Previous</a>
         {% endif %}
         <span class="px-3 py-1 text-sm text-gray-400">Page {{ pagination.page }} of {{ pagination.total_pages }}</span>
         {% if pagination.has_next %}
-        <a href="/admin/clients?page={{ pagination.page + 1 }}"
+        <a href="/admin/clients?page={{ pagination.page + 1 }}&sort={{ sort }}&order={{ order }}"
            class="px-3 py-1 bg-dark-steel border border-slate-700 rounded text-sm text-gray-400 hover:text-white hover:border-slate-500">Next</a>
         {% endif %}
     </div>

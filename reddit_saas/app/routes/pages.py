@@ -716,6 +716,109 @@ def revert_comment(comment_id: UUID, request: Request, db: Session = Depends(get
     return HTMLResponse('<span class="text-indigo-400 font-medium">↩ Reverted to pending</span>')
 
 
+@router.post("/review/{comment_id}/set-status", response_class=HTMLResponse)
+def set_comment_status(
+    comment_id: UUID,
+    request: Request,
+    new_status: str = Form(...),
+    reason: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """Universal status transition — any direction, with mandatory reason for backward moves."""
+    current_user = _get_current_user(request, db)
+    if not current_user:
+        raise HTTPException(status_code=403, detail="Authentication required")
+    draft = db.query(CommentDraft).filter(CommentDraft.id == comment_id).first()
+    if not draft:
+        raise HTTPException(status_code=404)
+    if not current_user.is_superuser:
+        if current_user.client_id != draft.client_id:
+            raise HTTPException(status_code=403)
+
+    allowed_statuses = {"pending", "approved", "rejected", "posted"}
+    if new_status not in allowed_statuses:
+        return HTMLResponse(
+            f'<span class="text-red-400 text-xs">Invalid status: {new_status}</span>',
+            status_code=422,
+        )
+
+    old_status = draft.status
+    if old_status == new_status:
+        return HTMLResponse('<span class="text-gray-400 text-xs">Status unchanged</span>')
+
+    # Determine if this is a backward transition (requires reason)
+    status_order = {"pending": 0, "approved": 1, "rejected": 1, "posted": 2}
+    is_backward = status_order.get(new_status, 0) < status_order.get(old_status, 0)
+
+    if is_backward and not reason.strip():
+        return HTMLResponse(
+            '<span class="text-red-400 text-xs">Reason is required when moving status backward</span>',
+            status_code=422,
+        )
+
+    # Apply transition
+    draft.status = new_status
+    if new_status == "posted" and old_status != "posted":
+        draft.posted_at = datetime.now(timezone.utc)
+    elif new_status != "posted" and old_status == "posted":
+        # Clearing posted_at when reverting from posted
+        draft.posted_at = None
+
+    db.commit()
+
+    # Audit log with full transition details
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="status_transition",
+        entity_type="comment_draft",
+        entity_id=draft.id,
+        client_id=draft.client_id,
+        details={
+            "old_status": old_status,
+            "new_status": new_status,
+            "reason": reason.strip() if reason.strip() else None,
+            "is_backward": is_backward,
+            "avatar_username": draft.avatar.reddit_username if draft.avatar else None,
+            "thread_title": draft.thread.post_title if draft.thread else None,
+        },
+    )
+
+    # Activity event
+    try:
+        from app.services.transparency import record_activity_event
+
+        direction = "⬅ backward" if is_backward else "➡ forward"
+        reason_text = f" — {reason.strip()}" if reason.strip() else ""
+        message = f"Status {old_status}→{new_status} ({direction}){reason_text}"
+        record_activity_event(db, "review", message, draft.client_id, {
+            "draft_id": str(draft.id),
+            "old_status": old_status,
+            "new_status": new_status,
+            "reason": reason.strip() if reason.strip() else None,
+        })
+    except Exception:
+        pass
+
+    # Color coding for response
+    color_map = {
+        "pending": ("indigo", "↩ Pending"),
+        "approved": ("green", "✓ Approved"),
+        "rejected": ("red", "✗ Rejected"),
+        "posted": ("purple", "📤 Posted"),
+    }
+    color, label = color_map.get(new_status, ("gray", new_status))
+    reason_html = f'<span class="text-gray-500 text-xs ml-2">({reason.strip()})</span>' if reason.strip() else ""
+
+    return HTMLResponse(
+        f'<div class="px-3 py-2 border-t border-{color}-700/30 bg-{color}-900/10 flex items-center gap-2">'
+        f'<span class="text-{color}-400 text-xs font-medium">{label}</span>'
+        f'<span class="text-gray-600 text-xs">was: {old_status}</span>'
+        f'{reason_html}'
+        f'</div>'
+    )
+
+
 @router.post("/review/{comment_id}/edit", response_class=HTMLResponse)
 def edit_comment_text(comment_id: UUID, request: Request, edited_text: str = Form(...), db: Session = Depends(get_db)):
     current_user = _get_current_user(request, db)
@@ -1045,6 +1148,7 @@ def check_avatar_reddit_status_htmx(avatar_id: UUID, request: Request, db: Sessi
     """HTMX endpoint: check one avatar, return refreshed card partial."""
     from app.services.avatars_query import build_avatar_view
     from app.services.reddit_status import check_reddit_status
+    from app.services.reddit_freshness import is_reddit_status_fresh
     from app.services.safety import get_avatar_health
     from app.models.client import Client as _Client
 
@@ -1052,7 +1156,9 @@ def check_avatar_reddit_status_htmx(avatar_id: UUID, request: Request, db: Sessi
     if not avatar:
         raise HTTPException(status_code=404, detail="Avatar not found")
 
-    check_reddit_status(db, avatar)
+    force = request.query_params.get("force") == "1"
+    if force or not is_reddit_status_fresh(db, avatar):
+        check_reddit_status(db, avatar)
 
     current_user = _get_current_user(request, db)
     is_admin = bool(current_user and current_user.is_superuser)
@@ -1085,6 +1191,7 @@ def check_all_avatars_reddit_status_htmx(
     """HTMX endpoint: check Reddit status for currently-filtered (and on flat view, currently-paged)
     avatars, then return the refreshed results partial."""
     from app.services.avatars_query import AvatarFilter, list_avatars_page
+    from app.services.reddit_freshness import reddit_status_manual_batch_limit
     from app.services.reddit_status import check_all_reddit_statuses
 
     current_user = _get_current_user(request, db)
@@ -1094,7 +1201,9 @@ def check_all_avatars_reddit_status_htmx(
     f = AvatarFilter(q=q.strip(), status=status, client_id=client_id, sort=sort, view=view, group=group, page=page)
     page_data = list_avatars_page(db, f, viewer_client_id)
 
-    check_all_reddit_statuses(db, page_data.items)
+    force = request.query_params.get("force") == "1"
+    batch_limit = reddit_status_manual_batch_limit(db)
+    check_all_reddit_statuses(db, page_data.items[:batch_limit], force=force)
 
     # Re-run the page query so cached fields and counts reflect the new state
     page_data = list_avatars_page(db, f, viewer_client_id)

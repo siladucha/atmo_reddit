@@ -109,15 +109,20 @@
                 {% endif %}
             </td>
             <td class="px-4 py-2">
-                {% if a.health_color == 'green' %}
-                <span class="inline-block w-2 h-2 rounded-full bg-green-400" title="Healthy"></span>
-                {% elif a.health_color == 'yellow' %}
-                <span class="inline-block w-2 h-2 rounded-full bg-amber-400" title="Warning"></span>
-                {% elif a.health_color == 'red' %}
-                <span class="inline-block w-2 h-2 rounded-full bg-red-400" title="Unhealthy"></span>
+                <div id="health-badge-{{ a.id }}">
+                {% if a.health_status == 'active' %}
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-900/50 text-green-400 border border-green-800">ACTIVE</span>
+                {% elif a.health_status == 'limited' %}
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-900/50 text-yellow-400 border border-yellow-800">LIMITED</span>
+                {% elif a.health_status == 'shadowbanned' %}
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/50 text-red-400 border border-red-800">SHADOWBANNED</span>
+                {% elif a.health_status == 'suspended' %}
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/50 text-red-400 border border-red-800">SUSPENDED</span>
                 {% else %}
-                <span class="inline-block w-2 h-2 rounded-full bg-slate-500" title="Unknown"></span>
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-700/50 text-gray-400 border border-gray-600">UNKNOWN</span>
                 {% endif %}
+                <div class="text-[10px] text-gray-500 mt-0.5">{{ a.health_check_relative or 'Never checked' }}</div>
+                </div>
             </td>
             <td class="px-4 py-2">
                 <div class="flex gap-2">
@@ -134,6 +139,15 @@
                             hx-swap="outerHTML"
                             class="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-700 text-gray-200 border border-slate-600 hover:bg-slate-600">
                         Check
+                    </button>
+                    <button type="button"
+                            hx-post="/admin/avatars/{{ a.id }}/health-check"
+                            hx-target="#health-badge-{{ a.id }}"
+                            hx-swap="innerHTML"
+                            hx-indicator="this"
+                            class="px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-900/50 text-indigo-300 border border-indigo-700 hover:bg-indigo-800/50">
+                        <span class="htmx-indicator">⏳</span>
+                        <span class="htmx-hide-on-request">🩺 Check Health</span>
                     </button>
                 </div>
             </td>

@@ -464,6 +464,62 @@ def deactivate_client(
     return client
 
 
+def activate_client(
+    db: Session,
+    client_id: uuid.UUID,
+    current_user_id: uuid.UUID,
+) -> Client:
+    """Re-activate a previously deactivated client.
+
+    Re-enables the client and reactivates its subreddit assignments.
+    Avatars are NOT automatically re-assigned (must be done manually).
+
+    Args:
+        db: SQLAlchemy database session.
+        client_id: The ID of the client to activate.
+        current_user_id: The admin performing the action (for audit logging).
+
+    Returns:
+        The updated Client.
+
+    Raises:
+        ValueError: If the client is not found or already active.
+    """
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise ValueError("Client not found")
+    if client.is_active:
+        raise ValueError("Client is already active")
+
+    client.is_active = True
+
+    # Reactivate subreddit assignments that were deactivated with the client
+    db.query(ClientSubredditAssignment).filter(
+        ClientSubredditAssignment.client_id == client_id,
+        ClientSubredditAssignment.is_active.is_(False),
+    ).update({"is_active": True})
+
+    # Reactivate legacy subreddits (if any remain)
+    db.query(ClientSubreddit).filter(
+        ClientSubreddit.client_id == client_id,
+        ClientSubreddit.is_active.is_(False),
+    ).update({"is_active": True})
+
+    db.commit()
+    db.refresh(client)
+
+    audit.log_action(
+        db=db,
+        user_id=current_user_id,
+        action="activate",
+        entity_type="client",
+        entity_id=client.id,
+        client_id=client.id,
+    )
+
+    return client
+
+
 # ---------------------------------------------------------------------------
 # Keyword management
 # ---------------------------------------------------------------------------

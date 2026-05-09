@@ -13,6 +13,11 @@ from app.models.activity_event import ActivityEvent
 from app.models.scrape_log import ScrapeLog
 from app.models.thread_score import ThreadScore
 from app.models.subreddit_karma import SubredditKarma
+from app.models.avatar_profile_snapshot import AvatarProfileSnapshot
+from app.models.analysis_edit import AnalysisEditRecord
+from app.models.avatar_subreddit_presence import AvatarSubredditPresence
+from app.models.edit_record import EditRecord
+from app.models.correction_pattern import CorrectionPattern
 
 __all__ = [
     "User",
@@ -32,4 +37,9 @@ __all__ = [
     "ScrapeLog",
     "ThreadScore",
     "SubredditKarma",
+    "AvatarProfileSnapshot",
+    "AnalysisEditRecord",
+    "AvatarSubredditPresence",
+    "EditRecord",
+    "CorrectionPattern",
 ]

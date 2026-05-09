@@ -12,7 +12,7 @@
 {% endblock %}
 
 {% block export_button %}
-{% set export_url = "/export/avatars" %}
+{% set export_url = "/export/avatars/" + avatar.id|string %}
 {% include "partials/export_button.html" %}
 {% endblock %}
 
@@ -81,7 +81,7 @@
             </button>
             <button type="button" data-avatar-detail-tab="safety"
                     class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
-                Safety
+                Safety / Shadowban
             </button>
             <button type="button" data-avatar-detail-tab="phase"
                     class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
@@ -98,6 +98,14 @@
             <button type="button" data-avatar-detail-tab="billing"
                     class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
                 Billing
+            </button>
+            <button type="button" data-avatar-detail-tab="analytics"
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
+                📊 Analytics
+            </button>
+            <button type="button" data-avatar-detail-tab="presence"
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
+                Presence
             </button>
             <button type="button" data-avatar-detail-tab="actions"
                     class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
@@ -155,8 +163,109 @@
         {% endif %}
     </div>
 
+    <!-- Learning / Voice Adaptation (loaded asynchronously via HTMX) -->
+    <div id="learning-panel-container"
+         hx-get="/admin/avatars/{{ avatar.id }}/learning-panel"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+      <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
+        <div class="h-4 bg-gray-700 rounded w-48 mb-3"></div>
+        <div class="h-3 bg-gray-700 rounded w-full mb-2"></div>
+        <div class="h-3 bg-gray-700 rounded w-3/4"></div>
+      </div>
+    </div>
+
     </div>
     <div data-avatar-detail-panel="safety" class="avatar-detail-panel hidden space-y-6">
+
+    <!-- Shadowban Status -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+        <div class="flex items-start justify-between gap-4 mb-4">
+            <div>
+                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-2">Shadowban Status</h2>
+                <div class="flex items-center gap-3">
+                    {% if shadowban_status.is_shadowbanned %}
+                    <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-red-900/40 text-red-300 border border-red-700">
+                        <span class="w-3 h-3 rounded-full bg-red-400"></span>
+                        Yes
+                    </span>
+                    {% else %}
+                    <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-green-900/40 text-green-400 border border-green-700">
+                        <span class="w-3 h-3 rounded-full bg-green-400"></span>
+                        No
+                    </span>
+                    {% endif %}
+                    <span class="px-2 py-0.5 rounded text-xs font-medium
+                          {% if shadowban_status.current_health_status == 'active' %}bg-green-900/50 text-green-400 border border-green-700
+                          {% elif shadowban_status.current_health_status == 'limited' %}bg-yellow-900/50 text-yellow-400 border border-yellow-800
+                          {% elif shadowban_status.current_health_status in ['shadowbanned', 'suspended'] %}bg-red-900/50 text-red-400 border border-red-700
+                          {% else %}bg-slate-700 text-gray-400 border border-slate-600{% endif %}">
+                        Health: {{ shadowban_status.current_health_status }}
+                    </span>
+                </div>
+            </div>
+            <button type="button"
+                    hx-post="/admin/avatars/{{ avatar.id }}/health-check"
+                    hx-target="#shadowban-health-check-result"
+                    hx-swap="innerHTML"
+                    class="px-3 py-2 rounded-lg text-sm font-medium bg-indigo-900/50 text-indigo-300 border border-indigo-700 hover:bg-indigo-800/50">
+                Check Health
+            </button>
+        </div>
+
+        <div id="shadowban-health-check-result" class="text-xs text-gray-500 mb-4">
+            {% if shadowban_status.last_checked_at %}
+            Last visibility check: {{ shadowban_status.last_checked_at.strftime('%Y-%m-%d %H:%M UTC') }}
+            {% else %}
+            Last visibility check: never
+            {% endif %}
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                <div class="text-xs text-gray-400 uppercase tracking-wide">Detected Since</div>
+                <div class="text-sm text-gray-200 mt-1">
+                    {% if shadowban_status.detected_at %}
+                    {{ shadowban_status.detected_at.strftime('%Y-%m-%d %H:%M UTC') }}
+                    {% else %}
+                    Not detected
+                    {% endif %}
+                </div>
+            </div>
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                <div class="text-xs text-gray-400 uppercase tracking-wide">Source</div>
+                <div class="text-sm text-gray-200 mt-1">{{ shadowban_status.source or 'none' }}</div>
+            </div>
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                <div class="text-xs text-gray-400 uppercase tracking-wide">Legacy Flag</div>
+                <div class="text-sm text-gray-200 mt-1">{{ 'true' if shadowban_status.legacy_shadowban_flag else 'false' }}</div>
+            </div>
+        </div>
+
+        <h3 class="text-xs text-gray-400 uppercase tracking-wide mb-3">System-Detected History</h3>
+        {% if shadowban_status.history %}
+        <div class="space-y-2">
+            {% for item in shadowban_status.history %}
+            <div class="bg-slate-800/50 rounded-lg border border-slate-700/50 p-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="text-sm text-gray-200">{{ item.label }}</div>
+                    <div class="text-xs text-gray-500">{{ item.created_at.strftime('%Y-%m-%d %H:%M UTC') }}</div>
+                </div>
+                <div class="mt-1 flex flex-wrap gap-2 text-[11px] text-gray-500">
+                    <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700">{{ item.action }}</span>
+                    {% if item.detection_method %}
+                    <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700">{{ item.detection_method }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-sm text-gray-500 bg-slate-800/40 rounded-lg border border-slate-700/50 p-4">
+            No shadowban or health status changes have been recorded by the system yet.
+        </div>
+        {% endif %}
+    </div>
 
     <!-- Freeze Status -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
@@ -444,7 +553,7 @@
     {% endif %}
 
     <!-- Karma History (30 days) -->
-    {% if karma_history and (karma_history.total_comments > 0 or karma_history.total_posts > 0) %}
+    {% if karma_history and (karma_history.total_comments > 0 or karma_history.total_posts > 0 or karma_history.snapshot_count > 0 or karma_history.reddit_total_karma > 0) %}
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
         <div class="flex items-center justify-between mb-4">
             <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Karma — Last 30 Days</h2>
@@ -461,13 +570,34 @@
             </div>
         </div>
 
+        {% if karma_history.snapshot_count > 0 %}
+        <div class="mb-5 rounded-lg border border-indigo-800/50 bg-indigo-950/20 p-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                    <div class="text-xs text-indigo-300 uppercase tracking-wide">Reddit account snapshots</div>
+                    <div class="text-sm text-gray-300 mt-1">
+                        {{ karma_history.snapshot_count }} snapshot{{ '' if karma_history.snapshot_count == 1 else 's' }}
+                        {% if karma_history.latest_snapshot_at %}
+                        · latest {{ karma_history.latest_snapshot_at.strftime('%Y-%m-%d %H:%M UTC') }}
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-xl font-bold text-white">{{ karma_history.latest_snapshot_total_karma if karma_history.latest_snapshot_total_karma is not none else karma_history.reddit_total_karma }}</div>
+                    <div class="text-[10px] text-gray-500">Latest snapshot total</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Summary stats -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
             <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 text-center">
-                <div class="text-xl font-bold {% if karma_history.total_karma > 0 %}text-green-400{% elif karma_history.total_karma < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
-                    {% if karma_history.total_karma > 0 %}+{% endif %}{{ karma_history.total_karma }}
+                {% set display_delta = karma_history.total_karma if karma_history.total_karma != 0 else karma_history.snapshot_delta_karma %}
+                <div class="text-xl font-bold {% if display_delta and display_delta > 0 %}text-green-400{% elif display_delta and display_delta < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
+                    {% if display_delta is none %}n/a{% else %}{% if display_delta > 0 %}+{% endif %}{{ display_delta }}{% endif %}
                 </div>
-                <div class="text-[10px] text-gray-500 mt-1">Total Karma Earned</div>
+                <div class="text-[10px] text-gray-500 mt-1">30d Delta</div>
             </div>
             <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 text-center">
                 <div class="text-xl font-bold text-blue-400">{{ karma_history.total_comments }}</div>
@@ -485,22 +615,26 @@
 
         <!-- Daily sparkline (CSS bar chart) -->
         <div class="mb-5">
-            <h3 class="text-xs text-gray-500 mb-2">Daily karma (30 days)</h3>
+            <h3 class="text-xs text-gray-500 mb-2">Daily karma / account snapshots (30 days)</h3>
             <div class="flex items-end gap-px h-16">
                 {% set max_karma = namespace(val=1) %}
                 {% for d in karma_history.days %}
-                    {% if d.total|abs > max_karma.val %}
+                    {% if d.reddit_total_karma is not none and d.reddit_total_karma|abs > max_karma.val %}
+                        {% set max_karma.val = d.reddit_total_karma|abs %}
+                    {% elif d.total|abs > max_karma.val %}
                         {% set max_karma.val = d.total|abs %}
                     {% endif %}
                 {% endfor %}
                 {% for d in karma_history.days %}
-                {% set height_pct = ((d.total|abs) / max_karma.val * 100)|int if max_karma.val > 0 else 0 %}
+                {% set bar_value = d.reddit_total_karma if d.reddit_total_karma is not none else d.total %}
+                {% set height_pct = ((bar_value|abs) / max_karma.val * 100)|int if max_karma.val > 0 else 0 %}
                 <div class="flex-1 min-w-0 rounded-t-sm transition-all
-                    {% if d.total > 0 %}bg-green-600/70 hover:bg-green-500
+                    {% if d.reddit_total_karma is not none %}bg-indigo-500/70 hover:bg-indigo-400
+                    {% elif d.total > 0 %}bg-green-600/70 hover:bg-green-500
                     {% elif d.total < 0 %}bg-red-600/70 hover:bg-red-500
                     {% else %}bg-slate-700 hover:bg-slate-600{% endif %}"
                     style="height: {{ [height_pct, 4]|max }}%"
-                    title="{{ d.date }}: {{ d.total }} karma ({{ d.comments_posted }} comments, {{ d.posts_posted }} posts)">
+                    title="{{ d.date }}: {% if d.reddit_total_karma is not none %}{{ d.reddit_total_karma }} Reddit total karma snapshot{% else %}{{ d.total }} tracked karma ({{ d.comments_posted }} comments, {{ d.posts_posted }} posts){% endif %}">
                 </div>
                 {% endfor %}
             </div>
@@ -817,6 +951,70 @@
     {% endif %}
 
     </div>
+    <div data-avatar-detail-panel="analytics" class="avatar-detail-panel hidden space-y-6">
+
+    <!-- Profile Analytics (loaded on demand via HTMX) -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Reddit Profile Analytics</h2>
+            <button type="button"
+                    hx-get="/admin/avatars/{{ avatar.id }}/profile-analytics?refresh=1"
+                    hx-target="#profile-analytics-content"
+                    hx-indicator="#analytics-spinner"
+                    hx-swap="innerHTML"
+                    class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh from Reddit
+            </button>
+        </div>
+        <p class="text-xs text-gray-500 mb-4">
+            Shows saved profile analytics. Click "Refresh from Reddit" to fetch fresh data from Reddit API and save (3-8 sec).
+        </p>
+
+        <!-- Loading spinner -->
+        <div id="analytics-spinner" class="htmx-indicator flex items-center justify-center py-8">
+            <div class="flex items-center gap-3">
+                <svg class="animate-spin h-5 w-5 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span class="text-sm text-gray-400">Fetching from Reddit API...</span>
+            </div>
+        </div>
+
+        <!-- Analytics content (auto-loads saved snapshot on tab open) -->
+        <div id="profile-analytics-content"
+             hx-get="/admin/avatars/{{ avatar.id }}/profile-analytics"
+             hx-trigger="intersect once"
+             hx-indicator="#analytics-spinner"
+             hx-swap="innerHTML">
+        </div>
+    </div>
+
+    </div>
+    <div data-avatar-detail-panel="presence" class="avatar-detail-panel hidden space-y-6">
+
+    <!-- Subreddit Presence (loaded on demand via HTMX) -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Subreddit Presence</h2>
+        </div>
+        <p class="text-xs text-gray-500 mb-4">
+            Shows all subreddits where this avatar has commented, with per-subreddit metrics.
+        </p>
+
+        <!-- Presence content (lazy-loaded when tab is clicked) -->
+        <div id="presence-panel-content"
+             hx-get="/admin/avatars/{{ avatar.id }}/presence-partial"
+             hx-trigger="intersect once"
+             hx-swap="innerHTML">
+        </div>
+    </div>
+
+    </div>
     <div data-avatar-detail-panel="actions" class="avatar-detail-panel hidden space-y-6">
 
     <!-- Phase Override Form -->
@@ -857,9 +1055,10 @@
         const tabs = Array.from(document.querySelectorAll("[data-avatar-detail-tab]"));
         const panels = Array.from(document.querySelectorAll("[data-avatar-detail-panel]"));
 
-        function activateTab(tabName) {
+        function activateTab(tabName, updateUrl = true) {
+            const targetTab = tabs.some((tab) => tab.dataset.avatarDetailTab === tabName) ? tabName : "overview";
             tabs.forEach((tab) => {
-                const active = tab.dataset.avatarDetailTab === tabName;
+                const active = tab.dataset.avatarDetailTab === targetTab;
                 tab.classList.toggle("bg-indigo-600", active);
                 tab.classList.toggle("text-white", active);
                 tab.classList.toggle("text-gray-400", !active);
@@ -867,13 +1066,24 @@
             });
 
             panels.forEach((panel) => {
-                panel.classList.toggle("hidden", panel.dataset.avatarDetailPanel !== tabName);
+                panel.classList.toggle("hidden", panel.dataset.avatarDetailPanel !== targetTab);
             });
+
+            if (updateUrl) {
+                const url = new URL(window.location.href);
+                url.searchParams.set("tab", targetTab);
+                history.replaceState(null, "", url);
+            }
         }
 
         tabs.forEach((tab) => {
             tab.addEventListener("click", () => activateTab(tab.dataset.avatarDetailTab));
         });
+
+        const initialTab = new URLSearchParams(window.location.search).get("tab") || window.location.hash.replace("#", "");
+        if (initialTab) {
+            activateTab(initialTab, false);
+        }
     });
 </script>
 {% endblock %}

@@ -44,6 +44,20 @@ def export_avatars(
     return _json_download(data, f"avatars{suffix}.json")
 
 
+@router.get("/avatars/{avatar_id}")
+def export_single_avatar(
+    avatar_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Export a single avatar with profile analytics as avatar_{username}.json."""
+    data = export_service.export_single_avatar(db, avatar_id)
+    if data is None:
+        return JSONResponse(content={"error": "Avatar not found"}, status_code=404)
+    username = data.get("reddit_username", "unknown")
+    return _json_download(data, f"avatar_{username}.json")
+
+
 @router.get("/threads")
 def export_threads(
     client_id: str | None = Query(None),

@@ -61,8 +61,8 @@ def serialize_client(client: Client) -> dict:
     }
 
 
-def serialize_avatar(avatar: Avatar) -> dict:
-    return {
+def serialize_avatar(avatar: Avatar, profile_snapshot=None) -> dict:
+    data = {
         "id": str(avatar.id),
         "reddit_username": avatar.reddit_username,
         "active": avatar.active,
@@ -87,6 +87,41 @@ def serialize_avatar(avatar: Avatar) -> dict:
         "phase_changed_at": _serialize_value(avatar.phase_changed_at),
         "created_at": _serialize_value(avatar.created_at),
     }
+
+    # Include profile analytics snapshot if available
+    if profile_snapshot:
+        data["profile_analytics"] = {
+            "fetched_at": _serialize_value(profile_snapshot.fetched_at),
+            "comment_karma": profile_snapshot.comment_karma,
+            "post_karma": profile_snapshot.post_karma,
+            "total_karma": profile_snapshot.total_karma,
+            "account_age_days": profile_snapshot.account_age_days,
+            "account_created": _serialize_value(profile_snapshot.account_created),
+            "has_verified_email": profile_snapshot.has_verified_email,
+            "is_gold": profile_snapshot.is_gold,
+            "is_mod": profile_snapshot.is_mod,
+            "total_comments": profile_snapshot.total_comments,
+            "total_posts": profile_snapshot.total_posts,
+            "avg_comments_per_week": profile_snapshot.avg_comments_per_week,
+            "avg_posts_per_week": profile_snapshot.avg_posts_per_week,
+            "most_active_hour_utc": profile_snapshot.most_active_hour_utc,
+            "most_active_day": profile_snapshot.most_active_day,
+            "days_since_last_comment": profile_snapshot.days_since_last_comment,
+            "days_since_last_post": profile_snapshot.days_since_last_post,
+            "avg_comment_length": profile_snapshot.avg_comment_length,
+            "avg_post_length": profile_snapshot.avg_post_length,
+            "uses_emoji": profile_snapshot.uses_emoji,
+            "uses_links": profile_snapshot.uses_links,
+            "avg_comment_score": profile_snapshot.avg_comment_score,
+            "avg_post_score": profile_snapshot.avg_post_score,
+            "top_comment_score": profile_snapshot.top_comment_score,
+            "top_post_score": profile_snapshot.top_post_score,
+            "subreddits": profile_snapshot.subreddits_data,
+            "recent_comments": profile_snapshot.recent_comments_data,
+            "recent_posts": profile_snapshot.recent_posts_data,
+        }
+
+    return data
 
 
 def serialize_thread(thread: RedditThread) -> dict:
@@ -200,10 +235,54 @@ def export_clients(db: Session) -> list[dict]:
 
 
 def export_avatars(db: Session, client_id: uuid.UUID | None = None) -> list[dict]:
+    from app.models.avatar_profile_snapshot import AvatarProfileSnapshot
+
     q = db.query(Avatar).order_by(Avatar.reddit_username)
     if client_id:
         q = q.filter(Avatar.client_ids.any(str(client_id)))
-    return [serialize_avatar(a) for a in q.all()]
+    avatars = q.all()
+
+    # Batch-load latest snapshots for all avatars
+    avatar_ids = [a.id for a in avatars]
+    snapshots_map: dict[uuid.UUID, AvatarProfileSnapshot] = {}
+    if avatar_ids:
+        # Subquery to get the latest snapshot per avatar
+        from sqlalchemy import desc
+        from sqlalchemy.orm import aliased
+
+        for avatar_id in avatar_ids:
+            snapshot = (
+                db.query(AvatarProfileSnapshot)
+                .filter(AvatarProfileSnapshot.avatar_id == avatar_id)
+                .order_by(desc(AvatarProfileSnapshot.fetched_at))
+                .first()
+            )
+            if snapshot:
+                snapshots_map[avatar_id] = snapshot
+
+    return [
+        serialize_avatar(a, profile_snapshot=snapshots_map.get(a.id))
+        for a in avatars
+    ]
+
+
+def export_single_avatar(db: Session, avatar_id: uuid.UUID) -> dict | None:
+    """Export a single avatar with its latest profile analytics snapshot."""
+    from app.models.avatar_profile_snapshot import AvatarProfileSnapshot
+    from sqlalchemy import desc
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        return None
+
+    snapshot = (
+        db.query(AvatarProfileSnapshot)
+        .filter(AvatarProfileSnapshot.avatar_id == avatar_id)
+        .order_by(desc(AvatarProfileSnapshot.fetched_at))
+        .first()
+    )
+
+    return serialize_avatar(avatar, profile_snapshot=snapshot)
 
 
 def export_threads(

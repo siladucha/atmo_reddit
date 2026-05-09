@@ -73,6 +73,48 @@ DEFAULTS: dict[str, dict] = {
         "desc": "Reddit API User Agent string",
         "group": "reddit_api",
     },
+    "reddit_status_manual_freshness_hours": {
+        "value": "6",
+        "secret": False,
+        "desc": "Minimum age before manual Reddit account metadata checks hit the API again",
+        "group": "reddit_api",
+    },
+    "reddit_status_manual_batch_limit": {
+        "value": "25",
+        "secret": False,
+        "desc": "Maximum avatars a manual Check visible action may refresh at once",
+        "group": "reddit_api",
+    },
+    "reddit_profile_analytics_freshness_hours": {
+        "value": "24",
+        "secret": False,
+        "desc": "Minimum age before profile analytics refreshes fetch from Reddit again",
+        "group": "reddit_api",
+    },
+    "reddit_profile_analytics_batch_limit": {
+        "value": "20",
+        "secret": False,
+        "desc": "Maximum avatars refreshed by the scheduled profile analytics snapshot job",
+        "group": "reddit_api",
+    },
+    "external_shadowban_checker_enabled": {
+        "value": "false",
+        "secret": False,
+        "desc": "Use an external shadowban checker before falling back to Reddit visibility checks",
+        "group": "reddit_api",
+    },
+    "external_shadowban_checker_url_template": {
+        "value": "",
+        "secret": False,
+        "desc": "External checker URL template. Use {username}, for example https://checker.example/u/{username}",
+        "group": "reddit_api",
+    },
+    "external_shadowban_checker_timeout_seconds": {
+        "value": "8",
+        "secret": False,
+        "desc": "Timeout for the external shadowban checker HTTP request",
+        "group": "reddit_api",
+    },
     # LLM
     "llm_api_key": {
         "value": "",
@@ -216,6 +258,55 @@ DEFAULTS: dict[str, dict] = {
         "desc": "AWS credits remaining (manual entry)",
         "group": "budget",
     },
+    # Health Check
+    "health_check_interval_hours": {
+        "value": "12",
+        "secret": False,
+        "desc": "How often the periodic health check task runs (hours)",
+        "group": "health_check",
+    },
+    "health_check_min_comments": {
+        "value": "3",
+        "secret": False,
+        "desc": "Minimum recent comments required for visibility classification",
+        "group": "health_check",
+    },
+    "health_check_visibility_threshold": {
+        "value": "0.5",
+        "secret": False,
+        "desc": "Visibility ratio above which avatar is classified ACTIVE (0.0-1.0)",
+        "group": "health_check",
+    },
+    "health_check_rate_limit_delay_seconds": {
+        "value": "2",
+        "secret": False,
+        "desc": "Delay between individual avatar checks in a batch (seconds)",
+        "group": "health_check",
+    },
+    "health_check_max_failures_before_unknown": {
+        "value": "5",
+        "secret": False,
+        "desc": "Consecutive failures before status becomes UNKNOWN",
+        "group": "health_check",
+    },
+    "health_check_max_failures_before_limited": {
+        "value": "3",
+        "secret": False,
+        "desc": "Consecutive failures before emitting LIMITED warning",
+        "group": "health_check",
+    },
+    "health_check_comment_lookback_days": {
+        "value": "7",
+        "secret": False,
+        "desc": "How far back to look for avatar comments (days)",
+        "group": "health_check",
+    },
+    "health_check_max_comments_to_sample": {
+        "value": "10",
+        "secret": False,
+        "desc": "Maximum comments to fetch per avatar for visibility check",
+        "group": "health_check",
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -223,6 +314,64 @@ DEFAULTS: dict[str, dict] = {
 # ---------------------------------------------------------------------------
 _cache: dict[str, str] = {}
 _cache_loaded: bool = False
+
+
+# ---------------------------------------------------------------------------
+# Health check parameter validation
+# ---------------------------------------------------------------------------
+
+HEALTH_CHECK_VALIDATORS: dict[str, tuple[callable, str]] = {
+    "health_check_interval_hours": (
+        lambda v: int(v) >= 1,
+        "Must be an integer >= 1",
+    ),
+    "health_check_min_comments": (
+        lambda v: int(v) >= 1,
+        "Must be an integer >= 1",
+    ),
+    "health_check_visibility_threshold": (
+        lambda v: 0.0 <= float(v) <= 1.0,
+        "Must be a number between 0.0 and 1.0",
+    ),
+    "health_check_rate_limit_delay_seconds": (
+        lambda v: int(v) >= 0,
+        "Must be an integer >= 0",
+    ),
+    "health_check_max_failures_before_unknown": (
+        lambda v: int(v) >= 1,
+        "Must be an integer >= 1",
+    ),
+    "health_check_max_failures_before_limited": (
+        lambda v: int(v) >= 1,
+        "Must be an integer >= 1",
+    ),
+    "health_check_comment_lookback_days": (
+        lambda v: int(v) >= 1,
+        "Must be an integer >= 1",
+    ),
+    "health_check_max_comments_to_sample": (
+        lambda v: int(v) >= 1,
+        "Must be an integer >= 1",
+    ),
+}
+
+
+def validate_setting(key: str, value: str) -> tuple[bool, str]:
+    """Validate a setting value against known constraints.
+
+    Returns (is_valid, error_message). If valid, error_message is empty.
+    """
+    if key not in HEALTH_CHECK_VALIDATORS:
+        return True, ""
+
+    validator_fn, error_msg = HEALTH_CHECK_VALIDATORS[key]
+    try:
+        if not validator_fn(value):
+            return False, f"{key}: {error_msg}"
+    except (ValueError, TypeError):
+        return False, f"{key}: {error_msg}"
+
+    return True, ""
 
 
 def invalidate_cache(key: str | None = None) -> None:

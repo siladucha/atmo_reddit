@@ -521,11 +521,30 @@ def admin_clients(
     request: Request,
     page: int = 1,
     per_page: int = 20,
+    sort: str = "created",
+    order: str = "desc",
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
     clients, total = admin_service.list_clients_paginated(db, page, per_page)
     pagination = _paginate(page, per_page, total)
+
+    # Sort in Python (data is already fetched with counts)
+    valid_sorts = {
+        "name": lambda x: (x["client"].client_name or "").lower(),
+        "brand": lambda x: (x["client"].brand_name or "").lower(),
+        "active": lambda x: x["client"].is_active,
+        "subreddits": lambda x: x["subreddit_count"],
+        "avatars": lambda x: x["avatar_count"],
+        "cost": lambda x: x["ai_cost_month"],
+        "created": lambda x: x["client"].created_at or datetime.min.replace(tzinfo=timezone.utc),
+    }
+    if sort not in valid_sorts:
+        sort = "created"
+    if order not in ("asc", "desc"):
+        order = "desc"
+
+    clients.sort(key=valid_sorts[sort], reverse=(order == "desc"))
 
     return templates.TemplateResponse(
         name="admin_clients.html",
@@ -534,6 +553,8 @@ def admin_clients(
             "active_nav": "clients",
             "clients": clients,
             "pagination": pagination,
+            "sort": sort,
+            "order": order,
         },
         request=request,
     )
@@ -649,6 +670,79 @@ def admin_client_detail(
     )
     keywords = admin_service.get_client_keywords(db, client_id)
 
+    # Categorize subreddits for the detail page
+    from app.models.avatar_subreddit_presence import AvatarSubredditPresence
+
+    target_subreddits = [s for s in subreddits if s["type"] == "professional" and s["is_active"]]
+    hobby_subreddits = [s for s in subreddits if s["type"] == "hobby" and s["is_active"]]
+
+    # Get all subreddits where this client's avatars have presence
+    avatar_ids = [a.id for a in avatars]
+    avatar_presence_subs: list[dict] = []
+    if avatar_ids:
+        # First try avatar_subreddit_presence table (populated by presence scan)
+        presence_rows = (
+            db.query(
+                AvatarSubredditPresence.subreddit_name,
+                Avatar.reddit_username,
+                AvatarSubredditPresence.comment_count,
+                AvatarSubredditPresence.total_karma,
+                AvatarSubredditPresence.last_activity_at,
+            )
+            .join(Avatar, Avatar.id == AvatarSubredditPresence.avatar_id)
+            .filter(AvatarSubredditPresence.avatar_id.in_(avatar_ids))
+            .order_by(AvatarSubredditPresence.total_karma.desc())
+            .all()
+        )
+
+        presence_map: dict = {}
+        for sub_name, username, comments, karma, last_at in presence_rows:
+            entry = presence_map.setdefault(sub_name, {
+                "subreddit_name": sub_name,
+                "avatars": [],
+                "total_comments": 0,
+                "total_karma": 0,
+            })
+            entry["avatars"].append(username)
+            entry["total_comments"] += comments
+            entry["total_karma"] += karma
+
+        # Also include subreddits from avatar JSONB fields (hobby_subreddits, business_subreddits)
+        for avatar in avatars:
+            if avatar.hobby_subreddits:
+                for item in avatar.hobby_subreddits:
+                    sub_name = item.get("subreddit") if isinstance(item, dict) else item
+                    if sub_name and sub_name not in presence_map:
+                        presence_map[sub_name] = {
+                            "subreddit_name": sub_name,
+                            "avatars": [],
+                            "total_comments": 0,
+                            "total_karma": 0,
+                        }
+                    if sub_name:
+                        entry = presence_map[sub_name]
+                        if avatar.reddit_username not in entry["avatars"]:
+                            entry["avatars"].append(avatar.reddit_username)
+
+            if avatar.business_subreddits:
+                for item in avatar.business_subreddits:
+                    sub_name = item.get("subreddit") if isinstance(item, dict) else item
+                    if sub_name and sub_name not in presence_map:
+                        presence_map[sub_name] = {
+                            "subreddit_name": sub_name,
+                            "avatars": [],
+                            "total_comments": 0,
+                            "total_karma": 0,
+                        }
+                    if sub_name:
+                        entry = presence_map[sub_name]
+                        if avatar.reddit_username not in entry["avatars"]:
+                            entry["avatars"].append(avatar.reddit_username)
+
+        avatar_presence_subs = sorted(
+            presence_map.values(), key=lambda x: x["total_karma"], reverse=True
+        )
+
     return templates.TemplateResponse(
         name="admin_client_detail.html",
         context={
@@ -656,6 +750,9 @@ def admin_client_detail(
             "active_nav": "clients",
             "client": client,
             "subreddits": subreddits,
+            "target_subreddits": target_subreddits,
+            "hobby_subreddits": hobby_subreddits,
+            "avatar_presence_subs": avatar_presence_subs,
             "avatars": avatars,
             "keywords": keywords,
             "error": None,
@@ -711,6 +808,20 @@ def admin_client_deactivate(
     except ValueError:
         pass
     return RedirectResponse(url="/admin/clients", status_code=303)
+
+
+@router.post("/clients/{client_id}/activate", response_class=HTMLResponse)
+def admin_client_activate(
+    request: Request,
+    client_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    try:
+        admin_service.activate_client(db, client_id, current_user.id)
+    except ValueError:
+        pass
+    return RedirectResponse(url=f"/admin/clients/{client_id}", status_code=303)
 
 
 # ---------------------------------------------------------------------------
@@ -1221,13 +1332,16 @@ def admin_avatars_check_visible(
         list_avatars_page,
     )
     from app.services.reddit_status import check_all_reddit_statuses
+    from app.services.reddit_freshness import reddit_status_manual_batch_limit
     from app.services.safety import get_avatar_health
     from app.services import karma_tracker
 
     f = AvatarFilter(q=q.strip(), status=status, client_id=client_id, sort=sort,
                      view=view, group=group, page=page)
     page_data = list_avatars_page(db, f, viewer_client_id=None)
-    check_all_reddit_statuses(db, page_data.items)
+    force = request.query_params.get("force") == "1"
+    batch_limit = reddit_status_manual_batch_limit(db)
+    check_all_reddit_statuses(db, page_data.items[:batch_limit], force=force)
 
     page_data = list_avatars_page(db, f, viewer_client_id=None)
 
@@ -1272,6 +1386,104 @@ def admin_avatars_check_visible(
     return templates.TemplateResponse(
         name="partials/admin_avatars_results.html", context=ctx, request=request,
     )
+
+
+@router.post("/avatars/{avatar_id}/health-check", response_class=HTMLResponse)
+def admin_avatar_health_check(
+    request: Request,
+    avatar_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
+    """Trigger manual health check for a single avatar (HTMX endpoint).
+
+    Returns an updated health badge partial that replaces the badge inline.
+    Creates an audit log entry with action "health_check_manual".
+    """
+    import logging
+
+    from app.services.health_checker import check_avatar_health
+    from app.services.reddit_freshness import is_health_check_fresh
+    from app.services.safety import _format_relative_time
+
+    logger = logging.getLogger(__name__)
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        return HTMLResponse(
+            '<span class="text-[10px] text-red-400">Avatar not found</span>',
+            status_code=404,
+        )
+
+    try:
+        force = request.query_params.get("force") == "1"
+        if force or not is_health_check_fresh(db, avatar):
+            result = check_avatar_health(db, avatar)
+
+            # Audit log: manual health check
+            try:
+                audit_service.log_action(
+                    db=db,
+                    user_id=current_user.id,
+                    action="health_check_manual",
+                    entity_type="avatar",
+                    entity_id=avatar.id,
+                    details={
+                        "reddit_username": avatar.reddit_username,
+                        "previous_status": result.previous_status,
+                        "new_status": result.new_status,
+                        "detection_method": result.detection_method,
+                    },
+                )
+            except Exception:
+                logger.warning(
+                    "Failed to audit log manual health check for %s",
+                    avatar.reddit_username,
+                    exc_info=True,
+                )
+        else:
+            logger.info(
+                "Manual health check skipped for %s: fresh cache checked_at=%s",
+                avatar.reddit_username,
+                avatar.last_health_check,
+            )
+
+        # Return updated badge partial
+        now = datetime.now(timezone.utc)
+        health_status = avatar.health_status or "unknown"
+        relative_time = _format_relative_time(avatar.last_health_check, now) if avatar.last_health_check else "Never checked"
+
+        badge_html = _render_health_badge_html(health_status, relative_time)
+        return HTMLResponse(badge_html)
+
+    except Exception as e:
+        logger.error(
+            "Manual health check failed for avatar %s: %s",
+            avatar_id, str(e),
+            exc_info=True,
+        )
+        # Return error message that re-enables the button
+        return HTMLResponse(
+            '<span class="text-[10px] text-red-400">⚠ Check failed — try again later</span>',
+            status_code=200,
+        )
+
+
+def _render_health_badge_html(health_status: str, relative_time: str) -> str:
+    """Render the health badge HTML fragment for HTMX swap."""
+    status = health_status.lower()
+    if status == "active":
+        badge = '<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-900/50 text-green-400 border border-green-800">ACTIVE</span>'
+    elif status == "limited":
+        badge = '<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-900/50 text-yellow-400 border border-yellow-800">LIMITED</span>'
+    elif status == "shadowbanned":
+        badge = '<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/50 text-red-400 border border-red-800">SHADOWBANNED</span>'
+    elif status == "suspended":
+        badge = '<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/50 text-red-400 border border-red-800">SUSPENDED</span>'
+    else:
+        badge = '<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-700/50 text-gray-400 border border-gray-600">UNKNOWN</span>'
+
+    return f'{badge}\n<div class="text-[10px] text-gray-500 mt-0.5">{relative_time}</div>'
 
 
 @router.get("/avatars/new", response_class=HTMLResponse)
@@ -1412,6 +1624,7 @@ def admin_avatar_detail(
     from app.models.activity_event import ActivityEvent
     from app.models.comment_draft import CommentDraft
     from app.models.hobby import HobbySubreddit
+    from app.models.audit import AuditLog
     from app.models.thread import RedditThread
     from app.services.safety import get_avatar_health
     from sqlalchemy import desc, func, or_
@@ -1564,6 +1777,85 @@ def admin_avatar_detail(
     from app.services.karma_history import get_karma_history
     karma_history = get_karma_history(db, avatar.id, days=30)
 
+    shadowban_history_rows = (
+        db.query(AuditLog)
+        .filter(
+            AuditLog.entity_type == "avatar",
+            AuditLog.entity_id == avatar.id,
+            AuditLog.action.in_(
+                (
+                    "health_status_changed",
+                    "health_check_manual",
+                    "reddit_status_shadowban_changed",
+                    "safety_quarantine",
+                )
+            ),
+        )
+        .order_by(desc(AuditLog.created_at))
+        .limit(50)
+        .all()
+    )
+
+    is_shadowban_detected = bool(
+        avatar.health_status == "shadowbanned" or avatar.is_shadowbanned
+    )
+    shadowban_detected_at = avatar.health_status_changed_at if is_shadowban_detected else None
+    shadowban_source = "visibility health" if avatar.health_status == "shadowbanned" else None
+    if is_shadowban_detected and not shadowban_source:
+        shadowban_source = "reddit account status"
+
+    for entry in shadowban_history_rows:
+        details = entry.details or {}
+        new_status = details.get("new_status") or details.get("reddit_status")
+        new_shadowbanned = details.get("new_shadowbanned")
+        if (
+            new_status == "shadowbanned"
+            or new_shadowbanned is True
+            or details.get("reason") == "shadowbanned"
+        ):
+            shadowban_detected_at = shadowban_detected_at or entry.created_at
+            break
+
+    shadowban_history = []
+    for entry in shadowban_history_rows:
+        details = entry.details or {}
+        previous_status = details.get("previous_status")
+        new_status = details.get("new_status")
+        previous_shadowbanned = details.get("previous_shadowbanned")
+        new_shadowbanned = details.get("new_shadowbanned")
+
+        if entry.action == "health_status_changed":
+            label = f"Health status changed: {previous_status or 'unknown'} -> {new_status or 'unknown'}"
+        elif entry.action == "health_check_manual":
+            label = f"Manual health check: {previous_status or 'unknown'} -> {new_status or 'unknown'}"
+        elif entry.action == "reddit_status_shadowban_changed":
+            label = (
+                "Legacy shadowban flag changed: "
+                f"{previous_shadowbanned} -> {new_shadowbanned}"
+            )
+        elif entry.action == "safety_quarantine":
+            label = f"Safety quarantine: {details.get('reason') or 'no reason'}"
+        else:
+            label = entry.action
+
+        shadowban_history.append({
+            "created_at": entry.created_at,
+            "action": entry.action,
+            "label": label,
+            "detection_method": details.get("detection_method"),
+            "details": details,
+        })
+
+    shadowban_status = {
+        "is_shadowbanned": is_shadowban_detected,
+        "current_health_status": avatar.health_status or "unknown",
+        "legacy_shadowban_flag": avatar.is_shadowbanned,
+        "detected_at": shadowban_detected_at,
+        "last_checked_at": avatar.last_health_check,
+        "source": shadowban_source,
+        "history": shadowban_history,
+    }
+
     return templates.TemplateResponse(
         name="admin_avatar_detail.html",
         context={
@@ -1586,6 +1878,7 @@ def admin_avatar_detail(
             "assigned_clients": assigned_clients,
             "unassigned_clients": unassigned_clients,
             "karma_history": karma_history,
+            "shadowban_status": shadowban_status,
         },
         request=request,
     )
@@ -1606,12 +1899,67 @@ def admin_avatar_refresh(
         return HTMLResponse("Avatar not found", status_code=404)
 
     try:
-        check_reddit_status(db, avatar)
+        from app.services.reddit_freshness import is_reddit_status_fresh
+
+        force = request.query_params.get("force") == "1"
+        if force or not is_reddit_status_fresh(db, avatar):
+            check_reddit_status(db, avatar)
         db.commit()
     except Exception:
         pass  # Non-critical — page will still load with stale data
 
     return RedirectResponse(url=f"/admin/avatars/{avatar_id}", status_code=303)
+
+
+@router.get("/avatars/{avatar_id}/profile-analytics", response_class=HTMLResponse)
+def admin_avatar_profile_analytics(
+    request: Request,
+    avatar_id: uuid.UUID,
+    refresh: str = "",
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """HTMX endpoint: fetch fresh Reddit profile analytics, save to DB, return HTML.
+
+    If ?refresh=1 — forces a new fetch from Reddit API.
+    Otherwise — returns the latest saved snapshot (or fetches if none exists).
+    """
+    from app.services.reddit_profile_analytics import (
+        fetch_and_save,
+        load_latest_snapshot,
+        snapshot_to_analytics,
+    )
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        return HTMLResponse("Avatar not found", status_code=404)
+
+    if refresh == "1":
+        # Force fresh fetch from Reddit API and save
+        from app.services.reddit_freshness import is_fresh, profile_analytics_freshness_hours
+
+        snapshot = load_latest_snapshot(db, avatar.id)
+        freshness_hours = profile_analytics_freshness_hours(db)
+        force = request.query_params.get("force") == "1"
+        fresh = bool(snapshot and is_fresh(snapshot.fetched_at, freshness_hours))
+        if force or not fresh:
+            analytics = fetch_and_save(db, avatar.id, avatar.reddit_username)
+        else:
+            analytics = snapshot_to_analytics(snapshot)
+    else:
+        # Try to load from DB first
+        snapshot = load_latest_snapshot(db, avatar.id)
+        if snapshot:
+            analytics = snapshot_to_analytics(snapshot)
+        else:
+            # No snapshot exists — fetch and save
+            analytics = fetch_and_save(db, avatar.id, avatar.reddit_username)
+
+    return templates.TemplateResponse(
+        name="partials/avatar_profile_analytics.html",
+        context={"request": request, "analytics": analytics},
+        request=request,
+    )
 
 
 @router.post("/avatars/{avatar_id}/toggle-active", response_class=HTMLResponse)
@@ -2882,14 +3230,33 @@ async def admin_bulk_save_settings(
     db: Session = Depends(get_db),
 ):
     """Bulk-save multiple settings from form data (HTMX partial response)."""
-    from app.services.settings import bulk_save_settings
+    from app.services.settings import bulk_save_settings, validate_setting
 
     form_data = await request.form()
     updates: dict[str, str] = {}
+    validation_errors: list[str] = []
+
     for field_key, field_value in form_data.items():
         if field_key.startswith("setting_"):
             setting_key = field_key[len("setting_"):]
-            updates[setting_key] = field_value
+            is_valid, error_msg = validate_setting(setting_key, field_value)
+            if not is_valid:
+                validation_errors.append(error_msg)
+            else:
+                updates[setting_key] = field_value
+
+    if validation_errors:
+        errors_html = "; ".join(validation_errors)
+        return HTMLResponse(
+            content=(
+                '<span class="inline-flex items-center text-red-400 text-sm">'
+                '<svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">'
+                '<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>'
+                "</svg>"
+                f"Validation failed: {errors_html}"
+                "</span>"
+            )
+        )
 
     if updates:
         bulk_save_settings(db, updates, user_id=current_user.id)
@@ -2983,7 +3350,21 @@ def admin_update_setting(
     db: Session = Depends(get_db),
 ):
     """Save a single setting value (HTMX partial response)."""
-    from app.services.settings import set_setting, invalidate_cache
+    from app.services.settings import set_setting, invalidate_cache, validate_setting
+
+    # Validate health check parameters
+    is_valid, error_msg = validate_setting(key, value)
+    if not is_valid:
+        return HTMLResponse(
+            content=(
+                '<span class="inline-flex items-center text-red-400 text-sm">'
+                '<svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">'
+                '<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>'
+                "</svg>"
+                f"{error_msg}"
+                "</span>"
+            )
+        )
 
     set_setting(db, key, value, user_id=current_user.id)
     invalidate_cache(key)
@@ -4124,3 +4505,287 @@ def admin_inspector_export_json(
         },
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ---------------------------------------------------------------------------
+# Avatar Subreddit Presence
+# ---------------------------------------------------------------------------
+
+
+@router.post("/avatars/{avatar_id}/scan-presence", response_class=HTMLResponse)
+def admin_avatar_scan_presence(
+    request: Request,
+    avatar_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Trigger a manual presence scan for an avatar.
+
+    Idempotent: if a scan is already pending or running, returns current status
+    without creating a new task. Otherwise sets status to "pending" and dispatches
+    the Celery task.
+
+    Returns the HTMX presence partial with the current scan status.
+    """
+    from app.services.presence import get_avatar_presence, is_presence_stale
+    from app.tasks.presence import scan_avatar_presence_task
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        return HTMLResponse("Avatar not found", status_code=404)
+
+    # Idempotency: don't create duplicate tasks
+    if avatar.presence_scan_status not in ("pending", "running"):
+        avatar.presence_scan_status = "pending"
+        db.commit()
+        scan_avatar_presence_task.delay(str(avatar_id))
+
+    # Return the presence partial with current state
+    presence_records = get_avatar_presence(db, avatar_id, sort_by="comment_count")
+    stale = is_presence_stale(avatar.presence_last_scanned_at)
+
+    return templates.TemplateResponse(
+        "partials/avatar_presence.html",
+        {
+            "request": request,
+            "avatar": avatar,
+            "presence_records": presence_records,
+            "is_stale": stale,
+            "scan_status": avatar.presence_scan_status,
+            "sort_by": "comment_count",
+        },
+    )
+
+
+@router.get("/avatars/{avatar_id}/presence-partial", response_class=HTMLResponse)
+def admin_avatar_presence_partial(
+    request: Request,
+    avatar_id: uuid.UUID,
+    sort_by: str = "comment_count",
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """HTMX partial: renders the avatar presence table with sort controls and status.
+
+    Accepts `sort_by` query param: "comment_count" (default), "avg_karma", "last_activity_at".
+    """
+    from app.services.presence import get_avatar_presence, is_presence_stale
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        return HTMLResponse("Avatar not found", status_code=404)
+
+    presence_records = get_avatar_presence(db, avatar_id, sort_by=sort_by)
+    stale = is_presence_stale(avatar.presence_last_scanned_at)
+
+    return templates.TemplateResponse(
+        "partials/avatar_presence.html",
+        {
+            "request": request,
+            "avatar": avatar,
+            "presence_records": presence_records,
+            "is_stale": stale,
+            "scan_status": avatar.presence_scan_status,
+            "sort_by": sort_by,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Avatar Learning Panel (Self-Learning Loop)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/avatars/{avatar_id}/learning-panel", response_class=HTMLResponse)
+def admin_avatar_learning_panel(
+    request: Request,
+    avatar_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """HTMX partial: Avatar learning panel showing edit stats, correction patterns,
+    and preview few-shot examples.
+
+    Returns context with:
+    - Total edit records broken down by status (approved, approved_unchanged, rejected)
+    - Most recent edit record (date + edit_summary)
+    - Top 5 correction patterns sorted by frequency descending
+    - Up to 3 preview few-shot examples (ai_draft and edited_draft truncated to 100 chars)
+    - empty_state=True when zero edit records exist
+
+    Requirements: 4.1, 4.2, 4.3, 4.4, 4.5
+    """
+    from sqlalchemy import func
+
+    from app.models.correction_pattern import CorrectionPattern
+    from app.models.edit_record import EditRecord
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        return HTMLResponse("Avatar not found", status_code=404)
+
+    # Query total edit records for this avatar, broken down by status
+    status_counts = (
+        db.query(
+            EditRecord.final_status,
+            func.count(EditRecord.id).label("count"),
+        )
+        .filter(EditRecord.avatar_id == avatar_id)
+        .group_by(EditRecord.final_status)
+        .all()
+    )
+
+    # Build status breakdown dict
+    status_breakdown = {
+        "approved": 0,
+        "approved_unchanged": 0,
+        "rejected": 0,
+    }
+    total_records = 0
+    for status, count in status_counts:
+        status_breakdown[status] = count
+        total_records += count
+
+    # Empty state — no edit records exist
+    if total_records == 0:
+        return templates.TemplateResponse(
+            request,
+            "partials/avatar_learning_panel.html",
+            {
+                "avatar": avatar,
+                "empty_state": True,
+                "total_records": 0,
+                "status_breakdown": status_breakdown,
+                "most_recent_edit": None,
+                "correction_patterns": [],
+                "preview_examples": [],
+            },
+        )
+
+    # Most recent edit record (date + summary)
+    most_recent_edit = (
+        db.query(EditRecord)
+        .filter(EditRecord.avatar_id == avatar_id)
+        .order_by(EditRecord.created_at.desc())
+        .first()
+    )
+
+    # Top 5 correction patterns sorted by frequency descending
+    correction_patterns = (
+        db.query(CorrectionPattern)
+        .filter(CorrectionPattern.avatar_id == avatar_id)
+        .order_by(CorrectionPattern.frequency.desc())
+        .limit(5)
+        .all()
+    )
+
+    # Up to 3 preview few-shot examples (approved with edits, most recent)
+    preview_examples_raw = (
+        db.query(EditRecord)
+        .filter(
+            EditRecord.avatar_id == avatar_id,
+            EditRecord.final_status == "approved",
+            EditRecord.edited_draft.isnot(None),
+            EditRecord.is_archived == False,  # noqa: E712
+        )
+        .order_by(EditRecord.created_at.desc())
+        .limit(3)
+        .all()
+    )
+
+    # Truncate ai_draft and edited_draft to 100 chars for preview
+    preview_examples = []
+    for record in preview_examples_raw:
+        preview_examples.append({
+            "id": record.id,
+            "ai_draft": record.ai_draft[:100] if record.ai_draft else "",
+            "edited_draft": record.edited_draft[:100] if record.edited_draft else "",
+            "subreddit": record.subreddit,
+            "created_at": record.created_at,
+        })
+
+    return templates.TemplateResponse(
+        request,
+        "partials/avatar_learning_panel.html",
+        {
+            "avatar": avatar,
+            "empty_state": False,
+            "total_records": total_records,
+            "status_breakdown": status_breakdown,
+            "most_recent_edit": most_recent_edit,
+            "correction_patterns": correction_patterns,
+            "preview_examples": preview_examples,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Debug View — Generation Provenance (Self-Learning Loop)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/comments/{comment_id}/debug-view", response_class=HTMLResponse)
+def admin_comment_debug_view(
+    request: Request,
+    comment_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """HTMX partial: shows learning context provenance for a CommentDraft.
+
+    Displays which few-shot examples and correction patterns were used during
+    generation, along with the total token count added by the learning context.
+
+    Requirements: 5.1, 5.2, 5.3
+    """
+    from app.models.comment_draft import CommentDraft
+    from app.models.edit_record import EditRecord
+
+    draft = db.query(CommentDraft).filter(CommentDraft.id == comment_id).first()
+    if not draft:
+        return HTMLResponse("Comment draft not found", status_code=404)
+
+    # Check if learning_metadata is null or empty
+    metadata = draft.learning_metadata
+    if not metadata:
+        return templates.TemplateResponse(
+            request,
+            "partials/comment_debug_view.html",
+            {
+                "draft": draft,
+                "no_learning": True,
+                "examples": [],
+                "correction_patterns": [],
+                "token_count": 0,
+            },
+        )
+
+    # Extract data from learning_metadata
+    edit_record_ids = metadata.get("edit_record_ids", [])
+    correction_patterns = metadata.get("correction_patterns", [])
+    token_count = metadata.get("learning_token_count", 0)
+
+    # Fetch the EditRecords used as few-shot examples
+    examples = []
+    if edit_record_ids:
+        records = (
+            db.query(EditRecord)
+            .filter(EditRecord.id.in_(edit_record_ids))
+            .all()
+        )
+        # Preserve the order from metadata
+        record_map = {str(r.id): r for r in records}
+        examples = [record_map[rid] for rid in edit_record_ids if rid in record_map]
+
+    return templates.TemplateResponse(
+        request,
+        "partials/comment_debug_view.html",
+        {
+            "draft": draft,
+            "no_learning": False,
+            "examples": examples,
+            "correction_patterns": correction_patterns,
+            "token_count": token_count,
+        },
+    )
+
