@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Index, String, Text, Boolean, Integer, DateTime, ForeignKey, func, text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -40,6 +40,10 @@ class CommentDraft(Base):
     reddit_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     deleted_detected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_karma_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Learning loop provenance (self-learning-loop feature)
+    # Structure: {"edit_record_ids": [str, ...], "correction_patterns": [str, ...], "learning_token_count": int}
+    learning_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     # Relationships
     thread = relationship("RedditThread", lazy="joined")

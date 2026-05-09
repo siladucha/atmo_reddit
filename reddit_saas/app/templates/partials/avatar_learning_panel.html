@@ -1,0 +1,157 @@
+{# Avatar Learning Panel — HTMX partial loaded asynchronously on avatar detail page.
+   Load via: hx-get="/admin/avatars/{{ avatar.id }}/learning-panel" hx-trigger="load"
+
+   Context variables:
+   - empty_state (bool)
+   - total_records (int)
+   - status_breakdown (dict: approved, approved_unchanged, rejected)
+   - most_recent_edit (EditRecord or None)
+   - correction_patterns (list of CorrectionPattern)
+   - preview_examples (list of dicts: id, ai_draft, edited_draft, subreddit, created_at)
+
+   Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6
+#}
+
+<div id="learning-panel" class="bg-dark-steel rounded-lg border border-slate-700 p-5 fade-in">
+  {# Panel header #}
+  <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center gap-2">
+      <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5"/>
+      </svg>
+      <h3 class="text-base font-semibold text-white">Learning / Voice Adaptation</h3>
+    </div>
+    <button
+      hx-get="/admin/avatars/{{ avatar.id }}/learning-panel"
+      hx-target="#learning-panel"
+      hx-swap="outerHTML"
+      class="text-gray-400 hover:text-gray-200 transition-colors p-1 rounded hover:bg-slate-700"
+      title="Refresh learning panel"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+      </svg>
+    </button>
+  </div>
+
+  {% if empty_state %}
+  {# ===== Empty State ===== #}
+  <div class="rounded-lg bg-gray-800/50 border border-slate-700 p-6 text-center">
+    <svg class="w-10 h-10 mx-auto text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/>
+    </svg>
+    <p class="text-gray-400 text-sm">No learning data available yet</p>
+    <p class="text-gray-500 text-xs mt-1">Edit records will appear here once operators review AI-generated drafts.</p>
+  </div>
+
+  {% else %}
+  {# ===== Stats Section ===== #}
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+    <div class="bg-gray-800/50 rounded-lg p-3 border border-slate-700">
+      <div class="text-xs text-gray-500 uppercase tracking-wide">Total</div>
+      <div class="text-xl font-semibold text-white mt-0.5">{{ total_records }}</div>
+    </div>
+    <div class="bg-gray-800/50 rounded-lg p-3 border border-slate-700">
+      <div class="text-xs text-gray-500 uppercase tracking-wide">Approved</div>
+      <div class="text-xl font-semibold text-emerald-400 mt-0.5">{{ status_breakdown.approved }}</div>
+      <div class="text-[10px] text-gray-500">{{ status_breakdown.approved }} approved</div>
+    </div>
+    <div class="bg-gray-800/50 rounded-lg p-3 border border-slate-700">
+      <div class="text-xs text-gray-500 uppercase tracking-wide">Unchanged</div>
+      <div class="text-xl font-semibold text-gray-300 mt-0.5">{{ status_breakdown.approved_unchanged }}</div>
+      <div class="text-[10px] text-gray-500">{{ status_breakdown.approved_unchanged }} unchanged</div>
+    </div>
+    <div class="bg-gray-800/50 rounded-lg p-3 border border-slate-700">
+      <div class="text-xs text-gray-500 uppercase tracking-wide">Rejected</div>
+      <div class="text-xl font-semibold text-red-400 mt-0.5">{{ status_breakdown.rejected }}</div>
+      <div class="text-[10px] text-gray-500">{{ status_breakdown.rejected }} rejected</div>
+    </div>
+  </div>
+
+  {# ===== Most Recent Edit ===== #}
+  {% if most_recent_edit %}
+  <div class="bg-gray-800/50 rounded-lg p-3 border border-slate-700 mb-4">
+    <div class="flex items-center gap-2 mb-1">
+      <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      <span class="text-sm font-medium text-gray-300">Last edit:</span>
+      <span class="text-sm text-gray-400">{{ most_recent_edit.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+      {% if most_recent_edit.final_status == 'approved' %}
+      <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/20 text-emerald-400">approved</span>
+      {% elif most_recent_edit.final_status == 'rejected' %}
+      <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-500/20 text-red-400">rejected</span>
+      {% else %}
+      <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-500/20 text-gray-400">unchanged</span>
+      {% endif %}
+    </div>
+    {% if most_recent_edit.edit_summary %}
+    <p class="text-xs text-gray-400 mt-1 pl-6">{{ most_recent_edit.edit_summary[:200] }}</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# ===== Correction Patterns ===== #}
+  {% if correction_patterns %}
+  <div class="mb-4">
+    <div class="flex items-center gap-2 mb-2">
+      <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/>
+      </svg>
+      <span class="text-sm font-medium text-gray-300">Correction Patterns</span>
+      <span class="text-xs text-gray-500">(top {{ correction_patterns|length }})</span>
+    </div>
+    <div class="space-y-1.5 pl-6">
+      {% for pattern in correction_patterns %}
+      <div class="flex items-center justify-between bg-gray-800/30 rounded px-3 py-1.5 border border-slate-700/50">
+        <span class="text-sm text-gray-300">{{ pattern.rule_text }}</span>
+        <span class="text-xs text-gray-500 font-mono ml-2 whitespace-nowrap">×{{ pattern.frequency }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# ===== Preview Examples ===== #}
+  {% if preview_examples %}
+  <div>
+    <div class="flex items-center gap-2 mb-2">
+      <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+      </svg>
+      <span class="text-sm font-medium text-gray-300">Preview Examples</span>
+      <span class="text-xs text-gray-500">(next generation will use these)</span>
+    </div>
+    <div class="space-y-2 pl-6">
+      {% for ex in preview_examples %}
+      <div class="bg-gray-800/30 rounded-lg p-3 border border-slate-700/50">
+        <div class="flex items-center gap-2 mb-1.5">
+          <span class="text-[10px] text-gray-500 font-mono">r/{{ ex.subreddit }}</span>
+          {% if ex.created_at %}
+          <span class="text-[10px] text-gray-600">{{ ex.created_at.strftime('%b %d') }}</span>
+          {% endif %}
+        </div>
+        <div class="space-y-1">
+          <div class="flex gap-2">
+            <span class="text-[10px] uppercase text-red-400 font-medium w-12 flex-shrink-0 pt-0.5">Before</span>
+            <span class="text-xs text-gray-400 leading-relaxed">{{ ex.ai_draft }}{% if ex.ai_draft|length >= 100 %}…{% endif %}</span>
+          </div>
+          <div class="flex gap-2">
+            <span class="text-[10px] uppercase text-emerald-400 font-medium w-12 flex-shrink-0 pt-0.5">After</span>
+            <span class="text-xs text-gray-300 leading-relaxed">{{ ex.edited_draft }}{% if ex.edited_draft|length >= 100 %}…{% endif %}</span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% endif %}
+</div>

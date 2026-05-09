@@ -81,10 +81,14 @@ def update_comment(
 
     transitioned_to_posted = False
     if data.status:
+        old_status = comment.status
         transitioned_to_posted = data.status == "posted" and comment.status != "posted"
         comment.status = data.status
         if data.status == "posted":
             comment.posted_at = datetime.now(timezone.utc)
+        elif old_status == "posted" and data.status != "posted":
+            # Reverting from posted — clear posted_at
+            comment.posted_at = None
     if data.edited_draft is not None:
         comment.edited_draft = data.edited_draft
 
@@ -136,17 +140,46 @@ def update_comment(
             audit_service.log_action(
                 db=db,
                 user_id=current_user.id,
-                action=data.status,
+                action="status_transition",
                 entity_type="comment_draft",
                 entity_id=comment.id,
                 client_id=comment.client_id,
                 details={
+                    "old_status": old_status,
+                    "new_status": data.status,
                     "avatar_username": comment.avatar.reddit_username if comment.avatar else None,
                     "thread_title": comment.thread.post_title if comment.thread else None,
                 },
             )
         except Exception:
             logger.warning("Failed to audit log comment %s", comment_id, exc_info=True)
+
+    # Self-learning loop: capture edit record on approve/reject
+    if data.status in ("approved", "rejected"):
+        try:
+            from app.services.learning import LearningService
+
+            thread = comment.thread
+            if thread:
+                # Determine learning status based on action and edit state
+                if data.status == "rejected":
+                    learning_status = "rejected"
+                elif comment.edited_draft is None or comment.edited_draft == comment.ai_draft:
+                    learning_status = "approved_unchanged"
+                else:
+                    learning_status = "approved"
+
+                learning_service = LearningService()
+                learning_service.capture_edit_record(
+                    db=db, draft=comment, thread=thread, status=learning_status
+                )
+                db.commit()
+        except Exception:
+            logger.warning(
+                "Learning capture failed for comment %s — review unaffected",
+                comment_id,
+                exc_info=True,
+            )
 
     # Piggyback phase evaluation after posting
     if data.status == "posted":

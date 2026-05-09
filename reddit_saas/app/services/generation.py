@@ -221,6 +221,13 @@ def generate_comment(
 ) -> CommentDraft:
     """Generate a comment for a thread using the selected avatar.
 
+    Integrates the self-learning loop: retrieves few-shot examples and correction
+    patterns from past human edits, injects them into the system prompt between
+    voice profile and thread content, and stores provenance metadata on the draft.
+
+    Learning context injection is non-critical — if any learning call fails,
+    generation proceeds normally without degradation.
+
     Returns:
         Created CommentDraft instance.
 
@@ -233,6 +240,65 @@ def generate_comment(
         f"does not belong to client {client.id}"
     )
 
+    # --- Self-Learning Loop: retrieve learning context ---
+    learning_context = ""
+    learning_metadata: dict | None = None
+
+    try:
+        from app.services.learning import LearningService
+
+        learning_service = LearningService()
+
+        # Select few-shot examples from past edits
+        examples = learning_service.select_few_shot_examples(
+            db,
+            avatar_id=avatar.id,
+            client_id=client.id,
+            subreddit=thread.subreddit,
+            engagement_mode=persona_selection.get("mode", "helpful_peer"),
+        )
+
+        # Get correction patterns (returns empty if <5 qualifying records)
+        patterns = learning_service.get_correction_patterns(
+            db, avatar_id=avatar.id, client_id=client.id
+        )
+
+        # Format learning context for prompt injection
+        if examples or patterns:
+            learning_context = learning_service.format_learning_context(
+                examples, patterns
+            )
+
+            # Build provenance metadata
+            edit_record_ids = [str(ex.id) for ex in examples]
+            correction_pattern_texts = [p.rule_text for p in patterns]
+            learning_token_count = len(learning_context) // 4  # rough approximation
+
+            learning_metadata = {
+                "edit_record_ids": edit_record_ids,
+                "correction_patterns": correction_pattern_texts,
+                "learning_token_count": learning_token_count,
+            }
+
+            logger.info(
+                "Learning context prepared for avatar %s: %d examples, %d patterns, ~%d tokens",
+                avatar.reddit_username,
+                len(examples),
+                len(patterns),
+                learning_token_count,
+            )
+
+    except Exception:
+        # Learning is non-critical — generation must never fail due to learning
+        logger.warning(
+            "Failed to retrieve learning context for avatar %s, client %s — proceeding without",
+            avatar.id,
+            client.id,
+        )
+        learning_context = ""
+        learning_metadata = None
+
+    # --- Build prompt ---
     prev_comments_text = "\n---\n".join(previous_comments or [])
     if not prev_comments_text:
         prev_comments_text = "(no previous comments)"
@@ -257,6 +323,22 @@ def generate_comment(
         pov_opportunity=persona_selection.get("pov_opportunity", ""),
         previous_comments=prev_comments_text,
     )
+
+    # Inject learning context between voice profile and thread content
+    if learning_context:
+        # Insert learning context after the Voice Profile section in the system prompt
+        # The COMMENT_WRITER_PROMPT has "## Voice Profile\n{voice_profile}" followed by
+        # "## Company Context" — we inject learning context between them
+        voice_profile_content = avatar.voice_profile_md or ""
+        injection_marker = f"## Voice Profile\n{voice_profile_content}"
+        if injection_marker in system_prompt:
+            system_prompt = system_prompt.replace(
+                injection_marker,
+                f"{injection_marker}\n\n{learning_context}\n",
+            )
+        else:
+            # Fallback: append learning context before thread content in messages
+            system_prompt = system_prompt + "\n\n" + learning_context
 
     messages = [
         {"role": "system", "content": system_prompt},
@@ -290,7 +372,7 @@ def generate_comment(
 
     data = result["data"]
 
-    # Create draft
+    # Create draft with learning provenance metadata
     draft = CommentDraft(
         thread_id=thread.id,
         client_id=client.id,
@@ -304,6 +386,7 @@ def generate_comment(
         strategic_angle=data.get("strategic_angle", ""),
         engagement_mode=persona_selection.get("mode", "helpful_peer"),
         status="pending",
+        learning_metadata=learning_metadata,
     )
 
     try:
@@ -328,6 +411,8 @@ def generate_comment(
                 "avatar_username": avatar.reddit_username,
                 "thread_title": thread.post_title[:100],
                 "engagement_mode": persona_selection.get("mode", ""),
+                "learning_examples_used": len(learning_metadata["edit_record_ids"]) if learning_metadata else 0,
+                "learning_patterns_used": len(learning_metadata["correction_patterns"]) if learning_metadata else 0,
             },
         )
     except Exception:
@@ -336,6 +421,7 @@ def generate_comment(
     logger.info(
         f"Generated comment for thread '{thread.post_title[:40]}' "
         f"by avatar '{avatar.reddit_username}'"
+        f"{' (with learning context)' if learning_metadata else ''}"
     )
 
     return draft
