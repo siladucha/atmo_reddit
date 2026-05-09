@@ -9,7 +9,7 @@ from app.logging_config import setup_logging
 from app.middleware.auth import AuthMiddleware
 from app.middleware.errors import ErrorMiddleware
 from app.middleware.security import SecurityHeadersMiddleware, RateLimitMiddleware
-from app.routes import admin, auth, dashboard, review, pipeline, avatars, clients, pages, dry_run, export
+from app.routes import admin, auth, dashboard, review, pipeline, avatars, avatar_analysis, clients, pages, dry_run, export
 from app.services.metrics_collector import (
     get_metrics_collector,
     install_metrics_logging_handler,
@@ -55,6 +55,7 @@ templates = Jinja2Templates(directory="app/templates")
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(clients.router, prefix="/clients-api", tags=["clients-api"])
 app.include_router(avatars.router, prefix="/avatars-api", tags=["avatars-api"])
+app.include_router(avatar_analysis.router, tags=["avatar-analysis"])
 app.include_router(dashboard.router, prefix="/api/admin", tags=["admin"])
 app.include_router(review.router, prefix="/review-api", tags=["review-api"])
 app.include_router(pipeline.router, prefix="/pipeline", tags=["pipeline"])
