@@ -135,15 +135,32 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
                 .filter(Avatar.active.is_(True))
                 .all()
             )
-            # Filter avatars that serve this client (skip frozen avatars)
+            # Filter avatars that serve this client (skip frozen + shadowbanned + unhealthy)
+            # Shadowban filter saves ~$0.06/thread in wasted LLM calls
             client_avatars = [
                 a for a in avatars
                 if a.client_ids and str(client.id) in a.client_ids
                 and not a.is_frozen
+                and not a.is_shadowbanned
+                and a.health_status not in ("shadowbanned", "suspended")
             ]
 
+            # Log avatars excluded due to health_status
+            for a in avatars:
+                if (a.client_ids and str(client.id) in a.client_ids
+                        and not a.is_frozen
+                        and not a.is_shadowbanned
+                        and a.health_status in ("shadowbanned", "suspended")):
+                    logger.warning(
+                        "generate_comments: avatar %s excluded, health_status=%s",
+                        a.reddit_username, a.health_status,
+                    )
+
             if not client_avatars:
-                logger.warning(f"No active avatars for client {client.client_name}")
+                logger.warning(
+                    "generate_comments: no eligible avatars for client %s (all excluded by health_status or other filters)",
+                    client.client_name,
+                )
                 return 0
 
             # Get engage threads that don't have drafts yet
@@ -331,6 +348,15 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
             return 0
         if avatar.is_frozen:
             logger.info(f"generate_hobby_comments: avatar {avatar.reddit_username} is frozen, skipping")
+            return 0
+        if avatar.is_shadowbanned:
+            logger.info(f"generate_hobby_comments: avatar {avatar.reddit_username} is shadowbanned, skipping")
+            return 0
+        if avatar.health_status in ("shadowbanned", "suspended"):
+            logger.warning(
+                "generate_hobby_comments: avatar %s health_status=%s, skipping",
+                avatar.reddit_username, avatar.health_status,
+            )
             return 0
 
         try:
@@ -531,6 +557,7 @@ def generate_posts(self, client_id: str, max_posts: int = 3, triggered_by: str =
                 if a.client_ids and str(client.id) in a.client_ids
                 and not a.is_frozen
                 and a.warming_phase >= 2  # Phase gate: posts require Phase 2+
+                and a.health_status not in ("shadowbanned", "suspended")
             ]
 
             if not client_avatars:

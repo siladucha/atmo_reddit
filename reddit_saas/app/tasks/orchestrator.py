@@ -53,8 +53,17 @@ def run_hobby_pipeline_all_avatars():
 
     db = SessionLocal()
     try:
-        avatars = db.query(Avatar).filter(Avatar.active.is_(True)).all()
-        logger.info(f"Running hobby pipeline for {len(avatars)} active avatars")
+        avatars = (
+            db.query(Avatar)
+            .filter(
+                Avatar.active.is_(True),
+                Avatar.is_shadowbanned.is_(False),
+                Avatar.is_frozen.is_(False),
+                Avatar.health_status.notin_(("shadowbanned", "suspended")),
+            )
+            .all()
+        )
+        logger.info(f"Running hobby pipeline for {len(avatars)} active non-shadowbanned avatars")
 
         for avatar in avatars:
             aid = str(avatar.id)
@@ -103,5 +112,78 @@ def check_all_avatars_health():
 
     except Exception as e:
         logger.error(f"Health check task failed: {e}")
+    finally:
+        db.close()
+
+
+@celery_app.task(name="check_avatar_shadowban_status")
+def check_avatar_shadowban_status():
+    """Check Reddit account status for all active avatars — shadowban/suspension detection.
+
+    Runs BEFORE the AI pipeline (scheduled 30 min before scoring) so that
+    shadowbanned avatars are flagged and excluded from expensive LLM calls.
+
+    Cost savings: each shadowbanned avatar skipped saves ~$0.06/thread
+    (persona selection $0.02 + generation $0.04) × 15 threads/day = ~$0.90/day per avatar.
+
+    Uses reddit_status.py which:
+    - Calls Reddit API to check account existence/suspension
+    - Updates avatar.is_shadowbanned + avatar.reddit_status
+    - Writes audit log on state change
+    - Syncs subreddit karma via karma_tracker
+    """
+    db = SessionLocal()
+    try:
+        from app.services.reddit_status import check_all_reddit_statuses
+        from datetime import datetime, timezone, timedelta
+
+        # Only check avatars that haven't been checked in the last 6 hours
+        # (avoids redundant API calls if task runs more frequently)
+        stale_threshold = datetime.now(timezone.utc) - timedelta(hours=6)
+
+        avatars = (
+            db.query(Avatar)
+            .filter(
+                Avatar.active.is_(True),
+                Avatar.is_frozen.is_(False),
+            )
+            .filter(
+                (Avatar.reddit_status_checked_at.is_(None))
+                | (Avatar.reddit_status_checked_at < stale_threshold)
+            )
+            .all()
+        )
+
+        if not avatars:
+            logger.info("check_avatar_shadowban_status: all avatars recently checked, skipping")
+            return {"checked": 0, "skipped_fresh": True}
+
+        logger.info(
+            f"check_avatar_shadowban_status: checking {len(avatars)} avatars "
+            f"(stale_threshold={stale_threshold.isoformat()})"
+        )
+
+        results = check_all_reddit_statuses(db, avatars, delay_seconds=2.0)
+
+        # Summary
+        suspended = [r for r in results if r["status"] == "suspended"]
+        if suspended:
+            logger.warning(
+                "SHADOWBAN_DETECTED | count=%d | usernames=%s",
+                len(suspended),
+                [r["username"] for r in suspended],
+            )
+
+        return {
+            "checked": len(results),
+            "active": sum(1 for r in results if r["status"] == "active"),
+            "suspended": len(suspended),
+            "not_found": sum(1 for r in results if r["status"] == "not_found"),
+            "errors": sum(1 for r in results if r["status"] == "error"),
+        }
+
+    except Exception as e:
+        logger.error(f"check_avatar_shadowban_status failed: {e}")
+        return {"error": str(e)}
     finally:
         db.close()

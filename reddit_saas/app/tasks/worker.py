@@ -16,6 +16,9 @@ celery_app = Celery(
         "app.tasks.ai_pipeline",
         "app.tasks.heartbeat",
         "app.tasks.karma_tracking",
+        "app.tasks.health_check",
+        "app.tasks.presence",
+        "app.tasks.profile_analytics",
     ],
 )
 
@@ -46,9 +49,9 @@ celery_app.conf.update(
             "task": "run_hobby_pipeline_all_avatars",
             "schedule": crontab(hour=10, minute=0),
         },
-        "avatar-health-check": {
-            "task": "check_all_avatars_health",
-            "schedule": crontab(hour="*/12", minute=30),
+        "avatar-visibility-health-check": {
+            "task": "health_check_all_avatars",
+            "schedule": crontab(hour="7,13", minute=30),  # 30 min before AI pipelines
         },
         "scrape-queue-tick": {
             "task": "queue_tick",
@@ -62,6 +65,10 @@ celery_app.conf.update(
             "task": "track_karma_all_avatars",
             "schedule": crontab(hour="*/4", minute=15),
         },
+        "profile-analytics-snapshots-daily": {
+            "task": "snapshot_profile_analytics_all_avatars",
+            "schedule": crontab(hour=5, minute=20),
+        },
     },
     # Broker connection resilience
     broker_connection_retry_on_startup=True,
@@ -71,4 +78,3 @@ celery_app.conf.update(
     # Worker resilience
     worker_cancel_long_running_tasks_on_connection_loss=True,
 )
-
