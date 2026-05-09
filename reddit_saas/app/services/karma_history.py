@@ -12,6 +12,7 @@ from sqlalchemy import func, case
 from sqlalchemy.orm import Session
 
 from app.models.comment_draft import CommentDraft
+from app.models.avatar_profile_snapshot import AvatarProfileSnapshot
 from app.models.post_draft import PostDraft
 from app.models.thread import RedditThread
 
@@ -24,6 +25,10 @@ class DayKarma:
     post_karma: int
     comments_posted: int
     posts_posted: int
+    reddit_comment_karma: int | None = None
+    reddit_post_karma: int | None = None
+    reddit_total_karma: int | None = None
+    snapshot_at: datetime | None = None
 
     @property
     def total(self) -> int:
@@ -53,6 +58,10 @@ class KarmaHistory:
     avg_daily_karma: float
     trend: str  # "up", "down", "flat"
     reddit_total_karma: int  # current total from avatar model
+    snapshot_count: int = 0
+    latest_snapshot_at: datetime | None = None
+    latest_snapshot_total_karma: int | None = None
+    snapshot_delta_karma: int | None = None
 
 
 def get_karma_history(
@@ -107,6 +116,27 @@ def get_karma_history(
     )
     post_by_day = {str(row.day): {"karma": int(row.karma), "count": int(row.count)} for row in post_rows}
 
+    # --- Reddit profile snapshots by day ---
+    #
+    # These are account-level karma snapshots fetched from Reddit. They are
+    # separate from internal "posted" records, so they keep the Performance tab
+    # useful even before the system has posted comments/posts for the avatar.
+    snapshot_rows = (
+        db.query(AvatarProfileSnapshot)
+        .filter(
+            AvatarProfileSnapshot.avatar_id == avatar_id,
+            AvatarProfileSnapshot.fetched_at >= cutoff,
+            AvatarProfileSnapshot.error.is_(None),
+        )
+        .order_by(AvatarProfileSnapshot.fetched_at.asc())
+        .all()
+    )
+    snapshot_by_day: dict[str, AvatarProfileSnapshot] = {}
+    for snapshot in snapshot_rows:
+        if not snapshot.fetched_at:
+            continue
+        snapshot_by_day[str(snapshot.fetched_at.date())] = snapshot
+
     # --- Build daily timeline ---
     today = datetime.now(timezone.utc).date()
     day_list: list[DayKarma] = []
@@ -115,12 +145,17 @@ def get_karma_history(
         ds = str(d)
         c = comment_by_day.get(ds, {"karma": 0, "count": 0})
         p = post_by_day.get(ds, {"karma": 0, "count": 0})
+        snapshot = snapshot_by_day.get(ds)
         day_list.append(DayKarma(
             date=ds,
             comment_karma=c["karma"],
             post_karma=p["karma"],
             comments_posted=c["count"],
             posts_posted=p["count"],
+            reddit_comment_karma=snapshot.comment_karma if snapshot else None,
+            reddit_post_karma=snapshot.post_karma if snapshot else None,
+            reddit_total_karma=snapshot.total_karma if snapshot else None,
+            snapshot_at=snapshot.fetched_at if snapshot else None,
         ))
 
     # --- By subreddit ---
@@ -175,6 +210,11 @@ def get_karma_history(
         trend = "flat"
 
     reddit_total = (avatar.reddit_karma_comment or 0) + (avatar.reddit_karma_post or 0)
+    latest_snapshot = snapshot_rows[-1] if snapshot_rows else None
+    first_snapshot = snapshot_rows[0] if snapshot_rows else None
+    snapshot_delta = None
+    if latest_snapshot and first_snapshot and len(snapshot_rows) > 1:
+        snapshot_delta = int(latest_snapshot.total_karma or 0) - int(first_snapshot.total_karma or 0)
 
     return KarmaHistory(
         avatar_id=str(avatar_id),
@@ -186,4 +226,8 @@ def get_karma_history(
         avg_daily_karma=round(avg_daily, 1),
         trend=trend,
         reddit_total_karma=reddit_total,
+        snapshot_count=len(snapshot_rows),
+        latest_snapshot_at=latest_snapshot.fetched_at if latest_snapshot else None,
+        latest_snapshot_total_karma=latest_snapshot.total_karma if latest_snapshot else None,
+        snapshot_delta_karma=snapshot_delta,
     )

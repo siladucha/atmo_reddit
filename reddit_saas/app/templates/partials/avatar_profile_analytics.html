@@ -1,0 +1,261 @@
+<!-- Profile Analytics Panel — loaded via HTMX -->
+{% if analytics.error %}
+<div class="bg-red-900/30 border border-red-700 rounded-lg p-4">
+    <p class="text-red-300 text-sm font-medium">Failed to fetch profile analytics</p>
+    <p class="text-red-400 text-xs mt-1">{{ analytics.error }}</p>
+</div>
+{% else %}
+
+<!-- Fetch metadata -->
+<div class="flex items-center justify-between mb-4">
+    <span class="text-xs text-gray-500">
+        Fetched {{ analytics.fetched_at.strftime('%Y-%m-%d %H:%M UTC') }} in {{ analytics.fetch_duration_ms }}ms
+    </span>
+    <a href="https://www.reddit.com/user/{{ analytics.username }}" target="_blank"
+       class="text-xs text-blue-400 hover:text-blue-300">
+        Open u/{{ analytics.username }} on Reddit ↗
+    </a>
+</div>
+
+<!-- Account Overview -->
+<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
+    <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 text-center">
+        <div class="text-xl font-bold text-white">{{ analytics.total_karma }}</div>
+        <div class="text-[10px] text-gray-500 mt-1">Total Karma</div>
+    </div>
+    <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 text-center">
+        <div class="text-xl font-bold text-blue-400">{{ analytics.comment_karma }}</div>
+        <div class="text-[10px] text-gray-500 mt-1">Comment Karma</div>
+    </div>
+    <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 text-center">
+        <div class="text-xl font-bold text-purple-400">{{ analytics.post_karma }}</div>
+        <div class="text-[10px] text-gray-500 mt-1">Post Karma</div>
+    </div>
+    <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 text-center">
+        <div class="text-xl font-bold text-gray-300">{{ analytics.account_age_days }}</div>
+        <div class="text-[10px] text-gray-500 mt-1">Account Age (days)</div>
+    </div>
+    <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 text-center">
+        <div class="text-xl font-bold text-green-400">{{ analytics.activity.total_comments }}</div>
+        <div class="text-[10px] text-gray-500 mt-1">Comments (fetched)</div>
+    </div>
+    <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 text-center">
+        <div class="text-xl font-bold text-amber-400">{{ analytics.activity.total_posts }}</div>
+        <div class="text-[10px] text-gray-500 mt-1">Posts (fetched)</div>
+    </div>
+</div>
+
+<!-- Account Flags -->
+<div class="flex flex-wrap gap-2 mb-6">
+    {% if analytics.has_verified_email %}
+    <span class="px-2 py-1 rounded text-xs font-medium bg-green-900/50 text-green-400 border border-green-700">✓ Verified Email</span>
+    {% else %}
+    <span class="px-2 py-1 rounded text-xs font-medium bg-slate-700 text-gray-400 border border-slate-600">✗ No Verified Email</span>
+    {% endif %}
+    {% if analytics.is_gold %}
+    <span class="px-2 py-1 rounded text-xs font-medium bg-amber-900/50 text-amber-400 border border-amber-700">⭐ Gold</span>
+    {% endif %}
+    {% if analytics.is_mod %}
+    <span class="px-2 py-1 rounded text-xs font-medium bg-indigo-900/50 text-indigo-400 border border-indigo-700">🛡 Moderator</span>
+    {% endif %}
+</div>
+
+<!-- Activity Patterns -->
+<div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 mb-6">
+    <h3 class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3">Activity Patterns</h3>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div>
+            <span class="text-[10px] text-gray-500 uppercase">Avg Comments/Week</span>
+            <div class="text-sm font-semibold text-white mt-0.5">{{ analytics.activity.avg_comments_per_week }}</div>
+        </div>
+        <div>
+            <span class="text-[10px] text-gray-500 uppercase">Avg Posts/Week</span>
+            <div class="text-sm font-semibold text-white mt-0.5">{{ analytics.activity.avg_posts_per_week }}</div>
+        </div>
+        <div>
+            <span class="text-[10px] text-gray-500 uppercase">Most Active Hour (UTC)</span>
+            <div class="text-sm font-semibold text-white mt-0.5">
+                {% if analytics.activity.most_active_hour_utc is not none %}
+                {{ "%02d:00"|format(analytics.activity.most_active_hour_utc) }}
+                {% else %}—{% endif %}
+            </div>
+        </div>
+        <div>
+            <span class="text-[10px] text-gray-500 uppercase">Most Active Day</span>
+            <div class="text-sm font-semibold text-white mt-0.5">{{ analytics.activity.most_active_day or '—' }}</div>
+        </div>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3 pt-3 border-t border-slate-700/50">
+        <div>
+            <span class="text-[10px] text-gray-500 uppercase">Last Comment</span>
+            <div class="text-sm text-white mt-0.5">
+                {% if analytics.activity.days_since_last_comment is not none %}
+                {{ analytics.activity.days_since_last_comment }} days ago
+                {% else %}—{% endif %}
+            </div>
+        </div>
+        <div>
+            <span class="text-[10px] text-gray-500 uppercase">Last Post</span>
+            <div class="text-sm text-white mt-0.5">
+                {% if analytics.activity.days_since_last_post is not none %}
+                {{ analytics.activity.days_since_last_post }} days ago
+                {% else %}—{% endif %}
+            </div>
+        </div>
+        <div>
+            <span class="text-[10px] text-gray-500 uppercase">Avg Comment Score</span>
+            <div class="text-sm font-semibold {% if analytics.style.avg_comment_score > 1 %}text-green-400{% elif analytics.style.avg_comment_score < 0 %}text-red-400{% else %}text-gray-300{% endif %} mt-0.5">
+                {{ analytics.style.avg_comment_score }}
+            </div>
+        </div>
+        <div>
+            <span class="text-[10px] text-gray-500 uppercase">Avg Post Score</span>
+            <div class="text-sm font-semibold {% if analytics.style.avg_post_score > 1 %}text-green-400{% elif analytics.style.avg_post_score < 0 %}text-red-400{% else %}text-gray-300{% endif %} mt-0.5">
+                {{ analytics.style.avg_post_score }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Content Style -->
+<div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 mb-6">
+    <h3 class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3">Content Style</h3>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div>
+            <span class="text-[10px] text-gray-500 uppercase">Avg Comment Length</span>
+            <div class="text-sm font-semibold text-white mt-0.5">{{ analytics.style.avg_comment_length }} chars</div>
+        </div>
+        <div>
+            <span class="text-[10px] text-gray-500 uppercase">Avg Post Length</span>
+            <div class="text-sm font-semibold text-white mt-0.5">{{ analytics.style.avg_post_length }} chars</div>
+        </div>
+        <div>
+            <span class="text-[10px] text-gray-500 uppercase">Top Comment Score</span>
+            <div class="text-sm font-semibold text-green-400 mt-0.5">+{{ analytics.style.top_comment_score }}</div>
+        </div>
+        <div>
+            <span class="text-[10px] text-gray-500 uppercase">Top Post Score</span>
+            <div class="text-sm font-semibold text-green-400 mt-0.5">+{{ analytics.style.top_post_score }}</div>
+        </div>
+    </div>
+    <div class="flex gap-3 mt-3 pt-3 border-t border-slate-700/50">
+        {% if analytics.style.uses_emoji %}
+        <span class="px-2 py-0.5 rounded text-xs bg-amber-900/40 text-amber-300 border border-amber-700/50">Uses Emoji</span>
+        {% endif %}
+        {% if analytics.style.uses_links %}
+        <span class="px-2 py-0.5 rounded text-xs bg-blue-900/40 text-blue-300 border border-blue-700/50">Uses Links</span>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Subreddit Presence -->
+{% if analytics.subreddits %}
+<div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 mb-6">
+    <h3 class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3">
+        Subreddit Presence ({{ analytics.subreddits|length }} subreddits)
+    </h3>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-500 border-b border-slate-700">
+                    <th class="pb-2 text-[10px] uppercase tracking-wider font-medium">Subreddit</th>
+                    <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">Comments</th>
+                    <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">C. Karma</th>
+                    <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">Posts</th>
+                    <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">P. Karma</th>
+                    <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">Total</th>
+                    <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-right">Last Active</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-700/50">
+                {% for sub in analytics.subreddits %}
+                <tr class="hover:bg-slate-700/20">
+                    <td class="py-2">
+                        <a href="https://www.reddit.com/r/{{ sub.name }}" target="_blank"
+                           class="text-gray-200 hover:text-indigo-400 transition-colors">
+                            r/{{ sub.name }}
+                        </a>
+                    </td>
+                    <td class="py-2 text-center font-mono text-xs text-gray-400">{{ sub.comment_count }}</td>
+                    <td class="py-2 text-center font-mono text-xs {% if sub.comment_karma > 0 %}text-green-400{% elif sub.comment_karma < 0 %}text-red-400{% else %}text-gray-500{% endif %}">
+                        {% if sub.comment_karma > 0 %}+{% endif %}{{ sub.comment_karma }}
+                    </td>
+                    <td class="py-2 text-center font-mono text-xs text-gray-400">{{ sub.post_count }}</td>
+                    <td class="py-2 text-center font-mono text-xs {% if sub.post_karma > 0 %}text-green-400{% elif sub.post_karma < 0 %}text-red-400{% else %}text-gray-500{% endif %}">
+                        {% if sub.post_karma > 0 %}+{% endif %}{{ sub.post_karma }}
+                    </td>
+                    <td class="py-2 text-center font-mono text-xs font-semibold {% if sub.total_karma > 0 %}text-green-400{% elif sub.total_karma < 0 %}text-red-400{% else %}text-gray-500{% endif %}">
+                        {% if sub.total_karma > 0 %}+{% endif %}{{ sub.total_karma }}
+                    </td>
+                    <td class="py-2 text-right text-xs text-gray-500">
+                        {{ sub.last_activity.strftime('%Y-%m-%d') if sub.last_activity else '—' }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Recent Comments -->
+{% if analytics.recent_comments %}
+<div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 mb-6">
+    <h3 class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3">
+        Recent Comments ({{ analytics.recent_comments|length }})
+    </h3>
+    <div class="space-y-3 max-h-[500px] overflow-y-auto">
+        {% for comment in analytics.recent_comments %}
+        <div class="bg-slate-900/50 rounded-lg p-3 border border-slate-700/30">
+            <div class="flex items-center justify-between mb-1.5">
+                <div class="flex items-center gap-2">
+                    <span class="text-xs px-1.5 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">r/{{ comment.subreddit }}</span>
+                    <span class="text-xs font-mono {% if comment.score > 0 %}text-green-400{% elif comment.score < 0 %}text-red-400{% else %}text-gray-500{% endif %}">
+                        {% if comment.score > 0 %}+{% endif %}{{ comment.score }}
+                    </span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-500">{{ comment.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                    <a href="{{ comment.permalink }}" target="_blank" class="text-xs text-blue-400 hover:text-blue-300">↗</a>
+                </div>
+            </div>
+            <p class="text-sm text-gray-300 leading-relaxed">{{ comment.body }}</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Recent Posts -->
+{% if analytics.recent_posts %}
+<div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+    <h3 class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3">
+        Recent Posts ({{ analytics.recent_posts|length }})
+    </h3>
+    <div class="space-y-3 max-h-[400px] overflow-y-auto">
+        {% for post in analytics.recent_posts %}
+        <div class="bg-slate-900/50 rounded-lg p-3 border border-slate-700/30">
+            <div class="flex items-center justify-between mb-1.5">
+                <div class="flex items-center gap-2">
+                    <span class="text-xs px-1.5 py-0.5 rounded bg-purple-900/50 text-purple-300 border border-purple-700/50">r/{{ post.subreddit }}</span>
+                    <span class="text-xs font-mono {% if post.score > 0 %}text-green-400{% elif post.score < 0 %}text-red-400{% else %}text-gray-500{% endif %}">
+                        ↑{{ post.score }}
+                    </span>
+                    <span class="text-xs text-gray-500">💬 {{ post.num_comments }}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-500">{{ post.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                    <a href="{{ post.permalink }}" target="_blank" class="text-xs text-blue-400 hover:text-blue-300">↗</a>
+                </div>
+            </div>
+            <p class="text-sm text-white font-medium">{{ post.title }}</p>
+            {% if post.selftext_preview %}
+            <p class="text-xs text-gray-400 mt-1 line-clamp-2">{{ post.selftext_preview }}</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% endif %}
