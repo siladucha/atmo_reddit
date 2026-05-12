@@ -1,0 +1,427 @@
+{# Strategy panel — loaded via HTMX into avatar detail page.
+   Shows current strategy document, generation button, approval controls,
+   edit form, and version history with A/B activation.
+   
+   Context:
+   - avatar: Avatar instance
+   - current_strategy: StrategyDocument | None
+   - strategy_history: list[StrategyDocument]
+#}
+<div class="space-y-4">
+
+    <!-- Header with Generate button -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Strategy Document</h2>
+            {% if current_strategy %}
+            <p class="text-xs text-gray-500 mt-0.5">
+                v{{ current_strategy.version }} · Generated {{ current_strategy.generated_at.strftime('%b %d, %H:%M') }}
+                {% if current_strategy.cost_usd %}· ${{ "%.4f"|format(current_strategy.cost_usd) }}{% endif %}
+                {% if current_strategy.edited_at %}
+                · <span class="text-amber-400">edited {{ current_strategy.edited_at.strftime('%b %d, %H:%M') }}</span>
+                {% endif %}
+            </p>
+            {% else %}
+            <p class="text-xs text-gray-500 mt-0.5">No strategy generated yet</p>
+            {% endif %}
+        </div>
+        <button hx-post="/admin/avatars/{{ avatar.id }}/strategy/generate"
+                hx-target="#strategy-panel-content"
+                hx-swap="innerHTML"
+                hx-indicator="#strategy-spinner"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+            {% if current_strategy %}Regenerate{% else %}Generate Strategy{% endif %}
+        </button>
+    </div>
+
+    <div id="strategy-spinner" class="htmx-indicator text-center py-4">
+        <div class="inline-flex items-center gap-2 text-gray-400 text-sm">
+            <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            Generating strategy (10-20s)...
+        </div>
+    </div>
+
+    {% if current_strategy %}
+
+    <!-- Approval Status Banner -->
+    <div class="flex items-center justify-between px-4 py-2.5 rounded-lg border {% if current_strategy.is_approved %}bg-green-900/20 border-green-700/50{% else %}bg-amber-900/20 border-amber-700/50{% endif %}">
+        <div class="flex items-center gap-2">
+            {% if current_strategy.is_approved %}
+            <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span class="text-xs text-green-300 font-medium">Approved for pipeline</span>
+            {% if current_strategy.approved_at %}
+            <span class="text-[10px] text-green-500/70">{{ current_strategy.approved_at.strftime('%b %d, %H:%M') }}</span>
+            {% endif %}
+            {% else %}
+            <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+            </svg>
+            <span class="text-xs text-amber-300 font-medium">Not approved — not used in pipeline</span>
+            {% endif %}
+        </div>
+        <div>
+            {% if current_strategy.is_approved %}
+            <button hx-post="/admin/avatars/{{ avatar.id }}/strategy/{{ current_strategy.id }}/unapprove"
+                    hx-target="#strategy-panel-content"
+                    hx-swap="innerHTML"
+                    hx-confirm="Revoke approval? Strategy will no longer be used in pipeline."
+                    class="px-2.5 py-1 text-[10px] font-medium rounded bg-red-900/50 hover:bg-red-800/50 text-red-300 border border-red-700/50 transition-colors">
+                Revoke
+            </button>
+            {% else %}
+            <button hx-post="/admin/avatars/{{ avatar.id }}/strategy/{{ current_strategy.id }}/approve"
+                    hx-target="#strategy-panel-content"
+                    hx-swap="innerHTML"
+                    class="px-2.5 py-1 text-[10px] font-medium rounded bg-green-700/50 hover:bg-green-600/50 text-green-200 border border-green-600/50 transition-colors">
+                ✓ Approve for Pipeline
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Current Strategy Content -->
+    <div class="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+        
+        <!-- Questions for Client — prominent card -->
+        {% if strategy_questions %}
+        <div class="mx-0 border-b border-amber-600/30 bg-gradient-to-r from-amber-950/40 via-amber-900/20 to-slate-800">
+            <div class="px-4 py-3">
+                <div class="flex items-center gap-2 mb-2.5">
+                    <span class="flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/40">
+                        <svg class="w-3 h-3 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </span>
+                    <h3 class="text-xs font-semibold text-amber-300 uppercase tracking-wider">Questions for Client</h3>
+                    <span class="ml-auto px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        {{ strategy_questions|length }} unanswered
+                    </span>
+                </div>
+                <div class="space-y-2 pl-7">
+                    {% for question in strategy_questions %}
+                    <div class="flex items-start gap-2.5 group">
+                        <span class="flex-shrink-0 w-5 h-5 rounded-md bg-slate-700/80 border border-slate-600 flex items-center justify-center text-[10px] font-bold text-gray-400 group-hover:border-amber-500/50 group-hover:text-amber-300 transition-colors">
+                            {{ loop.index }}
+                        </span>
+                        <p class="text-sm text-gray-300 leading-relaxed pt-0.5">{{ question }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="mt-3 pl-7">
+                    <p class="text-[10px] text-gray-500 italic">Discuss with client to refine next strategy iteration</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Goals -->
+        {% if current_strategy.goals %}
+        <div class="px-4 py-3 border-b border-slate-700">
+            <h3 class="text-xs font-medium text-indigo-400 uppercase tracking-wider mb-2">Goals (30 days)</h3>
+            <div class="space-y-1.5">
+                {% for goal in current_strategy.goals %}
+                <div class="flex items-start gap-2">
+                    <span class="text-green-400 text-xs mt-0.5">●</span>
+                    <div class="text-sm text-gray-300">
+                        {{ goal.objective if goal is mapping else goal }}
+                        {% if goal is mapping and goal.target %}
+                        <span class="text-xs text-gray-500 ml-1">→ {{ goal.target }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Subreddit Priorities -->
+        {% if current_strategy.subreddit_priorities %}
+        <div class="px-4 py-3 border-b border-slate-700">
+            <h3 class="text-xs font-medium text-indigo-400 uppercase tracking-wider mb-2">Subreddit Priorities</h3>
+            <div class="space-y-1">
+                {% for sub in current_strategy.subreddit_priorities %}
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-300">
+                        {% if sub is mapping %}
+                        r/{{ sub.subreddit | replace("r/", "") }}
+                        {% else %}
+                        {{ sub | replace("r/r/", "r/") }}
+                        {% endif %}
+                    </span>
+                    <div class="flex items-center gap-2">
+                        {% if sub is mapping and sub.frequency %}
+                        <span class="text-xs text-gray-500">{{ sub.frequency }}</span>
+                        {% endif %}
+                        {% if sub is mapping and sub.frequency_per_week %}
+                        <span class="text-xs text-gray-500">{{ sub.frequency_per_week }}/wk</span>
+                        {% endif %}
+                        {% if sub is mapping and sub.type %}
+                        <span class="px-1.5 py-0.5 rounded text-[10px] {% if sub.type == 'professional' %}bg-amber-900/50 text-amber-300{% else %}bg-blue-900/50 text-blue-300{% endif %}">
+                            {{ sub.type }}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Tone Guidelines -->
+        {% if current_strategy.tone_guidelines %}
+        <div class="px-4 py-3 border-b border-slate-700">
+            <h3 class="text-xs font-medium text-indigo-400 uppercase tracking-wider mb-2">Tone</h3>
+            <div class="flex flex-wrap gap-2">
+                {% if current_strategy.tone_guidelines is mapping %}
+                {% if current_strategy.tone_guidelines.formality %}
+                <span class="px-2 py-0.5 rounded text-xs bg-slate-700 text-gray-300">{{ current_strategy.tone_guidelines.formality }}</span>
+                {% endif %}
+                {% if current_strategy.tone_guidelines.humor %}
+                <span class="px-2 py-0.5 rounded text-xs bg-slate-700 text-gray-300">humor: {{ current_strategy.tone_guidelines.humor }}</span>
+                {% endif %}
+                {% if current_strategy.tone_guidelines.expertise_level or current_strategy.tone_guidelines.expertise %}
+                <span class="px-2 py-0.5 rounded text-xs bg-slate-700 text-gray-300">{{ current_strategy.tone_guidelines.expertise_level or current_strategy.tone_guidelines.expertise }}</span>
+                {% endif %}
+                {% endif %}
+            </div>
+            {% if current_strategy.tone_guidelines is mapping and current_strategy.tone_guidelines.avoid %}
+            <div class="mt-2 text-xs text-gray-500">
+                Avoid: {{ current_strategy.tone_guidelines.avoid | join(', ') }}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Hook Inventory -->
+        {% if current_strategy.hook_inventory %}
+        <div class="px-4 py-3 border-b border-slate-700">
+            <h3 class="text-xs font-medium text-indigo-400 uppercase tracking-wider mb-2">Hook (Hill I Die On)</h3>
+            {% if current_strategy.hook_inventory is mapping %}
+            <div class="text-sm text-gray-300 italic">"{{ current_strategy.hook_inventory.primary or current_strategy.hook_inventory.primary_hook or avatar.hill_i_die_on or '(not set)' }}"</div>
+            {% if current_strategy.hook_inventory.target_usage_percent or current_strategy.hook_inventory.usage_target_percent %}
+            <div class="text-xs text-gray-500 mt-1">Target usage: {{ current_strategy.hook_inventory.target_usage_percent or current_strategy.hook_inventory.usage_target_percent }}% of comments</div>
+            {% endif %}
+            {% if current_strategy.hook_inventory.angles or current_strategy.hook_inventory.natural_angles %}
+            <div class="mt-2 text-xs text-gray-400">
+                Angles: {{ (current_strategy.hook_inventory.angles or current_strategy.hook_inventory.natural_angles) | join(' · ') }}
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Cadence Rules -->
+        {% if current_strategy.cadence_rules %}
+        <div class="px-4 py-3 border-b border-slate-700">
+            <h3 class="text-xs font-medium text-indigo-400 uppercase tracking-wider mb-2">Cadence</h3>
+            {% if current_strategy.cadence_rules is sequence and current_strategy.cadence_rules is not mapping %}
+            <!-- Weekly cadence table -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs">
+                    <thead>
+                        <tr class="text-gray-500">
+                            <th class="text-left py-1">Week</th>
+                            <th class="text-left py-1">Comments/day</th>
+                            <th class="text-left py-1">Professional</th>
+                            <th class="text-left py-1">Hobby</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-gray-300">
+                        {% for w in current_strategy.cadence_rules %}
+                        {% if w is mapping %}
+                        <tr>
+                            <td class="py-0.5">{{ w.week }}</td>
+                            <td class="py-0.5">{{ w.comments_per_day }}</td>
+                            <td class="py-0.5">{{ w.professional_percent }}%</td>
+                            <td class="py-0.5">{{ w.hobby_percent }}%</td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% elif current_strategy.cadence_rules is mapping %}
+            <div class="grid grid-cols-2 gap-2 text-xs">
+                {% if current_strategy.cadence_rules.comments_per_day %}
+                <div><span class="text-gray-500">Per day:</span> <span class="text-gray-300">{{ current_strategy.cadence_rules.comments_per_day }}</span></div>
+                {% endif %}
+                {% if current_strategy.cadence_rules.professional_ratio %}
+                <div><span class="text-gray-500">Pro ratio:</span> <span class="text-gray-300">{{ (current_strategy.cadence_rules.professional_ratio * 100)|int }}%</span></div>
+                {% endif %}
+                {% if current_strategy.cadence_rules.rest_days %}
+                <div><span class="text-gray-500">Rest:</span> <span class="text-gray-300">{{ current_strategy.cadence_rules.rest_days }}</span></div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Full Markdown (collapsible) -->
+        {% if current_strategy.document_md %}
+        <details class="px-4 py-3 border-b border-slate-700">
+            <summary class="text-xs text-gray-500 hover:text-gray-300 cursor-pointer select-none">
+                View full strategy document ▾
+            </summary>
+            <div class="mt-2 text-sm text-gray-300 whitespace-pre-wrap leading-relaxed bg-slate-900/50 rounded p-3 border border-slate-700/50">{{ current_strategy.document_md }}</div>
+        </details>
+        {% endif %}
+
+        <!-- Edit Strategy (collapsible form) -->
+        <details class="px-4 py-3 border-b border-slate-700" id="strategy-edit-section">
+            <summary class="text-xs text-amber-400 hover:text-amber-300 cursor-pointer select-none flex items-center gap-1.5">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+                Edit strategy ▾
+            </summary>
+            <form class="mt-3 space-y-3"
+                  hx-post="/admin/avatars/{{ avatar.id }}/strategy/{{ current_strategy.id }}/edit"
+                  hx-target="#strategy-panel-content"
+                  hx-swap="innerHTML">
+                
+                <div>
+                    <label class="block text-[10px] text-gray-500 uppercase mb-1">Strategy Document (Markdown)</label>
+                    <textarea name="document_md" rows="12"
+                              class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-xs text-gray-300 font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 resize-y">{{ current_strategy.document_md }}</textarea>
+                </div>
+
+                <details class="text-xs">
+                    <summary class="text-gray-500 hover:text-gray-300 cursor-pointer select-none">
+                        Edit structured JSON fields (advanced) ▾
+                    </summary>
+                    <div class="mt-2 space-y-2">
+                        <div>
+                            <label class="block text-[10px] text-gray-500 uppercase mb-0.5">Goals (JSON array)</label>
+                            <textarea name="goals_json" rows="3"
+                                      class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-[11px] text-gray-300 font-mono focus:border-indigo-500 resize-y"
+                                      placeholder="Leave empty to keep current">{{ current_strategy.goals | tojson(indent=2) }}</textarea>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-gray-500 uppercase mb-0.5">Subreddit Priorities (JSON array)</label>
+                            <textarea name="subreddit_priorities_json" rows="3"
+                                      class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-[11px] text-gray-300 font-mono focus:border-indigo-500 resize-y"
+                                      placeholder="Leave empty to keep current">{{ current_strategy.subreddit_priorities | tojson(indent=2) }}</textarea>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-gray-500 uppercase mb-0.5">Tone Guidelines (JSON object)</label>
+                            <textarea name="tone_guidelines_json" rows="2"
+                                      class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-[11px] text-gray-300 font-mono focus:border-indigo-500 resize-y"
+                                      placeholder="Leave empty to keep current">{{ current_strategy.tone_guidelines | tojson(indent=2) }}</textarea>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-gray-500 uppercase mb-0.5">Cadence Rules (JSON)</label>
+                            <textarea name="cadence_rules_json" rows="2"
+                                      class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-[11px] text-gray-300 font-mono focus:border-indigo-500 resize-y"
+                                      placeholder="Leave empty to keep current">{{ current_strategy.cadence_rules | tojson(indent=2) }}</textarea>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-gray-500 uppercase mb-0.5">Hook Inventory (JSON object)</label>
+                            <textarea name="hook_inventory_json" rows="2"
+                                      class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-[11px] text-gray-300 font-mono focus:border-indigo-500 resize-y"
+                                      placeholder="Leave empty to keep current">{{ current_strategy.hook_inventory | tojson(indent=2) }}</textarea>
+                        </div>
+                    </div>
+                </details>
+
+                <div>
+                    <label class="block text-[10px] text-gray-500 uppercase mb-1">Edit Note (optional)</label>
+                    <input type="text" name="edit_note" placeholder="What did you change?"
+                           class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-xs text-gray-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button type="submit"
+                            class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium rounded transition-colors">
+                        Save Changes
+                    </button>
+                    <span class="text-[10px] text-gray-600">Changes are saved to this version. Approval status is preserved.</span>
+                </div>
+            </form>
+        </details>
+
+        <!-- Metadata footer -->
+        <div class="px-4 py-2 bg-slate-900/50 border-t border-slate-700 flex items-center justify-between text-[10px] text-gray-600">
+            <span>Model: {{ current_strategy.model_used or 'unknown' }}</span>
+            <span>{{ current_strategy.input_tokens or 0 }} in / {{ current_strategy.output_tokens or 0 }} out tokens</span>
+            <span>{{ current_strategy.generation_duration_ms or 0 }}ms</span>
+        </div>
+    </div>
+
+    {% else %}
+    <!-- Empty state -->
+    <div class="bg-slate-800 rounded-lg border border-slate-700 p-8 text-center">
+        <div class="text-gray-500 text-sm">No strategy document generated yet.</div>
+        <div class="text-gray-600 text-xs mt-1">Click "Generate Strategy" to create one using AI analysis.</div>
+    </div>
+    {% endif %}
+
+    <!-- Version History with A/B Activation -->
+    {% if strategy_history and strategy_history|length > 0 %}
+    <div class="bg-slate-800 rounded-lg border border-slate-700 p-4">
+        <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
+            Version History
+            <span class="text-[10px] text-gray-600 normal-case font-normal ml-2">{{ strategy_history|length }} versions</span>
+        </h3>
+        <div class="space-y-1">
+            {% for doc in strategy_history %}
+            <div class="rounded {% if doc.is_current %}bg-indigo-900/20 border border-indigo-700/30{% else %}border border-transparent hover:border-slate-700/50{% endif %}">
+                <!-- Version row -->
+                <div class="flex items-center justify-between py-1.5 px-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-mono {% if doc.is_current %}text-indigo-400{% else %}text-gray-500{% endif %}">v{{ doc.version }}</span>
+                        <span class="text-xs text-gray-400">{{ doc.generated_at.strftime('%b %d, %H:%M') }}</span>
+                        {% if doc.is_current %}
+                        <span class="px-1.5 py-0.5 rounded text-[10px] bg-indigo-600 text-white">active</span>
+                        {% endif %}
+                        {% if doc.is_approved %}
+                        <span class="px-1.5 py-0.5 rounded text-[10px] bg-green-700/50 text-green-300">✓ approved</span>
+                        {% endif %}
+                        {% if doc.edited_at %}
+                        <span class="px-1.5 py-0.5 rounded text-[10px] bg-amber-900/50 text-amber-300">edited</span>
+                        {% endif %}
+                        {% if doc.edit_note %}
+                        <span class="text-[10px] text-gray-600 italic truncate max-w-[150px]" title="{{ doc.edit_note }}">{{ doc.edit_note }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] text-gray-600">
+                            {% if doc.cost_usd %}<span>${{ "%.4f"|format(doc.cost_usd) }}</span>{% endif %}
+                            {{ doc.model_used or '' }}
+                        </span>
+                        <!-- Preview toggle button -->
+                        <button hx-get="/admin/avatars/{{ avatar.id }}/strategy/{{ doc.id }}/preview"
+                                hx-target="#strategy-preview-{{ doc.version }}"
+                                hx-swap="innerHTML"
+                                class="px-2 py-0.5 text-[10px] font-medium rounded bg-slate-700 hover:bg-slate-600 text-gray-300 border border-slate-600 transition-colors"
+                                title="Preview this version">
+                            👁 View
+                        </button>
+                        {% if not doc.is_current %}
+                        <button hx-post="/admin/avatars/{{ avatar.id }}/strategy/{{ doc.id }}/activate"
+                                hx-target="#strategy-panel-content"
+                                hx-swap="innerHTML"
+                                hx-confirm="Switch to v{{ doc.version }}? This will become the active strategy."
+                                class="px-2 py-0.5 text-[10px] font-medium rounded bg-slate-700 hover:bg-indigo-700 text-gray-300 hover:text-white border border-slate-600 hover:border-indigo-500 transition-colors"
+                                title="Activate this version (A/B switch)">
+                            Activate
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                <!-- Preview container (loads on View click) -->
+                <div id="strategy-preview-{{ doc.version }}" class="px-2 pb-2"></div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+</div>

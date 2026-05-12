@@ -1,0 +1,223 @@
+{# Preview of a specific strategy version — loaded via HTMX into version history row.
+   Context:
+   - avatar: Avatar instance
+   - doc: StrategyDocument instance
+#}
+<div class="mt-2 bg-slate-900/70 rounded-lg border border-slate-600/50 p-3 space-y-3">
+
+    <!-- Summary / Model info -->
+    <div class="flex items-center justify-between text-[10px] text-gray-500">
+        <span>v{{ doc.version }} · {{ doc.model_used or 'unknown' }} · {{ doc.generated_at.strftime('%b %d %H:%M') }}</span>
+        <div class="flex items-center gap-2">
+            {% if doc.is_approved %}
+            <span class="px-1.5 py-0.5 rounded bg-green-700/50 text-green-300">✓ approved</span>
+            {% endif %}
+            {% if doc.edited_at %}
+            <span class="px-1.5 py-0.5 rounded bg-amber-900/50 text-amber-300">edited {{ doc.edited_at.strftime('%b %d %H:%M') }}</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Goals -->
+    {% if doc.goals %}
+    <div>
+        <h4 class="text-[10px] text-indigo-400 uppercase tracking-wider mb-1">Goals</h4>
+        <div class="space-y-0.5">
+            {% for goal in doc.goals %}
+            <div class="text-xs text-gray-300">
+                {% if goal is mapping %}
+                • {{ goal.metric or goal.objective or '' }}: {{ goal.target or '' }}
+                {% if goal.description %}<span class="text-gray-500"> — {{ goal.description }}</span>{% endif %}
+                {% else %}
+                • {{ goal }}
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Subreddit Priorities -->
+    {% if doc.subreddit_priorities %}
+    <div>
+        <h4 class="text-[10px] text-indigo-400 uppercase tracking-wider mb-1">Subreddit Priorities</h4>
+        <div class="flex flex-wrap gap-1.5">
+            {% for sub in doc.subreddit_priorities %}
+            {% if sub is mapping %}
+            <span class="px-1.5 py-0.5 rounded text-[10px] border
+                {% if sub.type == 'professional' %}border-amber-700/50 text-amber-300 bg-amber-900/20
+                {% else %}border-blue-700/50 text-blue-300 bg-blue-900/20{% endif %}">
+                r/{{ sub.subreddit | replace("r/", "") }} {{ sub.frequency_per_week or sub.frequency or '' }}{% if sub.frequency_per_week %}/wk{% endif %}
+            </span>
+            {% else %}
+            <span class="px-1.5 py-0.5 rounded text-[10px] border border-slate-600 text-gray-400">{{ sub | replace("r/r/", "r/") }}</span>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Tone -->
+    {% if doc.tone_guidelines and doc.tone_guidelines is mapping %}
+    <div>
+        <h4 class="text-[10px] text-indigo-400 uppercase tracking-wider mb-1">Tone</h4>
+        <div class="flex flex-wrap gap-1.5 text-[10px]">
+            {% if doc.tone_guidelines.formality %}
+            <span class="px-1.5 py-0.5 rounded bg-slate-700 text-gray-300">{{ doc.tone_guidelines.formality }}</span>
+            {% endif %}
+            {% if doc.tone_guidelines.humor %}
+            <span class="px-1.5 py-0.5 rounded bg-slate-700 text-gray-300">humor: {{ doc.tone_guidelines.humor }}</span>
+            {% endif %}
+            {% if doc.tone_guidelines.expertise or doc.tone_guidelines.expertise_level %}
+            <span class="px-1.5 py-0.5 rounded bg-slate-700 text-gray-300">{{ doc.tone_guidelines.expertise or doc.tone_guidelines.expertise_level }}</span>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Cadence -->
+    {% if doc.cadence_rules %}
+    <div>
+        <h4 class="text-[10px] text-indigo-400 uppercase tracking-wider mb-1">Cadence</h4>
+        {% if doc.cadence_rules is sequence and doc.cadence_rules is not mapping %}
+        <div class="grid grid-cols-4 gap-x-3 gap-y-0.5 text-[10px]">
+            <span class="text-gray-500 font-medium">Week</span>
+            <span class="text-gray-500 font-medium">Comments/day</span>
+            <span class="text-gray-500 font-medium">Pro%</span>
+            <span class="text-gray-500 font-medium">Hobby%</span>
+            {% for w in doc.cadence_rules %}
+            {% if w is mapping %}
+            <span class="text-gray-300">{{ w.week }}</span>
+            <span class="text-gray-300">{{ w.comments_per_day }}</span>
+            <span class="text-gray-300">{{ w.professional_percent }}%</span>
+            <span class="text-gray-300">{{ w.hobby_percent }}%</span>
+            {% endif %}
+            {% endfor %}
+        </div>
+        {% elif doc.cadence_rules is mapping %}
+        <div class="text-[10px] text-gray-300">
+            {% if doc.cadence_rules.comments_per_day %}{{ doc.cadence_rules.comments_per_day }}/day{% endif %}
+            {% if doc.cadence_rules.professional_ratio %} · Pro: {{ (doc.cadence_rules.professional_ratio * 100)|int }}%{% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Hook -->
+    {% if doc.hook_inventory and doc.hook_inventory is mapping %}
+    <div>
+        <h4 class="text-[10px] text-indigo-400 uppercase tracking-wider mb-1">Hook</h4>
+        <div class="text-xs text-gray-300 italic">"{{ doc.hook_inventory.primary or doc.hook_inventory.primary_hook or '(not set)' }}"</div>
+        {% if doc.hook_inventory.angles or doc.hook_inventory.natural_angles %}
+        <div class="text-[10px] text-gray-500 mt-0.5">
+            Angles: {{ (doc.hook_inventory.angles or doc.hook_inventory.natural_angles) | join(' · ') }}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Full markdown (collapsible) -->
+    {% if doc.document_md %}
+    <details>
+        <summary class="text-[10px] text-gray-500 hover:text-gray-300 cursor-pointer select-none">
+            Full document ▾
+        </summary>
+        <div class="mt-1.5 text-[11px] text-gray-300 whitespace-pre-wrap leading-relaxed bg-slate-900 rounded p-2 border border-slate-700/50 max-h-64 overflow-y-auto">{{ doc.document_md }}</div>
+    </details>
+    {% endif %}
+
+    <!-- Action buttons -->
+    <div class="flex items-center gap-2 pt-1 border-t border-slate-700/50">
+        {% if not doc.is_current %}
+        <button hx-post="/admin/avatars/{{ avatar.id }}/strategy/{{ doc.id }}/activate"
+                hx-target="#strategy-panel-content"
+                hx-swap="innerHTML"
+                hx-confirm="Switch to v{{ doc.version }}? This will become the active strategy."
+                class="px-2.5 py-1 text-[10px] font-medium rounded bg-indigo-700/50 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-600/50 transition-colors">
+            ▶ Activate this version
+        </button>
+        {% endif %}
+        {% if not doc.is_approved %}
+        <button hx-post="/admin/avatars/{{ avatar.id }}/strategy/{{ doc.id }}/approve"
+                hx-target="#strategy-panel-content"
+                hx-swap="innerHTML"
+                class="px-2.5 py-1 text-[10px] font-medium rounded bg-green-700/50 hover:bg-green-600/50 text-green-200 border border-green-600/50 transition-colors">
+            ✓ Approve
+        </button>
+        {% else %}
+        <button hx-post="/admin/avatars/{{ avatar.id }}/strategy/{{ doc.id }}/unapprove"
+                hx-target="#strategy-panel-content"
+                hx-swap="innerHTML"
+                hx-confirm="Revoke approval from v{{ doc.version }}?"
+                class="px-2.5 py-1 text-[10px] font-medium rounded bg-red-900/50 hover:bg-red-800/50 text-red-300 border border-red-700/50 transition-colors">
+            Revoke approval
+        </button>
+        {% endif %}
+    </div>
+
+    <!-- Edit form (collapsible) -->
+    <details class="pt-1 border-t border-slate-700/50">
+        <summary class="text-[10px] text-amber-400 hover:text-amber-300 cursor-pointer select-none flex items-center gap-1">
+            <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+            Edit this version ▾
+        </summary>
+        <form class="mt-2 space-y-2"
+              hx-post="/admin/avatars/{{ avatar.id }}/strategy/{{ doc.id }}/edit"
+              hx-target="#strategy-panel-content"
+              hx-swap="innerHTML">
+            
+            <div>
+                <label class="block text-[10px] text-gray-500 uppercase mb-0.5">Strategy Document (Markdown)</label>
+                <textarea name="document_md" rows="8"
+                          class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1.5 text-[11px] text-gray-300 font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 resize-y">{{ doc.document_md }}</textarea>
+            </div>
+
+            <details class="text-[10px]">
+                <summary class="text-gray-500 hover:text-gray-300 cursor-pointer select-none">
+                    Edit JSON fields (advanced) ▾
+                </summary>
+                <div class="mt-1.5 space-y-1.5">
+                    <div>
+                        <label class="block text-[10px] text-gray-500 uppercase mb-0.5">Goals</label>
+                        <textarea name="goals_json" rows="2"
+                                  class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-[10px] text-gray-300 font-mono focus:border-indigo-500 resize-y">{{ doc.goals | tojson(indent=2) }}</textarea>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-gray-500 uppercase mb-0.5">Subreddit Priorities</label>
+                        <textarea name="subreddit_priorities_json" rows="2"
+                                  class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-[10px] text-gray-300 font-mono focus:border-indigo-500 resize-y">{{ doc.subreddit_priorities | tojson(indent=2) }}</textarea>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-gray-500 uppercase mb-0.5">Tone Guidelines</label>
+                        <textarea name="tone_guidelines_json" rows="2"
+                                  class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-[10px] text-gray-300 font-mono focus:border-indigo-500 resize-y">{{ doc.tone_guidelines | tojson(indent=2) }}</textarea>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-gray-500 uppercase mb-0.5">Cadence Rules</label>
+                        <textarea name="cadence_rules_json" rows="2"
+                                  class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-[10px] text-gray-300 font-mono focus:border-indigo-500 resize-y">{{ doc.cadence_rules | tojson(indent=2) }}</textarea>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-gray-500 uppercase mb-0.5">Hook Inventory</label>
+                        <textarea name="hook_inventory_json" rows="2"
+                                  class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-[10px] text-gray-300 font-mono focus:border-indigo-500 resize-y">{{ doc.hook_inventory | tojson(indent=2) }}</textarea>
+                    </div>
+                </div>
+            </details>
+
+            <div>
+                <label class="block text-[10px] text-gray-500 uppercase mb-0.5">Edit Note</label>
+                <input type="text" name="edit_note" placeholder="What did you change?"
+                       value="{{ doc.edit_note or '' }}"
+                       class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-[10px] text-gray-300 focus:border-indigo-500">
+            </div>
+
+            <button type="submit"
+                    class="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-medium rounded transition-colors">
+                Save Changes to v{{ doc.version }}
+            </button>
+        </form>
+    </details>
+</div>
