@@ -221,12 +221,14 @@ def generate_comment(
 ) -> CommentDraft:
     """Generate a comment for a thread using the selected avatar.
 
-    Integrates the self-learning loop: retrieves few-shot examples and correction
-    patterns from past human edits, injects them into the system prompt between
-    voice profile and thread content, and stores provenance metadata on the draft.
+    Integrates:
+    - Strategy injection: if an approved strategy exists for this avatar,
+      injects tone guidelines and cadence rules into the system prompt.
+    - Self-learning loop: retrieves few-shot examples and correction
+      patterns from past human edits, injects them into the system prompt.
 
-    Learning context injection is non-critical — if any learning call fails,
-    generation proceeds normally without degradation.
+    Both injections are non-critical — if any call fails, generation
+    proceeds normally without degradation.
 
     Returns:
         Created CommentDraft instance.
@@ -239,6 +241,61 @@ def generate_comment(
         f"Context isolation violation: avatar {avatar.reddit_username} "
         f"does not belong to client {client.id}"
     )
+
+    # --- Strategy Injection: retrieve approved strategy ---
+    strategy_context = ""
+    try:
+        from app.services.strategy_engine import StrategyEngine
+
+        strategy_engine = StrategyEngine()
+        approved_strategy = strategy_engine.get_approved_strategy(db, avatar.id)
+
+        if approved_strategy:
+            # Build strategy context from structured fields
+            parts = []
+            if approved_strategy.tone_guidelines:
+                tone = approved_strategy.tone_guidelines
+                avoid_list = tone.get("avoid", [])
+                parts.append(f"Tone: {tone.get('formality', 'casual')}, humor={tone.get('humor', 'subtle')}, expertise={tone.get('expertise', 'peer')}")
+                if avoid_list:
+                    parts.append(f"Avoid: {', '.join(avoid_list[:5])}")
+
+            if approved_strategy.cadence_rules:
+                cadence = approved_strategy.cadence_rules
+                if isinstance(cadence, list):
+                    # Weekly cadence — find current week's rules
+                    # For now just note the overall approach
+                    current = cadence[0] if cadence else {}
+                    hobby_pct = current.get("hobby_percent", 100)
+                    pro_pct = current.get("professional_percent", 0)
+                    if pro_pct == 0:
+                        parts.append("Focus: hobby/community engagement only (no professional topics yet)")
+                elif isinstance(cadence, dict):
+                    pro_ratio = cadence.get("pro_ratio", 0)
+                    if pro_ratio == 0:
+                        parts.append("Focus: hobby/community engagement only (no professional topics yet)")
+
+            if approved_strategy.goals:
+                goals = approved_strategy.goals
+                if isinstance(goals, list) and goals:
+                    goal_summaries = [g.get("description", g.get("objective", "")) for g in goals[:2]]
+                    goal_summaries = [g for g in goal_summaries if g]
+                    if goal_summaries:
+                        parts.append(f"Goals: {'; '.join(goal_summaries)}")
+
+            if parts:
+                strategy_context = "## Avatar Strategy (approved)\n" + "\n".join(f"- {p}" for p in parts)
+                logger.info(
+                    "Strategy context injected for avatar %s (v%d)",
+                    avatar.reddit_username,
+                    approved_strategy.version,
+                )
+    except Exception:
+        logger.warning(
+            "Failed to retrieve strategy for avatar %s — proceeding without",
+            avatar.id,
+        )
+        strategy_context = ""
 
     # --- Self-Learning Loop: retrieve learning context ---
     learning_context = ""
@@ -340,6 +397,25 @@ def generate_comment(
             # Fallback: append learning context before thread content in messages
             system_prompt = system_prompt + "\n\n" + learning_context
 
+    # Inject strategy context after Engagement Strategy section
+    if strategy_context:
+        engagement_marker = "## Engagement Strategy"
+        if engagement_marker in system_prompt:
+            # Find the end of the Engagement Strategy section and inject after it
+            idx = system_prompt.index(engagement_marker)
+            # Find the next ## section after Engagement Strategy
+            next_section = system_prompt.find("\n## ", idx + len(engagement_marker))
+            if next_section != -1:
+                system_prompt = (
+                    system_prompt[:next_section]
+                    + "\n\n" + strategy_context + "\n"
+                    + system_prompt[next_section:]
+                )
+            else:
+                system_prompt = system_prompt + "\n\n" + strategy_context
+        else:
+            system_prompt = system_prompt + "\n\n" + strategy_context
+
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": thread_content},
@@ -372,13 +448,18 @@ def generate_comment(
 
     data = result["data"]
 
+    # Sanitize LLM output for Reddit-safe plain text
+    from app.services.text_sanitizer import sanitize_for_reddit
+    raw_comment = data.get("comment", "")
+    sanitized_comment = sanitize_for_reddit(raw_comment)
+
     # Create draft with learning provenance metadata
     draft = CommentDraft(
         thread_id=thread.id,
         client_id=client.id,
         avatar_id=avatar.id,
         type=thread.type or "professional",
-        ai_draft=data.get("comment", ""),
+        ai_draft=sanitized_comment,
         comment_to=data.get("comment_to", "post"),
         location_depth=data.get("location_depth", 0),
         location_reasoning=data.get("location_reasoning", ""),
@@ -508,8 +589,14 @@ def edit_comment(
 
     edited = result["content"].strip()
 
-    # Update draft with edited version
+    # Sanitize editor output for Reddit-safe plain text
+    from app.services.text_sanitizer import sanitize_for_reddit
+    edited = sanitize_for_reddit(edited)
+
+    # Update draft with edited version (overwrite ai_draft, preserve original)
     try:
+        if not draft.original_ai_draft:
+            draft.original_ai_draft = draft.ai_draft
         draft.ai_draft = edited
         db.commit()
     except Exception as e:

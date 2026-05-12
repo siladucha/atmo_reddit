@@ -18,6 +18,26 @@ class ScoringOutput(BaseModel):
     reason: str
 
 
+class BatchScoringItem(BaseModel):
+    """Single thread result within a batch scoring response."""
+
+    thread_index: int = Field(ge=0, description="0-based index matching input order")
+    alert: bool
+    tag: Literal["engage", "monitor", "skip"]
+    relevance: int = Field(ge=0, le=3)
+    quality: int = Field(ge=0, le=3)
+    strategic: int = Field(ge=0, le=3)
+    composite: int = Field(ge=0, le=9)
+    intent: str
+    reason: str
+
+
+class BatchScoringOutput(BaseModel):
+    """Schema for batch thread scoring LLM response."""
+
+    results: list[BatchScoringItem]
+
+
 class CommentOutput(BaseModel):
     """Schema for comment generation LLM response."""
 

@@ -22,19 +22,19 @@ logger = logging.getLogger(__name__)
 
 
 # --- Rate Limits ---
-
+# TODO(pipeline-v2): Replace MAX_COMMENTS_PER_DAY with BudgetEngine.calculate_daily_limit()
 # Per avatar, per day
-MAX_COMMENTS_PER_DAY = 8          # Reddit flags accounts posting too frequently
+MAX_COMMENTS_PER_DAY = 8          # Fallback until BudgetEngine is implemented (Sprint 3)
 MAX_PROFESSIONAL_PER_DAY = 5      # Max brand-related comments
 MAX_HOBBY_PER_DAY = 5             # Max hobby/karma comments
-MIN_MINUTES_BETWEEN_COMMENTS = 15 # Minimum gap between posts from same avatar
-MAX_COMMENTS_PER_SUBREDDIT_DAY = 2  # Don't dominate one subreddit
+MIN_MINUTES_BETWEEN_COMMENTS = 15 # TODO(pipeline-v2): move to system_settings "min_comment_interval_minutes"
+MAX_COMMENTS_PER_SUBREDDIT_DAY = 2  # TODO(pipeline-v2): move to system_settings "max_comments_per_sub_per_day"
 MAX_LINKS_PER_WEEK = 1            # Links are high-risk
 
 # Content rules
 MAX_COMMENT_LENGTH = 500          # Characters — long comments look suspicious
 BRAND_MENTION_COOLDOWN_HOURS = 72 # Min hours between brand-adjacent comments per avatar
-MAX_BRAND_RATIO = 0.3             # Max 30% of comments can be brand-related
+MAX_BRAND_RATIO = 0.3             # TODO(pipeline-v2): move to system_settings "max_brand_ratio_percent", change to 30-day window
 
 
 class SafetyCheckResult:
@@ -179,33 +179,34 @@ def check_avatar_can_post(
                 f"Too soon since last comment ({int(minutes_since)}/{MIN_MINUTES_BETWEEN_COMMENTS} min)"
             )
 
-    # Check 6: Brand ratio check
-    week_start = now - timedelta(days=7)
-    week_total = (
-        db.query(func.count(CommentDraft.id))
-        .filter(
-            CommentDraft.avatar_id == avatar.id,
-            CommentDraft.status.in_(["approved", "posted"]),
-            CommentDraft.created_at >= week_start,
+    # Check 6: Brand ratio check (Phase 2+ only — Phase 1 has no brand mentions by design)
+    if avatar.warming_phase and avatar.warming_phase >= 2:
+        week_start = now - timedelta(days=7)
+        week_total = (
+            db.query(func.count(CommentDraft.id))
+            .filter(
+                CommentDraft.avatar_id == avatar.id,
+                CommentDraft.status.in_(["approved", "posted"]),
+                CommentDraft.created_at >= week_start,
+            )
+            .scalar()
         )
-        .scalar()
-    )
-    week_professional = (
-        db.query(func.count(CommentDraft.id))
-        .filter(
-            CommentDraft.avatar_id == avatar.id,
-            CommentDraft.type == "professional",
-            CommentDraft.status.in_(["approved", "posted"]),
-            CommentDraft.created_at >= week_start,
+        week_professional = (
+            db.query(func.count(CommentDraft.id))
+            .filter(
+                CommentDraft.avatar_id == avatar.id,
+                CommentDraft.type == "professional",
+                CommentDraft.status.in_(["approved", "posted"]),
+                CommentDraft.created_at >= week_start,
+            )
+            .scalar()
         )
-        .scalar()
-    )
 
-    if week_total > 5 and week_professional / week_total > MAX_BRAND_RATIO:
-        return SafetyCheckResult(
-            False,
-            f"Brand ratio too high ({week_professional}/{week_total} = {week_professional/week_total:.0%}, max {MAX_BRAND_RATIO:.0%})"
-        )
+        if week_total > 5 and week_professional / week_total > MAX_BRAND_RATIO:
+            return SafetyCheckResult(
+                False,
+                f"Brand ratio too high ({week_professional}/{week_total} = {week_professional/week_total:.0%}, max {MAX_BRAND_RATIO:.0%})"
+            )
 
     return SafetyCheckResult(True)
 
@@ -368,6 +369,7 @@ def get_avatar_health(db: Session, avatar: Avatar) -> dict:
 
     # Phase information
     phase_labels = {
+        0: "Mentor",
         1: "Credibility Building",
         2: "Content Seeding",
         3: "Brand Integration",
