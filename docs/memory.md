@@ -40,6 +40,11 @@
 - Avatar creation, user guide, daily log rotation
 - Документация в `docs/`
 
+## Сделано на 2026-05-11
+- Client deactivation cascade: is_active=false → subreddit assignments off → avatars unassigned → all pipeline tasks skip
+- Guard checks `client.is_active` in every per-client task (score_threads, generate_comments, generate_posts, scrape_professional_subreddits)
+- Shared subreddit registry: queue_tick only scrapes subs with at least one active client assignment
+
 ## Конкуренты
 - **ReddGrow** ($59-299/мес) — self-service, mass market, AI visibility tracking
 - **Мы** ($2K+/мес) — premium managed service, глубокие персоны, стратегия

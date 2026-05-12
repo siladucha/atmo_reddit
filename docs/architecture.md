@@ -368,11 +368,29 @@ Post generation is currently triggered manually via `/pipeline/*` routes (see TO
 
 All Beat jobs dispatch through orchestrator tasks in [`reddit_saas/app/tasks/orchestrator.py`](../reddit_saas/app/tasks/orchestrator.py). Each orchestrator queries DB for active clients/avatars and queues per-tenant Celery chains:
 
-- **`run_full_pipeline_all_clients()`** — for each active `Client`, queues a chain `scrape_professional_subreddits → score_threads → generate_comments`
-- **`run_hobby_pipeline_all_avatars()`** — for each active `Avatar`, queues a chain `scrape_hobby_subreddits → generate_hobby_comments`
+- **`run_full_pipeline_all_clients()`** — for each active `Client`, queues a chain `score_threads → generate_comments → generate_posts`
+- **`run_hobby_pipeline_all_avatars()`** — for each active `Avatar` (not frozen, not shadowbanned), queues a chain `scrape_hobby_subreddits → generate_hobby_comments`
 - **`check_all_avatars_health()`** — for each active avatar, runs `services.safety.get_avatar_health()`, logs warnings for high brand ratio, updates `last_health_check`
 
+Scraping is handled separately by `queue_tick` (fires every 60s, selects next stale subreddit from shared registry).
+
 Per-client/avatar chains run in parallel via Celery's queue; failures in one tenant don't block others.
+
+### Client Deactivation Cascade
+
+When a client is deactivated (`POST /admin/clients/{id}/deactivate`):
+
+1. `client.is_active = False`
+2. All `ClientSubredditAssignment` for this client → `is_active = False`
+3. All legacy `ClientSubreddit` for this client → `is_active = False`
+4. Client ID removed from `avatar.client_ids` for all assigned avatars
+
+**Pipeline guards after deactivation:**
+- `queue_tick`: subreddits only scraped if at least one active client has an active assignment (shared subreddit registry)
+- `run_full_pipeline_all_clients`: only queries `Client.is_active == True`
+- `score_threads` / `generate_comments` / `generate_posts` / `scrape_professional_subreddits`: each checks `client.is_active` before processing
+- Avatar filtering: since client ID is removed from `client_ids`, no avatars match for that client
+- Hobby pipeline: avatars with empty `client_ids` still run hobby karma building (by design — avatars are reusable assets)
 
 ---
 

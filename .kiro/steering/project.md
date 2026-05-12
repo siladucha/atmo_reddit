@@ -20,28 +20,29 @@ A Reddit marketing SaaS platform. AI monitors subreddits, scores posts, generate
 - **Agency model**: Per-client-slot pricing ($999–$3,499/mo for 3–20 clients). Annual contracts only.
 - **Key moat**: Pre-warmed avatar inventory (aged accounts with karma). Cannot be replicated overnight by competitors.
 
-## Tech Stack (Target Architecture)
+## Tech Stack (Current — Celery/Redis, migrating to SQS/Valkey)
 - **Backend:** Python 3.11+ / FastAPI
 - **Templates/UI:** Jinja2 + HTMX
 - **CSS:** Tailwind CSS (CDN)
 - **Database:** PostgreSQL / SQLAlchemy 2.0 / Alembic (on EC2 Docker initially, RDS later)
 - **Auth:** JWT (python-jose + passlib), `is_superuser` flag for admin access
-- **Task Queue:** AWS SQS Standard (replaces Celery + Redis broker)
-- **Cache/Locks:** AWS ElastiCache Serverless Valkey (distributed locks, rate limiting, task results)
+- **Task Queue:** Celery + Redis (current); AWS SQS Standard (target)
+- **Cache/Locks:** Redis (current); AWS ElastiCache Serverless Valkey (target)
 - **Reddit:** PRAW
 - **AI/LLM:** LiteLLM (Gemini Flash for scoring, Claude Sonnet for generation)
-- **Deploy:** EC2 t3.small + SQS + Valkey Serverless (Docker for app + PostgreSQL)
-- **Observability:** CloudWatch (SQS metrics, Valkey metrics, EC2 metrics)
+- **Deploy:** EC2 t3.small + Docker Compose (app + PostgreSQL + Redis)
+- **Observability:** Logging + admin dashboard (CloudWatch planned)
 
 ### Infrastructure Decisions (May 2026)
-- **SQS over Celery**: Native DLQ, message persistence (14 days), visibility timeout, CloudWatch metrics. Cost: ~$0.30/mo at current scale.
-- **Valkey Serverless over Redis Docker**: Managed HA, multi-AZ, no ops overhead. Cost: ~$6.14/mo (minimum 100 MB storage floor).
+- **SQS over Celery** (planned): Native DLQ, message persistence (14 days), visibility timeout, CloudWatch metrics. Cost: ~$0.30/mo at current scale.
+- **Valkey Serverless over Redis Docker** (planned): Managed HA, multi-AZ, no ops overhead. Cost: ~$6.14/mo (minimum 100 MB storage floor).
 - **EC2 over ECS/Fargate**: Simpler, cheaper for single-instance deployment. Docker Compose on EC2 for app + PostgreSQL.
 - **PostgreSQL on EC2 Docker** (initial): Migrate to RDS db.t4g.small ($24/mo) when data loss becomes unacceptable (5+ clients).
 
-### Legacy Stack (being migrated away)
-- ~~Celery + Redis~~ → AWS SQS + Valkey Serverless
-- ~~Docker Compose (all-in-one)~~ → EC2 + managed AWS services
+### Migration Status (Celery → SQS)
+- Migration spec exists (`.kiro/specs/sqs-valkey-migration/`) but NOT yet implemented
+- Current system runs on Celery + Redis (fully functional)
+- Migration planned for after pilot launch
 
 ## Code Style
 - Python: type hints everywhere, async where beneficial
@@ -59,6 +60,7 @@ reddit_saas/
 ├── app/
 │   ├── config.py              # Settings (pydantic-settings)
 │   ├── database.py            # SQLAlchemy engine + session
+│   ├── logging_config.py      # Logging configuration
 │   ├── main.py                # FastAPI app
 │   ├── seed.py                # Seed data (NeuroYoga + defaults)
 │   ├── dependencies/
@@ -66,94 +68,185 @@ reddit_saas/
 │   ├── middleware/
 │   │   ├── auth.py            # JWT auth middleware
 │   │   └── errors.py          # Error handling middleware
-│   ├── models/                # SQLAlchemy models
+│   ├── models/                # SQLAlchemy models (23 models)
 │   │   ├── user.py            # User (is_superuser, is_active)
 │   │   ├── client.py          # Client (keywords JSONB, profiles)
-│   │   ├── avatar.py          # Avatar (client_ids array, voice)
-│   │   ├── persona.py         # Persona (per-client voice profile)
-│   │   ├── thread.py          # RedditThread (scoring fields)
-│   │   ├── comment_draft.py   # CommentDraft (status workflow)
+│   │   ├── avatar.py          # Avatar (client_ids, voice, is_frozen, warming_phase)
+│   │   ├── thread.py          # RedditThread (is_locked, locked_detected_at)
+│   │   ├── comment_draft.py   # CommentDraft (status workflow, learning_metadata)
 │   │   ├── post_draft.py      # PostDraft
-│   │   ├── subreddit.py       # ClientSubreddit (+last_scraped_at)
+│   │   ├── subreddit.py       # Subreddit, ClientSubreddit, ClientSubredditAssignment
+│   │   ├── hobby.py           # HobbySubreddit
 │   │   ├── ai_usage.py        # AIUsageLog (cost tracking)
 │   │   ├── audit.py           # AuditLog
 │   │   ├── activity_event.py  # ActivityEvent (pipeline transparency)
 │   │   ├── scrape_log.py      # ScrapeLog (per-subreddit metrics)
-│   │   └── settings.py        # SystemSetting (key-value)
+│   │   ├── settings.py        # SystemSetting (key-value)
+│   │   ├── thread_score.py    # ThreadScore (per-client scoring)
+│   │   ├── subreddit_karma.py # SubredditKarma (per-avatar karma tracking)
+│   │   ├── avatar_profile_snapshot.py  # AvatarProfileSnapshot
+│   │   ├── analysis_edit.py   # AnalysisEditRecord (learning loop)
+│   │   ├── avatar_subreddit_presence.py # AvatarSubredditPresence
+│   │   ├── edit_record.py     # EditRecord (self-learning loop)
+│   │   ├── correction_pattern.py # CorrectionPattern (learned patterns)
+│   │   ├── health_status.py   # HealthStatus (shadowban detection)
+│   │   └── strategy_document.py # StrategyDocument
+│   ├── schemas/               # Pydantic validation schemas
+│   │   ├── avatar_analysis.py # BehavioralProfile, AvatarAnalysisRequest
+│   │   └── llm_outputs.py     # ScoringOutput, CommentOutput
 │   ├── routes/
 │   │   ├── admin.py           # Admin panel (all /admin/* routes)
 │   │   ├── pages.py           # User-facing pages (dashboard, review, etc.)
 │   │   ├── auth.py            # Login/register API
-│   │   ├── dashboard.py       # API stats endpoints (/api/admin/*)
+│   │   ├── avatar_analysis.py # Avatar behavioral analysis API
+│   │   ├── avatar_pipeline.py # Avatar pipeline management
 │   │   ├── avatars.py         # Avatar API
 │   │   ├── clients.py         # Client API
+│   │   ├── dashboard.py       # API stats endpoints (/api/admin/*)
+│   │   ├── dry_run.py         # Dry run testing endpoints
+│   │   ├── export.py          # Data export endpoints
 │   │   ├── pipeline.py        # Pipeline trigger API
-│   │   └── review.py          # Review API
-│   ├── services/
-│   │   ├── admin.py           # Admin CRUD (users, clients, keywords, etc.)
+│   │   └── review.py          # Review API (with learning hook)
+│   ├── services/              # Business logic (48 services)
+│   │   ├── admin.py           # Admin CRUD
+│   │   ├── ai.py              # LLM calls (LiteLLM) + schema validation
 │   │   ├── audit.py           # Audit logging
-│   │   ├── ai.py              # LLM calls (LiteLLM)
 │   │   ├── auth.py            # Auth logic
-│   │   ├── generation.py      # Comment/post generation
+│   │   ├── avatar_analysis.py # LLM behavioral profiling (retry/fallback)
+│   │   ├── avatar_report.py   # Avatar report generation
+│   │   ├── avatars_query.py   # Avatar query helpers
+│   │   ├── client_report.py   # Client report generation
+│   │   ├── cookies.py         # Cookie management
+│   │   ├── cqs_checker.py     # Comment quality score checker
+│   │   ├── distributed_lock.py # Redis distributed locks
+│   │   ├── dry_run.py         # Dry run pipeline testing
+│   │   ├── export.py          # Data export
+│   │   ├── generation.py      # Comment generation (with learning injection)
+│   │   ├── health_checker.py  # Shadowban/health detection
+│   │   ├── health_metrics.py  # Health metrics aggregation
+│   │   ├── inspector.py       # System inspector
+│   │   ├── karma_feedback.py  # Karma feedback loop
+│   │   ├── karma_history.py   # Karma history tracking
+│   │   ├── karma_tracker.py   # Karma tracking service
+│   │   ├── keyword_analytics.py # Keyword performance analytics
+│   │   ├── learning_loop.py   # Avatar analysis learning loop
+│   │   ├── learning.py        # Self-learning loop (edit records, patterns, few-shot)
+│   │   ├── metrics_collector.py # Metrics collection
+│   │   ├── operations_dashboard.py # Operations dashboard data
+│   │   ├── phase_lock.py      # Phase locking
+│   │   ├── phase_types.py     # Phase type definitions
+│   │   ├── phase.py           # Avatar warming phases
+│   │   ├── post_generation.py # Post generation
+│   │   ├── pre_filter.py      # Pre-filter logic (avatar health exclusion)
+│   │   ├── presence.py        # Avatar subreddit presence scanning
+│   │   ├── rate_limiter.py    # Rate limiting
+│   │   ├── reddit_freshness.py # Reddit data freshness checks
+│   │   ├── reddit_profile_analytics.py # Reddit profile analytics
+│   │   ├── reddit_status.py   # Reddit account status
 │   │   ├── reddit.py          # Reddit API (PRAW)
 │   │   ├── safety.py          # Content safety checks
+│   │   ├── sanitize.py        # Content sanitization
 │   │   ├── scoring.py         # Post scoring pipeline
-│   │   ├── settings.py        # System settings service
+│   │   ├── scrape_queue.py    # Scrape queue management
+│   │   ├── settings.py        # System settings (kill switches)
+│   │   ├── strategy_engine.py # Strategy document engine
+│   │   ├── subreddit_intel.py # Subreddit intelligence
+│   │   ├── text_sanitizer.py  # Text sanitization (Markdown/Unicode stripping)
 │   │   ├── thread_liveness.py # Thread locked/removed/archived detection
-│   │   └── transparency.py    # Activity events, pipeline stats, scrape freshness
-│   ├── tasks/                 # SQS-based background tasks (migrating from Celery)
-│   │   ├── sqs_consumer.py    # SQS long-poll consumer loop
-│   │   ├── sqs_producer.py    # Send messages to SQS queues
-│   │   ├── scheduler.py       # Periodic task scheduling
+│   │   ├── topology.py        # System topology (9 nodes, heatmap, forecast)
+│   │   └── transparency.py    # Activity events, pipeline stats
+│   ├── tasks/                 # Celery background tasks
+│   │   ├── ai_pipeline.py     # AI scoring/generation (retry, kill switches)
+│   │   ├── health_check.py    # Avatar health checks
+│   │   ├── heartbeat.py       # Worker heartbeat
+│   │   ├── karma_tracking.py  # Karma tracking tasks
 │   │   ├── orchestrator.py    # Pipeline orchestration
+│   │   ├── presence.py        # Avatar presence scanning
+│   │   ├── profile_analytics.py # Profile analytics tasks
+│   │   ├── queue_ticker.py    # Queue tick (scrape scheduling)
 │   │   ├── scraping.py        # Reddit scraping tasks
-│   │   └── ai_pipeline.py     # AI scoring/generation tasks
-│   ├── templates/             # Jinja2 templates
+│   │   ├── strategy.py        # Strategy generation tasks
+│   │   └── worker.py          # Celery worker configuration
+│   ├── templates/             # Jinja2 templates (50 pages + 65 partials)
 │   │   ├── base.html          # Light theme (user pages)
 │   │   ├── admin_base.html    # Dark theme (admin panel)
-│   │   ├── admin_*.html       # Admin pages (20+ templates)
-│   │   └── partials/          # HTMX partials
+│   │   ├── admin_*.html       # Admin pages (35+ templates)
+│   │   └── partials/          # HTMX partials (65 files)
 │   └── static/
 ├── alembic/                   # DB migrations
-├── tests/                     # 187 tests (all passing)
+├── tests/                     # 40 test files
+├── Makefile                   # Docker/DB commands (db-sync, fresh-start, etc.)
+├── DOCKER.md                  # Container data management docs
 ├── pyproject.toml
 ├── Dockerfile
-└── docker-compose.yml
+├── docker-compose.yml
+└── entrypoint.sh              # Migrations + seed on startup
 ```
 
-## What's Built (MVP Status)
+## What's Built (MVP Status — May 12, 2026)
+
+### Core Platform
 - **Admin panel** (dark theme): dashboard, user/client/persona/keyword/subreddit CRUD, task monitoring, system health, AI costs, audit logs, billing placeholder
 - **7-step onboarding wizard**: client profile → subreddits → keywords → avatars → personas → pipeline config → test run
 - **NeuroYoga seed data**: first client (ATMO) with subreddits, keywords, persona
 - **User-facing pages**: dashboard, review queue, threads, avatars, settings
-- **Pipeline**: scrape → score → generate → edit (SQS tasks, migrating from Celery)
-- **187 tests passing** (pytest)
+- **JWT authentication** + admin access control
+- **Docker workflow**: Makefile with `db-sync`, `fresh-start`, `db-dump`/`db-restore` commands
+- **Entrypoint**: auto-detects existing tables (pg_restore), stamps Alembic instead of re-creating
 
-## What's Built — Activity Feed & Transparency (new)
+### Pipeline (fully functional)
+- Automated scraping → AI scoring → comment generation → human review
+- Thread liveness protection (locked/removed threads detected automatically)
+- System topology dashboard (real-time pipeline health monitoring)
+- Activity feed with full transparency per client
+- Retry with exponential backoff on AI tasks (3 retries, 60×2^attempt)
+- Kill switches: `pipeline_enabled`, `generation_enabled`, `scrape_enabled`
+
+### AI Intelligence (beyond Ori's legacy system)
+- **Intelligent persona routing** — AI selects best avatar per thread based on subreddit karma + voice fit
+- **Strategy-aware generation** — 5 engagement approaches × 3 strategic angles
+- **Self-learning loop** — captures human edits, extracts correction patterns, injects few-shot examples
+- **Per-client scoring** — same thread scores differently for different clients
+- **Comment placement intelligence** — AI decides WHERE in thread to reply (depth + reasoning)
+- **Avatar behavioral analysis** — LLM-based profiling with retry/fallback + learning loop
+- **LLM output validation** — Pydantic schemas (ScoringOutput, CommentOutput) validate all AI responses
+
+### Safety & Operations
+- Avatar freeze/unfreeze (is_frozen, freeze_reason, frozen_at)
+- Global kill switches (pipeline_enabled, generation_enabled, scrape_enabled)
+- Context isolation assertions (avatar-client ownership verified at runtime)
+- Shadowban detection (5-state health model, auto-freeze)
+- CQS (Contributor Quality Score) automated monitoring — periodic batch check via Celery Beat, auto-freeze on lowest (Phase 2+)
+- Text sanitizer (strips Markdown, Unicode, formatting artifacts)
+- Content safety checks (brand ratio, phase gates, promotional language)
+- Client deactivation cascade (is_active=false → assignments deactivated → avatars unassigned → all tasks skip)
+
+### Avatar Intelligence
+- Avatar subreddit presence map (scan Reddit history, per-subreddit metrics)
+- Avatar profile analytics (Reddit profile data)
+- Karma tracking per avatar per subreddit
+- Strategy documents per avatar
+- **Avatar Intelligence UI** (May 12): confidence score, removal rate analytics, pattern performance (what works/fails), learned patterns display, stale indicators
+- **Pipeline hardening**: unhealthy/shadowbanned avatars excluded from AI tasks before LLM calls
+
+### Transparency & Observability
 - `ActivityEvent` model + `ScrapeLog` model + `last_scraped_at` on ClientSubreddit
-- `services/transparency.py` — record_activity_event, get_activity_events, get_pipeline_stats, get_scrape_freshness
 - Pipeline instrumentation: scraping, scoring, generation, review all emit activity events
 - Admin dashboard Activity Feed (HTMX async load, client filter)
 - Client Transparency Dashboard at `/admin/clients/{id}/transparency`
+- System Topology panel (9 nodes, state detection, 24h heatmap, forecast)
+- Operations dashboard
 - Subreddit freshness tracking with stale indicators
 
-## What's Built — Thread Liveness Protection (new)
-- `is_locked` + `locked_detected_at` on `RedditThread` model
-- Scraping: locked threads skipped at source (PRAW `submission.locked`)
-- Scoring: locked threads excluded from scoring queries
-- Generation: locked threads filtered in SQL + stale thread liveness check (PRAW re-verify for threads >12h old)
-- `services/thread_liveness.py` — check_and_filter_thread, bulk_refresh_locked_status, expire_drafts_for_locked_threads
-- `refresh_thread_liveness` periodic Celery task (auto-rejects pending drafts for locked threads)
-- Review Queue UI: 🔒 LOCKED badge visible to operator
-
 ## What's NOT Built Yet
-- **Avatar Profile & Subreddit Intelligence** — adaptive learning per avatar per subreddit, rule extraction, culture profiling, outcome tracking (spec in `.kiro/steering/avatar_profile_and_subreddit_intelligence.md`)
-- **System Topology Timeline** — real-time pipeline node visualization with history + forecast (spec in `.kiro/steering/system_topology_dashboard.md`)
+- Production deployment (Docker Compose ready, not deployed to AWS)
 - Self-service client access (multi-tenancy, role-based views)
-- Customer Success Dashboard (business metrics per client)
-- Enhanced System Health (detailed diagnostics, load metrics)
+- Strategy Questions feedback loop — LLM generates questions_for_client in strategy; future: multiple-choice answers (A/B/C/D) + free text field, saved as client preferences, injected into next strategy generation. MVP: questions visible in strategy markdown only, no answer mechanism.
+- Subreddit rule extraction (PRAW sidebar/wiki → LLM parsing → compliance checks)
+- Comment outcome tracking (karma snapshots at 4h/24h/48h + removal detection)
+- Budget engine (smart daily limits per avatar)
+- Cross-avatar deduplication (prevent two avatars commenting on same thread)
 - Real billing/payments
-- Production deployment (Docker Compose ready, not deployed)
 - Plan action limits enforcement (max_comments_per_month)
 - Data retention cleanup (TTL for old scraped threads)
 - Agency multi-tenant workspace (deferred until 3+ agency clients)
@@ -164,21 +257,35 @@ reddit_saas/
 - Auto-generated PDF reports — deferred
 
 ## Key Data Flow
-1. SQS worker scrapes subreddits → saves RedditThread records (skips locked threads)
+1. Celery worker scrapes subreddits → saves RedditThread records (skips locked threads)
 2. AI scores threads (relevance/quality/strategic) → tags: engage/monitor/skip (skips locked)
 3. AI generates comment drafts for "engage" threads (liveness check for stale threads)
-4. Human reviews drafts → approve/reject/edit (locked indicator visible)
-5. Approved comments posted manually to Reddit
-6. Periodic liveness refresh auto-rejects drafts for newly locked threads
+4. Self-learning loop injects few-shot examples + correction patterns into generation prompt
+5. Human reviews drafts → approve/reject/edit (locked indicator visible)
+6. Learning service captures edits → extracts patterns → improves future generation
+7. Approved comments posted manually to Reddit
+8. Periodic liveness refresh auto-rejects drafts for newly locked threads
 
-## Task Architecture (Target)
-- **Producer**: FastAPI app / scheduler sends messages to SQS queues
-- **Consumer**: Python workers (asyncio loop) poll SQS with long polling (20s)
-- **Scheduler**: EventBridge Scheduler (replaces Celery Beat) or cron on EC2
-- **Locks**: Valkey SETNX with Lua atomic release (same pattern as current)
-- **Rate Limiter**: Valkey sorted set sliding window (same pattern as current)
-- **DLQ**: SQS Dead Letter Queue per task type (automatic after N failures)
-- **Results**: Valkey with TTL (short-lived, 5 min default)
+## Task Architecture (Current — Celery + Redis)
+- **Producer**: FastAPI app / Celery Beat sends tasks
+- **Consumer**: Celery workers (prefork pool)
+- **Scheduler**: Celery Beat (periodic tasks)
+- **Locks**: Redis SETNX with Lua atomic release
+- **Rate Limiter**: Redis sorted set sliding window
+- **Retry**: bind=True, max_retries=3, countdown=60×2^attempt (AI tasks only)
+
+### Celery Beat Schedule (UTC)
+| Time | Task | Purpose |
+|------|------|---------|
+| every 60s | `queue_tick` | Scrape scheduling (gated by DB interval) |
+| every 60s | `system_heartbeat` | System health pulse |
+| 05:20 | `snapshot_profile_analytics_all_avatars` | Profile analytics |
+| 06:00 | `evaluate_all_avatar_phases` | Phase evaluation |
+| 06:30 | `check_cqs_all_avatars` | CQS batch check (auto-freeze on lowest) |
+| 07:30, 13:30 | `health_check_all_avatars` | Shadowban/suspension detection |
+| 08:00, 14:00 | `run_full_pipeline_all_clients` | Score → Generate → Posts |
+| 10:00 | `run_hobby_pipeline_all_avatars` | Hobby scrape + generate |
+| every 4h | `track_karma_all_avatars` | Karma tracking |
 
 ## Comment Draft Status Workflow
 `pending` → `approved` / `rejected` → `posted`
@@ -190,6 +297,7 @@ reddit_saas/
 
 ## Key Reference Files
 - `docs/memory.md` — Project knowledge base
+- `docs/update_for_tzvi_may11.md` — Latest status update for Tzvi
 - `docs/aws_budget_may2026.md` — Detailed AWS budget with SQS/Valkey calculations
 - `docs/aws_cost_estimate.md` — AWS cost estimate (summary, scaling projections)
 - `docs/adr_sqs_valkey_migration.md` — Architecture Decision Record: SQS+Valkey migration
@@ -216,6 +324,7 @@ reddit_saas/
 - Pre-warmed avatars: Silver $199 one-time, Gold $499 one-time
 
 ## Avatar Phases (from Business Brief)
+- **Mentor (phase 0)**: Pre-warmed high-karma accounts. Excluded from ALL automated pipelines (scoring, generation, hobby, posts). Not subject to phase evaluation/promotion/demotion. Used for reputation presence, not automated engagement. Set via admin Phase Override.
 - **Phase 1** (months 1-2): Credibility building. Zero brand mentions. Hobby + general professional subs only.
 - **Phase 2** (months 3-4): Content seeding & post creation. External source citations. No direct brand links yet.
 - **Phase 3** (month 5+): Brand integration. Only when: sufficient karma + thread relevant + brand ratio below threshold.

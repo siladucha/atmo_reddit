@@ -328,7 +328,10 @@ AWS Infrastructure (EC2+SQS+Valkey):       7%  ███
 Hour  | Scraping | Scoring | Generation | Review
 ------+----------+---------+------------+--------
 00-06 | ████     | ░       | ░          | ░       (scraping runs continuously)
+05:20 | ████     | ░       | ░          | ░       (profile analytics snapshots)
 06:00 | ████     | ░       | ░          | ░       (phase evaluation fires)
+06:30 | ████     | ░       | ░          | ░       (CQS batch check — Reddit API)
+07:30 | ████     | ░       | ░          | ░       (health check — shadowban/suspension)
 08:00 | ████     | ████████| ████████   | ░       (AI pipeline morning run)
 09-13 | ████     | ░       | ░          | ████████ (human review window)
 10:00 | ████     | ░       | ████       | ████████ (hobby pipeline)

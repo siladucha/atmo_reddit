@@ -334,10 +334,14 @@ From Ori's persona selection prompt, these modes remain core:
 
 ## 8. Implementation Priority
 
-### Phase 1 — Subreddit Rule Extraction (Before Pilot)
+### Phase 1 — Subreddit Rule Extraction (Before 10 Clients)
 - [x] `SubredditProfile` concept defined (steering spec)
 - [x] Subreddit detail page `/admin/subreddits/detail/{name}` — zoom-in with avatar monitoring + community leaders
 - [x] `subreddit_intel.py` service — overview, scrape history, avatar performance, leaders, timeline
+- [x] `AvatarSubredditPresence` model — per-avatar, per-subreddit comment metrics
+- [x] `presence.py` service — scan Reddit history, aggregate by subreddit, staleness detection
+- [x] Avatar presence tab on detail page (HTMX partial, sort controls, scan trigger)
+- [x] Weekly auto-scan of all active avatars (Celery Beat)
 - [ ] PRAW-based rule fetching service (sidebar/wiki parsing)
 - [ ] LLM rule parsing (structured extraction)
 - [ ] Inject rules into generation prompt

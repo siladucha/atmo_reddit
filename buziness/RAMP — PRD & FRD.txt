@@ -1,0 +1,1137 @@
+﻿RAMP — PRD & FRD
+Version: 1.0 (Partner Review Draft)
+Date: May 2026
+Prepared for: Internal alignment between Max and Tzvi
+________________
+
+
+1. Product Vision
+RAMP (Reddit Avatar Management Platform) is a Reddit operations platform designed to help businesses and professionals maintain a structured, policy-aware Reddit presence using the official Reddit API.
+The platform combines:
+* AI-assisted content workflows
+* Reddit account operations
+* Competitor and mentor intelligence
+* Human review and compliance controls
+* Budget and usage management
+The platform is intended for:
+* Marketing agencies
+* Startup founders
+* B2B brands
+* Individual professionals building authority on Reddit
+The system is designed around human-supervised workflows and compliance-aware automation rather than fully autonomous mass posting.[a]
+________________
+
+
+2. Strategic Positioning
+The platform is NOT positioned as:[b]
+* Spam automation
+* Vote manipulation
+* Scraping infrastructure
+* Black-hat growth tooling
+The platform IS positioned as:[c]
+* Reddit workflow infrastructure
+* AI-assisted community engagement
+* Persona and reputation management
+* Competitive intelligence
+* Personal brand support
+* GEO/AEO brand exposure & growth[d]
+________________
+
+
+3. Core Product Modules
+MVP Modules
+1. Avatar Management
+2. Thread Discovery & Scoring
+3. Rules Compliance Layer
+4. AI Draft Generation
+5. Human Review Queue
+6. Usage Tracking & Billing
+7. Health Monitoring
+8. Analytics Dashboard
+Phase 2 Modules
+1. Competitor Intelligence
+2. Mentor Tracking
+3. Personal Brand Workflows
+4. Lifecycle Automation
+5. Benchmarking
+Phase 3 Modules
+1. Inventory Avatar Operations
+2. Multi-client Scaling
+3. Advanced Recommendation Systems
+4. Predictive Reputation Analytics
+________________
+
+
+4. Avatar Types 
+What about avatar lifecycle (credibility building, content seeding, brand integration)?[e]
+
+
+Client Avatar[f]
+* Used for client-facing campaigns
+* Human review required
+* Paid from client budget
+Personal Avatar
+* Owned by individual professional
+* Optional review workflows
+* Paid from user subscription
+Tracked Avatar
+* Read-only intelligence target
+* No posting capability
+* Used for competitor and mentor monitoring
+Inventory Avatar (Internal Use)
+* Internal operational account
+* Used for reputation building and testing
+* Not publicly marketed as account resale infrastructure
+________________
+
+
+5. Compliance Principles
+But what about the client side?
+
+
+
+
+The system SHALL:
+* Use only the official Reddit API through PRAW
+* Respect rate limits
+* Support deletion handling for removed content
+* Cache subreddit rules and wiki data
+* Support manual review workflows
+* Maintain audit logs
+The system SHALL NOT:
+* Use browser automation for scraping
+* Manipulate votes
+* Circumvent rate limits
+* Store deleted Reddit content beyond retention windows
+* Train foundation AI models on Reddit data
+________________
+
+
+6. Content Workflow
+Every draft is produced from four simultaneous inputs:
+
+
+1 — Persona Layer (required)
+All content is generated through the avatar's full character: job title, background, vocabulary, tone principles, speech patterns, opinions, and hard constraints. We don't write a comment — we write what this specific person would say.
+
+
+2 — Subreddit Historical Intelligence (required, 12-month minimum lookback)
+System analyzes top-performing posts and comments in the target subreddit (sorted by upvotes, 12+ months old) to calibrate optimal length, framing, and style. Used for tone calibration only — not reproduced.
+
+
+3 — Subreddit Tone Fingerprint (required)
+A community tone profile derived from sentiment analysis of top-performing threads: technical? supportive? contrarian? humorous? Cached per subreddit, refreshed periodically. Every draft is tone-matched to what actually earns upvotes in that community.
+
+
+4 — External Intelligence Layer (optional[g], plan-gated)
+Real-time retrieval of relevant news, research, and trends related to the thread topic. Makes the avatar's comment reference current, credible information. Adds cost and latency — configurable per avatar. Recommended for professional subs, not required for hobby/karma content.Output rules enforced before review queue:
+
+
+- Length calibrated to subreddit norms
+- No brand mentions unless Phase 3 eligibility is confirmed
+- No promotional framing or calls to action
+- No factual claims about competitors (opinions permitted)
+- Every draft scored against a genuine community member rubric
+Phase 0 — Rules Retrieval
+Before analyzing or drafting content:
+* Fetch subreddit rules
+* Fetch subreddit wiki (when available)
+* Cache rules for 24 hours
+* Reject threads violating subreddit policies
+Phase 1 — Discovery
+* Monitor configured subreddits
+* Run keyword search
+* Deduplicate threads
+Phase 2 — Scoring
+Each thread receives:
+* Relevance score
+* Quality score
+* Strategic opportunity score
+* Compliance validation
+Phase 3 — Drafting
+LLM generates:
+* Comment drafts
+* Post drafts
+* Strategic briefs
+Phase 4 — Review
+Depending on avatar type:
+* Client content requires approval
+* Personal content may auto-publish or request review
+* Inventory content requires operator approval
+Phase 5 — Publishing & Logging
+* Publish through Reddit API
+* Store audit records
+* Track engagement metrics
+________________
+
+
+7. Personal Brand Module
+Personal users can:
+* Connect their Reddit account
+* Configure expertise and tone
+* Define topics to avoid
+* Track mentors
+* Receive thread opportunities
+* Review AI-generated drafts
+* Receive weekly performance digests
+Default policy:
+* Auto-publishing OFF
+* Real-name/company mentions OFF
+* User retains full editorial control
+________________
+
+
+8. Competitor & Mentor Intelligence
+The system supports monitoring public Reddit activity for:
+* Competitors
+* Thought leaders
+* Mentors
+Collected data includes:
+* Recent posts and comments
+* Active subreddits
+* Posting patterns
+* Engagement patterns
+* Topic frequency
+Outputs include:
+* Weekly digests
+* Strategic observations
+* Opportunity alerts
+* Suggested response threads
+
+
+8.3 Strategy Construction: Mentor-Driven vs. Community-Driven[h][i]
+Once a target subreddit is identified for an avatar, the platform determines the optimal engagement strategy based on a simple binary decision: Is there a mentor available in this subreddit?
+A mentor is any tracked avatar (competitor, thought leader, or industry expert) with a proven history of successful engagement in the target community.
+Strategy Decision Flow
+  
+
+How the Two Approaches Differ
+Parameter
+	No Mentor Available
+	Mentor Available
+	Source of signal
+	The subreddit itself (crowd wisdom)
+	A specific, proven mentor
+	What is analyzed
+	Top 50 comments across 50+ authors
+	Top 50 comments from the mentor only
+	What is extracted
+	General patterns of success in the community
+	The mentor's unique winning formula
+	Resulting strategy
+	Avatar blends in as a competent community member
+	Avatar writes like a top-performer in that niche
+	Risk level
+	Medium (may produce generic content)
+	Low (proven pattern, higher confidence)
+	Time to effective engagement
+	Slower (requires A/B testing to refine)
+	Faster (direct imitation of what works)
+	Example: Mentor-Based Strategy
+Scenario: Hot-Thought2408 (NeuroYoga client) wants to engage in r/Anxiety.
+Mentor assigned: dr_weil — a wellness expert with 85+ average comment score in this subreddit.
+System extracts from mentor:
+* Length: 150-250 characters (shorter than subreddit average)
+* Tone: warm, reassuring, not clinical
+* Structure: validate feeling → give technique → explain why
+* Signature hook: "physiological sigh"
+Resulting strategy for Hot-Thought2408:
+* Same length and tone as mentor
+* Same structure (validate → technique → why)
+* But uses his own hill ("3 minutes beats 30 minutes you skip")
+* And his own techniques (breathing protocols from ATMO)
+Example: Community-Based Strategy (No Mentor)
+Scenario: Flaky_Finder_13 (Jenny, personal brand) wants to engage in r/softwaretesting.
+No mentor assigned.
+System analyzes top 50 comments from the subreddit:
+Extracted Pattern
+	Finding
+	Average length
+	300-500 characters
+	Dominant tone
+	Technical, specific, helpful
+	Common structure
+	Problem → Solution → Result
+	What gets upvoted
+	Code examples, real metrics, honest failures
+	What gets downvoted
+	General advice, tool marketing, theory without practice
+	Resulting strategy for Flaky_Finder_13:
+* Length: 300-500 characters
+* Tone: technical and specific
+* Must include: specific example or metric
+* Avoid: marketing language, general advice
+1.  
+
+
+
+
+8.4 Avatar Lifecycle Management (Human-in-the-Loop)
+The platform does not operate autonomously. Every avatar follows a managed lifecycle where the system proposes and the operator disposes.
+8.4.1 Lifecycle Flow
+text
+Manager gives name ──► System analyzes ──► Proposes classification ──► Manager approves ──► Proposes voice ──► Manager approves ──► Proposes strategy ──► Manager approves ──► System executes ──► Monitors ──► Adjusts if needed
+8.4.2 Decision Points
+Step
+	System Action
+	Manager Action
+	On Reject
+	1
+	Fetches Reddit data via PRAW
+	Provides avatar name
+	Return to step 1
+	2
+	Analyzes posts, comments, karma, subreddits
+	—
+	—
+	3
+	Proposes classification (type, role, synthetic likelihood)
+	Approve / Reject
+	Return to step 2
+	4
+	Proposes voice_profile (tone, constraints, style)
+	Approve / Edit / Reject
+	Return to step 3
+	5
+	Proposes strategy (goals, priorities, cadence, forecast)
+	Approve / Modify / Reject
+	Return to step 4
+	6
+	Executes (suggests posts/comments for approval)
+	Approve / Edit / Skip
+	—
+	7
+	Monitors results (scores, karma, engagement)
+	—
+	—
+	8
+	Proposes adjustments when performance degrades
+	Approve / Ignore
+	Return to step 5
+	8.4.3 What System Automatically Detects
+When a manager adds an avatar name, the system analyzes the Reddit account and answers:
+Question
+	Output Example
+	Is this synthetic or real?
+	Synthetic likelihood: 20% — realistic patterns, emoji usage, personal responses
+	What is the avatar type?
+	personal_creator (no client, posts about own project)
+	What is the primary role?
+	content_creator (high post karma, original content)
+	What topics does it cover?
+	securityCTF, wargames, Linux, OSINT
+	What tone does it use?
+	enthusiastic, technical, helpful
+	8.4.4 Manager Dashboard View
+text
+┌─────────────────────────────────────────────────────────────────┐
+│ Avatar: Middle-Mode3001                          Status: Active │
+├─────────────────────────────────────────────────────────────────┤
+│ 📊 CLASSIFICATION (approved)                                    │
+│    Type: personal_creator | Synthetic: 20% | Role: creator     │
+│                                                                 │
+│ 🎭 VOICE PROFILE (approved)                                     │
+│    "Creator of BreachLab, enthusiastic, technical, helpful"    │
+│                                                                 │
+│ 🎯 STRATEGY (approved)                                          │
+│    Goals: 1000 karma / 20 comments/week                        │
+│    Priority: r/securityCTF (10), r/netsecstudents (8)          │
+│                                                                 │
+│ 📝 EXECUTION (pending)                                          │
+│    ☐ Comment in r/securityCTF (draft)    [Approve][Edit]      │
+│                                                                 │
+│ 📈 MONITORING                                                   │
+│    Last 7 days: 12 comments | avg score 2.3                    │
+│    Proposed adjustments: shorten to 200 chars    [Approve]     │
+└─────────────────────────────────────────────────────────────────┘
+________________
+
+
+8.5 Strategy Generator (Decision Layer)
+The Strategy Generator is a separate AI layer that does not write comments. It determines how the avatar should behave in a specific context.
+8.5.1 Separation of Concerns
+Layer
+	Responsibility
+	Frequency
+	Cost
+	Strategy Generator
+	Decides goals, priorities, tone, cadence
+	Every 2-4 weeks
+	$0.005–0.006
+	Content Generator
+	Produces actual comment text
+	3-5 times per day
+	$0.001–0.002
+	8.5.2 Strategy Output (JSON)
+json
+{
+  "goals": [
+    {"metric": "comment_karma", "target": 100, "days": 30}
+  ],
+  "subreddit_priorities": [
+    {"subreddit": "r/Anxiety", "frequency_per_week": 7, "hill_usage_percent": 30}
+  ],
+  "tone_calibration": {
+    "formality": "casual",
+    "avoid": ["guru-speak", "spiritual language"]
+  },
+  "weekly_cadence": [
+    {"week": 1, "comments_per_day": 2, "professional_percent": 0}
+  ],
+  "forecast": {
+    "karma_day_30": 80,
+    "phase_transition_expected_day": 24
+  }
+}
+8.5.3 Strategy Sources
+Source
+	When Used
+	Method
+	Mentor analysis
+	Mentor exists in target subreddit
+	Extract patterns from mentor's top 50 comments
+	Subreddit analysis
+	No mentor available
+	Analyze top 50 comments from subreddit
+	Historical affinity
+	Avatar has commenting history
+	Exclude subreddits with score < 0
+	8.5.4 Fallback Strategy (No LLM)
+When LLM is unavailable (API error, timeout, or manual override), the system generates a rule-based strategy:
+yaml
+fallback_strategy:
+  goals: {karma: 50, comments: 30}
+  weekly_cadence: week1 → 2 comments/day, 0% professional
+  forecast: karma_day_30 → 50
+  fallback_reason: "LLM unavailable"
+________________
+
+
+8.6 Avatar Classification Intelligence
+When an avatar is added, the system automatically analyzes the Reddit account and classifies it without waiting for manual input.
+8.6.1 Classification Output
+yaml
+avatar_classification:
+  avatar: "Middle-Mode3001"
+  confidence: 0.85
+  
+  inferred_type: "personal_creator"  # or client/inventory/mentor
+  synthetic_likelihood: 0.2  # 0-1 scale
+  
+  primary_role: "content_creator"  # or commentator / mentor / promoter
+  
+  inferred_topics: ["securityCTF", "wargames", "Linux", "OSINT"]
+  inferred_tone: "enthusiastic, technical, helpful"
+  
+  suggested_client_id: null
+8.6.2 What the System Detects
+Signal
+	What It Tells
+	High post karma, low comment karma
+	Avatar is a content creator, not a commentator
+	Posts about own project
+	Likely personal brand or client avatar
+	Emoji usage, personal responses
+	Low synthetic likelihood (real human)
+	Consistent topics across posts
+	Clear expertise area
+	Links to external site
+	Potential promotion intent
+	________________
+
+
+8.7 Auto-Correction Loop
+When avatar performance degrades, the system automatically proposes strategy adjustments.
+8.7.1 Trigger Conditions
+Condition
+	Action
+	3 consecutive comments with score ≤ 0 in same subreddit
+	Exclude subreddit for 7 days
+	Karma unchanged for 5 days despite active posting
+	Reduce cadence by 50%
+	Brand ratio > 30%
+	Block brand-relevant threads
+	Hook usage < 25%
+	Increase hook frequency in prompts
+	8.7.2 Adjustment Flow
+text
+System monitors performance
+    ↓
+Detects degradation (3 negative comments in r/breathwork)
+    ↓
+Proposes adjustment: "Exclude r/breathwork for 7 days"
+    ↓
+Manager approves / rejects / modifies
+    ↓
+Strategy updated
+________________
+
+
+9. Budgeting & Billing (Updated)
+9.1 Strategy Generation Costs
+Model
+	Cost per Strategy
+	Time
+	Use Case
+	Claude Haiku (default)
+	$0.005–0.006
+	8–12 sec
+	Standard avatars
+	Claude Sonnet (premium)
+	$0.021–0.022
+	20–26 sec
+	High-value clients
+	Gemini Flash (inventory)
+	<$0.001
+	3–5 sec
+	Internal use only
+	Frequency: Once per avatar at creation, then every 2-4 weeks, or on trigger (profile change, auto-correction).
+9.2 Total Cost per Avatar (Monthly)
+Operation
+	Frequency
+	Cost
+	Strategy generation
+	0.25 (once/4 weeks)
+	$0.0015
+	Comment generation
+	100 (3-5/day × 30 days)
+	$0.12–0.20
+	Scoring (batch)
+	30
+	$0.02–0.03
+	Total
+	
+
+	$0.14–0.23
+	________________
+
+
+Appendix F: Avatar Lifecycle Decision Table
+Phase
+	System Action
+	Manager Action
+	Automation Level
+	0 — Onboarding
+	Fetches Reddit data, analyzes
+	Provides avatar name
+	System proposes
+	1 — Classification
+	Proposes type, role, synthetic likelihood
+	Approves or rejects
+	Human-in-the-loop
+	2 — Voice Profile
+	Generates tone, constraints, style
+	Approves or edits
+	Human-in-the-loop
+	3 — Strategy
+	Generates goals, priorities, cadence
+	Approves or modifies
+	Human-in-the-loop
+	4 — Execution
+	Suggests posts/comments
+	Approves each
+	Human-in-the-loop
+	5 — Monitoring
+	Tracks scores, karma, engagement
+	Reviews periodic reports
+	System automatic
+	6 — Adjustment
+	Proposes strategy changes
+	Approves or ignores
+	Human-in-the-loop
+	________________
+
+
+Appendix G: Glossary (New Terms)
+Term
+	Definition
+	Strategy Generator
+	AI layer that determines avatar goals, tone, cadence, and subreddit priorities. Does not produce comment text.
+	Content Generator
+	AI layer that produces actual comment drafts using the strategy as input.
+	Fallback Strategy
+	Rule-based strategy generated without LLM when API is unavailable or manual override is enabled.
+	Synthetic Likelihood
+	Probability (0-1) that an avatar is a bot or synthetic account, based on posting patterns, emoji usage, response variability, and account age.
+	Auto-Correction
+	Automatic strategy adjustment triggered by performance degradation (e.g., 3 consecutive negative scores).
+	Avatar Classification
+	Automatic determination of avatar type (personal/client/inventory/mentor), role (creator/commentator), and synthetic likelihood based on Reddit data.
+	Human-in-the-Loop
+	Operational model where system proposes actions and manager approves/rejects before execution.
+	 
+9. Budgeting & Billing
+Pricing Tiers
+* Seed
+* Starter
+* Growth
+* Scale
+The system tracks:
+* API usage
+* LLM token consumption
+* Storage usage
+* Budget utilization
+When limits are exceeded:
+* Non-critical actions pause
+* Health checks continue
+* Users receive alerts
+________________
+
+
+10. Technical Architecture
+Core Stack
+* Python + PRAW
+* PostgreSQL
+* Redis
+* Supabase Auth
+* OpenRouter LLMs
+* n8n orchestration
+* Airtable or custom review UI
+* Pushover + Sentry monitoring
+Architecture Principles
+* Queue-based processing
+* Per-avatar isolation
+* Aggressive caching
+* Stateless workers
+* Horizontal scalability
+________________
+
+
+11. Risk Areas
+Primary risks:
+* Reddit policy changes
+* Rate-limit pressure
+* Shadowbans
+* AI-generated low-quality content
+* Over-automation
+* Client misuse
+Mitigation:
+* Human review
+* Compliance layer
+* Per-avatar throttling
+* Audit logging
+* Conservative posting strategies
+________________
+
+
+12. MVP Scope Recommendation
+Recommended MVP scope:
+* OAuth onboarding
+* Avatar registry
+* Thread discovery
+* Rules compliance cache
+* AI draft generation
+* Human review queue
+* Posting via API
+* Health monitoring
+* Budget tracking
+* Reporting dashboard
+Defer until later:
+* Advanced benchmarking
+* Predictive analytics
+* Inventory optimization
+* Advanced mentor intelligence
+* Autonomous workflows
+________________
+
+
+13. Success Metrics[j][k][l]
+What about client facing success metrics?
+
+
+
+
+Operational KPIs
+* 90% avatar survival monthly
+* <48h deletion compliance latency
+* 80% cache hit rate
+* <2 second dashboard response time
+* Zero sustained rate-limit violations
+Business KPIs
+* Client retention
+* Personal user retention
+* Cost per generated action
+* Average engagement improvement
+* Hours saved per customer
+________________
+
+
+14. Open Questions for Alignment
+Business
+* Will inventory avatars remain internal-only? > 
+Pre-Warmed Avatar Inventory
+Avatars are continuously aged in the background before any client assignment — building karma, posting history, and community credibility in relevant subreddits. Clients can be assigned inventory avatars at an additional one-time fee, compressing the time-to-value gap.
+Tiers:
+
+
+Silver — 500–1,000 karma, 3+ months history. Faster Phase 2 eligibility.
+Gold — 2,000+ karma, 6+ months history, active in relevant professional subs. Phase 2 eligible immediately on assignment.
+
+
+Implementation notes:
+
+
+Inventory costs tracked against internal operational budget — separate from all client budgets
+On assignment: assigned_to_client_id and assigned_at added. Full pre-assignment history preserved and queryable
+Never described externally as "pre-made accounts." Positioned as "priority onboarding with accelerated credibility." The fee covers operational work performed — not the account as a transferable asset
+The inventory pool is a compounding moat. A 2-year-old avatar with 5,000 karma cannot be replicated quickly by a competitor
+
+
+
+
+* Will clients ever directly control avatars?
+* How aggressive should automation be by default?
+* What is the acceptable legal/compliance risk profile?
+Product
+* Is Airtable temporary or long-term?
+* Should personal brand be part of MVP?
+* How much manual review is required?
+Technical
+* Single Reddit app vs multiple apps?
+* Queue topology?
+* Redis Streams vs Celery?
+* PostgreSQL partitioning strategy?
+________________
+
+
+15. Recommended Next Step
+Phase 1
+* Finalize scope
+* Approve MVP boundaries
+* Approve compliance posture
+Phase 2
+* Produce system architecture diagrams
+* Design database schema
+* Design queue topology
+* Define worker boundaries
+Phase 3
+* Begin implementation
+* Launch internal alpha
+* Run controlled Reddit testing
+
+
+
+
+FLOWs
+```mermaid
+flowchart TD
+    subgraph Client["Client Layer"]
+        AdminUI["Admin UI (Next.js)"]
+        ReviewQueue["Review Queue (HTMX)"]
+        Dashboard["Dashboard"]
+        Reports["Reports"]
+    end
+
+
+    subgraph Gateway["API Gateway"]
+        FastAPI["FastAPI + JWT"]
+    end
+
+
+    subgraph Services["Application Services"]
+        direction TB
+        Core["Core Services"]
+        AI["AI Services"]
+        Safety["Safety Services"]
+        
+        subgraph CoreServices[" "]
+            AvatarMgmt["Avatar Management"]
+            ThreadDiscovery["Thread Discovery"]
+            ReviewQueueSvc["Review Queue"]
+            PublishingEngine["Publishing Engine"]
+        end
+        
+        subgraph AIServices[" "]
+            Scoring["Scoring (Gemini)"]
+            Generation["Generation (Claude)"]
+            SelfLearning["Self-Learning Loop"]
+        end
+        
+        subgraph SafetyServices[" "]
+            Shadowban["Shadowban Check"]
+            RateLimit["Rate Limit Guard"]
+            Compliance["Compliance Filter"]
+            KillSwitch["Emergency Kill Switch"]
+        end
+    end
+
+
+    subgraph Workers["Queue & Workers"]
+        ScrapeWorker["Scraping Worker"]
+        ScoreWorker["Scoring Worker"]
+        GenWorker["Generation Worker"]
+        PubWorker["Publishing Worker"]
+    end
+
+
+    subgraph Data["Data Layer"]
+        PostgreSQL[("PostgreSQL (RDS)")]
+        Redis[("Redis (Queue)")]
+        Valkey[("Valkey (Cache)")]
+        S3[("S3 (Logs)")]
+    end
+
+
+    subgraph External["External Services"]
+        RedditAPI["Reddit API (PRAW)"]
+        OpenRouter["OpenRouter (LLMs)"]
+        Supabase["Supabase (Auth)"]
+        Sentry["Sentry (Monitoring)"]
+    end
+
+
+    %% Connections
+    Client --> Gateway
+    Gateway --> Services
+    Services --> Workers
+    Workers --> Data
+    Workers --> External
+    Data --> External
+```
+
+
+---
+
+
+## 2. Core Pipeline Flow
+
+
+```mermaid
+flowchart LR
+    subgraph Pipeline["Core Pipeline"]
+        Scrape["SCRAPE\nSubreddits\nKeywords\nFreshness\nDedup"]
+        Score["SCORE\nRelevance\nQuality\nSafety\nCompliance"]
+        Generate["GENERATE\nAI Draft\nPersona\nStrategy\nContext"]
+        Review["REVIEW\nApprove\nReject\nEdit\nSkip"]
+        Publish["PUBLISH\nReddit API\nRate Limits\nRetry\nLog"]
+    end
+
+
+    Scrape --> Score --> Generate --> Review --> Publish
+
+
+    Scrape -.-> ScrapeW["Celery Worker"]
+    Score -.-> ScoreW["Celery Worker"]
+    Generate -.-> GenW["Celery Worker"]
+    Publish -.-> PubW["Celery Worker"]
+```
+
+
+---
+
+
+## 3. Thread Scoring Flow
+
+
+```mermaid
+flowchart TD
+    Start([New Thread from Scrape]) --> Freshness{Thread Age > 48h?}
+    
+    Freshness -->|Yes| SkipStale[SKIP: Stale Thread]
+    Freshness -->|No| ForClientA[For Client A]
+    Freshness -->|No| ForClientB[For Client B]
+    
+    ForClientA --> ScoreA[LLM Scoring: Gemini]
+    ForClientB --> ScoreB[LLM Scoring: Gemini]
+    
+    ScoreA --> ResultA[Score A: 78/100]
+    ScoreB --> ResultB[Score B: 45/100]
+    
+    ResultA --> Threshold{Score > 60?}
+    ResultB --> Threshold
+    
+    Threshold -->|Yes| Engage[ENGAGE: Add to Queue]
+    Threshold -->|No| Skip[SKIP: Monitor Only]
+```
+
+
+---
+
+
+## 4. Comment Generation Flow
+
+
+```mermaid
+flowchart TD
+    subgraph Input["Input Layer"]
+        Thread[Thread Context]
+        Avatar[Avatar Profile]
+        Subreddit[Subreddit Rules]
+        Strategy[Strategy Document]
+        Client[Client Brief]
+    end
+
+
+    Input --> Persona[Persona Selection\nWhich Avatar?\n• Voice fit\n• Subreddit history\n• Remaining budget\n• Phase eligibility]
+
+
+    Persona --> Safety[Safety Pre-Check]
+
+
+    Safety --> BudgetCheck{Budget OK?}
+    BudgetCheck -->|Yes| CooldownCheck{Cooldown OK?}
+    BudgetCheck -->|No| Block1[BLOCK: Budget Exhausted]
+    
+    CooldownCheck -->|Yes| SatCheck{Saturation OK?}
+    CooldownCheck -->|No| Block2[BLOCK: Cooldown Active]
+    
+    SatCheck -->|Yes| Generate[LLM Generation: Claude Haiku]
+    SatCheck -->|No| Block3[BLOCK: Subreddit Saturated]
+    
+    Generate --> Sanitize[Plain-Text Sanitizer\nStrip Markdown]
+    Sanitize --> Queue[Review Queue\nPending Approval]
+```
+
+
+---
+
+
+## 5. Human Review Flow
+
+
+```mermaid
+flowchart TD
+    Start([Draft Ready]) --> Display[Display Draft in Review Queue]
+    
+    Display --> Action{Operator Action}
+    
+    Action -->|Approve| Publish[Publish to Reddit API]
+    Action -->|Edit| SaveEdit[Save Edited Draft]
+    Action -->|Reject| LogReject[Log Rejection]
+    Action -->|Skip| NextDraft[Move to Next Draft]
+    
+    SaveEdit --> Record[Record Original + Changed]
+    Record --> Learn[Self-Learning Loop\nExtract Patterns]
+    Learn --> Publish
+    
+    Publish --> Track[Track Metrics\nScore, Karma]
+    Track --> Done([Complete])
+    
+    LogReject --> Done
+    NextDraft --> Done
+```
+
+
+---
+
+
+## 6. Self-Learning Loop
+
+
+```mermaid
+flowchart TD
+    Generate([AI Generates Draft]) --> Review[Human Reviews]
+    
+    Review --> Decision{Outcome}
+    
+    Decision -->|Approved as-is| Good[Positive Signal]
+    Decision -->|Edited| Diff[Record Diff:\nOriginal vs Edit]
+    Decision -->|Rejected| Bad[Negative Signal]
+    
+    Diff --> Extract[Extract Pattern:\n"Operator shortens comments"\n"Operator adds examples"]
+    Extract --> Update[Update Avatar Profile:\ntarget_length: 400 → 200\ntone: 'casual' → 'concise']
+    
+    Update --> Future[Future Prompts Include\nFew-Shot Examples]
+    Good --> Future
+    Bad --> Future
+    
+    Future --> Next[Next Generation is Better]
+```
+
+
+---
+
+
+## 7. Avatar Lifecycle Management
+
+
+```mermaid
+flowchart TD
+    Start([Manager adds avatar name]) --> Fetch[System fetches Reddit data via PRAW]
+    Fetch --> Analyze[System analyzes: posts, comments, karma, subreddits, tone]
+    Analyze --> Classify[System generates classification proposal]
+    
+    Classify --> Review1{Manager approves?}
+    Review1 -->|Reject| Fetch
+    Review1 -->|Approve| Voice[System generates voice_profile proposal]
+    
+    Voice --> Review2{Manager approves?}
+    Review2 -->|Reject| Voice
+    Review2 -->|Approve| Strategy[System generates strategy proposal]
+    
+    Strategy --> Review3{Manager approves?}
+    Review3 -->|Reject| Strategy
+    Review3 -->|Approve| Execute[System executes: suggests posts/comments]
+    
+    Execute --> Monitor[System monitors results: scores, karma]
+    Monitor --> Working{Strategy working?}
+    
+    Working -->|Yes| Continue[Continue]
+    Working -->|No| Adjust[System proposes adjustments]
+    Adjust --> Strategy
+```
+
+
+---
+
+
+## 8. Shadowban Detection Flow
+
+
+```mermaid
+flowchart TD
+    Start([Daily Cron Job]) --> ForEach[For Each Active Avatar]
+    
+    ForEach --> Check[External Shadowban API Check]
+    
+    Check --> Result{Status?}
+    
+    Result -->|Clean| LogClean[Log: Healthy]
+    Result -->|Suspected| Flag[Flag Avatar: Suspected]
+    Result -->|Confirmed| Freeze[Freeze Avatar: is_frozen = true]
+    
+    Flag --> Notify1[Notify Operator]
+    Freeze --> Notify2[Notify Operator + Pause Posting]
+    
+    LogClean --> Next[Next Avatar]
+    Notify1 --> Next
+    Notify2 --> Next
+    
+    Next --> Done([Complete])
+```
+
+
+---
+
+
+## 9. Safety & Emergency Controls
+
+
+```mermaid
+flowchart TD
+    subgraph Controls["Safety Controls"]
+        GlobalKill[Global Kill Switch\npipeline_enabled = false]
+        AvatarFreeze[Per-Avatar Freeze\navatar.is_frozen = true]
+        RateLimit[Rate Limit Controls\nper avatar / subreddit / client]
+        Cooldown[Cooldowns\n15 min + negative score penalty]
+    end
+
+
+    subgraph Triggers["Trigger Conditions"]
+        Manual[Manual Operator Action]
+        Shadowban[Shadowban Detected]
+        RateExceed[Rate Limit Exceeded]
+        NegativeScore[Negative Score]
+        Deletion[Post Deleted by Reddit]
+    end
+
+
+    subgraph Actions["Actions"]
+        StopGen[Stop Generation]
+        StopPub[Stop Publishing]
+        Alert[Alert Operator]
+        LogEvent[Log to Audit]
+    end
+
+
+    Triggers --> Controls
+    Controls --> Actions
+```
+
+
+---
+
+
+## 10. Database Schema Overview
+
+
+```mermaid
+erDiagram
+    clients {
+        uuid id PK
+        string name
+        string tier
+        boolean is_active
+        timestamp created_at
+    }
+    
+    avatars {
+        uuid id PK
+        uuid client_id FK
+        string username
+        string voice_profile
+        string constraints
+        boolean is_frozen
+        boolean is_active
+        int phase
+    }
+    
+    subreddits {
+        uuid id PK
+        string name
+        string category
+        jsonb rules_cache
+        boolean enabled
+    }
+    
+    threads {
+        uuid id PK
+        uuid subreddit_id FK
+        string title
+        text body
+        timestamp created_at
+        boolean is_locked
+    }
+    
+    drafts {
+        uuid id PK
+        uuid avatar_id FK
+        uuid thread_id FK
+        text generated_text
+        text edited_text
+        string status
+        timestamp created_at
+    }
+    
+    reviews {
+        uuid id PK
+        uuid draft_id FK
+        uuid operator_id FK
+        string action
+        text edit_diff
+        timestamp reviewed_at
+    }
+    
+    activity_logs {
+        uuid id PK
+        uuid client_id FK
+        uuid avatar_id FK
+        string action_type
+        jsonb metadata
+        timestamp created_at
+    }
+    
+    clients ||--o{ avatars : has
+    clients ||--o{ subreddits : monitors
+    subreddits ||--o{ threads : contains
+    avatars ||--o{ drafts : generates
+    threads ||--o{ drafts : inspires
+    drafts ||--|| reviews : reviewed_by
+    clients ||--o{ activity_logs : logs
+```
+
+
+[a]As phase I. Somewhere down the road I'd like us to test automations (on a very low scale).
+[b]+ Traffic/performance marketing tool - we will never promise more traffic/leads directly from this platform.
+[c]+ Brand awareness, US market penetration, ICP exposure
+[d]We need to think on how to incorporate this into our system - either by collaborating with another tool or by developing it natively (we can start with the former and then move on to the latter)
+[e]We should use the relevant threshold (use my previous doc if you agree with the scope)
+[f]Starting off as inventory avatars, then once purchased - they're allocated for clients
+[g]I don't think it should be optional. Our value proposition should be all about the generated content quality. It should include a mixture of context resources before our system comes up with a high quality reply/post
+[h]@Tzvi@tzvivaknindigital.com
+_Assigned to Tzvi@tzvivaknindigital.com_
+[i]I like the approach - I think it should be a hybrid approach, also taking into account the avatar's characteristics. For example - we can't 100% replicate an influencer if his tone contradicts our avatar's persona. We can, however, look for those influencers at the beginning and then shape our avatars to resemble them in their "personality"
+[j]What about client facing success metrics?
+[k]_Marked as resolved_
+[l]_Re-opened_
+I didn't understand why did you resolve this - I put client-facing success metrics in my old doc. If you agree with them - you can already paste them here, otherwise - let's discuss it

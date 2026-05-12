@@ -31,3 +31,6 @@ Reddit Personas-Grid view.csv
 
 # Logs
 logs/
+
+# Backups (local DB dumps)
+backups/

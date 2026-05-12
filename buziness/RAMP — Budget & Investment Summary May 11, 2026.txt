@@ -1,0 +1,199 @@
+﻿RAMP — Budget & Investment Summary
+Date: May 11, 2026
+Prepared for: Internal alignment (Max + Tzvi)
+________________
+
+
+1. Investment to Date
+Category
+	Amount
+	Development time (10 days, full-time)
+	Sweat equity
+	AI tooling subscriptions
+	Included
+	Operational model usage (testing, validation)
+	Included
+	Out-of-pocket expenses (personal funds)
+	~$300
+	Total invested (personal)
+	~$300
+	*Note: Development labor is not billed. The $300 covers only direct out-of-pocket costs for AI tools, API credits, and infrastructure testing.*
+________________
+
+
+2. Monthly Operational Budget (Forward-Looking)
+Category
+	Estimated Cost
+	Description
+	AI development tools
+	$220
+	Cursor, OpenRouter credits, LLM API access for development
+	Testing infrastructure
+	$70
+	Staging environment, test Reddit accounts, monitoring
+	Production AI pipeline (LLM API)
+	$115
+	Gemini Flash (scoring) + Claude Haiku (generation) for live clients
+	AWS infrastructure
+	$50
+	EC2, RDS, Redis, S3, bandwidth
+	Contingency
+	$45
+	Unexpected costs, overages, emergency changes
+	Total monthly
+	~$500
+	
+
+	________________
+
+
+3. What $500/month Supports
+Resource
+	Capacity
+	Clients
+	10+
+	Avatars
+	Up to 20 active
+	AI scoring
+	~5,000 threads/month
+	AI generation
+	~1,500 comment drafts/month
+	Infrastructure
+	1 EC2 instance, 1 RDS database, Redis cache
+	Support
+	Emergency fixes, monitoring, optimizations
+	________________
+
+
+4. First Payment Request
+Item
+	Amount
+	Reimbursement (personal expenses May 1–11)
+	$300
+	First month operational budget (May 11–June 11)
+	$500
+	Total requested
+	$800
+	Alternative: $500 forward budget only (no reimbursement) — Maxim absorbs past costs.
+________________
+
+
+5. Break-Even Analysis
+Scenario
+	Monthly Revenue
+	Monthly Cost
+	Profit
+	1 client on Seed plan
+	$399
+	$500
+	($101)
+	1 client on Starter plan
+	$799
+	$500
+	$299
+	2 clients on Seed plan
+	$798
+	$500
+	$298
+	2 clients (1 Seed + 1 Starter)
+	$1,198
+	$500
+	$698
+	3 clients on Starter plan
+	$2,397
+	$500
+	$1,897
+	Break-even: 2 Seed clients or 1 Starter client.
+________________
+
+
+6. Cash Flow Timeline
+text
+May 1–11:    $300 spent (personal)
+May 11:      $500 requested for operational budget
+May 11–June 11:  Development + pilot with XM Cyber
+June 1–15:   First paying client onboarded
+June 15–30:  Revenue starts covering costs
+July:        System self-sustaining
+________________
+
+
+7. What the Budget Does NOT Cover
+Item
+	Note
+	Founder salaries
+	Sweat equity until revenue
+	Marketing/advertising
+	Word of mouth + referrals
+	Legal/compliance fees
+	Tzvi's responsibility (company formation)
+	Sales commissions
+	Not applicable yet
+	________________
+
+
+8. Options for Moving Forward
+Option A: Full Reimbursement + Monthly Budget
+Payment
+	Amount
+	Timing
+	Reimbursement
+	$300
+	Now
+	Monthly budget
+	$500
+	Now
+	Total
+	$800
+	
+
+	Option B: Monthly Budget Only (No Reimbursement)
+Payment
+	Amount
+	Timing
+	Monthly budget
+	$500
+	Now
+	Reimbursement
+	$0
+	Maxim absorbs
+	Total
+	$500
+	
+
+	Option C: Reduced Budget (MVP Only, No Extras)
+Payment
+	Amount
+	Timing
+	Reduced monthly
+	$250
+	Now
+	Scope limited to core pipeline only
+	—
+	No AI development tools
+	Total
+	$250
+	
+
+	________________
+
+
+9. Recommendation
+Option B — Monthly budget only ($500), Maxim absorbs past costs.
+* Simple, clean start
+* No friction on reimbursement
+* Focus on building, not accounting
+* Good faith from both sides
+________________
+
+
+10. Next Steps
+1. Confirm which option
+2. Transfer funds to operational account
+3. Maxim continues development (AWS deployment + Week 1-2 tasks)
+4. First revenue targeted for June
+________________
+
+
+Prepared by Maxim
+May 11, 2026
