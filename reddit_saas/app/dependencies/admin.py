@@ -7,16 +7,20 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.user import User
+from app.models.user_role import UserRole
 
 
 async def require_superuser(
     request: Request, db: Session = Depends(get_db)
 ) -> User:
-    """Dependency that ensures the current user is an active superuser.
+    """Dependency that ensures the current user has admin-level access.
+
+    Accepts: owner, partner roles (or legacy is_superuser=True).
+    QA role gets limited admin access via separate dependency.
 
     Returns the User object for use in route handlers.
     Raises HTTPException(303) redirect to /login if unauthenticated.
-    Raises HTTPException(403) if user not found, inactive, or not superuser.
+    Raises HTTPException(403) if user not found, inactive, or insufficient role.
     """
     user_id = getattr(request.state, "user_id", None)
     if not user_id:
@@ -34,7 +38,11 @@ async def require_superuser(
         .filter(User.id == user_uuid, User.is_active.is_(True))
         .first()
     )
-    if not user or not user.is_superuser:
+    if not user:
         raise HTTPException(status_code=403, detail="Access Denied")
 
-    return user
+    # Accept admin-level roles OR legacy is_superuser flag
+    if user.user_role.is_admin_level or user.is_superuser:
+        return user
+
+    raise HTTPException(status_code=403, detail="Access Denied")
