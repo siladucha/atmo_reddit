@@ -29,6 +29,7 @@ from app.models.avatar import Avatar
 from app.models.comment_draft import CommentDraft
 from app.models.health_status import HealthStatus
 from app.services.reddit import get_reddit_client
+from app.services.sanitize import ensure_username_bare
 from app.services.settings import get_setting
 
 logger = logging.getLogger(__name__)
@@ -95,7 +96,7 @@ def check_profile_accessibility(username: str) -> tuple[str | None, str]:
 
     try:
         reddit = get_reddit_client()
-        redditor = reddit.redditor(username)
+        redditor = reddit.redditor(ensure_username_bare(username))
 
         # Access an attribute to trigger the actual API call.
         # Checking is_suspended requires fetching the redditor's data.
@@ -413,7 +414,7 @@ def check_comment_visibility(
 
     try:
         reddit = get_reddit_client()
-        redditor = reddit.redditor(username)
+        redditor = reddit.redditor(ensure_username_bare(username))
 
         # Fetch recent comments from unauthenticated session
         comments = redditor.comments.new(limit=max_comments)
