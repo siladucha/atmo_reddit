@@ -25,6 +25,7 @@ from app.models.avatar import Avatar
 from app.models.comment_draft import CommentDraft
 from app.models.post_draft import PostDraft
 from app.models.thread import RedditThread
+from app.services.sanitize import ensure_username_bare
 from app.services.transparency import record_activity_event
 
 logger = logging.getLogger(__name__)
@@ -123,7 +124,7 @@ def _track_single_avatar(db, avatar: Avatar) -> dict:
 
     try:
         reddit = get_reddit_client()
-        redditor = reddit.redditor(avatar.reddit_username)
+        redditor = reddit.redditor(ensure_username_bare(avatar.reddit_username))
 
         # Check if account is accessible
         if getattr(redditor, "is_suspended", False):

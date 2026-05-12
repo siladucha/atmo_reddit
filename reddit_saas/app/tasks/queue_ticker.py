@@ -88,8 +88,8 @@ def queue_tick() -> dict:
 
     # --- Check scrape_enabled ---
     try:
-        scrape_enabled = get_setting(db, "scrape_enabled")
-        if scrape_enabled.lower() == "false":
+        from app.services.settings import is_scrape_enabled
+        if not is_scrape_enabled(db):
             logger.info("queue_tick: Scraping is paused (scrape_enabled=false)")
             db.close()
             return {"status": "paused"}

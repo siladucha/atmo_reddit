@@ -1,4 +1,8 @@
-"""Celery tasks for Reddit scraping."""
+"""Celery tasks for Reddit scraping.
+
+TODO(pipeline-v2): Add scrape freshness gate (R8) — check min_scrape_interval_minutes
+before each subreddit scrape. See Sprint 1, Task 1.2.
+"""
 
 import logging
 import time
@@ -25,6 +29,9 @@ def scrape_professional_subreddits(client_id: str):
         client = db.query(Client).filter(Client.id == client_id).first()
         if not client:
             logger.error(f"Client {client_id} not found")
+            return
+        if not client.is_active:
+            logger.info(f"scrape_professional: client {client.client_name} is deactivated, skipping")
             return
 
         subreddits = (
@@ -60,6 +67,19 @@ def scrape_professional_subreddits(client_id: str):
                     db.add(subreddit_record)
                     db.flush()
                 subreddit_id = subreddit_record.id
+
+                # --- Freshness gate (R8): skip if scraped too recently ---
+                from app.services.settings import get_setting_int
+                min_interval = get_setting_int(db, "min_scrape_interval_minutes", 30)
+                last_scraped = sub.last_scraped_at or subreddit_record.last_scraped_at
+                if last_scraped is not None:
+                    elapsed_minutes = (datetime.now(timezone.utc) - last_scraped).total_seconds() / 60
+                    if elapsed_minutes < min_interval:
+                        logger.info(
+                            "scrape_professional: r/%s scraped %.1f min ago, skipping (threshold: %d)",
+                            sub.subreddit_name, elapsed_minutes, min_interval,
+                        )
+                        continue
 
                 start = time.time()
                 posts = scrape_subreddit(sub.subreddit_name, limit=50, max_age_hours=24)
@@ -239,6 +259,7 @@ def scrape_hobby_subreddits(avatar_id: str):
                         "subreddit_name": sub_name,
                         "posts_new": total_new_for_sub,
                         "duration_ms": duration_ms,
+                        "avatar_id": str(avatar.id),
                         "avatar_username": avatar.reddit_username,
                     }
                     record_activity_event(db, "scrape", message, client_id=None, metadata=metadata)
@@ -296,6 +317,38 @@ def scrape_subreddit_shared(self, subreddit_id: str) -> dict:
             return {"status": "error", "reason": "subreddit_not_found"}
 
         subreddit_name = sub_record.subreddit_name
+
+        # --- Freshness gate (R8): skip if scraped too recently ---
+        from app.services.settings import get_setting_int
+        min_interval = get_setting_int(db, "min_scrape_interval_minutes", 30)
+
+        if sub_record.last_scraped_at is not None:
+            elapsed_minutes = (datetime.now(timezone.utc) - sub_record.last_scraped_at).total_seconds() / 60
+            if elapsed_minutes < min_interval:
+                logger.info(
+                    "scrape_subreddit_shared: r/%s scraped %.1f min ago (threshold: %d min), skipping",
+                    subreddit_name, elapsed_minutes, min_interval,
+                )
+                record_activity_event(
+                    db,
+                    "scrape_too_fresh",
+                    f"Skipped r/{subreddit_name}: scraped {int(elapsed_minutes)} min ago (min interval: {min_interval} min)",
+                    client_id=None,
+                    metadata={
+                        "subreddit_name": subreddit_name,
+                        "subreddit_id": subreddit_id,
+                        "elapsed_minutes": round(elapsed_minutes, 1),
+                        "threshold_minutes": min_interval,
+                        "last_scraped_at": sub_record.last_scraped_at.isoformat(),
+                    },
+                )
+                return {
+                    "status": "skipped",
+                    "reason": "scrape_too_fresh",
+                    "subreddit": subreddit_name,
+                    "elapsed_minutes": round(elapsed_minutes, 1),
+                    "threshold_minutes": min_interval,
+                }
 
         # Record start event
         record_activity_event(

@@ -19,6 +19,7 @@ celery_app = Celery(
         "app.tasks.health_check",
         "app.tasks.presence",
         "app.tasks.profile_analytics",
+        "app.tasks.strategy",
     ],
 )
 
@@ -68,6 +69,10 @@ celery_app.conf.update(
         "profile-analytics-snapshots-daily": {
             "task": "snapshot_profile_analytics_all_avatars",
             "schedule": crontab(hour=5, minute=20),
+        },
+        "cqs-check-daily": {
+            "task": "check_cqs_all_avatars",
+            "schedule": crontab(hour=6, minute=30),  # After phase evaluation (06:00), before health check (07:30)
         },
     },
     # Broker connection resilience

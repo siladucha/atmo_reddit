@@ -42,8 +42,16 @@ def score_threads(self, client_id: str, triggered_by: str = "scheduler"):
             if not client:
                 logger.error(f"Client {client_id} not found")
                 return 0
+            if not client.is_active:
+                logger.info(f"score_threads: client {client.client_name} is deactivated, skipping")
+                return 0
 
-            count = score_unscored_threads_for_client(db, client)
+            result = score_unscored_threads_for_client(db, client)
+            # Handle both dict (new) and int (legacy) return
+            if isinstance(result, dict):
+                count = result.get("scored", 0)
+            else:
+                count = result
 
             # Record activity event with tag distribution from ThreadScore
             try:
@@ -128,6 +136,9 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
             if not client:
                 logger.error(f"Client {client_id} not found")
                 return 0
+            if not client.is_active:
+                logger.info(f"generate_comments: client {client.client_name} is deactivated, skipping")
+                return 0
 
             # Get active avatars for this client
             avatars = (
@@ -135,14 +146,19 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
                 .filter(Avatar.active.is_(True))
                 .all()
             )
-            # Filter avatars that serve this client (skip frozen + shadowbanned + unhealthy)
+            # Filter avatars that serve this client (skip frozen + shadowbanned + unhealthy + mentors)
             # Shadowban filter saves ~$0.06/thread in wasted LLM calls
+            # CQS gate: professional pipeline excludes CQS lowest regardless of phase.
+            # Fresh avatars warm up via hobby pipeline only.
+            # Mentor (phase 0) avatars are excluded from all automated pipelines.
             client_avatars = [
                 a for a in avatars
                 if a.client_ids and str(client.id) in a.client_ids
                 and not a.is_frozen
                 and not a.is_shadowbanned
                 and a.health_status not in ("shadowbanned", "suspended")
+                and a.cqs_level != "lowest"  # CQS lowest → hobby only, no brand comments
+                and a.warming_phase != 0  # Mentor — excluded from pipelines
             ]
 
             # Log avatars excluded due to health_status
@@ -154,6 +170,13 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
                     logger.warning(
                         "generate_comments: avatar %s excluded, health_status=%s",
                         a.reddit_username, a.health_status,
+                    )
+                elif (a.client_ids and str(client.id) in a.client_ids
+                        and not a.is_frozen
+                        and a.cqs_level == "lowest"):
+                    logger.warning(
+                        "generate_comments: avatar %s excluded, cqs_level=lowest",
+                        a.reddit_username,
                     )
 
             if not client_avatars:
@@ -230,25 +253,70 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
                     # Step 1: Safety check
                     from app.services.safety import check_avatar_can_post, check_subreddit_limit
 
-                    # Step 2: Select persona
-                    selection = select_persona(db, thread, client, client_avatars)
+                    # Step 2: Select persona (skip LLM call for single-avatar clients)
+                    if len(client_avatars) == 1:
+                        avatar = client_avatars[0]
+                        selection = {
+                            "persona_username": avatar.reddit_username,
+                            "mode": "helpful_peer",
+                            "thread_angle": "",
+                            "pov_opportunity": "",
+                            "selection_reasoning": "single avatar — skipped persona selection",
+                        }
+                    else:
+                        selection = select_persona(db, thread, client, client_avatars)
 
-                    # Find the selected avatar
-                    selected_username = selection.get("persona_username")
-                    avatar = next(
-                        (a for a in client_avatars if a.reddit_username == selected_username),
-                        client_avatars[0],  # fallback to first avatar
-                    )
+                        # Find the selected avatar
+                        selected_username = selection.get("persona_username")
+                        avatar = next(
+                            (a for a in client_avatars if a.reddit_username == selected_username),
+                            client_avatars[0],  # fallback to first avatar
+                        )
 
                     # Step 3: Safety gate
                     safety = check_avatar_can_post(db, avatar, "professional")
                     if not safety:
                         logger.info(f"Safety blocked {avatar.reddit_username}: {safety.reason}")
+                        # Log to activity feed for visibility
+                        try:
+                            from app.models.activity_event import ActivityEvent
+                            event = ActivityEvent(
+                                event_type="safety_block",
+                                client_id=client.id,
+                                message=f"Generation blocked for {avatar.reddit_username} in r/{thread.subreddit}: {safety.reason}",
+                                event_metadata={
+                                    "avatar_id": str(avatar.id),
+                                    "thread_id": str(thread.id),
+                                    "reason": safety.reason,
+                                    "source": "auto_pipeline",
+                                },
+                            )
+                            db.add(event)
+                            db.commit()
+                        except Exception:
+                            pass
                         continue
 
                     sub_safety = check_subreddit_limit(db, avatar, thread.subreddit)
                     if not sub_safety:
                         logger.info(f"Subreddit limit for {avatar.reddit_username}: {sub_safety.reason}")
+                        try:
+                            from app.models.activity_event import ActivityEvent
+                            event = ActivityEvent(
+                                event_type="safety_block",
+                                client_id=client.id,
+                                message=f"Subreddit limit for {avatar.reddit_username} in r/{thread.subreddit}: {sub_safety.reason}",
+                                event_metadata={
+                                    "avatar_id": str(avatar.id),
+                                    "thread_id": str(thread.id),
+                                    "reason": sub_safety.reason,
+                                    "source": "auto_pipeline",
+                                },
+                            )
+                            db.add(event)
+                            db.commit()
+                        except Exception:
+                            pass
                         continue
 
                     # Step 4: Generate comment
@@ -345,6 +413,9 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
 
         avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
         if not avatar:
+            return 0
+        if avatar.warming_phase == 0:
+            logger.info(f"generate_hobby_comments: avatar {avatar.reddit_username} is Mentor (phase 0), skipping")
             return 0
         if avatar.is_frozen:
             logger.info(f"generate_hobby_comments: avatar {avatar.reddit_username} is frozen, skipping")
@@ -545,6 +616,9 @@ def generate_posts(self, client_id: str, max_posts: int = 3, triggered_by: str =
             if not client:
                 logger.error(f"Client {client_id} not found")
                 return 0
+            if not client.is_active:
+                logger.info(f"generate_posts: client {client.client_name} is deactivated, skipping")
+                return 0
 
             # Get active avatars for this client — Phase 2+ only (posts need karma)
             avatars = (
@@ -556,7 +630,7 @@ def generate_posts(self, client_id: str, max_posts: int = 3, triggered_by: str =
                 a for a in avatars
                 if a.client_ids and str(client.id) in a.client_ids
                 and not a.is_frozen
-                and a.warming_phase >= 2  # Phase gate: posts require Phase 2+
+                and a.warming_phase >= 2  # Phase gate: posts require Phase 2+ (also excludes Mentor=0)
                 and a.health_status not in ("shadowbanned", "suspended")
             ]
 
@@ -750,12 +824,13 @@ def evaluate_all_avatar_phases():
     redis_client = redis.from_url(settings.redis_url)
 
     try:
-        # Query all active, non-shadowbanned avatars
+        # Query all active, non-shadowbanned avatars (skip Mentors — phase 0)
         avatars = (
             db.query(Avatar)
             .filter(
                 Avatar.active.is_(True),
                 Avatar.is_shadowbanned.is_(False),
+                Avatar.warming_phase != 0,  # Mentor — not subject to phase evaluation
             )
             .all()
         )
