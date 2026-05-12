@@ -32,6 +32,68 @@ def export_clients(
     return _json_download(data, "clients.json")
 
 
+@router.get("/clients/{client_id}/report.md")
+def export_client_markdown_report(
+    client_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Markdown client report for delivery — pipeline stats, avatar performance, recommendations."""
+    from fastapi.responses import Response
+    from app.services.client_report import generate_client_report_md
+
+    md_content = generate_client_report_md(db, client_id)
+    if md_content is None:
+        return JSONResponse(content={"error": "Client not found"}, status_code=404)
+
+    from app.models.client import Client
+    client = db.query(Client).filter(Client.id == client_id).first()
+    name_slug = (client.client_name or "unknown").replace(" ", "_").lower()[:30]
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d")
+
+    return Response(
+        content=md_content,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="client_report_{name_slug}_{ts}.md"'},
+    )
+
+
+@router.get("/clients/{client_id}/report")
+def export_client_json_report(
+    client_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """JSON client report — full pipeline data for programmatic use."""
+    from app.services.client_report import (
+        _score_client_profile,
+        _get_pipeline_stats,
+        _get_avatar_summary,
+        _get_subreddit_performance,
+        _get_ai_cost_summary,
+        _get_top_comments,
+    )
+    from app.models.client import Client
+
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        return JSONResponse(content={"error": "Client not found"}, status_code=404)
+
+    data = {
+        "client": export_service.serialize_client(client),
+        "profile_scores": _score_client_profile(client),
+        "pipeline_stats": _get_pipeline_stats(db, client_id, days=30),
+        "avatar_summary": _get_avatar_summary(db, client_id, days=30),
+        "subreddit_performance": _get_subreddit_performance(db, client_id, days=30),
+        "ai_costs": _get_ai_cost_summary(db, client_id, days=30),
+        "top_comments": _get_top_comments(db, client_id, limit=10),
+    }
+
+    name_slug = (client.client_name or "unknown").replace(" ", "_").lower()[:30]
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d")
+    return _json_download(data, f"client_report_{name_slug}_{ts}.json")
+
+
 @router.get("/avatars")
 def export_avatars(
     client_id: str | None = Query(None),
@@ -56,6 +118,48 @@ def export_single_avatar(
         return JSONResponse(content={"error": "Avatar not found"}, status_code=404)
     username = data.get("reddit_username", "unknown")
     return _json_download(data, f"avatar_{username}.json")
+
+
+@router.get("/avatars/{avatar_id}/report")
+def export_avatar_client_report(
+    avatar_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Full avatar report for client delivery — profile, stats, comments, subreddit activity."""
+    data = export_service.export_avatar_client_report(db, avatar_id)
+    if data is None:
+        return JSONResponse(content={"error": "Avatar not found"}, status_code=404)
+    username = data.get("reddit_username", "unknown")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d")
+    return _json_download(data, f"avatar_report_{username}_{ts}.json")
+
+
+@router.get("/avatars/{avatar_id}/report.md")
+def export_avatar_markdown_report(
+    avatar_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Markdown avatar report for client delivery — quality scores, activity, recommendations."""
+    from fastapi.responses import Response
+    from app.services.avatar_report import generate_avatar_report_md
+
+    md_content = generate_avatar_report_md(db, avatar_id)
+    if md_content is None:
+        return JSONResponse(content={"error": "Avatar not found"}, status_code=404)
+
+    # Get username for filename
+    from app.models.avatar import Avatar
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    username = avatar.reddit_username if avatar else "unknown"
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d")
+
+    return Response(
+        content=md_content,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="avatar_report_{username}_{ts}.md"'},
+    )
 
 
 @router.get("/threads")

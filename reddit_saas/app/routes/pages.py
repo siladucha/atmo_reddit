@@ -1,5 +1,6 @@
 """Server-side rendered pages — full UI flow."""
 
+import logging
 from datetime import datetime, timezone, timedelta
 from uuid import UUID
 
@@ -21,6 +22,8 @@ from app.models.user import User
 from app.services.auth import authenticate_user, create_user, create_access_token, get_user_by_email
 from app.services.cookies import set_auth_cookie, delete_auth_cookie
 from app.services import audit as audit_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -268,8 +271,8 @@ def _render(request: Request, template: str, context: dict | None = None, db: Se
     """Render a Jinja2 template with user context injected.
 
     Injects ``is_superuser``, ``current_user_name``, ``current_user_role``,
-    ``current_client_name``, and ``current_client_id`` into the template
-    context for the nav bar.
+    ``current_client_name``, ``current_client_id``, and ``user_role_enum``
+    into the template context for the nav bar.
     """
     ctx = context or {}
     ctx["request"] = request
@@ -281,6 +284,7 @@ def _render(request: Request, template: str, context: dict | None = None, db: Se
         current_user_role = ""
         current_client_name = ""
         current_client_id = None
+        user_role_value = ""
         if db is not None:
             user_id = getattr(request.state, "user_id", None)
             if user_id:
@@ -288,8 +292,11 @@ def _render(request: Request, template: str, context: dict | None = None, db: Se
                 if user:
                     is_superuser = user.is_superuser
                     current_user_name = user.full_name or user.email
-                    if user.is_superuser:
+                    user_role_value = user.user_role.value
+                    if user.user_role.is_admin_level:
                         current_user_role = "Admin"
+                    elif user.user_role.is_internal:
+                        current_user_role = "Internal"
                     elif user.client_id:
                         client = db.query(Client).filter(Client.id == user.client_id).first()
                         current_user_role = "Client"
@@ -302,6 +309,7 @@ def _render(request: Request, template: str, context: dict | None = None, db: Se
         ctx["current_user_role"] = current_user_role
         ctx["current_client_name"] = current_client_name
         ctx["current_client_id"] = current_client_id
+        ctx["user_role"] = user_role_value
 
     return templates.TemplateResponse(name=template, context=ctx, request=request)
 
@@ -333,7 +341,8 @@ def login_submit(request: Request, email: str = Form(...), password: str = Form(
 
 @router.get("/register", response_class=HTMLResponse)
 def register_page(request: Request):
-    return _render(request, "register.html")
+    """Registration is disabled. Users are created by admins via /admin/users."""
+    return RedirectResponse(url="/login", status_code=303)
 
 
 @router.post("/register", response_class=HTMLResponse)
@@ -344,13 +353,8 @@ def register_submit(
     full_name: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    if get_user_by_email(db, email):
-        return _render(request, "register.html", {"error": "Email already registered"})
-    user = create_user(db, email=email, password=password, full_name=full_name or None)
-    token = create_access_token(data={"sub": str(user.id), "email": user.email})
-    response = RedirectResponse(url="/", status_code=303)
-    set_auth_cookie(response, token)
-    return response
+    """Registration is disabled. Users are created by admins via /admin/users."""
+    return RedirectResponse(url="/login", status_code=303)
 
 
 @router.get("/logout")
@@ -366,17 +370,26 @@ def logout():
 def root_redirect(request: Request, db: Session = Depends(get_db)):
     """Route the authenticated user to the right home.
 
-    Superusers go to the admin panel (single source of truth for system
-    overview). Client users land directly on their Client_Hub.
+    - owner/partner → admin panel
+    - qa → admin review queue (cross-client)
+    - client_manager/client_viewer/b2c_user → their Client Hub
     """
     current_user = _get_current_user(request, db)
 
     if not current_user:
         return RedirectResponse(url="/login", status_code=303)
 
-    if current_user.is_superuser:
+    role = current_user.user_role
+
+    # Admin-level roles go to admin panel
+    if role.is_admin_level:
         return RedirectResponse(url="/admin/", status_code=303)
 
+    # QA goes to admin review (cross-client)
+    if role.is_internal:
+        return RedirectResponse(url="/admin/", status_code=303)
+
+    # Client-scoped users go to their hub
     if current_user.client_id:
         return RedirectResponse(url=f"/clients/{current_user.client_id}", status_code=303)
 
@@ -389,7 +402,7 @@ def root_redirect(request: Request, db: Session = Depends(get_db)):
 @router.get("/clients/new", response_class=HTMLResponse)
 def client_new_page(request: Request, db: Session = Depends(get_db)):
     current_user = _get_current_user(request, db)
-    if current_user and not current_user.is_superuser:
+    if current_user and not current_user.user_role.can_manage_clients:
         raise HTTPException(status_code=403)
     return _render(request, "client_new.html", db=db)
 
@@ -406,7 +419,7 @@ def client_create_submit(
     db: Session = Depends(get_db),
 ):
     current_user = _get_current_user(request, db)
-    if current_user and not current_user.is_superuser:
+    if current_user and not current_user.user_role.can_manage_clients:
         raise HTTPException(status_code=403)
     client = Client(
         client_name=client_name,
@@ -432,8 +445,9 @@ def client_hub(client_id: UUID, request: Request, tab: str = "overview", db: Ses
     if not client:
         raise HTTPException(status_code=404)
 
-    # Non-admin users can only view their own client
-    if current_user and not current_user.is_superuser:
+    # Internal roles (owner, partner, qa) can view any client
+    # Client-scoped users can only view their own client
+    if current_user and not current_user.user_role.can_view_all_clients:
         if current_user.client_id != client.id:
             raise HTTPException(status_code=403)
 
@@ -460,8 +474,8 @@ def client_hub_tab(
     if not client:
         raise HTTPException(status_code=404)
 
-    # Non-admin users can only view their own client
-    if current_user and not current_user.is_superuser:
+    # Internal roles can view any client; client-scoped users only their own
+    if current_user and not current_user.user_role.can_view_all_clients:
         if current_user.client_id != client.id:
             raise HTTPException(status_code=403)
 
@@ -620,11 +634,13 @@ def approve_comment(comment_id: UUID, request: Request, db: Session = Depends(ge
     current_user = _get_current_user(request, db)
     if not current_user:
         raise HTTPException(status_code=403, detail="Authentication required")
+    if not current_user.user_role.can_review:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
     draft = db.query(CommentDraft).filter(CommentDraft.id == comment_id).first()
     if not draft:
         raise HTTPException(status_code=404)
-    # Non-admin users can only approve their own client's drafts
-    if not current_user.is_superuser:
+    # Client-scoped users can only approve their own client's drafts
+    if not current_user.user_role.can_view_all_clients:
         if current_user.client_id != draft.client_id:
             raise HTTPException(status_code=403)
     draft.status = "approved"
@@ -638,6 +654,22 @@ def approve_comment(comment_id: UUID, request: Request, db: Session = Depends(ge
         client_id=draft.client_id,
         details={"avatar_username": draft.avatar.reddit_username if draft.avatar else None},
     )
+
+    # Self-learning loop: capture edit record
+    try:
+        from app.services.learning import LearningService
+
+        thread = draft.thread
+        if thread:
+            if draft.edited_draft and draft.edited_draft != draft.ai_draft:
+                learning_status = "approved"
+            else:
+                learning_status = "approved_unchanged"
+            LearningService().capture_edit_record(db=db, draft=draft, thread=thread, status=learning_status)
+            db.commit()
+    except Exception:
+        logger.warning("Learning capture failed for comment %s — review unaffected", comment_id, exc_info=True)
+
     # Return inline "posting mode" panel so user can mark as posted without switching tabs
     thread_url = ""
     if draft.thread and draft.thread.url:
@@ -667,10 +699,12 @@ def reject_comment(comment_id: UUID, request: Request, db: Session = Depends(get
     current_user = _get_current_user(request, db)
     if not current_user:
         raise HTTPException(status_code=403, detail="Authentication required")
+    if not current_user.user_role.can_review:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
     draft = db.query(CommentDraft).filter(CommentDraft.id == comment_id).first()
     if not draft:
         raise HTTPException(status_code=404)
-    if not current_user.is_superuser:
+    if not current_user.user_role.can_view_all_clients:
         if current_user.client_id != draft.client_id:
             raise HTTPException(status_code=403)
     draft.status = "rejected"
@@ -684,6 +718,18 @@ def reject_comment(comment_id: UUID, request: Request, db: Session = Depends(get
         client_id=draft.client_id,
         details={"avatar_username": draft.avatar.reddit_username if draft.avatar else None},
     )
+
+    # Self-learning loop: capture rejected draft
+    try:
+        from app.services.learning import LearningService
+
+        thread = draft.thread
+        if thread:
+            LearningService().capture_edit_record(db=db, draft=draft, thread=thread, status="rejected")
+            db.commit()
+    except Exception:
+        logger.warning("Learning capture failed for comment %s — review unaffected", comment_id, exc_info=True)
+
     return HTMLResponse(f'<div id="action-panel-{comment_id}" class="px-3 py-2 border-t border-red-700/30 bg-red-900/10 flex items-center gap-2"><span class="text-red-400 text-xs font-medium">✗ Rejected</span></div>')
 
 
@@ -809,6 +855,24 @@ def set_comment_status(
     }
     color, label = color_map.get(new_status, ("gray", new_status))
     reason_html = f'<span class="text-gray-500 text-xs ml-2">({reason.strip()})</span>' if reason.strip() else ""
+
+    # Self-learning loop: capture on approve/reject transitions
+    if new_status in ("approved", "rejected"):
+        try:
+            from app.services.learning import LearningService
+
+            thread = draft.thread
+            if thread:
+                if new_status == "rejected":
+                    learning_status = "rejected"
+                elif draft.edited_draft and draft.edited_draft != draft.ai_draft:
+                    learning_status = "approved"
+                else:
+                    learning_status = "approved_unchanged"
+                LearningService().capture_edit_record(db=db, draft=draft, thread=thread, status=learning_status)
+                db.commit()
+        except Exception:
+            logger.warning("Learning capture failed for comment %s — review unaffected", comment_id, exc_info=True)
 
     return HTMLResponse(
         f'<div class="px-3 py-2 border-t border-{color}-700/30 bg-{color}-900/10 flex items-center gap-2">'
@@ -977,9 +1041,10 @@ def check_karma_now(
     # Try to fetch karma from Reddit
     try:
         from app.services.reddit import get_reddit_client
+        from app.services.sanitize import ensure_username_bare
 
         reddit = get_reddit_client()
-        redditor = reddit.redditor(avatar.reddit_username)
+        redditor = reddit.redditor(ensure_username_bare(avatar.reddit_username))
 
         draft_text = (comment.edited_draft or comment.ai_draft or "").strip()[:80].lower()
         found = False
