@@ -66,6 +66,12 @@ class Avatar(Base):
     freeze_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     frozen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # CQS (Contributor Quality Score) — Reddit's hidden trust classification
+    # Levels: lowest, low, moderate, high, highest
+    cqs_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    cqs_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cqs_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # Subreddit presence scan
     presence_last_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     presence_scan_status: Mapped[str | None] = mapped_column(String(20), nullable=True)

@@ -35,8 +35,9 @@ logger = logging.getLogger(__name__)
 
 # --- Phase Policy Constants ---
 MAX_COMMENTS_PER_DAY_PHASE1 = 3
-MAX_COMMENTS_PER_DAY = 10
-MAX_BRAND_RATIO = 0.30
+MAX_COMMENTS_PER_DAY_PHASE2 = 7   # Was 10; reduced per R12.3 for safety margin
+MAX_COMMENTS_PER_DAY_PHASE3 = 18  # TODO(pipeline-v2): replace with BudgetEngine.calculate_daily_limit()
+MAX_BRAND_RATIO = 0.30             # TODO(pipeline-v2): move to system_settings "max_brand_ratio_percent"
 BRAND_RAMP_UP_EARLY_MAX = 1
 BRAND_RAMP_UP_MID_RATIO = 0.10
 
@@ -227,6 +228,13 @@ class PhasePolicy:
         """
         phase = avatar.warming_phase
 
+        # Mentor phase — not subject to pipeline content restrictions
+        if phase == 0:
+            return PolicyResult(
+                status=PolicyStatus.blocked,
+                reason="Phase 0 (Mentor): avatar excluded from automated pipelines",
+            )
+
         if phase == 1:
             return self._check_phase1(db, avatar, comment_type, target_subreddit, comment_text, client)
         elif phase == 2:
@@ -248,7 +256,10 @@ class PhasePolicy:
         comment_text: str,
         client: Client,
     ) -> PolicyResult:
-        """Phase 1 rules: hobby only, hobby subreddits only, no brand mentions, max 3/day."""
+        """Phase 1 rules: hobby only, hobby subreddits only, no brand mentions, max 3/day.
+
+        CQS "lowest" avatars get a reduced daily limit (1/day) to warm up cautiously.
+        """
         # Rule: Only "hobby" type allowed
         if comment_type != "hobby":
             return PolicyResult(
@@ -273,12 +284,16 @@ class PhasePolicy:
                 brand_mention_level=brand_level,
             )
 
-        # Rule: Max 3 comments per day
+        # Rule: Daily limit — reduced for CQS "lowest" (cautious warming)
+        daily_limit = MAX_COMMENTS_PER_DAY_PHASE1
+        if avatar.cqs_level == "lowest":
+            daily_limit = 1  # Ultra-cautious: 1 hobby comment/day until CQS improves
+
         daily_count = self.get_daily_comment_count(db, avatar)
-        if daily_count >= MAX_COMMENTS_PER_DAY_PHASE1:
+        if daily_count >= daily_limit:
             return PolicyResult(
                 status=PolicyStatus.blocked,
-                reason=f"Phase 1: daily limit reached ({daily_count}/{MAX_COMMENTS_PER_DAY_PHASE1})",
+                reason=f"Phase 1: daily limit reached ({daily_count}/{daily_limit})",
             )
 
         return PolicyResult(
@@ -336,10 +351,10 @@ class PhasePolicy:
 
         # Rule: Standard daily limit
         daily_count = self.get_daily_comment_count(db, avatar)
-        if daily_count >= MAX_COMMENTS_PER_DAY:
+        if daily_count >= MAX_COMMENTS_PER_DAY_PHASE2:
             return PolicyResult(
                 status=PolicyStatus.blocked,
-                reason=f"Phase 2: daily limit reached ({daily_count}/{MAX_COMMENTS_PER_DAY})",
+                reason=f"Phase 2: daily limit reached ({daily_count}/{MAX_COMMENTS_PER_DAY_PHASE2})",
             )
 
         return PolicyResult(
@@ -364,10 +379,10 @@ class PhasePolicy:
 
         # Rule: Standard daily limit
         daily_count = self.get_daily_comment_count(db, avatar)
-        if daily_count >= MAX_COMMENTS_PER_DAY:
+        if daily_count >= MAX_COMMENTS_PER_DAY_PHASE3:
             return PolicyResult(
                 status=PolicyStatus.blocked,
-                reason=f"Phase 3: daily limit reached ({daily_count}/{MAX_COMMENTS_PER_DAY})",
+                reason=f"Phase 3: daily limit reached ({daily_count}/{MAX_COMMENTS_PER_DAY_PHASE3})",
             )
 
         # Check brand mention level
@@ -621,6 +636,7 @@ class PhaseEvaluator:
     ) -> tuple[bool, dict]:
         """Check if avatar meets all criteria for the next phase.
 
+        Phase 0 (Mentor): not subject to promotion — return (False, {})
         Phase 1→2: age≥60, karma≥100, activity≥20, survival≥80%,
                    karma in ≥2 distinct subreddits.
         Phase 2→3: age≥150, karma≥500, activity≥50, survival≥85%, avg_score≥2.0,
@@ -633,6 +649,10 @@ class PhaseEvaluator:
         from app.services import karma_tracker
 
         current_phase = avatar.warming_phase
+
+        # Mentor (phase 0) — not subject to warming evaluation
+        if current_phase == 0:
+            return (False, {})
 
         if current_phase >= 3:
             return (False, {})
@@ -669,6 +689,15 @@ class PhaseEvaluator:
             .scalar()
         ) or 0
 
+        # Pre-warmed avatar bypass: if karma significantly exceeds threshold
+        # AND account is old enough, waive the activity requirement.
+        # These avatars already proved credibility on Reddit externally.
+        min_activity_effective = thresholds["min_activity"]
+        karma_threshold = thresholds["min_karma"]
+        age_threshold = thresholds["min_age_days"]
+        if karma >= karma_threshold * 3 and age_days >= age_threshold * 2:
+            min_activity_effective = 0
+
         # Calculate survival rate
         survival_rate = self.compute_comment_survival_rate(db, avatar, window_days)
         survival_pct = survival_rate * 100
@@ -688,7 +717,7 @@ class PhaseEvaluator:
         criteria_values = {
             "age_days": {"current": age_days, "required": thresholds["min_age_days"]},
             "karma": {"current": karma, "required": thresholds["min_karma"]},
-            "activity": {"current": activity_count, "required": thresholds["min_activity"]},
+            "activity": {"current": activity_count, "required": min_activity_effective},
             "survival_rate": {"current": survival_pct, "required": thresholds["min_survival_rate"]},
             "subreddit_diversity": {
                 "current": diversity,
@@ -706,7 +735,7 @@ class PhaseEvaluator:
         eligible = (
             age_days >= thresholds["min_age_days"]
             and karma >= thresholds["min_karma"]
-            and activity_count >= thresholds["min_activity"]
+            and activity_count >= min_activity_effective
             and survival_pct >= thresholds["min_survival_rate"]
             and diversity_ok
         )
@@ -750,9 +779,9 @@ class PhaseEvaluator:
         """
         current_phase = avatar.warming_phase
 
-        # Can't demote below Phase 1
+        # Can't demote below Phase 1; Mentors (phase 0) are not subject to demotion
         if current_phase <= 1:
-            return (False, 1, None)
+            return (False, current_phase or 1, None)
 
         # Check shadowban — demote to Phase 1
         if avatar.is_shadowbanned:
@@ -913,10 +942,11 @@ class PhaseTransitionManager:
         Returns:
             True if demotion succeeded, False if lock not acquired or already Phase 1.
         """
-        if avatar.warming_phase == 1:
+        if avatar.warming_phase <= 1:
             logger.info(
-                "Avatar %s already at Phase 1 — skipping demotion",
+                "Avatar %s at Phase %d — skipping demotion",
                 avatar.reddit_username,
+                avatar.warming_phase,
             )
             return False
 
@@ -965,13 +995,15 @@ class PhaseTransitionManager:
     ) -> bool:
         """Admin override to set avatar to a specific phase.
 
-        Validates target_phase is 1, 2, or 3. Acquires lock, updates fields,
+        Validates target_phase is 0, 1, 2, or 3. Acquires lock, updates fields,
         records phase_override ActivityEvent.
+
+        Phase 0 = Mentor (excluded from all pipelines, no warming needed).
 
         Args:
             db: Database session.
             avatar: The avatar to override.
-            target_phase: The phase to set (must be 1, 2, or 3).
+            target_phase: The phase to set (must be 0, 1, 2, or 3).
             admin_user_id: ID of the admin performing the override.
             reason: Explanation for the override.
 
@@ -979,11 +1011,11 @@ class PhaseTransitionManager:
             True if override succeeded, False if lock not acquired.
 
         Raises:
-            ValueError: If target_phase is not in {1, 2, 3}.
+            ValueError: If target_phase is not in {0, 1, 2, 3}.
         """
-        if target_phase not in {1, 2, 3}:
+        if target_phase not in {0, 1, 2, 3}:
             raise ValueError(
-                f"target_phase must be 1, 2, or 3, got {target_phase}"
+                f"target_phase must be 0, 1, 2, or 3, got {target_phase}"
             )
 
         avatar_id_str = str(avatar.id)
