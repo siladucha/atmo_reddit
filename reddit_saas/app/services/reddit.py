@@ -2,6 +2,9 @@
 
 Handles subreddit scraping, comment tree flattening, and deduplication.
 Full logging of all Reddit API interactions for audit trail.
+
+ALL Reddit API calls go through get_reddit_client() which enforces
+the global rate limiter (Redis sliding window, 30 RPM default).
 """
 
 import json
@@ -10,6 +13,8 @@ import time
 from datetime import datetime, timezone, timedelta
 
 import praw
+
+from app.services.sanitize import ensure_subreddit_bare
 from praw.models import Submission
 from prawcore.exceptions import (
     NotFound, Forbidden, TooManyRequests,
@@ -20,9 +25,86 @@ from app.config import get_config
 
 logger = logging.getLogger(__name__)
 
+# Global rate limiter instance (lazy-initialized)
+_global_rate_limiter = None
+_GLOBAL_MAX_RPM = 30  # Default; overridden by DB setting when available
 
-def get_reddit_client() -> praw.Reddit:
-    """Create a read-only Reddit client."""
+
+def _get_global_rate_limiter():
+    """Get or create the global Reddit API rate limiter (Redis sliding window)."""
+    global _global_rate_limiter
+    if _global_rate_limiter is not None:
+        return _global_rate_limiter
+
+    try:
+        import redis
+        from app.config import get_settings
+        from app.services.rate_limiter import ScrapeRateLimiter
+
+        settings = get_settings()
+        redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
+        _global_rate_limiter = ScrapeRateLimiter(redis_client)
+        return _global_rate_limiter
+    except Exception as e:
+        logger.warning("Failed to initialize global rate limiter: %s — proceeding without", e)
+        return None
+
+
+def _wait_for_rate_limit(caller: str = "unknown") -> None:
+    """Block until the global rate limiter allows a request. Max wait 30s."""
+    limiter = _get_global_rate_limiter()
+    if limiter is None:
+        return  # No limiter available — proceed without blocking
+
+    try:
+        # Try to get max_rpm from DB settings (cached)
+        max_rpm = _GLOBAL_MAX_RPM
+        try:
+            from app.services.settings import get_setting
+            from app.database import SessionLocal
+            db = SessionLocal()
+            try:
+                val = get_setting(db, "scrape_rate_limit_rpm")
+                if val:
+                    max_rpm = int(val)
+            finally:
+                db.close()
+        except Exception:
+            pass  # Use default
+
+        # Wait loop — check every 1s, max 30s
+        waited = 0
+        while not limiter.is_allowed(max_rpm):
+            if waited >= 30:
+                logger.warning(
+                    "REDDIT_RATE_LIMIT | caller=%s | action=timeout | waited=30s — proceeding anyway",
+                    caller,
+                )
+                break
+            time.sleep(1)
+            waited += 1
+
+        if waited > 0:
+            logger.info(
+                "REDDIT_RATE_LIMIT | caller=%s | action=waited | seconds=%d",
+                caller, waited,
+            )
+
+        # Record this request
+        limiter.record_request()
+
+    except Exception as e:
+        logger.warning("Rate limiter error (non-fatal): %s", e)
+
+
+def get_reddit_client(caller: str = "unknown") -> praw.Reddit:
+    """Create a read-only Reddit client. Enforces global rate limit.
+
+    Args:
+        caller: Identifier for logging (e.g. "scrape_subreddit", "health_check")
+    """
+    _wait_for_rate_limit(caller)
+
     client_id = get_config("reddit_client_id")
     client_secret = get_config("reddit_client_secret")
     user_agent = get_config("reddit_user_agent")
@@ -32,8 +114,8 @@ def get_reddit_client() -> praw.Reddit:
         user_agent=user_agent,
     )
     logger.debug(
-        "Reddit client created | user_agent=%s | read_only=%s",
-        user_agent, client.read_only,
+        "Reddit client created | caller=%s | user_agent=%s | read_only=%s",
+        caller, user_agent, client.read_only,
     )
     return client
 
@@ -78,7 +160,9 @@ def scrape_subreddit(
     )
     start_time = time.time()
 
-    reddit = get_reddit_client()
+    subreddit_name = ensure_subreddit_bare(subreddit_name)
+
+    reddit = get_reddit_client("scrape_subreddit")
     subreddit = reddit.subreddit(subreddit_name)
 
     cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
@@ -185,7 +269,7 @@ def fetch_comments(submission_id: str, max_comments: int = 100) -> list[dict]:
     )
     start_time = time.time()
 
-    reddit = get_reddit_client()
+    reddit = get_reddit_client("fetch_comments")
     submission = reddit.submission(id=submission_id)
 
     # Replace "more comments" placeholders (limit to avoid too many API calls)
@@ -353,7 +437,7 @@ def check_thread_liveness(reddit_native_id: str) -> dict:
     start_time = time.time()
 
     try:
-        reddit = get_reddit_client()
+        reddit = get_reddit_client("check_thread_liveness")
         submission = reddit.submission(id=reddit_native_id)
 
         # Access attributes to trigger the API call

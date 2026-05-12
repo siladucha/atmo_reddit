@@ -31,6 +31,7 @@ from app.models.avatar import Avatar
 from app.models.comment_draft import CommentDraft
 from app.models.subreddit_karma import SubredditKarma
 from app.models.thread import RedditThread
+from app.services.sanitize import ensure_username_bare
 
 logger = logging.getLogger(__name__)
 
@@ -245,7 +246,7 @@ def sync_avatar_from_reddit(
 
             start = time.time()
             reddit = get_reddit_client()
-            redditor = reddit.redditor(avatar.reddit_username)
+            redditor = reddit.redditor(ensure_username_bare(avatar.reddit_username))
             comments_iter = redditor.comments.new(limit=100)
             for c in comments_iter:
                 sub = getattr(getattr(c, "subreddit", None), "display_name", None)

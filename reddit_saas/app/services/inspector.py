@@ -188,6 +188,7 @@ def get_recommendations(db: Session, report: dict, funnel: dict, pipeline_enable
             "priority": "high",
             "text": "Pipeline is paused. No scoring or generation is happening.",
             "action_id": "toggle-pipeline",
+            "action_params": "?enabled=true",
             "action_label": "Resume",
             "confirm": "Resume the pipeline?",
         })
@@ -197,6 +198,7 @@ def get_recommendations(db: Session, report: dict, funnel: dict, pipeline_enable
             "priority": "high",
             "text": "Scraping is paused. No new threads are being collected.",
             "action_id": "toggle-scraping",
+            "action_params": "?enabled=true",
             "action_label": "Resume",
             "confirm": "Resume scraping?",
         })

@@ -410,7 +410,10 @@ def deactivate_client(
     client_id: uuid.UUID,
     current_user_id: uuid.UUID,
 ) -> Client:
-    """Deactivate a client and cascade: unassign avatars and deactivate subreddits.
+    """Deactivate (pause) a client. All pipeline tasks skip inactive clients.
+
+    Avatars and subreddit assignments are preserved — the client is paused,
+    not deleted. When reactivated, everything resumes without manual reassignment.
 
     Args:
         db: SQLAlchemy database session.
@@ -429,25 +432,6 @@ def deactivate_client(
 
     client.is_active = False
 
-    # Cascade: deactivate all subreddit assignments for this client (new model)
-    db.query(ClientSubredditAssignment).filter(
-        ClientSubredditAssignment.client_id == client_id,
-        ClientSubredditAssignment.is_active.is_(True),
-    ).update({"is_active": False})
-
-    # Cascade: deactivate legacy subreddits (if any remain)
-    db.query(ClientSubreddit).filter(
-        ClientSubreddit.client_id == client_id,
-        ClientSubreddit.is_active.is_(True),
-    ).update({"is_active": False})
-
-    # Cascade: unassign this client from all avatars
-    client_id_str = str(client_id)
-    avatars = db.query(Avatar).filter(Avatar.client_ids.any(client_id_str)).all()
-    for avatar in avatars:
-        avatar.client_ids = [cid for cid in avatar.client_ids if cid != client_id_str]
-        flag_modified(avatar, "client_ids")
-
     db.commit()
     db.refresh(client)
 
@@ -458,7 +442,7 @@ def deactivate_client(
         entity_type="client",
         entity_id=client.id,
         client_id=client.id,
-        details={"cascaded": True},
+        details={"paused": True},
     )
 
     return client
@@ -469,10 +453,10 @@ def activate_client(
     client_id: uuid.UUID,
     current_user_id: uuid.UUID,
 ) -> Client:
-    """Re-activate a previously deactivated client.
+    """Re-activate a previously paused client. Pipeline resumes automatically.
 
-    Re-enables the client and reactivates its subreddit assignments.
-    Avatars are NOT automatically re-assigned (must be done manually).
+    Since deactivation only sets is_active=False (no cascade), reactivation
+    simply flips the flag back. Avatars and subreddit assignments are intact.
 
     Args:
         db: SQLAlchemy database session.
@@ -492,18 +476,6 @@ def activate_client(
         raise ValueError("Client is already active")
 
     client.is_active = True
-
-    # Reactivate subreddit assignments that were deactivated with the client
-    db.query(ClientSubredditAssignment).filter(
-        ClientSubredditAssignment.client_id == client_id,
-        ClientSubredditAssignment.is_active.is_(False),
-    ).update({"is_active": True})
-
-    # Reactivate legacy subreddits (if any remain)
-    db.query(ClientSubreddit).filter(
-        ClientSubreddit.client_id == client_id,
-        ClientSubreddit.is_active.is_(False),
-    ).update({"is_active": True})
 
     db.commit()
     db.refresh(client)
@@ -809,6 +781,13 @@ def add_subreddit(
         ValueError: If the client is not found, is inactive, or the
             subreddit is already actively assigned to this client.
     """
+    from app.services.sanitize import clean_subreddit
+
+    # Sanitize subreddit name — strip r/ prefix, validate
+    name = clean_subreddit(name) or ""
+    if not name:
+        raise ValueError("Invalid subreddit name")
+
     # 1. Verify client exists and is active
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:

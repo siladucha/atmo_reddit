@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, case, desc
 
 from app.models.activity_event import ActivityEvent
 from app.models.ai_usage import AIUsageLog
@@ -247,9 +247,6 @@ def export_avatars(db: Session, client_id: uuid.UUID | None = None) -> list[dict
     snapshots_map: dict[uuid.UUID, AvatarProfileSnapshot] = {}
     if avatar_ids:
         # Subquery to get the latest snapshot per avatar
-        from sqlalchemy import desc
-        from sqlalchemy.orm import aliased
-
         for avatar_id in avatar_ids:
             snapshot = (
                 db.query(AvatarProfileSnapshot)
@@ -267,9 +264,8 @@ def export_avatars(db: Session, client_id: uuid.UUID | None = None) -> list[dict
 
 
 def export_single_avatar(db: Session, avatar_id: uuid.UUID) -> dict | None:
-    """Export a single avatar with its latest profile analytics snapshot."""
+    """Export a single avatar with its latest profile analytics snapshot and strategy."""
     from app.models.avatar_profile_snapshot import AvatarProfileSnapshot
-    from sqlalchemy import desc
 
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
@@ -282,7 +278,211 @@ def export_single_avatar(db: Session, avatar_id: uuid.UUID) -> dict | None:
         .first()
     )
 
-    return serialize_avatar(avatar, profile_snapshot=snapshot)
+    data = serialize_avatar(avatar, profile_snapshot=snapshot)
+
+    # Include current strategy document
+    try:
+        from app.models.strategy_document import StrategyDocument
+        strategy = (
+            db.query(StrategyDocument)
+            .filter(
+                StrategyDocument.avatar_id == avatar_id,
+                StrategyDocument.is_current.is_(True),
+            )
+            .first()
+        )
+        if strategy:
+            data["strategy"] = {
+                "version": strategy.version,
+                "generated_at": _serialize_value(strategy.generated_at),
+                "goals": strategy.goals,
+                "subreddit_priorities": strategy.subreddit_priorities,
+                "tone_guidelines": strategy.tone_guidelines,
+                "cadence_rules": strategy.cadence_rules,
+                "hook_inventory": strategy.hook_inventory,
+                "forecast": strategy.forecast,
+                "document_md": strategy.document_md,
+                "model_used": strategy.model_used,
+                "cost_usd": strategy.cost_usd,
+            }
+            data["strategy_status"] = "active"
+        else:
+            data["strategy"] = None
+            data["strategy_status"] = "none"
+    except Exception:
+        data["strategy"] = None
+        data["strategy_status"] = "error"
+
+    return data
+
+
+def export_avatar_client_report(db: Session, avatar_id: uuid.UUID) -> dict | None:
+    """Full avatar report for client delivery — includes profile, stats, comments, activity."""
+    from app.models.avatar_profile_snapshot import AvatarProfileSnapshot
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        return None
+
+    # Latest profile snapshot
+    snapshot = (
+        db.query(AvatarProfileSnapshot)
+        .filter(AvatarProfileSnapshot.avatar_id == avatar_id)
+        .order_by(desc(AvatarProfileSnapshot.fetched_at))
+        .first()
+    )
+
+    # Comment stats
+    comment_stats = (
+        db.query(
+            func.count(CommentDraft.id).label("total"),
+            func.count(case((CommentDraft.status == "pending", 1))).label("pending"),
+            func.count(case((CommentDraft.status == "approved", 1))).label("approved"),
+            func.count(case((CommentDraft.status == "rejected", 1))).label("rejected"),
+            func.count(case((CommentDraft.status == "posted", 1))).label("posted"),
+            func.avg(CommentDraft.reddit_score).label("avg_reddit_score"),
+            func.max(CommentDraft.reddit_score).label("max_reddit_score"),
+        )
+        .filter(CommentDraft.avatar_id == avatar_id)
+        .first()
+    )
+
+    # Recent posted comments (last 50)
+    recent_comments = (
+        db.query(CommentDraft)
+        .filter(CommentDraft.avatar_id == avatar_id, CommentDraft.status == "posted")
+        .order_by(desc(CommentDraft.posted_at))
+        .limit(50)
+        .all()
+    )
+
+    # Assigned clients
+    assigned_clients = []
+    if avatar.client_ids:
+        for cid in avatar.client_ids:
+            try:
+                c = db.query(Client).filter(Client.id == uuid.UUID(cid)).first()
+                if c:
+                    assigned_clients.append({
+                        "id": str(c.id),
+                        "client_name": c.client_name,
+                        "brand_name": c.brand_name,
+                    })
+            except (ValueError, AttributeError):
+                pass
+
+    # Subreddit activity breakdown (from posted comments)
+    subreddit_breakdown = (
+        db.query(
+            RedditThread.subreddit,
+            func.count(CommentDraft.id).label("comments_count"),
+            func.avg(CommentDraft.reddit_score).label("avg_score"),
+        )
+        .join(RedditThread, CommentDraft.thread_id == RedditThread.id)
+        .filter(CommentDraft.avatar_id == avatar_id, CommentDraft.status == "posted")
+        .group_by(RedditThread.subreddit)
+        .order_by(desc(func.count(CommentDraft.id)))
+        .all()
+    )
+
+    # Build report
+    base = serialize_avatar(avatar, profile_snapshot=snapshot)
+
+    base["report_metadata"] = {
+        "report_type": "avatar_client_report",
+        "generated_at": datetime.now().isoformat(),
+        "description": "Full avatar performance report for client delivery",
+    }
+
+    base["assigned_clients"] = assigned_clients
+
+    base["comment_statistics"] = {
+        "total_drafts": comment_stats.total if comment_stats else 0,
+        "pending": comment_stats.pending if comment_stats else 0,
+        "approved": comment_stats.approved if comment_stats else 0,
+        "rejected": comment_stats.rejected if comment_stats else 0,
+        "posted": comment_stats.posted if comment_stats else 0,
+        "avg_reddit_score": round(float(comment_stats.avg_reddit_score), 1) if comment_stats and comment_stats.avg_reddit_score else None,
+        "max_reddit_score": comment_stats.max_reddit_score if comment_stats else None,
+        "approval_rate": round(
+            (comment_stats.approved + comment_stats.posted) / comment_stats.total * 100, 1
+        ) if comment_stats and comment_stats.total > 0 else None,
+    }
+
+    base["subreddit_activity"] = [
+        {
+            "subreddit": row.subreddit,
+            "comments_posted": row.comments_count,
+            "avg_score": round(float(row.avg_score), 1) if row.avg_score else None,
+        }
+        for row in subreddit_breakdown
+    ]
+
+    base["recent_posted_comments"] = [
+        {
+            "subreddit": draft.thread.subreddit if draft.thread else None,
+            "thread_title": draft.thread.post_title if draft.thread else None,
+            "thread_url": draft.thread.url if draft.thread else None,
+            "comment_text": draft.edited_draft or draft.ai_draft,
+            "approach": draft.comment_approach,
+            "engagement_mode": draft.engagement_mode,
+            "reddit_score": draft.reddit_score,
+            "reddit_comment_url": draft.reddit_comment_url,
+            "posted_at": _serialize_value(draft.posted_at),
+            "created_at": _serialize_value(draft.created_at),
+        }
+        for draft in recent_comments
+    ]
+
+    # Health summary
+    base["health_summary"] = {
+        "reddit_status": avatar.reddit_status,
+        "is_shadowbanned": avatar.is_shadowbanned,
+        "is_frozen": avatar.is_frozen,
+        "freeze_reason": avatar.freeze_reason,
+        "health_status": avatar.health_status,
+        "last_health_check": _serialize_value(avatar.last_health_check),
+        "warming_phase": avatar.warming_phase,
+        "phase_changed_at": _serialize_value(avatar.phase_changed_at),
+    }
+
+    # Strategy document (current version)
+    try:
+        from app.models.strategy_document import StrategyDocument
+        strategy = (
+            db.query(StrategyDocument)
+            .filter(
+                StrategyDocument.avatar_id == avatar_id,
+                StrategyDocument.is_current.is_(True),
+            )
+            .first()
+        )
+        if strategy:
+            base["strategy"] = {
+                "version": strategy.version,
+                "generated_at": _serialize_value(strategy.generated_at),
+                "is_current": strategy.is_current,
+                "goals": strategy.goals,
+                "subreddit_priorities": strategy.subreddit_priorities,
+                "tone_guidelines": strategy.tone_guidelines,
+                "cadence_rules": strategy.cadence_rules,
+                "hook_inventory": strategy.hook_inventory,
+                "forecast": strategy.forecast,
+                "document_md": strategy.document_md,
+                "model_used": strategy.model_used,
+                "cost_usd": strategy.cost_usd,
+                "generation_duration_ms": strategy.generation_duration_ms,
+                "edited_at": _serialize_value(strategy.edited_at),
+            }
+            base["strategy_status"] = "active"
+        else:
+            base["strategy"] = None
+            base["strategy_status"] = "none"
+    except Exception:
+        base["strategy"] = None
+        base["strategy_status"] = "error"
+
+    return base
 
 
 def export_threads(

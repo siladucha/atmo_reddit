@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.models.audit import AuditLog
 from app.models.avatar import Avatar
 from app.services.reddit import get_reddit_client
+from app.services.sanitize import ensure_username_bare
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,7 @@ def fetch_reddit_status(username: str) -> RedditAccountStatus:
 
     try:
         reddit = get_reddit_client()
-        redditor = reddit.redditor(username)
+        redditor = reddit.redditor(ensure_username_bare(username))
 
         if getattr(redditor, "is_suspended", False):
             duration_ms = int((time.time() - start_time) * 1000)
@@ -225,6 +226,19 @@ def check_reddit_status(db: Session, avatar: Avatar) -> RedditAccountStatus:
     except Exception:
         logger.warning(
             "Subreddit karma sync failed for u/%s", avatar.reddit_username, exc_info=True
+        )
+        db.rollback()
+
+    # CQS check — read bot reply from r/WhatIsMyCQS if avatar posted there.
+    # Failures must not block the status check itself.
+    try:
+        from app.services.cqs_checker import update_avatar_cqs_from_reddit
+
+        update_avatar_cqs_from_reddit(db, avatar)
+        db.commit()
+    except Exception:
+        logger.warning(
+            "CQS check failed for u/%s", avatar.reddit_username, exc_info=True
         )
         db.rollback()
 

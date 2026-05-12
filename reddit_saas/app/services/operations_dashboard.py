@@ -475,13 +475,14 @@ def get_avatar_health_summary(db: Session) -> dict[str, Any]:
 
     total_active = sum(status_counts.values())
 
-    # Eligible for promotion: warming_phase < 3 AND
+    # Eligible for promotion: warming_phase in (1, 2) AND
     # (last_phase_evaluated_at < 30 days ago OR last_phase_evaluated_at IS NULL).
+    # Mentors (phase 0) and Phase 3 are excluded.
     eligible_for_promotion = (
         db.query(sa_func.count(Avatar.id))
         .filter(
             Avatar.active.is_(True),
-            Avatar.warming_phase < 3,
+            Avatar.warming_phase.in_([1, 2]),
             sa_func.coalesce(
                 Avatar.last_phase_evaluated_at,
                 datetime(1970, 1, 1, tzinfo=timezone.utc),
@@ -514,6 +515,30 @@ def get_avatar_health_summary(db: Session) -> dict[str, Any]:
         else 0.0
     )
 
+    # CQS stats — count avatars by CQS level and stale checks
+    cqs_stale_cutoff = now - timedelta(days=14)
+    cqs_rows = (
+        db.query(Avatar.cqs_level, sa_func.count(Avatar.id))
+        .filter(Avatar.active.is_(True))
+        .group_by(Avatar.cqs_level)
+        .all()
+    )
+    cqs_counts: dict[str, int] = {"highest": 0, "high": 0, "moderate": 0, "low": 0, "lowest": 0, "unchecked": 0}
+    for level, count in cqs_rows:
+        if level and level in cqs_counts:
+            cqs_counts[level] += count
+        else:
+            cqs_counts["unchecked"] += count
+
+    cqs_stale_count = (
+        db.query(sa_func.count(Avatar.id))
+        .filter(
+            Avatar.active.is_(True),
+            Avatar.cqs_checked_at < cqs_stale_cutoff,
+        )
+        .scalar()
+    ) or 0
+
     return {
         "status_counts": {
             "active": status_counts.get("active", 0),
@@ -533,6 +558,11 @@ def get_avatar_health_summary(db: Session) -> dict[str, Any]:
             "low_diversity_count": low_diversity_count,
             "avatars_with_karma": avatars_with_any_karma,
             "avg_subreddits_per_avatar": avg_diversity,
+        },
+        "cqs": {
+            "counts": cqs_counts,
+            "stale_count": cqs_stale_count,
+            "at_risk": cqs_counts["lowest"] + cqs_counts["low"],
         },
     }
 

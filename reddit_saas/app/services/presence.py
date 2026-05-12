@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.models.avatar import Avatar
 from app.models.avatar_subreddit_presence import AvatarSubredditPresence
+from app.services.sanitize import ensure_username_bare
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +174,7 @@ def scan_avatar_presence(db: Session, avatar_id: uuid.UUID) -> list[AvatarSubred
     try:
         # Fetch recent comments via PRAW
         reddit = get_reddit_client()
-        redditor = reddit.redditor(avatar.reddit_username)
+        redditor = reddit.redditor(ensure_username_bare(avatar.reddit_username))
 
         logger.info(
             "PRESENCE_SCAN | action=fetch_comments | avatar_id=%s | username=%s",

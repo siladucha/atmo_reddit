@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.models.avatar import Avatar
 from app.services.reddit import get_reddit_client
+from app.services.sanitize import ensure_username_bare
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +139,7 @@ def fetch_profile_analytics(username: str, comment_limit: int = 100, post_limit:
 
     try:
         reddit = get_reddit_client()
-        redditor = reddit.redditor(username)
+        redditor = reddit.redditor(ensure_username_bare(username))
 
         # Basic profile info
         if getattr(redditor, "is_suspended", False):

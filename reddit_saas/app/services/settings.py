@@ -146,6 +146,12 @@ DEFAULTS: dict[str, dict] = {
         "desc": "Model for comment generation (quality)",
         "group": "llm",
     },
+    "llm_strategy_model": {
+        "value": "anthropic/claude-sonnet-4-20250514",
+        "secret": False,
+        "desc": "Model for strategy generation (try claude-3-5-haiku-20241022 for cheaper)",
+        "group": "llm",
+    },
     # App
     "app_env": {
         "value": "development",
@@ -258,6 +264,67 @@ DEFAULTS: dict[str, dict] = {
         "desc": "AWS credits remaining (manual entry)",
         "group": "budget",
     },
+    # Pipeline v2 — Operational Guardrails
+    "dedup_lookback_days": {
+        "value": "30",
+        "secret": False,
+        "desc": "Lookback window (days) for cross-avatar dedup on approved/posted drafts",
+        "group": "pipeline_v2",
+    },
+    "thread_max_age_hours": {
+        "value": "48",
+        "secret": False,
+        "desc": "Maximum thread age (hours) for scoring and generation eligibility",
+        "group": "pipeline_v2",
+    },
+    "max_comments_per_sub_per_day": {
+        "value": "2",
+        "secret": False,
+        "desc": "Maximum comments per subreddit per day per avatar",
+        "group": "pipeline_v2",
+    },
+    "min_scrape_interval_minutes": {
+        "value": "30",
+        "secret": False,
+        "desc": "Minimum minutes between scrapes of the same subreddit",
+        "group": "pipeline_v2",
+    },
+    "min_comment_interval_minutes": {
+        "value": "15",
+        "secret": False,
+        "desc": "Minimum minutes between consecutive comments by same avatar",
+        "group": "pipeline_v2",
+    },
+    "max_brand_ratio_percent": {
+        "value": "30",
+        "secret": False,
+        "desc": "Maximum brand mention ratio (%) over 30-day window",
+        "group": "pipeline_v2",
+    },
+    "hill_hook_target_min_percent": {
+        "value": "25",
+        "secret": False,
+        "desc": "Below this hook usage %, prompt encourages hook usage",
+        "group": "pipeline_v2",
+    },
+    "hill_hook_target_max_percent": {
+        "value": "35",
+        "secret": False,
+        "desc": "Above this hook usage %, prompt discourages hook usage",
+        "group": "pipeline_v2",
+    },
+    "scoring_batch_size": {
+        "value": "10",
+        "secret": False,
+        "desc": "Number of threads per batch scoring LLM call",
+        "group": "pipeline_v2",
+    },
+    "strategy_max_age_days": {
+        "value": "30",
+        "secret": False,
+        "desc": "Strategy document validity window (days)",
+        "group": "pipeline_v2",
+    },
     # Health Check
     "health_check_interval_hours": {
         "value": "12",
@@ -307,6 +374,19 @@ DEFAULTS: dict[str, dict] = {
         "desc": "Maximum comments to fetch per avatar for visibility check",
         "group": "health_check",
     },
+    # CQS (Contributor Quality Score)
+    "cqs_check_interval_days": {
+        "value": "7",
+        "secret": False,
+        "desc": "How often to re-check CQS for each avatar (days). Avatars checked more recently are skipped.",
+        "group": "health_check",
+    },
+    "cqs_check_rate_limit_delay_seconds": {
+        "value": "3",
+        "secret": False,
+        "desc": "Delay between individual CQS checks in a batch (seconds)",
+        "group": "health_check",
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -352,6 +432,14 @@ HEALTH_CHECK_VALIDATORS: dict[str, tuple[callable, str]] = {
     "health_check_max_comments_to_sample": (
         lambda v: int(v) >= 1,
         "Must be an integer >= 1",
+    ),
+    "cqs_check_interval_days": (
+        lambda v: int(v) >= 1,
+        "Must be an integer >= 1",
+    ),
+    "cqs_check_rate_limit_delay_seconds": (
+        lambda v: float(v) >= 0,
+        "Must be a number >= 0",
     ),
 }
 
@@ -416,6 +504,36 @@ def get_setting(db: Session, key: str) -> str:
         return default_val
 
     return ""
+
+
+def get_setting_int(db: Session, key: str, default: int = 0) -> int:
+    """Get a setting value as an integer with safe fallback.
+
+    Returns the default if the key is missing, empty, or not a valid integer.
+    """
+    raw = get_setting(db, key)
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except (ValueError, TypeError):
+        logger.warning("Setting '%s' has non-integer value '%s', using default %d", key, raw, default)
+        return default
+
+
+def get_setting_float(db: Session, key: str, default: float = 0.0) -> float:
+    """Get a setting value as a float with safe fallback.
+
+    Returns the default if the key is missing, empty, or not a valid number.
+    """
+    raw = get_setting(db, key)
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except (ValueError, TypeError):
+        logger.warning("Setting '%s' has non-numeric value '%s', using default %s", key, raw, default)
+        return default
 
 
 def set_setting(
@@ -712,19 +830,39 @@ def check_connections(db: Session) -> dict:
 
 # ---------------------------------------------------------------------------
 # Kill switch helpers
+#
+# These ALWAYS read directly from the database, bypassing the in-memory cache.
+# Kill switches are checked infrequently (once per task execution) and must
+# reflect the latest value set by the admin — even from a different process
+# (e.g., Celery worker reading a value set by the FastAPI admin UI).
 # ---------------------------------------------------------------------------
 
 
+def _get_setting_fresh(db: Session, key: str) -> str:
+    """Read a setting directly from DB, bypassing in-memory cache.
+
+    Used for kill switches and other critical settings that must reflect
+    cross-process changes immediately.
+    """
+    row = db.query(SystemSetting).filter(SystemSetting.key == key).first()
+    if row:
+        return row.value
+    # Fallback to default
+    if key in DEFAULTS:
+        return DEFAULTS[key]["value"]
+    return ""
+
+
 def is_pipeline_enabled(db: Session) -> bool:
-    """Check if the pipeline master switch is on."""
-    return get_setting(db, "pipeline_enabled").lower() == "true"
+    """Check if the pipeline master switch is on (always fresh from DB)."""
+    return _get_setting_fresh(db, "pipeline_enabled").lower() == "true"
 
 
 def is_generation_enabled(db: Session) -> bool:
-    """Check if generation is enabled."""
-    return get_setting(db, "generation_enabled").lower() == "true"
+    """Check if generation is enabled (always fresh from DB)."""
+    return _get_setting_fresh(db, "generation_enabled").lower() == "true"
 
 
 def is_scrape_enabled(db: Session) -> bool:
-    """Check if scraping is enabled."""
-    return get_setting(db, "scrape_enabled").lower() == "true"
+    """Check if scraping is enabled (always fresh from DB)."""
+    return _get_setting_fresh(db, "scrape_enabled").lower() == "true"

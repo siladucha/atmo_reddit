@@ -19,6 +19,21 @@ from app.models.client import Client
 PAGE_SIZE_GRID = 24
 PAGE_SIZE_TABLE = 50
 
+
+def _profile_completeness_pct(avatar: Avatar) -> int:
+    """Return profile completeness as integer percentage (0-100)."""
+    fields = [
+        avatar.voice_profile_md,
+        avatar.tone_principles,
+        avatar.speech_patterns,
+        avatar.vocabulary_lean,
+        avatar.hill_i_die_on,
+        avatar.helpful_mode_topics,
+        avatar.constraints,
+    ]
+    filled = sum(1 for f in fields if f and str(f).strip())
+    return int(round(filled / len(fields) * 100))
+
 SORT_OPTIONS: list[tuple[str, str]] = [
     ("username", "Username A→Z"),
     ("username_desc", "Username Z→A"),
@@ -389,6 +404,14 @@ def _batch_fetch_related(
     return client_by_id
 
 
+def _is_cqs_stale(cqs_checked_at: datetime | None) -> bool:
+    """Return True if CQS was checked more than 14 days ago or never."""
+    if not cqs_checked_at:
+        return False  # Never checked — show as "—", not stale
+    age = datetime.now(timezone.utc) - cqs_checked_at
+    return age > timedelta(days=14)
+
+
 def build_avatar_view(
     avatar: Avatar,
     health: dict,
@@ -431,5 +454,11 @@ def build_avatar_view(
         "created_at": avatar.created_at,
         "clients": [{"id": str(c.id), "name": c.client_name, "brand": c.brand_name} for c in clients],
         "top_subreddits": top_summary,
+        # CQS (Contributor Quality Score)
+        "cqs_level": avatar.cqs_level,
+        "cqs_checked_at": avatar.cqs_checked_at,
+        "cqs_stale": _is_cqs_stale(avatar.cqs_checked_at),
+        # Profile completeness (7 voice/personality fields)
+        "profile_pct": _profile_completeness_pct(avatar),
     })
     return out
