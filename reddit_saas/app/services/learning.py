@@ -108,7 +108,9 @@ class LearningService:
             if status == "approved":
                 # Approved with edits — edited_draft differs from ai_draft
                 edited_draft = draft.edited_draft
-                edit_summary = compute_edit_summary(draft.ai_draft, edited_draft)
+                # Use original_ai_draft for diff if available (before AI Editor cleanup)
+                before_text_for_diff = draft.original_ai_draft or draft.ai_draft
+                edit_summary = compute_edit_summary(before_text_for_diff, edited_draft)
             elif status == "approved_unchanged":
                 # Approved without changes — edited_draft equals ai_draft (or is None)
                 edited_draft = draft.edited_draft if draft.edited_draft else draft.ai_draft
@@ -124,11 +126,14 @@ class LearningService:
             # Truncate post_body to 500 characters
             post_body = thread.post_body[:500] if thread.post_body else None
 
+            # Use original_ai_draft (before AI Editor) if available, for better few-shot quality
+            before_text = draft.original_ai_draft or draft.ai_draft
+
             record = EditRecord(
                 comment_draft_id=draft.id,
                 avatar_id=draft.avatar_id,
                 client_id=draft.client_id,
-                ai_draft=draft.ai_draft,
+                ai_draft=before_text,
                 edited_draft=edited_draft,
                 edit_summary=edit_summary,
                 subreddit=thread.subreddit,

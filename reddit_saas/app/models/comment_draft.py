@@ -13,12 +13,13 @@ class CommentDraft(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     thread_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("reddit_threads.id"), nullable=False)
-    client_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=False)
+    client_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=True)
     avatar_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("avatars.id"), nullable=False)
     type: Mapped[str] = mapped_column(String(50), default="professional")  # professional | hobby
 
     # Content
     ai_draft: Mapped[str | None] = mapped_column(Text, nullable=True)
+    original_ai_draft: Mapped[str | None] = mapped_column(Text, nullable=True)  # preserved before AI Editor
     edited_draft: Mapped[str | None] = mapped_column(Text, nullable=True)
     comment_to: Mapped[str | None] = mapped_column(Text, nullable=True)
     location_depth: Mapped[int | None] = mapped_column(Integer, nullable=True)
