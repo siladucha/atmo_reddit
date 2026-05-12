@@ -1,4 +1,5 @@
 from app.models.user import User
+from app.models.user_role import UserRole
 from app.models.client import Client
 from app.models.avatar import Avatar
 from app.models.subreddit import ClientSubreddit, Subreddit, ClientSubredditAssignment
@@ -21,6 +22,7 @@ from app.models.correction_pattern import CorrectionPattern
 
 __all__ = [
     "User",
+    "UserRole",
     "Client",
     "Avatar",
     "ClientSubreddit",
