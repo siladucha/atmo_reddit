@@ -1,0 +1,408 @@
+{# Avatar Profile Management Panel — HTMX partial
+   Context: avatar (Avatar model instance), assigned_clients (list)
+#}
+
+<!-- Success/Error toast -->
+<div id="profile-toast" class="hidden fixed top-4 right-4 z-50 px-4 py-3 rounded-lg text-sm font-medium shadow-lg"></div>
+
+<!-- Profile Completeness Mini-Bar (inline, no extra request) -->
+{% set profile_fields_check = [
+    (avatar.voice_profile_md, "Voice Profile"),
+    (avatar.tone_principles, "Tone Principles"),
+    (avatar.speech_patterns, "Speech Patterns"),
+    (avatar.vocabulary_lean, "Vocabulary Lean"),
+    (avatar.hill_i_die_on, "Hill I Die On"),
+    (avatar.helpful_mode_topics, "Helpful Mode Topics"),
+    (avatar.constraints, "Constraints"),
+] %}
+{% set ns = namespace(filled=0, missing_list=[]) %}
+{% for val, label in profile_fields_check %}
+    {% if val and val|string|trim %}
+        {% set ns.filled = ns.filled + 1 %}
+    {% else %}
+        {% set ns.missing_list = ns.missing_list + [label] %}
+    {% endif %}
+{% endfor %}
+{% set completeness_pct = (ns.filled * 100 / 7)|round|int %}
+
+{% if ns.missing_list %}
+<div class="rounded-lg border px-4 py-3 mb-4
+    {% if completeness_pct >= 50 %}border-amber-700/50 bg-amber-900/20{% else %}border-red-700/50 bg-red-900/20{% endif %}">
+    <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <span class="text-sm {% if completeness_pct >= 50 %}text-amber-400{% else %}text-red-400{% endif %} font-bold">{{ completeness_pct }}%</span>
+            <span class="text-xs text-gray-400">Profile completeness — fill the highlighted fields below to improve generation quality</span>
+        </div>
+        <span class="text-[10px] text-gray-500">Missing: {{ ns.missing_list|join(', ') }}</span>
+    </div>
+</div>
+{% else %}
+<div class="rounded-lg border border-green-700/50 bg-green-900/20 px-4 py-3 mb-4">
+    <div class="flex items-center gap-3">
+        <span class="text-sm text-green-400 font-bold">100%</span>
+        <span class="text-xs text-green-300">All profile fields filled ✓</span>
+    </div>
+</div>
+{% endif %}
+
+<!-- Identity & Account Info -->
+<div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Identity</h2>
+        <span class="text-xs text-gray-500">Created {{ avatar.created_at.strftime('%Y-%m-%d') if avatar.created_at else 'unknown' }}</span>
+    </div>
+
+    <form hx-post="/admin/avatars/{{ avatar.id }}/update-profile"
+          hx-target="#profile-identity-result"
+          hx-swap="innerHTML"
+          class="space-y-4">
+        <input type="hidden" name="section" value="identity">
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">
+                    Reddit Username
+                    <span class="ml-1 text-gray-600 cursor-help" title="Max 20 chars. Must match the actual Reddit account name.">ⓘ</span>
+                </label>
+                <div class="relative">
+                    <input type="text" name="reddit_username" value="{{ avatar.reddit_username }}"
+                           maxlength="255"
+                           oninput="this.nextElementSibling.textContent = this.value.length + '/255'"
+                           class="w-full bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
+                           required>
+                    <span class="absolute right-2 top-2 text-[10px] text-gray-500">{{ avatar.reddit_username | length }}/255</span>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">
+                    Email Address
+                    <span class="ml-1 text-gray-600 cursor-help" title="Email linked to the Reddit account. Used for recovery.">ⓘ</span>
+                </label>
+                <input type="email" name="email_address" value="{{ avatar.email_address or '' }}"
+                       placeholder="account@email.com"
+                       class="w-full bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-600">
+            </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-2">
+            <div id="profile-identity-result" class="text-xs"></div>
+            <button type="submit"
+                    class="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                Save Identity
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Voice Profile -->
+<div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Voice Profile</h2>
+        <div class="flex items-center gap-2">
+            <span class="text-xs text-gray-500">Defines how this avatar writes</span>
+        </div>
+    </div>
+
+    <form hx-post="/admin/avatars/{{ avatar.id }}/update-profile"
+          hx-target="#profile-voice-result"
+          hx-swap="innerHTML"
+          class="space-y-4">
+        <input type="hidden" name="section" value="voice">
+
+        <div>
+            <div class="flex items-center justify-between mb-1">
+                <label class="text-xs text-gray-400">
+                    Voice Profile (Markdown)
+                    <span class="ml-1 text-gray-600 cursor-help" title="Full personality description: backstory, expertise, writing style. Used as system prompt context for AI generation. Supports Markdown. No hard limit but 2000-5000 chars recommended for best results.">ⓘ</span>
+                </label>
+                <span class="text-[10px] font-mono text-gray-500" id="voice-counter">{{ (avatar.voice_profile_md or '') | length }} chars</span>
+            </div>
+            <textarea name="voice_profile_md" rows="8"
+                      oninput="document.getElementById('voice-counter').textContent = this.value.length + ' chars'; this.classList.toggle('border-amber-500', this.value.length > 10000); this.classList.toggle('border-slate-600', this.value.length <= 10000)"
+                      placeholder="Describe this avatar's personality, background, expertise areas, and writing style in detail..."
+                      class="w-full bg-slate-800 border text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-600 font-mono leading-relaxed {% if not avatar.voice_profile_md %}border-red-600/60 bg-red-900/10{% else %}border-slate-600{% endif %}">{{ avatar.voice_profile_md or '' }}</textarea>
+            <div class="flex justify-between mt-0.5">
+                <span class="text-[10px] text-gray-600">Recommended: 2,000–5,000 chars. No hard limit (PostgreSQL Text).</span>
+                <span class="text-[10px] text-gray-600">DB type: TEXT (unlimited)</span>
+            </div>
+        </div>
+
+        <div>
+            <div class="flex items-center justify-between mb-1">
+                <label class="text-xs text-gray-400">
+                    Tone Principles
+                    <span class="ml-1 text-gray-600 cursor-help" title="Core rules for tone of voice. E.g. 'never sarcastic', 'always empathetic', 'direct but warm'. Injected into generation prompt.">ⓘ</span>
+                </label>
+                <span class="text-[10px] font-mono text-gray-500" id="tone-counter">{{ (avatar.tone_principles or '') | length }} chars</span>
+            </div>
+            <textarea name="tone_principles" rows="4"
+                      oninput="document.getElementById('tone-counter').textContent = this.value.length + ' chars'"
+                      placeholder="e.g. Warm but direct. Uses humor sparingly. Never condescending..."
+                      class="w-full bg-slate-800 border text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-600 {% if not avatar.tone_principles %}border-red-600/60 bg-red-900/10{% else %}border-slate-600{% endif %}">{{ avatar.tone_principles or '' }}</textarea>
+            <span class="text-[10px] text-gray-600">Recommended: 200–1,000 chars.</span>
+        </div>
+
+        <div>
+            <div class="flex items-center justify-between mb-1">
+                <label class="text-xs text-gray-400">
+                    Speech Patterns
+                    <span class="ml-1 text-gray-600 cursor-help" title="Characteristic phrases, sentence structures, quirks. E.g. starts with 'Look,', uses short paragraphs, avoids emojis.">ⓘ</span>
+                </label>
+                <span class="text-[10px] font-mono text-gray-500" id="speech-counter">{{ (avatar.speech_patterns or '') | length }} chars</span>
+            </div>
+            <textarea name="speech_patterns" rows="3"
+                      oninput="document.getElementById('speech-counter').textContent = this.value.length + ' chars'"
+                      placeholder="e.g. Starts sentences with 'Look,' or 'Here's the thing'. Uses short paragraphs..."
+                      class="w-full bg-slate-800 border text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-600 {% if not avatar.speech_patterns %}border-red-600/60 bg-red-900/10{% else %}border-slate-600{% endif %}">{{ avatar.speech_patterns or '' }}</textarea>
+            <span class="text-[10px] text-gray-600">Recommended: 200–800 chars.</span>
+        </div>
+
+        <div>
+            <div class="flex items-center justify-between mb-1">
+                <label class="text-xs text-gray-400">
+                    Vocabulary Lean
+                    <span class="ml-1 text-gray-600 cursor-help" title="Preferred words, jargon level, formality. What words this avatar uses vs avoids.">ⓘ</span>
+                </label>
+                <span class="text-[10px] font-mono text-gray-500" id="vocab-counter">{{ (avatar.vocabulary_lean or '') | length }} chars</span>
+            </div>
+            <textarea name="vocabulary_lean" rows="3"
+                      oninput="document.getElementById('vocab-counter').textContent = this.value.length + ' chars'"
+                      placeholder="e.g. Technical jargon when relevant. Avoids corporate buzzwords. Prefers 'fix' over 'remediate'..."
+                      class="w-full bg-slate-800 border text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-600 {% if not avatar.vocabulary_lean %}border-red-600/60 bg-red-900/10{% else %}border-slate-600{% endif %}">{{ avatar.vocabulary_lean or '' }}</textarea>
+            <span class="text-[10px] text-gray-600">Recommended: 200–600 chars.</span>
+        </div>
+
+        <div class="flex items-center justify-between pt-2">
+            <div id="profile-voice-result" class="text-xs"></div>
+            <button type="submit"
+                    class="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                Save Voice Profile
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Personality & Opinions -->
+<div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Personality & Opinions</h2>
+        <span class="text-xs text-gray-500">What makes this avatar unique</span>
+    </div>
+
+    <form hx-post="/admin/avatars/{{ avatar.id }}/update-profile"
+          hx-target="#profile-personality-result"
+          hx-swap="innerHTML"
+          class="space-y-4">
+        <input type="hidden" name="section" value="personality">
+
+        <div>
+            <div class="flex items-center justify-between mb-1">
+                <label class="text-xs text-gray-400">
+                    Hill I Die On
+                    <span class="ml-1 text-gray-600 cursor-help" title="Strong opinions this avatar holds and defends. Makes the avatar feel authentic and opinionated in discussions.">ⓘ</span>
+                </label>
+                <span class="text-[10px] font-mono text-gray-500" id="hill-counter">{{ (avatar.hill_i_die_on or '') | length }} chars</span>
+            </div>
+            <textarea name="hill_i_die_on" rows="3"
+                      oninput="document.getElementById('hill-counter').textContent = this.value.length + ' chars'"
+                      placeholder="e.g. 'Zero trust is the only sane security model. Anyone still relying on perimeter defense is living in 2010.'"
+                      class="w-full bg-slate-800 border text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-600 {% if not avatar.hill_i_die_on %}border-red-600/60 bg-red-900/10{% else %}border-slate-600{% endif %}">{{ avatar.hill_i_die_on or '' }}</textarea>
+            <span class="text-[10px] text-gray-600">Recommended: 100–500 chars.</span>
+        </div>
+
+        <div>
+            <div class="flex items-center justify-between mb-1">
+                <label class="text-xs text-gray-400">
+                    Helpful Mode Topics
+                    <span class="ml-1 text-gray-600 cursor-help" title="Topics where this avatar naturally offers help. Used by AI to decide when to engage helpfully vs. opinionated.">ⓘ</span>
+                </label>
+                <span class="text-[10px] font-mono text-gray-500" id="helpful-counter">{{ (avatar.helpful_mode_topics or '') | length }} chars</span>
+            </div>
+            <textarea name="helpful_mode_topics" rows="3"
+                      oninput="document.getElementById('helpful-counter').textContent = this.value.length + ' chars'"
+                      placeholder="e.g. Python debugging, home lab setups, career advice for junior devs..."
+                      class="w-full bg-slate-800 border text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-600 {% if not avatar.helpful_mode_topics %}border-red-600/60 bg-red-900/10{% else %}border-slate-600{% endif %}">{{ avatar.helpful_mode_topics or '' }}</textarea>
+            <span class="text-[10px] text-gray-600">Recommended: 100–500 chars.</span>
+        </div>
+
+        <div>
+            <div class="flex items-center justify-between mb-1">
+                <label class="text-xs text-gray-400">
+                    Constraints
+                    <span class="ml-1 text-gray-600 cursor-help" title="Hard rules: things this avatar should NEVER do or say. Injected as negative constraints into generation prompt.">ⓘ</span>
+                </label>
+                <span class="text-[10px] font-mono text-gray-500" id="constraints-counter">{{ (avatar.constraints or '') | length }} chars</span>
+            </div>
+            <textarea name="constraints" rows="3"
+                      oninput="document.getElementById('constraints-counter').textContent = this.value.length + ' chars'"
+                      placeholder="e.g. Never mention specific product names. Never use emojis. Never write more than 3 sentences..."
+                      class="w-full bg-slate-800 border text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-600 {% if not avatar.constraints %}border-red-600/60 bg-red-900/10{% else %}border-slate-600{% endif %}">{{ avatar.constraints or '' }}</textarea>
+            <span class="text-[10px] text-gray-600">Recommended: 100–500 chars.</span>
+        </div>
+
+        <div class="flex items-center justify-between pt-2">
+            <div id="profile-personality-result" class="text-xs"></div>
+            <button type="submit"
+                    class="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                Save Personality
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Subreddit Configuration -->
+<div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Subreddit Configuration</h2>
+        <span class="text-xs text-gray-500">Where this avatar operates</span>
+    </div>
+
+    <form hx-post="/admin/avatars/{{ avatar.id }}/update-profile"
+          hx-target="#profile-subreddits-result"
+          hx-swap="innerHTML"
+          class="space-y-4">
+        <input type="hidden" name="section" value="subreddits">
+
+        <div>
+            <div class="flex items-center justify-between mb-1">
+                <label class="text-xs text-gray-400">
+                    Hobby Subreddits
+                    <span class="ml-1 text-gray-600 cursor-help" title="For karma building (Phase 1-2). Comma-separated. Avatar comments here without brand mentions.">ⓘ</span>
+                </label>
+                <span class="text-[10px] font-mono text-gray-500" id="hobby-counter">{{ hobby_subs_display | length }} subs</span>
+            </div>
+            <textarea name="hobby_subreddits" rows="3"
+                      oninput="document.getElementById('hobby-counter').textContent = this.value.split(',').filter(s => s.trim()).length + ' subs'"
+                      placeholder="e.g. homelab, selfhosted, sysadmin, networking"
+                      class="w-full bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-600">{{ hobby_subs_display | join(', ') }}</textarea>
+            <p class="text-[10px] text-gray-600 mt-1">Comma-separated. No "r/" prefix needed. Used for organic karma building.</p>
+        </div>
+
+        <div>
+            <div class="flex items-center justify-between mb-1">
+                <label class="text-xs text-gray-400">
+                    Business Subreddits
+                    <span class="ml-1 text-gray-600 cursor-help" title="Professional/industry subs for brand engagement. Brand mentions allowed only in Phase 3.">ⓘ</span>
+                </label>
+                <span class="text-[10px] font-mono text-gray-500" id="business-counter">{{ business_subs_display | length }} subs</span>
+            </div>
+            <textarea name="business_subreddits" rows="3"
+                      oninput="document.getElementById('business-counter').textContent = this.value.split(',').filter(s => s.trim()).length + ' subs'"
+                      placeholder="e.g. cybersecurity, netsec, blueteam"
+                      class="w-full bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-600">{{ business_subs_display | join(', ') }}</textarea>
+            <p class="text-[10px] text-gray-600 mt-1">Comma-separated. Brand mentions allowed in Phase 3 only.</p>
+        </div>
+
+        <div class="flex items-center justify-between pt-2">
+            <div id="profile-subreddits-result" class="text-xs"></div>
+            <button type="submit"
+                    class="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                Save Subreddits
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Profile Completeness Indicator -->
+<div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+    <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Profile Completeness</h2>
+
+    {% set fields_total = 7 %}
+    {% set fields_filled = 0 %}
+    {% if avatar.voice_profile_md %}{% set fields_filled = fields_filled + 1 %}{% endif %}
+    {% if avatar.tone_principles %}{% set fields_filled = fields_filled + 1 %}{% endif %}
+    {% if avatar.speech_patterns %}{% set fields_filled = fields_filled + 1 %}{% endif %}
+    {% if avatar.vocabulary_lean %}{% set fields_filled = fields_filled + 1 %}{% endif %}
+    {% if avatar.hill_i_die_on %}{% set fields_filled = fields_filled + 1 %}{% endif %}
+    {% if avatar.helpful_mode_topics %}{% set fields_filled = fields_filled + 1 %}{% endif %}
+    {% if avatar.constraints %}{% set fields_filled = fields_filled + 1 %}{% endif %}
+
+    {% set completeness_pct = (fields_filled / fields_total * 100) | int %}
+
+    <div class="flex items-center gap-4 mb-3">
+        <div class="flex-1">
+            <div class="w-full bg-slate-700 rounded-full h-2.5">
+                <div class="h-2.5 rounded-full transition-all duration-300
+                    {% if completeness_pct >= 80 %}bg-green-500
+                    {% elif completeness_pct >= 50 %}bg-amber-500
+                    {% else %}bg-red-500{% endif %}"
+                    style="width: {{ completeness_pct }}%"></div>
+            </div>
+        </div>
+        <span class="text-sm font-mono text-white">{{ fields_filled }}/{{ fields_total }}</span>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+        <div class="flex items-center gap-1.5">
+            {% if avatar.voice_profile_md %}
+            <span class="w-2 h-2 rounded-full bg-green-400"></span>
+            <span class="text-gray-300">Voice Profile</span>
+            {% else %}
+            <span class="w-2 h-2 rounded-full bg-red-400"></span>
+            <span class="text-gray-500">Voice Profile</span>
+            {% endif %}
+        </div>
+        <div class="flex items-center gap-1.5">
+            {% if avatar.tone_principles %}
+            <span class="w-2 h-2 rounded-full bg-green-400"></span>
+            <span class="text-gray-300">Tone Principles</span>
+            {% else %}
+            <span class="w-2 h-2 rounded-full bg-red-400"></span>
+            <span class="text-gray-500">Tone Principles</span>
+            {% endif %}
+        </div>
+        <div class="flex items-center gap-1.5">
+            {% if avatar.speech_patterns %}
+            <span class="w-2 h-2 rounded-full bg-green-400"></span>
+            <span class="text-gray-300">Speech Patterns</span>
+            {% else %}
+            <span class="w-2 h-2 rounded-full bg-red-400"></span>
+            <span class="text-gray-500">Speech Patterns</span>
+            {% endif %}
+        </div>
+        <div class="flex items-center gap-1.5">
+            {% if avatar.vocabulary_lean %}
+            <span class="w-2 h-2 rounded-full bg-green-400"></span>
+            <span class="text-gray-300">Vocabulary</span>
+            {% else %}
+            <span class="w-2 h-2 rounded-full bg-red-400"></span>
+            <span class="text-gray-500">Vocabulary</span>
+            {% endif %}
+        </div>
+        <div class="flex items-center gap-1.5">
+            {% if avatar.hill_i_die_on %}
+            <span class="w-2 h-2 rounded-full bg-green-400"></span>
+            <span class="text-gray-300">Hill I Die On</span>
+            {% else %}
+            <span class="w-2 h-2 rounded-full bg-red-400"></span>
+            <span class="text-gray-500">Hill I Die On</span>
+            {% endif %}
+        </div>
+        <div class="flex items-center gap-1.5">
+            {% if avatar.helpful_mode_topics %}
+            <span class="w-2 h-2 rounded-full bg-green-400"></span>
+            <span class="text-gray-300">Helpful Topics</span>
+            {% else %}
+            <span class="w-2 h-2 rounded-full bg-red-400"></span>
+            <span class="text-gray-500">Helpful Topics</span>
+            {% endif %}
+        </div>
+        <div class="flex items-center gap-1.5">
+            {% if avatar.constraints %}
+            <span class="w-2 h-2 rounded-full bg-green-400"></span>
+            <span class="text-gray-300">Constraints</span>
+            {% else %}
+            <span class="w-2 h-2 rounded-full bg-red-400"></span>
+            <span class="text-gray-500">Constraints</span>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if completeness_pct < 80 %}
+    <div class="mt-4 p-3 rounded-lg bg-amber-900/20 border border-amber-700/50">
+        <p class="text-xs text-amber-300">
+            ⚠️ Incomplete profile reduces comment quality. Fill all voice fields for best AI generation results.
+        </p>
+    </div>
+    {% endif %}
+</div>

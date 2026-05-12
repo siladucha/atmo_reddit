@@ -212,6 +212,15 @@
                 </svg>
                 <span class="sidebar-label">Tasks</span>
             </a>
+
+            <a href="/admin/activity"
+               class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
+                      {% if active_nav == 'activity' %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/>
+                </svg>
+                <span class="sidebar-label">Activity</span>
+            </a>
              <a href="/admin/users"
                class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
                       {% if active_nav == 'users' %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">

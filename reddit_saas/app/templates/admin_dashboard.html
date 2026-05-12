@@ -236,6 +236,24 @@
                     <p class="text-gray-500 text-xs">Loading…</p>
                 </div>
             </section>
+
+            <!-- Database Backups -->
+            <section class="bg-dark-steel rounded-lg border border-slate-700">
+                <header class="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+                    <h3 class="text-sm font-semibold text-gray-200">💾 Backups{% set tooltip_text = "Database backup status. Automated via cron every 12 hours. Retention: 48 hourly, 30 daily, 12 weekly." %}{% include "partials/block_tooltip.html" %}</h3>
+                    <button class="text-xs text-gray-400 hover:text-white"
+                            hx-get="/admin/dashboard/backups"
+                            hx-target="#backups-panel"
+                            hx-swap="innerHTML">↻ refresh</button>
+                </header>
+                <div id="backups-panel"
+                     hx-get="/admin/dashboard/backups"
+                     hx-trigger="load"
+                     hx-swap="innerHTML"
+                     class="p-4">
+                    <p class="text-gray-500 text-xs">Loading…</p>
+                </div>
+            </section>
         </div>
     </div>
 

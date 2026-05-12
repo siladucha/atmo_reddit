@@ -1,0 +1,54 @@
+<!-- Avatar Removal Rate Analytics — loaded via HTMX -->
+<div id="removal-analytics-panel" class="bg-dark-steel rounded-lg border border-slate-700 p-5">
+    <div class="flex items-center justify-between mb-3">
+        <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Removal Rate</h3>
+        {% if removal.total_posted > 0 %}
+        <span class="px-2 py-0.5 rounded text-xs font-medium
+            {% if removal.rate <= 10 %}bg-green-900/50 text-green-400 border border-green-700
+            {% elif removal.rate <= 20 %}bg-amber-900/50 text-amber-400 border border-amber-700
+            {% else %}bg-red-900/50 text-red-400 border border-red-700{% endif %}">
+            {% if removal.rate <= 10 %}Normal{% elif removal.rate <= 20 %}Elevated{% else %}High{% endif %}
+        </span>
+        {% endif %}
+    </div>
+
+    {% if removal.total_posted > 0 %}
+    <div class="flex items-center gap-3 mb-4">
+        <span class="text-lg">⚠️</span>
+        <div>
+            <span class="text-lg font-bold
+                {% if removal.rate <= 10 %}text-green-400
+                {% elif removal.rate <= 20 %}text-amber-400
+                {% else %}text-red-400{% endif %}">
+                {{ "%.0f"|format(removal.rate) }}%
+            </span>
+            <span class="text-sm text-gray-400 ml-2">({{ removal.removed_count }}/{{ removal.total_posted }}) — threshold 20%</span>
+        </div>
+    </div>
+
+    {% if removal.by_subreddit %}
+    <div class="space-y-2">
+        <h4 class="text-xs text-gray-500 uppercase tracking-wide">By subreddit:</h4>
+        {% for sub in removal.by_subreddit %}
+        <div class="flex items-center justify-between p-2 rounded bg-slate-800/50 border border-slate-700/50">
+            <div class="flex items-center gap-2">
+                <span class="text-sm text-gray-200">r/{{ sub.subreddit }}</span>
+                <span class="text-xs text-gray-500">{{ sub.removed }}/{{ sub.total }} removed</span>
+            </div>
+            <span class="text-xs font-mono
+                {% if sub.rate <= 10 %}text-green-400
+                {% elif sub.rate <= 20 %}text-amber-400
+                {% else %}text-red-400{% endif %}">
+                {{ "%.0f"|format(sub.rate) }}%
+            </span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="text-sm text-gray-500">
+        No posted comments yet. Removal analytics will appear after comments are posted.
+    </div>
+    {% endif %}
+</div>

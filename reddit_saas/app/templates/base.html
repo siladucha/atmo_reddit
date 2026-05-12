@@ -31,6 +31,11 @@
                 <a href="/clients/{{ current_client_id }}?tab=threads" class="hover:text-gray-900">Threads</a>
                 <a href="/clients/{{ current_client_id }}?tab=review" class="hover:text-gray-900">Review</a>
                 <a href="/clients/{{ current_client_id }}?tab=reports" class="hover:text-gray-900">Reports</a>
+                {% elif current_user_role == 'Internal' %}
+                <a href="/" class="hover:text-gray-900">Dashboard</a>
+                <a href="/review" class="hover:text-gray-900">Review</a>
+                <a href="/avatars-page" class="hover:text-gray-900">Avatars</a>
+                <a href="/admin/" class="hover:text-gray-900">🛡️ Admin</a>
                 {% else %}
                 <a href="/" class="hover:text-gray-900 {% block nav_dashboard %}{% endblock %}">Dashboard</a>
                 <a href="/review" class="hover:text-gray-900 {% block nav_review %}{% endblock %}">Review</a>
@@ -43,10 +48,16 @@
                 {% endif %}
                 <span class="text-gray-300">|</span>
                 <!-- Role badge -->
-                {% if current_user_role == 'Admin' %}
-                <span class="px-2 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700 border border-violet-200">🛡️ Admin</span>
+                {% if user_role == 'owner' %}
+                <span class="px-2 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700 border border-violet-200">👑 Owner</span>
+                {% elif user_role == 'partner' %}
+                <span class="px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-700 border border-indigo-200">🤝 Partner</span>
+                {% elif user_role == 'qa' %}
+                <span class="px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">🔍 QA</span>
                 {% elif current_user_role == 'Client' %}
                 <span class="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">👤 {{ current_client_name or 'Client' }}</span>
+                {% elif current_user_role == 'Admin' %}
+                <span class="px-2 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700 border border-violet-200">🛡️ Admin</span>
                 {% endif %}
                 {% if current_user_name %}
                 <span class="text-gray-500 text-xs">{{ current_user_name }}</span>

@@ -78,4 +78,40 @@
         {% endif %}
     </div>
     {% endif %}
+
+    {% if summary.cqs %}
+    <div class="border-t border-slate-700 pt-3 text-xs space-y-1">
+        <div class="text-gray-500 mb-1">CQS (Contributor Quality Score)</div>
+        <div class="grid grid-cols-3 gap-1">
+            <div class="flex items-center justify-between">
+                <span class="text-green-400">High+</span>
+                <span class="font-mono text-white">{{ summary.cqs.counts.highest + summary.cqs.counts.high }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+                <span class="text-yellow-400">Moderate</span>
+                <span class="font-mono text-white">{{ summary.cqs.counts.moderate }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+                <span class="text-gray-400">Unchecked</span>
+                <span class="font-mono text-white">{{ summary.cqs.counts.unchecked }}</span>
+            </div>
+        </div>
+        {% if summary.cqs.at_risk > 0 %}
+        <div class="bg-red-900/20 border border-red-700 rounded px-3 py-2 mt-2">
+            <span class="text-red-300">
+                {{ summary.cqs.at_risk }} avatar(s) with
+                <span class="font-medium">Low/Lowest CQS</span>
+                — restrict to Phase 1 or freeze
+            </span>
+        </div>
+        {% endif %}
+        {% if summary.cqs.stale_count > 0 %}
+        <div class="bg-yellow-900/20 border border-yellow-700 rounded px-3 py-2 mt-2">
+            <span class="text-yellow-300">
+                ⚠ {{ summary.cqs.stale_count }} avatar(s) CQS not checked in 14+ days
+            </span>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
 </div>

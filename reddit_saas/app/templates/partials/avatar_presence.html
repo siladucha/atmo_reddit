@@ -105,7 +105,21 @@
                         {% if record.total_karma > 0 %}+{% endif %}{{ record.total_karma }}
                     </td>
                     <td class="py-2 text-right text-xs text-gray-500">
-                        {{ record.last_activity_at.strftime('%Y-%m-%d') if record.last_activity_at else '—' }}
+                        {% if record.last_activity_at %}
+                        {% set days_ago = ((now_utc - record.last_activity_at).total_seconds() / 86400)|int if now_utc is defined else 999 %}
+                        <span class="inline-flex items-center gap-1">
+                            {% if days_ago < 3 %}
+                            <span class="w-2 h-2 rounded-full bg-green-400" title="Active (< 3 days)"></span>
+                            {% elif days_ago <= 7 %}
+                            <span class="w-2 h-2 rounded-full bg-yellow-400" title="Aging (3-7 days)"></span>
+                            {% else %}
+                            <span class="w-2 h-2 rounded-full bg-red-400" title="Stale (> 7 days)"></span>
+                            {% endif %}
+                            {{ record.last_activity_at.strftime('%Y-%m-%d') }}
+                        </span>
+                        {% else %}
+                        —
+                        {% endif %}
                     </td>
                     <td class="py-2 text-right">
                         <a href="https://reddit.com/r/{{ record.subreddit_name }}" target="_blank"

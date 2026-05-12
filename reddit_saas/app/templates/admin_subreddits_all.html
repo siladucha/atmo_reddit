@@ -24,7 +24,82 @@
                 {{ total }} total ·
                 <span class="text-green-400">{{ active_count }} active</span> ·
                 <span class="text-amber-400">{{ paused_count }} paused</span>
+                · Freshness window: {{ freshness_window_hours }}h
             </p>
+        </div>
+    </div>
+
+    <!-- Scrape Status Panel -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
+        <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
+            <!-- Status indicator -->
+            <div class="flex items-center gap-2">
+                {% if scrape_status.enabled %}
+                <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                <span class="text-xs font-medium text-green-400">Scraping Active</span>
+                {% else %}
+                <span class="w-2 h-2 rounded-full bg-red-400"></span>
+                <span class="text-xs font-medium text-red-400">Scraping Paused</span>
+                {% endif %}
+            </div>
+
+            <!-- Last run -->
+            <div class="flex items-center gap-1.5">
+                <span class="text-xs text-gray-500">Last run:</span>
+                {% if scrape_status.last_scrape %}
+                <span class="text-xs text-gray-300 font-mono">r/{{ scrape_status.last_scrape.subreddit_name }}</span>
+                <span class="text-xs text-gray-500">·</span>
+                {% if scrape_status.last_scrape.errors %}
+                <span class="text-xs text-red-400">✗ error</span>
+                {% else %}
+                <span class="text-xs text-gray-400">{{ scrape_status.last_scrape.posts_found }}f/{{ scrape_status.last_scrape.posts_new }}n</span>
+                <span class="text-xs text-gray-600">({{ scrape_status.last_scrape.duration_ms }}ms)</span>
+                {% endif %}
+                {% else %}
+                <span class="text-xs text-gray-600">never</span>
+                {% endif %}
+            </div>
+
+            <!-- Next tick -->
+            <div class="flex items-center gap-1.5">
+                <span class="text-xs text-gray-500">Next tick:</span>
+                <span class="text-xs font-mono {% if scrape_status.next_tick == 'due now' %}text-indigo-400{% else %}text-gray-400{% endif %}">
+                    {{ scrape_status.next_tick }}
+                </span>
+                <span class="text-xs text-gray-600">(every {{ scrape_status.tick_interval_sec }}s)</span>
+            </div>
+
+            <!-- Rate limit -->
+            <div class="flex items-center gap-1.5">
+                <span class="text-xs text-gray-500">Rate:</span>
+                <span class="text-xs font-mono {% if scrape_status.scrapes_last_hour > scrape_status.rate_limit_rpm %}text-red-400{% else %}text-gray-400{% endif %}">
+                    {{ scrape_status.scrapes_last_hour }}/h
+                </span>
+                <span class="text-xs text-gray-600">(limit: {{ scrape_status.rate_limit_rpm }}/min)</span>
+            </div>
+
+            <!-- Stale count -->
+            <div class="flex items-center gap-1.5">
+                <span class="text-xs text-gray-500">Stale:</span>
+                <span class="text-xs font-mono {% if scrape_status.stale_count > 0 %}text-amber-400{% else %}text-green-400{% endif %}">
+                    {{ scrape_status.stale_count }}
+                </span>
+            </div>
+
+            <!-- Scrape Now button -->
+            <div class="ml-auto flex items-center gap-2">
+                <div id="scrape-now-result"></div>
+                <button hx-post="/admin/subreddits/scrape-now"
+                        hx-target="#scrape-now-result"
+                        hx-swap="innerHTML"
+                        {% if not scrape_status.enabled %}disabled{% endif %}
+                        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                    Scrape Now
+                </button>
+            </div>
         </div>
     </div>
 
@@ -51,8 +126,10 @@
             {% for c in clients %}
             <a href="/admin/subreddits?client_id={{ c.id }}{% if filter_type %}&type={{ filter_type }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}"
                class="px-2.5 py-1 rounded text-xs font-medium transition-colors
-                      {% if filter_client_id == (c.id|string) %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
-                {{ c.client_name }}
+                      {% if filter_client_id == (c.id|string) %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}
+                      {% if not c.is_active %}opacity-50 line-through{% endif %}"
+               {% if not c.is_active %}title="Client inactive — pipeline skips this client"{% endif %}>
+                {{ c.client_name }}{% if not c.is_active %} ⏸{% endif %}
             </a>
             {% endfor %}
         </div>
@@ -100,6 +177,19 @@
         </div>
     </div>
 
+    <!-- Inactive Client Warning Banner -->
+    {% if selected_client_inactive %}
+    <div class="bg-red-900/30 border border-red-700 rounded-lg p-4 flex items-center gap-3">
+        <svg class="w-5 h-5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+        </svg>
+        <div>
+            <span class="text-sm font-medium text-red-300">Client "{{ selected_client_name }}" is inactive</span>
+            <span class="text-xs text-red-400/80 ml-2">— pipeline skips all scraping, scoring, and generation for this client</span>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Subreddits Table -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
         <table class="w-full text-sm text-left">
@@ -110,15 +200,18 @@
                     <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Client</th>
                     <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Type</th>
                     <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Last Scraped</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Last Result</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Next Scrape</th>
                     <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">AI Cost (30d)</th>
                     <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Actions</th>
                 </tr>
             </thead>
             <tbody id="subreddits-tbody">
                 {% for item in subreddits %}
-                <tr class="subreddit-row border-b border-slate-700/50 hover:bg-slate-700/30 {% if not item.is_active %}opacity-60{% endif %}"
+                <tr class="subreddit-row border-b border-slate-700/50 hover:bg-slate-700/30 {% if not item.is_active %}opacity-60{% endif %}{% if not item.client_is_active %} opacity-50 bg-red-900/5{% endif %}"
                     data-name="{{ item.subreddit_name|lower }}"
-                    data-stale="{{ 'true' if (item.age_hours is not none and item.age_hours > 24) or item.age_display == 'Never' else 'false' }}">
+                    data-stale="{{ 'true' if (item.age_hours is not none and item.age_hours > 24) or item.age_display == 'Never' else 'false' }}"
+                    {% if not item.client_is_active %}title="Client inactive — not processed by pipeline"{% endif %}>
                     <!-- Status -->
                     <td class="px-4 py-3">
                         {% if item.is_active %}
@@ -138,7 +231,12 @@
                         <a href="/admin/subreddits/detail/{{ item.subreddit_name }}" class="text-white font-medium hover:text-indigo-400 transition-colors">r/{{ item.subreddit_name }}</a>
                     </td>
                     <!-- Client -->
-                    <td class="px-4 py-3 text-gray-400">{{ item.client_name }}</td>
+                    <td class="px-4 py-3">
+                        <span class="text-gray-400{% if not item.client_is_active %} line-through opacity-60{% endif %}">{{ item.client_name }}</span>
+                        {% if not item.client_is_active %}
+                        <span class="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/50 text-red-400 border border-red-700">inactive</span>
+                        {% endif %}
+                    </td>
                     <!-- Type -->
                     <td class="px-4 py-3">
                         <span class="px-2 py-0.5 rounded text-xs font-medium
@@ -151,6 +249,36 @@
                         <span class="text-xs font-mono {% if item.age_display == 'Never' %}text-red-400{% elif item.age_hours is not none and item.age_hours > 24 %}text-amber-400{% else %}text-gray-400{% endif %}">
                             {{ item.age_display }}
                         </span>
+                    </td>
+                    <!-- Last Result -->
+                    <td class="px-4 py-3">
+                        {% if item.last_result %}
+                            {% if item.last_result.error %}
+                            <span class="text-xs text-red-400" title="{{ item.last_result.error }}">✗ error</span>
+                            {% else %}
+                            <span class="text-xs text-gray-400">
+                                {{ item.last_result.posts_found }} found,
+                                <span class="{% if item.last_result.posts_new > 0 %}text-green-400 font-medium{% endif %}">{{ item.last_result.posts_new }} new</span>
+                                <span class="text-gray-600">({{ item.last_result.duration_ms }}ms)</span>
+                            </span>
+                            {% endif %}
+                        {% else %}
+                        <span class="text-xs text-gray-600">—</span>
+                        {% endif %}
+                    </td>
+                    <!-- Next Scrape -->
+                    <td class="px-4 py-3">
+                        {% if not item.is_active %}
+                        <span class="text-xs text-gray-600">paused</span>
+                        {% elif not scrape_enabled %}
+                        <span class="text-xs text-red-400/70">disabled</span>
+                        {% elif item.next_scrape %}
+                        <span class="text-xs font-mono {% if item.next_scrape == 'due now' %}text-indigo-400{% else %}text-gray-400{% endif %}">
+                            {{ item.next_scrape }}
+                        </span>
+                        {% else %}
+                        <span class="text-xs text-gray-600">—</span>
+                        {% endif %}
                     </td>
                     <!-- AI Cost (30d) -->
                     <td class="px-4 py-3">
@@ -192,7 +320,7 @@
                 {% endfor %}
                 {% if not subreddits %}
                 <tr id="no-results-row">
-                    <td colspan="7" class="px-4 py-8 text-center text-gray-500">No subreddits match the current filters.</td>
+                    <td colspan="9" class="px-4 py-8 text-center text-gray-500">No subreddits match the current filters.</td>
                 </tr>
                 {% endif %}
             </tbody>

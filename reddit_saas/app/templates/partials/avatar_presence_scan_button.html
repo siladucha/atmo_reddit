@@ -1,0 +1,30 @@
+{% if scan_status in ("pending", "running") %}
+<div class="flex items-center gap-2">
+    <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded text-xs font-medium bg-blue-900/50 text-blue-300 border border-blue-700">
+        <svg class="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        Scanning...
+    </span>
+    <div hx-get="/admin/avatars/{{ avatar.id }}/presence-scan-button"
+         hx-trigger="every 3s"
+         hx-target="#presence-scan-btn"
+         hx-swap="innerHTML">
+    </div>
+</div>
+{% else %}
+<div class="flex items-center gap-3">
+    {% if avatar.presence_last_scanned_at %}
+    <span class="text-xs text-gray-500">
+        Last scan: {{ avatar.presence_last_scanned_at.strftime('%Y-%m-%d %H:%M') }}
+    </span>
+    {% endif %}
+    <button hx-post="/admin/avatars/{{ avatar.id }}/scan-presence"
+            hx-target="#presence-scan-btn"
+            hx-swap="innerHTML"
+            class="px-3 py-1.5 rounded text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors">
+        Scan Presence
+    </button>
+</div>
+{% endif %}

@@ -1,0 +1,64 @@
+<!-- Scrape freshness check results -->
+<div class="mt-3 space-y-2">
+    {% if dispatched_count > 0 %}
+    <div class="flex items-center gap-2 text-sm">
+        <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+        <span class="text-indigo-300 font-medium">{{ dispatched_count }} stale subreddit{{ 's' if dispatched_count != 1 }} dispatched to scrape queue</span>
+        <span class="text-gray-500 text-xs">(background, ~10-30s each)</span>
+    </div>
+    {% else %}
+    <div class="flex items-center gap-2 text-sm">
+        <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+        </svg>
+        <span class="text-green-300 font-medium">All subreddits are fresh — data ready in DB</span>
+    </div>
+    {% endif %}
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+            <thead>
+                <tr class="text-gray-500 border-b border-slate-700/50">
+                    <th class="text-left py-1.5 pr-3">Subreddit</th>
+                    <th class="text-left py-1.5 pr-3">Type</th>
+                    <th class="text-right py-1.5 pr-3">Threads</th>
+                    <th class="text-right py-1.5 pr-3">Age</th>
+                    <th class="text-right py-1.5">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in results %}
+                <tr class="border-b border-slate-800/50 text-gray-300">
+                    <td class="py-1.5 pr-3 font-medium">r/{{ r.subreddit }}</td>
+                    <td class="py-1.5 pr-3">
+                        <span class="px-1.5 py-0.5 rounded text-[10px] {% if r.type == 'hobby' %}bg-purple-900/40 text-purple-300{% else %}bg-blue-900/40 text-blue-300{% endif %}">
+                            {{ r.type }}
+                        </span>
+                    </td>
+                    <td class="py-1.5 pr-3 text-right text-gray-400">{{ r.threads_in_db }}</td>
+                    <td class="py-1.5 pr-3 text-right {% if r.status == 'fresh' %}text-green-400{% elif r.age_minutes is none %}text-red-400{% else %}text-amber-400{% endif %}">
+                        {% if r.age_minutes is not none %}{{ r.age_minutes }}m{% else %}never{% endif %}
+                    </td>
+                    <td class="py-1.5 text-right">
+                        {% if r.status == 'fresh' %}
+                        <span class="text-green-400 text-[10px]">✓ fresh</span>
+                        {% elif r.status == 'dispatched' %}
+                        <span class="text-indigo-400 text-[10px]">⚡ queued</span>
+                        {% elif r.status == 'error' %}
+                        <span class="text-red-400 text-[10px]" title="{{ r.error }}">✗ error</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if dispatched_count > 0 %}
+    <p class="text-[10px] text-gray-500 mt-2">
+        Scraping runs in background via Celery. Refresh the page in 30-60s to see new threads, then proceed to Step 2.
+    </p>
+    {% endif %}
+</div>

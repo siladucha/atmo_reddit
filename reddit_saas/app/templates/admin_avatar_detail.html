@@ -12,8 +12,63 @@
 {% endblock %}
 
 {% block export_button %}
-{% set export_url = "/export/avatars/" + avatar.id|string %}
-{% include "partials/export_button.html" %}
+<div class="relative" id="export-dropdown">
+    <button type="button"
+            onclick="document.getElementById('export-menu').classList.toggle('hidden')"
+            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium
+                   bg-slate-700 hover:bg-slate-600 text-gray-300 hover:text-white border border-slate-600
+                   transition-colors"
+            title="Export avatar data">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+        </svg>
+        <span>Export</span>
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+    </button>
+    <div id="export-menu"
+         class="hidden absolute right-0 mt-2 w-64 rounded-lg bg-slate-800 border border-slate-600 shadow-xl z-50 py-1">
+        <a href="/export/avatars/{{ avatar.id }}/report.md"
+           class="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:bg-slate-700 hover:text-white border-b border-slate-700">
+            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+            </svg>
+            <div>
+                <div class="font-medium">Client Report (.md)</div>
+                <div class="text-[10px] text-gray-500">Оценки, статистика, рекомендации</div>
+            </div>
+        </a>
+        <a href="/export/avatars/{{ avatar.id }}/report"
+           class="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:bg-slate-700 hover:text-white border-b border-slate-700">
+            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+            </svg>
+            <div>
+                <div>Full Data (.json)</div>
+                <div class="text-[10px] text-gray-500">Все данные + комментарии</div>
+            </div>
+        </a>
+        <a href="/export/avatars/{{ avatar.id }}"
+           class="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:bg-slate-700 hover:text-white">
+            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5"/>
+            </svg>
+            <div>
+                <div>Raw JSON</div>
+                <div class="text-[10px] text-gray-500">Технический экспорт</div>
+            </div>
+        </a>
+    </div>
+</div>
+<script>
+document.addEventListener('click', function(e) {
+    var dd = document.getElementById('export-dropdown');
+    var menu = document.getElementById('export-menu');
+    if (dd && menu && !dd.contains(e.target)) menu.classList.add('hidden');
+});
+</script>
 {% endblock %}
 
 {% block content %}
@@ -52,15 +107,15 @@
                 </div>
             </div>
         </div>
-        <!-- Refresh Data Button -->
+        <!-- Refresh All Button -->
         <div class="flex items-center gap-2">
-            <a href="/admin/avatars/{{ avatar.id }}/refresh"
-               class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-700 hover:bg-slate-600 text-gray-200 border border-slate-600">
+            <a href="/admin/avatars/{{ avatar.id }}/refresh?force=1"
+               class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors bg-indigo-700 hover:bg-indigo-600 text-white border border-indigo-600">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                           d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Refresh Reddit Data
+                Refresh All
             </a>
             <a href="/admin/avatars/{{ avatar.id }}"
                class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-700 hover:bg-slate-600 text-gray-200 border border-slate-600"
@@ -78,6 +133,10 @@
             <button type="button" data-avatar-detail-tab="overview"
                     class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium bg-indigo-600 text-white">
                 Overview
+            </button>
+            <button type="button" data-avatar-detail-tab="profile"
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
+                🎭 Profile
             </button>
             <button type="button" data-avatar-detail-tab="safety"
                     class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
@@ -106,6 +165,14 @@
             <button type="button" data-avatar-detail-tab="presence"
                     class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
                 Presence
+            </button>
+            <button type="button" data-avatar-detail-tab="pipeline"
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
+                🎯 Pipeline
+            </button>
+            <button type="button" data-avatar-detail-tab="strategy"
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
+                🧠 Strategy
             </button>
             <button type="button" data-avatar-detail-tab="actions"
                     class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
@@ -163,6 +230,41 @@
         {% endif %}
     </div>
 
+    <!-- Confidence Score (loaded via HTMX) -->
+    <div id="confidence-container"
+         hx-get="/admin/avatars/{{ avatar.id }}/confidence"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+      <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
+        <div class="h-4 bg-gray-700 rounded w-36 mb-3"></div>
+        <div class="h-6 bg-gray-700 rounded w-24"></div>
+      </div>
+    </div>
+
+    <!-- Profile Completeness (loaded via HTMX) -->
+    <div id="profile-completeness-container"
+         hx-get="/admin/avatars/{{ avatar.id }}/profile-completeness"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+      <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
+        <div class="h-4 bg-gray-700 rounded w-40 mb-3"></div>
+        <div class="h-2.5 bg-gray-700 rounded w-full mb-2"></div>
+        <div class="h-3 bg-gray-700 rounded w-3/4"></div>
+      </div>
+    </div>
+
+    <!-- Learned Patterns (loaded via HTMX) -->
+    <div id="learned-patterns-container"
+         hx-get="/admin/avatars/{{ avatar.id }}/learned-patterns"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+      <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
+        <div class="h-4 bg-gray-700 rounded w-40 mb-3"></div>
+        <div class="h-3 bg-gray-700 rounded w-full mb-2"></div>
+        <div class="h-3 bg-gray-700 rounded w-3/4"></div>
+      </div>
+    </div>
+
     <!-- Learning / Voice Adaptation (loaded asynchronously via HTMX) -->
     <div id="learning-panel-container"
          hx-get="/admin/avatars/{{ avatar.id }}/learning-panel"
@@ -173,6 +275,21 @@
         <div class="h-3 bg-gray-700 rounded w-full mb-2"></div>
         <div class="h-3 bg-gray-700 rounded w-3/4"></div>
       </div>
+    </div>
+
+    </div>
+    <div data-avatar-detail-panel="profile" class="avatar-detail-panel hidden space-y-6">
+
+    <!-- Avatar Profile Management (lazy-loaded via HTMX) -->
+    <div id="avatar-profile-panel"
+         hx-get="/admin/avatars/{{ avatar.id }}/profile-panel"
+         hx-trigger="revealed once"
+         hx-swap="innerHTML">
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
+            <div class="h-4 bg-gray-700 rounded w-48 mb-3"></div>
+            <div class="h-3 bg-gray-700 rounded w-full mb-2"></div>
+            <div class="h-3 bg-gray-700 rounded w-3/4"></div>
+        </div>
     </div>
 
     </div>
@@ -267,6 +384,91 @@
         {% endif %}
     </div>
 
+    <!-- CQS (Contributor Quality Score) -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+        <div class="flex items-start justify-between gap-4 mb-4">
+            <div>
+                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-2">Contributor Quality Score (CQS)</h2>
+                <div id="cqs-badge" class="flex items-center gap-3">
+                    {% if avatar.cqs_level %}
+                        {% set cqs = avatar.cqs_level %}
+                        {% if cqs == 'highest' %}
+                        <span class="px-2 py-1 rounded text-xs font-medium bg-green-900/50 text-green-400 border border-green-800">CQS: HIGHEST</span>
+                        {% elif cqs == 'high' %}
+                        <span class="px-2 py-1 rounded text-xs font-medium bg-green-900/30 text-green-300 border border-green-700">CQS: HIGH</span>
+                        {% elif cqs == 'moderate' %}
+                        <span class="px-2 py-1 rounded text-xs font-medium bg-yellow-900/50 text-yellow-400 border border-yellow-800">CQS: MODERATE</span>
+                        {% elif cqs == 'low' %}
+                        <span class="px-2 py-1 rounded text-xs font-medium bg-orange-900/50 text-orange-400 border border-orange-800">CQS: LOW</span>
+                        {% elif cqs == 'lowest' %}
+                        <span class="px-2 py-1 rounded text-xs font-medium bg-red-900/50 text-red-400 border border-red-800">CQS: LOWEST</span>
+                        {% endif %}
+                        {% if avatar.cqs_checked_at %}
+                        <span class="text-[10px] text-gray-500">Checked: {{ avatar.cqs_checked_at.strftime('%Y-%m-%d') }}</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="px-2 py-1 rounded text-xs font-medium bg-gray-700/50 text-gray-400 border border-gray-600">CQS: NOT CHECKED</span>
+                    {% endif %}
+                </div>
+                {% if avatar.cqs_notes %}
+                <div class="text-xs text-gray-500 mt-2">{{ avatar.cqs_notes }}</div>
+                {% endif %}
+                {% if avatar.cqs_level == 'lowest' and avatar.warming_phase == 1 %}
+                <div class="mt-2 px-3 py-1.5 rounded-lg bg-blue-900/20 border border-blue-800/50 text-xs text-blue-300 inline-flex items-center gap-1.5">
+                    🔥 Warming mode — 1 hobby comment/day allowed. CQS will improve with activity.
+                </div>
+                {% endif %}
+            </div>
+            <a href="https://www.reddit.com/r/WhatIsMyCQS/submit?selftext=true&title=What+is+my+CQS"
+               target="_blank"
+               class="px-3 py-2 rounded-lg text-sm font-medium bg-slate-700 text-gray-300 border border-slate-600 hover:bg-slate-600 whitespace-nowrap">
+                Check on Reddit ↗
+            </a>
+        </div>
+
+        <!-- CQS Update Form -->
+        <form hx-post="/admin/avatars/{{ avatar.id }}/update-cqs"
+              hx-target="#cqs-badge"
+              hx-swap="innerHTML"
+              class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+            <div class="flex flex-wrap items-end gap-3">
+                <div>
+                    <label class="text-xs text-gray-400 block mb-1">CQS Level</label>
+                    <select name="cqs_level" class="bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-sm text-gray-200">
+                        <option value="highest" {% if avatar.cqs_level == 'highest' %}selected{% endif %}>Highest</option>
+                        <option value="high" {% if avatar.cqs_level == 'high' %}selected{% endif %}>High</option>
+                        <option value="moderate" {% if avatar.cqs_level == 'moderate' %}selected{% endif %}>Moderate</option>
+                        <option value="low" {% if avatar.cqs_level == 'low' %}selected{% endif %}>Low</option>
+                        <option value="lowest" {% if avatar.cqs_level == 'lowest' %}selected{% endif %}>Lowest</option>
+                    </select>
+                </div>
+                <div class="flex-1 min-w-[200px]">
+                    <label class="text-xs text-gray-400 block mb-1">Notes (optional)</label>
+                    <input type="text" name="cqs_notes" value="{{ avatar.cqs_notes or '' }}"
+                           placeholder="e.g. checked via r/WhatIsMyCQS"
+                           class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-sm text-gray-200">
+                </div>
+                <button type="submit"
+                        class="px-4 py-1.5 rounded-lg text-sm font-medium bg-indigo-900/50 text-indigo-300 border border-indigo-700 hover:bg-indigo-800/50">
+                    Save CQS
+                </button>
+            </div>
+            <div class="mt-3 text-[11px] text-gray-500">
+                <strong>Phase gates:</strong> Lowest + Phase 2+ → freeze avatar. Lowest + Phase 1 → cautious warming (1 hobby/day). Low → Phase 1 only. Moderate+ → Phase 2-3 eligible.
+                <br>Check CQS by posting in <a href="https://www.reddit.com/r/WhatIsMyCQS/" target="_blank" class="text-indigo-400 hover:underline">r/WhatIsMyCQS</a> — bot responds within minutes.
+            </div>
+        </form>
+
+        {% if avatar.cqs_checked_at %}
+        {% set cqs_age_days = ((now_utc - avatar.cqs_checked_at).total_seconds() / 86400) | int if now_utc is defined and avatar.cqs_checked_at else 999 %}
+        {% if cqs_age_days > 14 %}
+        <div class="mt-3 px-3 py-2 rounded-lg bg-yellow-900/20 border border-yellow-800/50 text-xs text-yellow-400">
+            ⚠ CQS was last checked {{ cqs_age_days }} days ago. Recommend re-checking every 1-2 weeks.
+        </div>
+        {% endif %}
+        {% endif %}
+    </div>
+
     <!-- Freeze Status -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
         <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Freeze Status</h2>
@@ -334,7 +536,12 @@
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
         <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Current Warming Phase</h2>
         <div class="flex items-center gap-4">
-            {% if avatar.warming_phase == 1 %}
+            {% if avatar.warming_phase == 0 %}
+            <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-purple-900/40 text-purple-300 border border-purple-700">
+                <span class="w-3 h-3 rounded-full bg-purple-400"></span>
+                Mentor — Not in Pipeline
+            </span>
+            {% elif avatar.warming_phase == 1 %}
             <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-blue-900/40 text-blue-300 border border-blue-700">
                 <span class="w-3 h-3 rounded-full bg-blue-400"></span>
                 Phase 1 — Credibility Building
@@ -362,8 +569,60 @@
         </div>
     </div>
 
+    <!-- Pre-warmed notice -->
+    {% if health.phase_progress and avatar.warming_phase < 3 and avatar.warming_phase > 0 %}
+    {% set is_prewarmed = (health.reddit_karma_comment or 0) + (health.reddit_karma_post or 0) > 1000 and (health.reddit_account_age_days or 0) > 365 %}
+    {% if is_prewarmed %}
+    <div class="bg-amber-900/20 rounded-lg border border-amber-700/50 p-4">
+        <div class="flex items-start gap-3">
+            <svg class="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <div>
+                <p class="text-amber-300 text-sm font-medium">Pre-warmed Avatar</p>
+                <p class="text-amber-200/70 text-xs mt-1">
+                    This account has {{ "{:,}".format((health.reddit_karma_comment or 0) + (health.reddit_karma_post or 0)) }} karma and is {{ health.reddit_account_age_days or 0 }} days old.
+                    It exceeds all standard warming criteria but remains in Phase {{ avatar.warming_phase }} because
+                    {% if health.phase_progress.subreddit_diversity is defined and health.phase_progress.subreddit_diversity.current < health.phase_progress.subreddit_diversity.required %}
+                    subreddit diversity is {{ health.phase_progress.subreddit_diversity.current }}/{{ health.phase_progress.subreddit_diversity.required }} (needs karma tracked in our system).
+                    {% else %}
+                    automatic phase evaluation hasn't promoted it yet. Next evaluation runs at 06:00 UTC daily.
+                    {% endif %}
+                    Use "Override Phase" below to set the correct phase manually, or set to Mentor if this avatar should not be in pipelines.
+                </p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <!-- Mentor info block -->
+    {% if avatar.warming_phase == 0 %}
+    <div class="bg-purple-900/20 rounded-lg border border-purple-700/50 p-5">
+        <div class="flex items-start gap-3">
+            <svg class="w-5 h-5 text-purple-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+            </svg>
+            <div>
+                <p class="text-purple-300 text-sm font-medium">Mentor Avatar</p>
+                <p class="text-purple-200/70 text-xs mt-1">
+                    This avatar is excluded from all automated pipelines (scoring, generation, hobby, posts).
+                    It is not subject to phase evaluation, promotion, or demotion.
+                    Mentor avatars are high-karma accounts used for reputation presence, not automated engagement.
+                </p>
+                {% if health.reddit_account_age_days %}
+                <div class="flex gap-4 mt-3 text-xs text-purple-300/80">
+                    <span>Karma: {{ "{:,}".format((health.reddit_karma_comment or 0) + (health.reddit_karma_post or 0)) }}</span>
+                    <span>Account age: {{ health.reddit_account_age_days }} days</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Phase Progress -->
-    {% if health.phase_progress %}
+    {% if health.phase_progress and avatar.warming_phase > 0 %}
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
         <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">
             Phase Progress — Requirements for Phase {{ avatar.warming_phase + 1 }}
@@ -377,7 +636,7 @@
                         {{ health.phase_progress.karma.current }} / {{ health.phase_progress.karma.required }}
                     </span>
                 </div>
-                {% set pct = [[(health.phase_progress.karma.current / health.phase_progress.karma.required * 100)|int, 0]|max, 100]|min %}
+                {% set pct = [[(health.phase_progress.karma.current / (health.phase_progress.karma.required or 1) * 100)|int, 0]|max, 100]|min %}
                 <div class="w-full bg-slate-700 rounded-full h-2">
                     <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-indigo-500{% endif %}" style="width: {{ pct }}%"></div>
                 </div>
@@ -392,7 +651,7 @@
                         {{ health.phase_progress.age_days.current }} / {{ health.phase_progress.age_days.required }}
                     </span>
                 </div>
-                {% set pct = [[(health.phase_progress.age_days.current / health.phase_progress.age_days.required * 100)|int, 0]|max, 100]|min %}
+                {% set pct = [[(health.phase_progress.age_days.current / (health.phase_progress.age_days.required or 1) * 100)|int, 0]|max, 100]|min %}
                 <div class="w-full bg-slate-700 rounded-full h-2">
                     <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-indigo-500{% endif %}" style="width: {{ pct }}%"></div>
                 </div>
@@ -403,11 +662,15 @@
             <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
                 <div class="flex items-center justify-between mb-2">
                     <span class="text-sm text-gray-400">Activity (comments)</span>
+                    {% if health.phase_progress.activity.required == 0 %}
+                    <span class="text-xs font-mono text-green-400">Waived (pre-warmed)</span>
+                    {% else %}
                     <span class="text-xs font-mono {% if health.phase_progress.activity.current >= health.phase_progress.activity.required %}text-green-400{% else %}text-gray-400{% endif %}">
                         {{ health.phase_progress.activity.current }} / {{ health.phase_progress.activity.required }}
                     </span>
+                    {% endif %}
                 </div>
-                {% set pct = [[(health.phase_progress.activity.current / health.phase_progress.activity.required * 100)|int, 0]|max, 100]|min %}
+                {% set pct = 100 if health.phase_progress.activity.required == 0 else [[(health.phase_progress.activity.current / (health.phase_progress.activity.required or 1) * 100)|int, 0]|max, 100]|min %}
                 <div class="w-full bg-slate-700 rounded-full h-2">
                     <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-indigo-500{% endif %}" style="width: {{ pct }}%"></div>
                 </div>
@@ -422,7 +685,7 @@
                         {{ health.phase_progress.survival_rate.current|round(1) }}% / {{ health.phase_progress.survival_rate.required }}%
                     </span>
                 </div>
-                {% set pct = [[(health.phase_progress.survival_rate.current / health.phase_progress.survival_rate.required * 100)|int, 0]|max, 100]|min %}
+                {% set pct = [[(health.phase_progress.survival_rate.current / (health.phase_progress.survival_rate.required or 1) * 100)|int, 0]|max, 100]|min %}
                 <div class="w-full bg-slate-700 rounded-full h-2">
                     <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-indigo-500{% endif %}" style="width: {{ pct }}%"></div>
                 </div>
@@ -437,10 +700,28 @@
                         {{ health.phase_progress.avg_score.current|round(1) }} / {{ health.phase_progress.avg_score.required }}
                     </span>
                 </div>
-                {% set pct = [[(health.phase_progress.avg_score.current / health.phase_progress.avg_score.required * 100)|int, 0]|max, 100]|min %}
+                {% set pct = [[(health.phase_progress.avg_score.current / (health.phase_progress.avg_score.required or 1) * 100)|int, 0]|max, 100]|min %}
                 <div class="w-full bg-slate-700 rounded-full h-2">
                     <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-indigo-500{% endif %}" style="width: {{ pct }}%"></div>
                 </div>
+            </div>
+            {% endif %}
+
+            {% if health.phase_progress.subreddit_diversity is defined %}
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm text-gray-400">Subreddit Diversity</span>
+                    <span class="text-xs font-mono {% if health.phase_progress.subreddit_diversity.current >= health.phase_progress.subreddit_diversity.required %}text-green-400{% else %}text-red-400{% endif %}">
+                        {{ health.phase_progress.subreddit_diversity.current }} / {{ health.phase_progress.subreddit_diversity.required }} subreddits
+                    </span>
+                </div>
+                {% set pct = [[(health.phase_progress.subreddit_diversity.current / (health.phase_progress.subreddit_diversity.required or 1) * 100)|int, 0]|max, 100]|min %}
+                <div class="w-full bg-slate-700 rounded-full h-2">
+                    <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-red-500{% endif %}" style="width: {{ pct }}%"></div>
+                </div>
+                {% if health.phase_progress.subreddit_diversity.shortfall %}
+                <p class="text-xs text-red-400/80 mt-1">{{ health.phase_progress.subreddit_diversity.shortfall }}</p>
+                {% endif %}
             </div>
             {% endif %}
         </div>
@@ -450,6 +731,8 @@
         <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Phase Progress</h2>
         <p class="text-gray-400 text-sm">This avatar is at the maximum phase (Phase 3 — Brand Integration). No further promotion available.</p>
     </div>
+    {% elif avatar.warming_phase == 0 %}
+    {# Mentor — no progress bars needed, info block shown above #}
     {% endif %}
 
     <!-- Phase Transition History -->
@@ -522,6 +805,29 @@
 
     </div>
     <div data-avatar-detail-panel="performance" class="avatar-detail-panel hidden space-y-6">
+
+    <!-- Removal Rate Analytics (loaded via HTMX) -->
+    <div id="removal-analytics-container"
+         hx-get="/admin/avatars/{{ avatar.id }}/removal-analytics"
+         hx-trigger="revealed"
+         hx-swap="innerHTML">
+      <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
+        <div class="h-4 bg-gray-700 rounded w-32 mb-3"></div>
+        <div class="h-6 bg-gray-700 rounded w-20"></div>
+      </div>
+    </div>
+
+    <!-- Pattern Performance: What Works / What Fails (loaded via HTMX) -->
+    <div id="pattern-performance-container"
+         hx-get="/admin/avatars/{{ avatar.id }}/pattern-performance"
+         hx-trigger="revealed"
+         hx-swap="innerHTML">
+      <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
+        <div class="h-4 bg-gray-700 rounded w-44 mb-3"></div>
+        <div class="h-3 bg-gray-700 rounded w-full mb-2"></div>
+        <div class="h-3 bg-gray-700 rounded w-2/3"></div>
+      </div>
+    </div>
 
     <!-- Pipeline Stats -->
     {% if stats %}
@@ -988,7 +1294,7 @@
         <!-- Analytics content (auto-loads saved snapshot on tab open) -->
         <div id="profile-analytics-content"
              hx-get="/admin/avatars/{{ avatar.id }}/profile-analytics"
-             hx-trigger="intersect once"
+             hx-trigger="revealed"
              hx-indicator="#analytics-spinner"
              hx-swap="innerHTML">
         </div>
@@ -997,25 +1303,93 @@
     </div>
     <div data-avatar-detail-panel="presence" class="avatar-detail-panel hidden space-y-6">
 
-    <!-- Subreddit Presence (loaded on demand via HTMX) -->
+    <!-- Subreddit Coverage: Plan vs Actual -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Subreddit Presence</h2>
+        <div class="flex items-center justify-between mb-2">
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Subreddit Coverage</h2>
+            <div id="presence-scan-btn"
+                 hx-get="/admin/avatars/{{ avatar.id }}/presence-scan-button"
+                 hx-trigger="revealed"
+                 hx-swap="innerHTML">
+            </div>
         </div>
         <p class="text-xs text-gray-500 mb-4">
-            Shows all subreddits where this avatar has commented, with per-subreddit metrics.
+            Plan (assigned via clients) vs Actual (where this avatar appeared). Target/Hobby = assigned, Extra = organic activity.
         </p>
 
-        <!-- Presence content (lazy-loaded when tab is clicked) -->
-        <div id="presence-panel-content"
-             hx-get="/admin/avatars/{{ avatar.id }}/presence-partial"
-             hx-trigger="intersect once"
+        <div id="avatar-subreddit-coverage"
+             hx-get="/admin/avatars/{{ avatar.id }}/subreddit-coverage?sort_by=type&sort_dir=asc"
+             hx-trigger="revealed"
              hx-swap="innerHTML">
+            <p class="text-gray-500 text-sm py-4">Loading...</p>
+        </div>
+    </div>
+
+    </div>
+    <div data-avatar-detail-panel="pipeline" class="avatar-detail-panel hidden space-y-6">
+
+    <!-- Manual Pipeline (lazy-loaded when tab is clicked) -->
+    <div id="pipeline-panel-content"
+         hx-get="/admin/avatars/{{ avatar.id }}/pipeline"
+         hx-trigger="revealed"
+         hx-swap="innerHTML">
+        <div class="flex items-center gap-2 text-sm text-gray-400 p-6">
+            <svg class="animate-spin h-4 w-4 text-indigo-400" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            Loading pipeline panel...
+        </div>
+    </div>
+
+    </div>
+    <div data-avatar-detail-panel="strategy" class="avatar-detail-panel hidden space-y-6">
+
+    <!-- Strategy Document (lazy-loaded via HTMX) -->
+    <div id="strategy-panel-content"
+         hx-get="/admin/avatars/{{ avatar.id }}/strategy-panel"
+         hx-trigger="revealed once"
+         hx-swap="innerHTML">
+        <div class="flex items-center justify-center py-8 text-gray-500">
+            <svg class="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            Loading strategy...
         </div>
     </div>
 
     </div>
     <div data-avatar-detail-panel="actions" class="avatar-detail-panel hidden space-y-6">
+
+    <!-- Export & Reports -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Export & Reports</h2>
+        <p class="text-xs text-gray-500 mb-4">Download avatar data for client delivery or internal use.</p>
+        <div class="flex flex-wrap gap-3">
+            <a href="/export/avatars/{{ avatar.id }}/report.md"
+               class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+                </svg>
+                Client Report (.md)
+            </a>
+            <a href="/export/avatars/{{ avatar.id }}/report"
+               class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-slate-700 hover:bg-slate-600 text-gray-200 border border-slate-600 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+                </svg>
+                Full Data (.json)
+            </a>
+            <a href="/export/avatars/{{ avatar.id }}"
+               class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-slate-700 hover:bg-slate-600 text-gray-200 border border-slate-600 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5"/>
+                </svg>
+                Raw JSON
+            </a>
+        </div>
+    </div>
 
     <!-- Phase Override Form -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
@@ -1028,6 +1402,7 @@
                 <label for="target_phase" class="block text-sm text-gray-400 mb-1">Target Phase</label>
                 <select name="target_phase" id="target_phase"
                         class="bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="0" {% if avatar.warming_phase == 0 %}selected{% endif %}>Mentor — Not in Pipeline</option>
                     <option value="1" {% if avatar.warming_phase == 1 %}selected{% endif %}>Phase 1 — Credibility Building</option>
                     <option value="2" {% if avatar.warming_phase == 2 %}selected{% endif %}>Phase 2 — Content Seeding</option>
                     <option value="3" {% if avatar.warming_phase == 3 %}selected{% endif %}>Phase 3 — Brand Integration</option>
@@ -1068,6 +1443,19 @@
             panels.forEach((panel) => {
                 panel.classList.toggle("hidden", panel.dataset.avatarDetailPanel !== targetTab);
             });
+
+            // Trigger HTMX revealed on newly visible panel elements
+            // (IntersectionObserver may not fire when parent switches from display:none)
+            const activePanel = panels.find(p => p.dataset.avatarDetailPanel === targetTab);
+            if (activePanel) {
+                setTimeout(() => {
+                    activePanel.querySelectorAll("[hx-trigger*='revealed']").forEach(el => {
+                        if (el.innerHTML.trim() === "" || el.querySelector(".animate-pulse") || el.textContent.includes("Loading")) {
+                            htmx.trigger(el, "revealed");
+                        }
+                    });
+                }, 50);
+            }
 
             if (updateUrl) {
                 const url = new URL(window.location.href);

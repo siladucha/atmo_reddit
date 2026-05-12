@@ -1,0 +1,45 @@
+{% extends "admin_base.html" %}
+{% block title %}Activity Feed{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <a href="/admin/" class="hover:text-white">Admin</a>
+    <span class="mx-2 text-gray-600">/</span>
+    <span class="text-white">Activity Feed</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold text-white">Activity Feed</h1>
+            <p class="text-sm text-gray-400 mt-1">{{ events|length }} events · Auto-refreshes every 30s</p>
+        </div>
+    </div>
+
+    <!-- Client filter -->
+    <div class="flex flex-wrap gap-2">
+        <a href="/admin/activity"
+           class="px-2 py-0.5 rounded text-xs font-medium transition-colors
+                  {% if not selected_client %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
+            All
+        </a>
+        {% for c in clients %}
+        <a href="/admin/activity?client_id={{ c.id }}"
+           class="px-2 py-0.5 rounded text-xs font-medium transition-colors
+                  {% if selected_client == (c.id|string) %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
+            {{ c.client_name }}
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Activity feed with auto-refresh -->
+    <div id="activity-feed-container"
+         hx-get="/admin/activity-feed{% if selected_client %}?client_id={{ selected_client }}{% endif %}"
+         hx-trigger="every 30s"
+         hx-swap="innerHTML">
+        {% include "partials/activity_feed.html" %}
+    </div>
+</div>
+{% endblock %}

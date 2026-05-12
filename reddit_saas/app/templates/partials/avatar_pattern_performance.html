@@ -1,0 +1,62 @@
+<!-- Avatar Pattern Performance (What Works / What Fails) — loaded via HTMX -->
+<div id="pattern-performance-panel" class="bg-dark-steel rounded-lg border border-slate-700 p-5">
+    <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Approach Performance</h3>
+
+    {% if patterns.best or patterns.worst %}
+
+    {% if patterns.best %}
+    <div class="mb-4">
+        <h4 class="text-xs text-green-400 uppercase tracking-wide mb-2 flex items-center gap-1">
+            <span>✅</span> What works
+        </h4>
+        <div class="space-y-2">
+            {% for item in patterns.best %}
+            <div class="p-3 rounded-lg bg-green-900/10 border border-green-800/30">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-green-300">{{ item.approach }}</span>
+                    <span class="text-xs text-gray-400">{{ item.count }} comment{{ 's' if item.count != 1 else '' }}</span>
+                </div>
+                <div class="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                    <span>Total karma: <span class="font-mono text-green-400">+{{ item.total_karma }}</span></span>
+                    <span>Avg: <span class="font-mono text-green-400">{{ "%.1f"|format(item.avg_karma) }}</span></span>
+                    {% if item.subreddit %}
+                    <span class="text-gray-600">in r/{{ item.subreddit }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if patterns.worst %}
+    <div>
+        <h4 class="text-xs text-red-400 uppercase tracking-wide mb-2 flex items-center gap-1">
+            <span>❌</span> What fails
+        </h4>
+        <div class="space-y-2">
+            {% for item in patterns.worst %}
+            <div class="p-3 rounded-lg bg-red-900/10 border border-red-800/30">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-red-300">{{ item.approach }}</span>
+                    <span class="text-xs text-gray-400">{{ item.count }} comment{{ 's' if item.count != 1 else '' }}</span>
+                </div>
+                <div class="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                    <span>Total karma: <span class="font-mono {% if item.total_karma < 0 %}text-red-400{% else %}text-gray-400{% endif %}">{{ item.total_karma }}</span></span>
+                    <span>Avg: <span class="font-mono {% if item.avg_karma < 0 %}text-red-400{% else %}text-gray-400{% endif %}">{{ "%.1f"|format(item.avg_karma) }}</span></span>
+                    {% if item.removals > 0 %}
+                    <span class="text-red-400">{{ item.removals }} removal{{ 's' if item.removals != 1 else '' }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="text-sm text-gray-500">
+        No posted comments with karma data yet. Performance patterns will appear after comments receive karma feedback.
+    </div>
+    {% endif %}
+</div>

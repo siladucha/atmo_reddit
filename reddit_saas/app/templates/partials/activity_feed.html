@@ -1,4 +1,4 @@
-{# HTMX partial: activity feed event list.
+{# HTMX partial: activity feed event list with clickable navigation links.
    Receives `events` — list of dicts with keys: id, client_id, event_type, message, metadata, created_at
    Optionally receives `now_utc` — current UTC datetime for relative timestamp computation
 #}
@@ -6,7 +6,8 @@
 {% if events %}
 <div class="space-y-2">
     {% for event in events %}
-    <div class="bg-dark-steel rounded-lg px-4 py-3 border border-slate-700 flex items-start gap-3 fade-in">
+    {% set meta = event.metadata or {} %}
+    <div class="bg-dark-steel rounded-lg px-4 py-3 border border-slate-700 flex items-start gap-3 fade-in group hover:border-slate-600 transition-colors">
         {# Timestamp #}
         <span class="text-xs text-gray-500 font-mono whitespace-nowrap pt-0.5" title="{{ event.created_at.strftime('%Y-%m-%d %H:%M:%S UTC') if event.created_at else '' }}">
             {% if event.created_at %}
@@ -16,13 +17,13 @@
                     {% if total_seconds < 60 %}
                         just now
                     {% elif total_seconds < 3600 %}
-                        {{ (total_seconds // 60) | int }} min ago
+                        {{ (total_seconds // 60) | int }}m
                     {% elif total_seconds < 86400 %}
-                        {{ (total_seconds // 3600) | int }}h ago
+                        {{ (total_seconds // 3600) | int }}h
                     {% elif total_seconds < 604800 %}
-                        {{ (total_seconds // 86400) | int }}d ago
+                        {{ (total_seconds // 86400) | int }}d
                     {% else %}
-                        {{ event.created_at.strftime('%b %d, %H:%M') }}
+                        {{ event.created_at.strftime('%b %d') }}
                     {% endif %}
                 {% else %}
                     {{ event.created_at.strftime('%b %d, %H:%M') }}
@@ -32,35 +33,112 @@
             {% endif %}
         </span>
 
-        {# Color-coded event type badge #}
+        {# Color-coded event type icon #}
         {% if event.event_type == 'scrape' %}
-        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-400 whitespace-nowrap">
-            scrape
-        </span>
+        <span class="text-blue-400 text-sm" title="Scrape">🔍</span>
         {% elif event.event_type == 'score' %}
-        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-500/20 text-purple-400 whitespace-nowrap">
-            score
-        </span>
+        <span class="text-purple-400 text-sm" title="Score">📊</span>
         {% elif event.event_type == 'generate' %}
-        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-500/20 text-green-400 whitespace-nowrap">
-            generate
-        </span>
+        <span class="text-green-400 text-sm" title="Generate">📝</span>
         {% elif event.event_type == 'review' %}
-        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-500/20 text-amber-400 whitespace-nowrap">
-            review
-        </span>
+        <span class="text-amber-400 text-sm" title="Review">✅</span>
+        {% elif event.event_type == 'strategy_generated' %}
+        <span class="text-indigo-400 text-sm" title="Strategy">🧠</span>
+        {% elif event.event_type == 'policy_block' %}
+        <span class="text-red-400 text-sm" title="Blocked">🚫</span>
         {% elif event.event_type == 'system' %}
-        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-500/20 text-red-400 whitespace-nowrap">
-            system
-        </span>
+        <span class="text-red-400 text-sm" title="System">⚠️</span>
+        {% elif event.event_type in ('phase_promotion', 'auto_downgrade') %}
+        <span class="text-cyan-400 text-sm" title="Phase">🔄</span>
+        {% elif event.event_type == 'scrape_too_fresh' %}
+        <span class="text-gray-500 text-sm" title="Skipped">⏭️</span>
         {% else %}
-        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-700 text-gray-400 whitespace-nowrap">
-            {{ event.event_type }}
-        </span>
+        <span class="text-gray-400 text-sm">•</span>
         {% endif %}
 
-        {# Message text #}
-        <span class="text-sm text-gray-300 leading-snug">{{ event.message }}</span>
+        {# Message + action link #}
+        <div class="flex-1 min-w-0">
+            <span class="text-sm text-gray-300 leading-snug">{{ event.message }}</span>
+
+            {# Clickable navigation link based on event type and metadata #}
+            {% set link = none %}
+            {% set link_text = none %}
+
+            {# Strategy generated → go to avatar strategy tab #}
+            {% if event.event_type == 'strategy_generated' and meta.get('avatar_id') %}
+                {% set link = '/admin/avatars/' ~ meta['avatar_id'] ~ '?tab=strategy' %}
+                {% set link_text = 'View Strategy' %}
+
+            {# Generate → go to review queue #}
+            {% elif event.event_type == 'generate' and event.client_id %}
+                {% set link = '/admin/review?status=pending&client_id=' ~ (event.client_id|string) %}
+                {% set link_text = 'Review' %}
+
+            {# Score → go to threads #}
+            {% elif event.event_type == 'score' and event.client_id %}
+                {% set link = '/admin/clients/' ~ (event.client_id|string) ~ '?tab=threads' %}
+                {% set link_text = 'Threads' %}
+
+            {# Review (approve/reject) → go to review queue #}
+            {% elif event.event_type == 'review' %}
+                {% set link = '/admin/review?status=posted' %}
+                {% set link_text = 'Queue' %}
+
+            {# Policy block → go to avatar #}
+            {% elif event.event_type == 'policy_block' and meta.get('avatar_id') %}
+                {% set link = '/admin/avatars/' ~ meta['avatar_id'] ~ '?tab=phase' %}
+                {% set link_text = 'Avatar' %}
+
+            {# Phase promotion/demotion → go to avatar phase tab #}
+            {% elif event.event_type in ('phase_promotion', 'auto_downgrade') and meta.get('avatar_id') %}
+                {% set link = '/admin/avatars/' ~ meta['avatar_id'] ~ '?tab=phase' %}
+                {% set link_text = 'Phase' %}
+
+            {# Scrape → if hobby scrape with avatar_id, go to avatar; otherwise go to subreddits #}
+            {% elif event.event_type == 'scrape' and meta.get('avatar_id') %}
+                {% set link = '/admin/avatars/' ~ meta['avatar_id'] %}
+                {% set link_text = meta.get('avatar_username') or 'Avatar' %}
+            {% elif event.event_type == 'scrape' and 'hobby' in (event.message or '') and meta.get('avatar_username') %}
+                {# Legacy hobby scrape events without avatar_id — link to subreddits as fallback #}
+                {% set link = '/admin/subreddits' %}
+                {% set link_text = meta.get('avatar_username') %}
+            {% elif event.event_type == 'scrape' and meta.get('subreddit_name') %}
+                {% set link = '/admin/subreddits' %}
+                {% set link_text = 'r/' ~ meta['subreddit_name'] %}
+
+            {# System error with client → go to client #}
+            {% elif event.event_type == 'system' and event.client_id %}
+                {% set link = '/admin/clients/' ~ (event.client_id|string) %}
+                {% set link_text = 'Client' %}
+
+            {% endif %}
+
+            {% if link %}
+            <a href="{{ link }}" class="ml-2 inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 opacity-0 group-hover:opacity-100 transition-opacity">
+                {{ link_text }}
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </a>
+            {% endif %}
+        </div>
+
+        {# Compact metadata badges #}
+        <div class="flex items-center gap-1.5 shrink-0">
+            {% if meta.get('cost_usd') %}
+            <span class="text-[10px] text-gray-600 font-mono">${{ "%.3f"|format(meta['cost_usd']) }}</span>
+            {% endif %}
+            {% if meta.get('duration_ms') %}
+            <span class="text-[10px] text-gray-600 font-mono">{{ (meta['duration_ms'] / 1000)|round(1) }}s</span>
+            {% endif %}
+            {% if meta.get('threads_scored') %}
+            <span class="text-[10px] text-purple-500 font-mono">{{ meta['threads_scored'] }}t</span>
+            {% endif %}
+            {% if meta.get('drafts_generated') %}
+            <span class="text-[10px] text-green-500 font-mono">{{ meta['drafts_generated'] }}d</span>
+            {% endif %}
+            {% if meta.get('posts_new') is not none %}
+            <span class="text-[10px] text-blue-500 font-mono">+{{ meta['posts_new'] }}</span>
+            {% endif %}
+        </div>
     </div>
     {% endfor %}
 </div>

@@ -1,0 +1,157 @@
+<!-- Score results partial — full breakdown with engage/monitor/skip/growth -->
+<div class="mt-3 space-y-3">
+
+    <!-- Summary bar -->
+    <div class="flex items-center gap-3 p-3 bg-slate-800/60 rounded-lg border border-slate-700/50">
+        <svg class="w-4 h-4 text-green-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+        </svg>
+        <div class="flex-1">
+            <span class="text-sm text-green-300 font-medium">
+                Scanned {{ threads_scored + pre_filtered_out + growth_count }} threads → scored {{ threads_scored }} via AI in {{ "%.1f"|format(duration_ms / 1000) }}s
+            </span>
+            {% if pre_filtered_out > 0 %}
+            <div class="text-xs text-gray-500 mt-0.5">
+                {{ pre_filtered_out }} skipped by keyword filter (no LLM cost)
+                {% if growth_count > 0 %} · {{ growth_count }} marked as growth opportunities{% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Tag distribution pills -->
+    <div class="flex items-center gap-2 flex-wrap">
+        {% if engage_count > 0 %}
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-900/40 text-green-300 border border-green-700/50">
+            <span class="w-2 h-2 rounded-full bg-green-400"></span>
+            Engage: {{ engage_count }}
+        </span>
+        {% endif %}
+        {% if monitor_count > 0 %}
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-900/40 text-yellow-300 border border-yellow-700/50">
+            <span class="w-2 h-2 rounded-full bg-yellow-400"></span>
+            Monitor: {{ monitor_count }}
+        </span>
+        {% endif %}
+        {% if skip_count > 0 %}
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-700/60 text-gray-400 border border-slate-600/50">
+            <span class="w-2 h-2 rounded-full bg-gray-500"></span>
+            Skip: {{ skip_count }}
+        </span>
+        {% endif %}
+        {% if growth_count > 0 %}
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-purple-900/40 text-purple-300 border border-purple-700/50">
+            <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+            Growth: {{ growth_count }}
+        </span>
+        {% endif %}
+    </div>
+
+    <!-- Engage threads (expanded by default) -->
+    {% if engage_threads %}
+    <details open class="group">
+        <summary class="cursor-pointer flex items-center gap-2 text-xs font-medium text-green-400 uppercase tracking-wide py-1 hover:text-green-300">
+            <svg class="w-3 h-3 transition-transform group-open:rotate-90" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+            </svg>
+            Engage threads ({{ engage_threads|length }})
+        </summary>
+        <div class="mt-1 space-y-1.5 pl-5">
+            {% for item in engage_threads %}
+            {% set thread = item.thread %}
+            {% set score = item.score %}
+            <div class="flex items-start gap-2 p-2 rounded bg-green-900/10 border border-green-900/30">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] text-indigo-400 font-medium">r/{{ thread.subreddit }}</span>
+                        {% if score.alert %}
+                        <span class="px-1 py-0.5 rounded text-[9px] bg-red-900/50 text-red-300">🚨</span>
+                        {% endif %}
+                        <span class="text-[10px] text-gray-500">{{ score.composite }}/9 (R:{{ score.relevance }} Q:{{ score.quality }} S:{{ score.strategic }})</span>
+                        <span class="text-[10px] text-gray-500 italic">{{ score.intent }}</span>
+                    </div>
+                    <a href="{{ thread.url }}" target="_blank" class="text-xs text-white hover:text-green-300 line-clamp-1">
+                        {{ thread.post_title }}
+                    </a>
+                    {% if score.scoring_reasoning %}
+                    <div class="text-[10px] text-gray-500 mt-0.5 italic">{{ score.scoring_reasoning[:100] }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+
+    <!-- Monitor threads (collapsed) -->
+    {% if monitor_threads %}
+    <details class="group">
+        <summary class="cursor-pointer flex items-center gap-2 text-xs font-medium text-yellow-400 uppercase tracking-wide py-1 hover:text-yellow-300">
+            <svg class="w-3 h-3 transition-transform group-open:rotate-90" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+            </svg>
+            Monitor threads ({{ monitor_threads|length }})
+        </summary>
+        <div class="mt-1 space-y-1 pl-5">
+            {% for item in monitor_threads %}
+            {% set thread = item.thread %}
+            {% set score = item.score %}
+            <div class="flex items-center gap-2 p-1.5 rounded bg-slate-800/30">
+                <span class="text-[10px] text-indigo-400">r/{{ thread.subreddit }}</span>
+                <span class="text-[10px] text-gray-500">{{ score.composite }}/9</span>
+                <span class="text-xs text-gray-300 truncate flex-1">{{ thread.post_title[:80] }}</span>
+                <span class="text-[10px] text-gray-500 italic">{{ score.scoring_reasoning[:50] }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+
+    <!-- Growth opportunities -->
+    {% if growth_threads %}
+    <details class="group">
+        <summary class="cursor-pointer flex items-center gap-2 text-xs font-medium text-purple-400 uppercase tracking-wide py-1 hover:text-purple-300">
+            <svg class="w-3 h-3 transition-transform group-open:rotate-90" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+            </svg>
+            Growth opportunities ({{ growth_threads|length }}) — karma building, no LLM needed
+        </summary>
+        <div class="mt-1 space-y-1 pl-5">
+            {% for thread in growth_threads %}
+            <div class="flex items-center gap-2 p-1.5 rounded bg-purple-900/10 border border-purple-900/20">
+                <span class="text-[10px] text-indigo-400">r/{{ thread.subreddit }}</span>
+                <span class="text-[10px] text-gray-500">↑{{ thread.ups or 0 }}</span>
+                <span class="text-xs text-gray-300 truncate flex-1">{{ thread.post_title[:80] }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+
+    <!-- Pre-filtered / skipped (collapsed) -->
+    {% if skipped_threads %}
+    <details class="group">
+        <summary class="cursor-pointer flex items-center gap-2 text-xs font-medium text-gray-500 uppercase tracking-wide py-1 hover:text-gray-400">
+            <svg class="w-3 h-3 transition-transform group-open:rotate-90" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+            </svg>
+            Pre-filtered out ({{ pre_filtered_out }}) — no keyword match
+        </summary>
+        <div class="mt-1 space-y-0.5 pl-5 max-h-[200px] overflow-y-auto">
+            {% for item in skipped_threads %}
+            <div class="flex items-center gap-2 py-0.5 text-[10px] text-gray-600">
+                <span class="text-indigo-500/50">r/{{ item.thread.subreddit }}</span>
+                <span class="truncate flex-1">{{ item.thread.post_title[:60] }}</span>
+                <span class="text-gray-600 italic flex-shrink-0">{{ item.reason }}</span>
+            </div>
+            {% endfor %}
+            {% if pre_filtered_out > skipped_threads|length %}
+            <div class="text-[10px] text-gray-600 italic pt-1">
+                ... and {{ pre_filtered_out - skipped_threads|length }} more
+            </div>
+            {% endif %}
+        </div>
+    </details>
+    {% endif %}
+
+</div>

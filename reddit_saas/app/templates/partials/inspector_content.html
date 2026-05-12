@@ -63,7 +63,7 @@
                 <div class="flex-1">
                     <span class="text-sm text-gray-300">{{ rec.text }}</span>
                     {% if rec.action_id %}
-                    <button hx-post="/admin/inspector/action/{{ rec.action_id }}"
+                    <button hx-post="/admin/inspector/action/{{ rec.action_id }}{{ rec.action_params or '' }}"
                             hx-target="#inspector-content"
                             hx-swap="outerHTML"
                             hx-confirm="{{ rec.confirm }}"

@@ -1,0 +1,93 @@
+<!-- Avatar Subreddit Coverage — Plan vs Actual -->
+{% if subreddit_coverage %}
+<div class="overflow-x-auto">
+    <table class="w-full text-xs text-left">
+        <thead>
+            <tr class="border-b border-slate-700">
+                {% set columns = [
+                    ("subreddit", "Subreddit", "text-left"),
+                    ("type", "Type", "text-center"),
+                    ("comments", "Comments", "text-right"),
+                    ("karma", "Karma", "text-right"),
+                    ("status", "Status", "text-left"),
+                ] %}
+                {% for col_key, col_label, col_align in columns %}
+                {% set is_active = (sort_by == col_key) %}
+                {% set next_dir = "desc" if (is_active and sort_dir == "asc") else "asc" %}
+                <th class="px-3 py-2 cursor-pointer select-none group {{ col_align }}
+                    {% if is_active %}text-emerald-400{% else %}text-gray-400 hover:text-gray-300{% endif %}"
+                    hx-get="/admin/avatars/{{ avatar_id }}/subreddit-coverage?sort_by={{ col_key }}&sort_dir={{ next_dir }}"
+                    hx-target="#avatar-subreddit-coverage"
+                    hx-swap="innerHTML">
+                    {{ col_label }}
+                    {% if is_active %}
+                        <span class="ml-0.5">{{ '↓' if sort_dir == 'desc' else '↑' }}</span>
+                    {% else %}
+                        <span class="ml-0.5 opacity-0 group-hover:opacity-50 transition-opacity">↕</span>
+                    {% endif %}
+                </th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for sub in subreddit_coverage %}
+            <tr class="border-b border-slate-700/50 hover:bg-slate-700/20
+                {% if sub.type == 'Extra' %}opacity-70{% endif %}">
+                <!-- Subreddit name -->
+                <td class="px-3 py-1.5">
+                    <a href="https://reddit.com/r/{{ sub.subreddit_name }}" target="_blank"
+                       class="{% if sub.type == 'Target' %}text-indigo-400{% elif sub.type == 'Hobby' %}text-amber-400{% else %}text-gray-400{% endif %} hover:underline">
+                        r/{{ sub.subreddit_name }}
+                    </a>
+                </td>
+                <!-- Type badge -->
+                <td class="px-3 py-1.5 text-center">
+                    {% if sub.type == 'Target' %}
+                    <span class="px-2 py-0.5 rounded text-xs bg-indigo-900/50 text-indigo-400 border border-indigo-700/50">🎯 Target</span>
+                    {% elif sub.type == 'Hobby' %}
+                    <span class="px-2 py-0.5 rounded text-xs bg-amber-900/50 text-amber-400 border border-amber-700/50">🎨 Hobby</span>
+                    {% else %}
+                    <span class="px-2 py-0.5 rounded text-xs bg-slate-700/50 text-gray-400 border border-slate-600/50">💡 Extra</span>
+                    {% endif %}
+                </td>
+                <!-- Comments -->
+                <td class="px-3 py-1.5 text-right font-mono text-gray-300">
+                    {{ sub.comments if sub.comments else '—' }}
+                </td>
+                <!-- Karma -->
+                <td class="px-3 py-1.5 text-right font-mono
+                    {% if sub.karma > 0 %}text-green-400{% elif sub.karma < 0 %}text-red-400{% else %}text-gray-500{% endif %}">
+                    {% if sub.karma %}{{ '+' if sub.karma > 0 else '' }}{{ sub.karma }}{% else %}—{% endif %}
+                </td>
+                <!-- Status -->
+                <td class="px-3 py-1.5">
+                    {% if sub.status_icon == 'active' %}
+                    <span class="text-emerald-400">✅ {{ sub.status_text }}</span>
+                    {% elif sub.status_icon == 'warning' %}
+                    <span class="text-amber-400">⚠️ {{ sub.status_text }}</span>
+                    {% elif sub.status_icon == 'suggest' %}
+                    <span class="text-cyan-400">💡 {{ sub.status_text }}</span>
+                    {% else %}
+                    <span class="text-gray-500">{{ sub.status_text }}</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Summary -->
+<div class="mt-4 flex flex-wrap gap-4 text-xs text-gray-500 border-t border-slate-700 pt-3">
+    <span>🎯 Target: {{ subreddit_coverage|selectattr('type', 'equalto', 'Target')|list|length }}</span>
+    <span>🎨 Hobby: {{ subreddit_coverage|selectattr('type', 'equalto', 'Hobby')|list|length }}</span>
+    <span>💡 Extra: {{ subreddit_coverage|selectattr('type', 'equalto', 'Extra')|list|length }}</span>
+    <span class="text-emerald-400">✅ Active: {{ subreddit_coverage|selectattr('status_icon', 'equalto', 'active')|list|length }}</span>
+    {% if subreddit_coverage|selectattr('status_icon', 'equalto', 'suggest')|list|length > 0 %}
+    <span class="text-cyan-400">💡 Suggested: {{ subreddit_coverage|selectattr('status_icon', 'equalto', 'suggest')|list|length }}</span>
+    {% endif %}
+    <span class="text-amber-400">⚠️ Not active: {{ subreddit_coverage|selectattr('status_icon', 'equalto', 'warning')|list|length }}</span>
+</div>
+{% else %}
+<p class="text-gray-500 text-sm py-4">No subreddit data available. Run a presence scan or assign this avatar to a client.</p>
+{% endif %}

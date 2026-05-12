@@ -30,6 +30,7 @@
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">{{ sort_header('Karma', 'karma_asc', 'karma_desc') }}</th>
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">AI Cost</th>
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Health</th>
+            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">CQS</th>
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Actions</th>
         </tr>
     </thead>
@@ -49,6 +50,12 @@
             </td>
             <td class="px-4 py-2">
                 <a href="/admin/avatars/{{ a.id }}" class="text-white hover:text-indigo-400 font-medium">u/{{ a.username }}</a>
+                {% if a.profile_pct is defined and a.profile_pct < 100 %}
+                <span class="ml-1 px-1.5 py-0.5 rounded text-[9px] font-medium
+                    {% if a.profile_pct >= 50 %}bg-amber-900/40 text-amber-400 border border-amber-700/50
+                    {% else %}bg-red-900/40 text-red-400 border border-red-700/50{% endif %}"
+                    title="Profile {{ a.profile_pct }}% complete">{{ a.profile_pct }}%</span>
+                {% endif %}
                 {% if a.email_address %}<div class="text-[11px] text-gray-500">{{ a.email_address }}</div>{% endif %}
             </td>
             <td class="px-4 py-2">
@@ -74,7 +81,9 @@
                 </span>
             </td>
             <td class="px-4 py-2">
-                {% if a.warming_phase == 1 %}
+                {% if a.warming_phase == 0 %}
+                <span class="px-2 py-0.5 rounded text-xs font-medium bg-purple-900/50 text-purple-300 border border-purple-700">Mentor</span>
+                {% elif a.warming_phase == 1 %}
                 <span class="px-2 py-0.5 rounded text-xs font-medium bg-slate-700 text-blue-300 border border-slate-600">P1 · Credibility</span>
                 {% elif a.warming_phase == 2 %}
                 <span class="px-2 py-0.5 rounded text-xs font-medium bg-amber-900/50 text-amber-300 border border-amber-700">P2 · Seeding</span>
@@ -125,7 +134,32 @@
                 </div>
             </td>
             <td class="px-4 py-2">
+                {% if a.cqs_level %}
+                    {% if a.cqs_level == 'highest' %}
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-900/50 text-green-400 border border-green-800">{{ a.cqs_level|upper }}</span>
+                    {% elif a.cqs_level == 'high' %}
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-900/30 text-green-300 border border-green-700">{{ a.cqs_level|upper }}</span>
+                    {% elif a.cqs_level == 'moderate' %}
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-900/50 text-yellow-400 border border-yellow-800">{{ a.cqs_level|upper }}</span>
+                    {% elif a.cqs_level == 'low' %}
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-900/50 text-orange-400 border border-orange-800">{{ a.cqs_level|upper }}</span>
+                    {% else %}
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/50 text-red-400 border border-red-800">{{ a.cqs_level|upper }}</span>
+                    {% endif %}
+                    {% if a.cqs_stale %}
+                    <div class="text-[10px] text-yellow-500 mt-0.5">⚠ stale</div>
+                    {% endif %}
+                {% else %}
+                <span class="text-[10px] text-gray-600">—</span>
+                {% endif %}
+            </td>
+            <td class="px-4 py-2">
                 <div class="flex gap-2">
+                    <a href="/export/avatars/{{ a.id }}/report.md"
+                       class="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-700 text-gray-200 border border-slate-600 hover:bg-slate-600 hover:text-white"
+                       title="Download avatar report (.md)">
+                        📄 Report
+                    </a>
                     <form method="post" action="/admin/avatars/{{ a.id }}/toggle-active" class="inline">
                         {% if a.active_flag %}
                         <button type="submit" class="px-2 py-0.5 rounded text-[11px] font-medium bg-amber-900/50 text-amber-400 border border-amber-700 hover:bg-amber-800/50">Pause</button>

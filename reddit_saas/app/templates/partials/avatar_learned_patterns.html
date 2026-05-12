@@ -1,0 +1,32 @@
+<!-- Avatar Learned Patterns (CorrectionPattern) — loaded via HTMX -->
+<div id="learned-patterns-panel" class="bg-dark-steel rounded-lg border border-slate-700 p-5">
+    <div class="flex items-center justify-between mb-3">
+        <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide flex items-center gap-2">
+            <span>🧠</span> Learned Patterns
+        </h3>
+        {% if patterns %}
+        <span class="text-[10px] text-gray-500">{{ patterns|length }} active</span>
+        {% endif %}
+    </div>
+
+    {% if patterns %}
+    <div class="space-y-2">
+        {% for pattern in patterns %}
+        <div class="p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
+            <div class="flex items-center justify-between mb-1">
+                <span class="text-xs font-medium text-indigo-300">{{ pattern.pattern_type|replace('_', ' ')|title }}</span>
+                <span class="text-[10px] text-gray-500">used {{ pattern.frequency }} time{{ 's' if pattern.frequency != 1 else '' }}</span>
+            </div>
+            <p class="text-sm text-gray-300">{{ pattern.rule_text }}</p>
+            {% if pattern.last_seen_at %}
+            <p class="text-[10px] text-gray-600 mt-1">Last seen: {{ pattern.last_seen_at.strftime('%Y-%m-%d') }}</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-sm text-gray-500">
+        No learned patterns yet. Patterns are extracted after 5+ reviewed comments with edits.
+    </div>
+    {% endif %}
+</div>

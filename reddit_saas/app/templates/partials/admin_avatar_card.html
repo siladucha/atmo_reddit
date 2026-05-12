@@ -24,7 +24,9 @@
               {% else %}bg-slate-700 text-gray-400 border border-slate-600{% endif %}">
             {{ a.reddit_status or 'unknown' }}
         </span>
-        {% if a.warming_phase == 1 %}
+        {% if a.warming_phase == 0 %}
+        <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-purple-900/50 text-purple-300 border border-purple-700">Mentor</span>
+        {% elif a.warming_phase == 1 %}
         <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-700 text-blue-300 border border-slate-600">P1</span>
         {% elif a.warming_phase == 2 %}
         <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-900/50 text-amber-300 border border-amber-700">P2</span>
@@ -37,6 +39,19 @@
         <div>
             <div class="text-gray-500">Karma</div>
             <div class="font-mono text-gray-200">{{ (a.reddit_karma_comment or 0) + (a.reddit_karma_post or 0) }}</div>
+        </div>
+        <div>
+            <div class="text-gray-500">Profile</div>
+            <div>
+                {% if a.profile_pct is defined %}
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-medium
+                    {% if a.profile_pct >= 85 %}bg-green-900/50 text-green-400 border border-green-800
+                    {% elif a.profile_pct >= 50 %}bg-amber-900/50 text-amber-400 border border-amber-800
+                    {% else %}bg-red-900/50 text-red-400 border border-red-800{% endif %}">{{ a.profile_pct }}%</span>
+                {% else %}
+                <span class="text-[10px] text-gray-600">—</span>
+                {% endif %}
+            </div>
         </div>
         <div>
             <div class="text-gray-500">Health</div>
@@ -55,9 +70,33 @@
                 <div class="text-[10px] text-gray-500 mt-0.5">{{ a.health_check_relative or 'Never checked' }}</div>
             </div>
         </div>
+        <div>
+            <div class="text-gray-500">CQS</div>
+            <div>
+                {% if a.cqs_level %}
+                    {% if a.cqs_level in ['highest', 'high'] %}
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-900/50 text-green-400 border border-green-800">{{ a.cqs_level|upper }}</span>
+                    {% elif a.cqs_level == 'moderate' %}
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-900/50 text-yellow-400 border border-yellow-800">{{ a.cqs_level|upper }}</span>
+                    {% elif a.cqs_level == 'low' %}
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-900/50 text-orange-400 border border-orange-800">{{ a.cqs_level|upper }}</span>
+                    {% else %}
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/50 text-red-400 border border-red-800">{{ a.cqs_level|upper }}</span>
+                    {% endif %}
+                    {% if a.cqs_stale %}<div class="text-[10px] text-yellow-500">⚠ stale</div>{% endif %}
+                {% else %}
+                <span class="text-[10px] text-gray-600">—</span>
+                {% endif %}
+            </div>
+        </div>
     </div>
 
     <div class="mt-3 flex gap-2">
+        <a href="/export/avatars/{{ a.id }}/report.md"
+           class="px-2 py-1 rounded text-[11px] font-medium bg-slate-700 text-gray-200 border border-slate-600 hover:bg-slate-600 hover:text-white"
+           title="Download avatar report (.md)">
+            📄 Report
+        </a>
         <form method="post" action="/admin/avatars/{{ a.id }}/toggle-active" class="inline">
             {% if a.active_flag %}
             <button type="submit" class="px-2 py-1 rounded text-[11px] font-medium bg-amber-900/50 text-amber-400 border border-amber-700 hover:bg-amber-800/50">Pause</button>
