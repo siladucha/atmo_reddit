@@ -9,7 +9,7 @@ from app.logging_config import setup_logging
 from app.middleware.auth import AuthMiddleware
 from app.middleware.errors import ErrorMiddleware
 from app.middleware.security import SecurityHeadersMiddleware, RateLimitMiddleware
-from app.routes import admin, auth, dashboard, review, pipeline, avatars, avatar_analysis, clients, pages, dry_run, export
+from app.routes import admin, auth, dashboard, review, pipeline, avatars, avatar_analysis, avatar_pipeline, clients, pages, dry_run, export
 from app.services.metrics_collector import (
     get_metrics_collector,
     install_metrics_logging_handler,
@@ -41,7 +41,7 @@ app.add_middleware(
     auth_window_seconds=900,
     enabled=(app_env == "production"),
 )
-app.add_middleware(ErrorMiddleware, debug=(app_env == "development"))
+app.add_middleware(ErrorMiddleware, debug=(app_env != "production"))
 app.add_middleware(AuthMiddleware)
 
 # Expose the metrics collector to route handlers via app.state
@@ -62,6 +62,7 @@ app.include_router(pipeline.router, prefix="/pipeline", tags=["pipeline"])
 
 # UI Pages
 app.include_router(admin.router, tags=["admin-panel"])
+app.include_router(avatar_pipeline.router, tags=["avatar-pipeline"])
 app.include_router(dry_run.router, tags=["dry-run"])
 app.include_router(pages.router, tags=["pages"])
 app.include_router(export.router, tags=["export"])

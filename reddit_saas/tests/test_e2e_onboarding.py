@@ -160,8 +160,9 @@ def test_e2e_onboarding_pipeline(db: Session):
     # 5. Score the thread (mocked LLM) (Req 8.4, 8.7)
     # ---------------------------------------------------------------
     with patch("app.services.scoring.call_llm_json", return_value=MOCK_SCORING_RESPONSE):
-        scored_count = score_unscored_threads_for_client(db, client)
+        result = score_unscored_threads_for_client(db, client)
 
+    scored_count = result.get("scored", 0) if isinstance(result, dict) else result
     assert scored_count == 1, f"Expected 1 thread scored, got {scored_count}"
 
     # Verify ThreadScore record was created
