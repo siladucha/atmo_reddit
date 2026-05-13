@@ -20,29 +20,66 @@ A Reddit marketing SaaS platform. AI monitors subreddits, scores posts, generate
 - **Agency model**: Per-client-slot pricing ($999–$3,499/mo for 3–20 clients). Annual contracts only.
 - **Key moat**: Pre-warmed avatar inventory (aged accounts with karma). Cannot be replicated overnight by competitors.
 
-## Tech Stack (Current — Celery/Redis, migrating to SQS/Valkey)
+## Tech Stack (Current — Celery/Redis on DigitalOcean)
 - **Backend:** Python 3.11+ / FastAPI
 - **Templates/UI:** Jinja2 + HTMX
 - **CSS:** Tailwind CSS (CDN)
-- **Database:** PostgreSQL / SQLAlchemy 2.0 / Alembic (on EC2 Docker initially, RDS later)
+- **Database:** PostgreSQL 16 / SQLAlchemy 2.0 / Alembic (Docker on DO Droplet)
 - **Auth:** JWT (python-jose + passlib), `is_superuser` flag for admin access
-- **Task Queue:** Celery + Redis (current); AWS SQS Standard (target)
-- **Cache/Locks:** Redis (current); AWS ElastiCache Serverless Valkey (target)
+- **Task Queue:** Celery + Redis
+- **Cache/Locks:** Redis 7
 - **Reddit:** PRAW
 - **AI/LLM:** LiteLLM (Gemini Flash for scoring, Claude Sonnet for generation)
-- **Deploy:** EC2 t3.small + Docker Compose (app + PostgreSQL + Redis)
-- **Observability:** Logging + admin dashboard (CloudWatch planned)
+- **Deploy:** DigitalOcean Droplet + Docker Compose (app + PostgreSQL + Redis + Celery)
+- **Observability:** Logging + admin dashboard
+
+### Production Server (DigitalOcean)
+- **Droplet:** `reddit-saas` — 2 vCPU, 4 GB RAM, 60 GB SSD
+- **Region:** Frankfurt (FRA1) 🇩🇪
+- **OS:** Ubuntu 24.04 LTS
+- **IPv4:** `161.35.27.165`
+- **Cost:** ~$23/mo (with backups)
+- **Docker Compose:** `docker-compose.yml` + `docker-compose.prod.yml` (memory limits, reduced concurrency)
+- **Access:** `ssh root@161.35.27.165`, project at `/app/`
+- **Domain:** None yet (access via IP:8000)
+- **Backups:** DO weekly backups enabled
+
+### Deployment Commands (from local Mac)
+```bash
+# Push code to server:
+cd reddit_saas
+rsync -avz --exclude='.venv/' --exclude='__pycache__/' --exclude='.hypothesis/' \
+  --exclude='.git/' --exclude='*.pyc' --exclude='.DS_Store' --exclude='logs/' \
+  --exclude='.env' --exclude='.claude/' --exclude='.kiro/' --exclude='.vscode/' \
+  --exclude='tests/' --delete \
+  ./ root@161.35.27.165:/app/
+
+# Rebuild and restart on server:
+ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml build && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
+
+# Check health:
+ssh root@161.35.27.165 "curl -s http://localhost:8000/health"
+
+# View logs:
+ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f --tail=50"
+
+# DB sync (local → server):
+# 1. Dump local: docker compose exec -T db pg_dump -U reddit_saas_user -d reddit_saas --no-owner --format=custom -f /tmp/dump.custom
+# 2. Copy out: docker compose cp db:/tmp/dump.custom /tmp/reddit_saas_live.custom
+# 3. Upload: scp /tmp/reddit_saas_live.custom root@161.35.27.165:/tmp/
+# 4. Restore: ssh root@161.35.27.165 "docker compose ... exec -T db pg_restore -U reddit_saas_user -d reddit_saas --clean --if-exists --no-owner --single-transaction /tmp/reddit_saas_live.custom"
+```
 
 ### Infrastructure Decisions (May 2026)
-- **SQS over Celery** (planned): Native DLQ, message persistence (14 days), visibility timeout, CloudWatch metrics. Cost: ~$0.30/mo at current scale.
-- **Valkey Serverless over Redis Docker** (planned): Managed HA, multi-AZ, no ops overhead. Cost: ~$6.14/mo (minimum 100 MB storage floor).
-- **EC2 over ECS/Fargate**: Simpler, cheaper for single-instance deployment. Docker Compose on EC2 for app + PostgreSQL.
-- **PostgreSQL on EC2 Docker** (initial): Migrate to RDS db.t4g.small ($24/mo) when data loss becomes unacceptable (5+ clients).
+- **DigitalOcean over AWS**: Simpler, cheaper for MVP. Single droplet with Docker Compose.
+- **AWS migration planned**: When enterprise clients require it OR 100+ avatars OR ops burden > 4h/week. $7K AWS credits available.
+- **PostgreSQL in Docker** (current): Migrate to DO Managed DB ($15/mo) when 5+ paying clients.
+- **SQS migration deferred**: Celery + Redis works fine for current scale (50 avatars).
 
 ### Migration Status (Celery → SQS)
 - Migration spec exists (`.kiro/specs/sqs-valkey-migration/`) but NOT yet implemented
 - Current system runs on Celery + Redis (fully functional)
-- Migration planned for after pilot launch
+- Migration deferred — not needed until 100+ avatars or enterprise client requirement
 
 ## Code Style
 - Python: type hints everywhere, async where beneficial
