@@ -9,6 +9,7 @@ from app.tasks.worker import celery_app
 from app.database import SessionLocal
 from app.models.client import Client
 from app.models.avatar import Avatar
+from app.services.audit import log_system_action
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,16 @@ def run_full_pipeline_all_clients():
         clients = db.query(Client).filter(Client.is_active.is_(True)).all()
         logger.info(f"Running AI pipeline (score+generate) for {len(clients)} active clients")
 
+        try:
+            log_system_action(
+                db,
+                action="pipeline_run_started",
+                entity_type="pipeline",
+                details={"client_count": len(clients)},
+            )
+        except Exception as e:
+            logger.error(f"Failed to log pipeline_run_started audit entry: {e}")
+
         for client in clients:
             cid = str(client.id)
             try:
@@ -40,6 +51,19 @@ def run_full_pipeline_all_clients():
                 logger.info(f"AI pipeline queued for {client.client_name}")
             except Exception as e:
                 logger.error(f"Failed to queue AI pipeline for {client.client_name}: {e}")
+
+        try:
+            log_system_action(
+                db,
+                action="pipeline_run_completed",
+                entity_type="pipeline",
+                details={
+                    "client_count": len(clients),
+                    "clients_queued": [c.client_name for c in clients],
+                },
+            )
+        except Exception as e:
+            logger.error(f"Failed to log pipeline_run_completed audit entry: {e}")
 
     finally:
         db.close()
@@ -77,6 +101,16 @@ def run_hobby_pipeline_all_avatars():
                 logger.info(f"Hobby pipeline queued for {avatar.reddit_username}")
             except Exception as e:
                 logger.error(f"Failed to queue hobby pipeline for {avatar.reddit_username}: {e}")
+
+        try:
+            log_system_action(
+                db,
+                action="hobby_pipeline_run",
+                entity_type="pipeline",
+                details={"avatar_count": len(avatars)},
+            )
+        except Exception as e:
+            logger.error(f"Failed to log hobby_pipeline_run audit entry: {e}")
 
     finally:
         db.close()

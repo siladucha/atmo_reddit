@@ -45,7 +45,7 @@
 
 - [ ] 3. Fix: Add audit logging to background tasks (10 `log_system_action` calls)
 
-  - [-] 3.1 Add audit logging to orchestrator tasks
+  - [x] 3.1 Add audit logging to orchestrator tasks
     - In `app/tasks/orchestrator.py` → `run_full_pipeline_all_clients`:
       - Add `log_system_action(db, action="pipeline_run_started", entity_type="pipeline", details={"client_count": len(clients)})` before dispatching chains
       - Add `log_system_action(db, action="pipeline_run_completed", entity_type="pipeline", details={"client_count": len(clients), "clients_queued": [client names]})` after the loop
@@ -57,7 +57,7 @@
     - _Preservation: Existing `record_activity_event` calls must remain unchanged_
     - _Requirements: 2.1, 2.2_
 
-  - [~] 3.2 Add audit logging to scraping tasks
+  - [-] 3.2 Add audit logging to scraping tasks
     - In `app/tasks/scraping.py` → `scrape_subreddit_shared`:
       - Add `log_system_action(db, action="scrape_completed", entity_type="subreddit", entity_id=subreddit_uuid, details={"subreddit_name": ..., "posts_found": ..., "posts_new": ..., "duration_ms": ...})` on success
       - Add `log_system_action(db, action="scrape_failed", entity_type="subreddit", entity_id=subreddit_uuid, details={"subreddit_name": ..., "error": str(e)})` on failure
