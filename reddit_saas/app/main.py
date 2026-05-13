@@ -29,7 +29,9 @@ install_metrics_logging_handler(metrics_collector)
 app = FastAPI(
     title="Reddit Marketing SaaS",
     version="0.1.0",
-    docs_url="/docs" if app_env == "development" else None,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
 )
 
 # Middleware (order matters: outermost wraps innermost)

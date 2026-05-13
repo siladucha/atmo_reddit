@@ -2,24 +2,19 @@
 
 from starlette.responses import Response
 
-from app.config import get_config
-
 
 def set_auth_cookie(response: Response, token: str) -> None:
     """Set the access_token cookie with proper security flags.
 
-    In production: secure=True, samesite=Strict (HTTPS only, no cross-site).
-    In development: secure=False, samesite=Lax (works over HTTP).
+    No SSL at this stage — always use secure=False, samesite=Lax.
+    When HTTPS is added (domain + cert), switch to secure=True, samesite=Strict.
     """
-    app_env = get_config("app_env")
-    is_production = app_env == "production"
-
     response.set_cookie(
         key="access_token",
         value=token,
         httponly=True,
-        secure=is_production,
-        samesite="strict" if is_production else "lax",
+        secure=False,
+        samesite="lax",
         max_age=86400,  # 24 hours
         path="/",
     )

@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     """
     database_url: str = "postgresql://postgres:postgres@localhost:5432/reddit_saas"
     redis_url: str = "redis://localhost:6379/0"
+    app_env: str = "production"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
@@ -21,7 +22,7 @@ def get_settings() -> Settings:
 
 
 # Bootstrap keys that are resolved from env, never from DB
-_BOOTSTRAP_KEYS = frozenset({"database_url", "redis_url"})
+_BOOTSTRAP_KEYS = frozenset({"database_url", "redis_url", "app_env"})
 
 
 def get_config(key: str, db=None) -> str:

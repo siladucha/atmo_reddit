@@ -1,10 +1,11 @@
 """Auth middleware — protects routes by checking JWT cookie."""
 
 import logging
+import secrets
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import RedirectResponse
+from starlette.responses import RedirectResponse, Response
 
 from app.services.auth import decode_access_token
 
@@ -16,10 +17,20 @@ PUBLIC_ROUTES = {
     "/register",
     "/logout",
     "/health",
+}
+
+# Routes protected by HTTP Basic Auth (API docs)
+BASIC_AUTH_ROUTES = {
     "/docs",
     "/docs/oauth2-redirect",
     "/openapi.json",
     "/redoc",
+}
+
+# Allowed credentials for docs access (username: password)
+_DOCS_CREDENTIALS = {
+    "max@admin.reddit": "MethodB2024!",
+    "jenny@admin.reddit": "qa.13.05.2026",
 }
 
 # Prefixes that don't require authentication
@@ -29,9 +40,45 @@ PUBLIC_PREFIXES = (
 )
 
 
+def _check_basic_auth(request: Request) -> bool:
+    """Validate HTTP Basic Auth credentials for docs access."""
+    import base64
+
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header.startswith("Basic "):
+        return False
+
+    try:
+        decoded = base64.b64decode(auth_header[6:]).decode("utf-8")
+        username, password = decoded.split(":", 1)
+    except (ValueError, UnicodeDecodeError):
+        return False
+
+    expected_password = _DOCS_CREDENTIALS.get(username)
+    if expected_password is None:
+        return False
+
+    return secrets.compare_digest(password, expected_password)
+
+
+def _basic_auth_response() -> Response:
+    """Return 401 with WWW-Authenticate header to trigger browser login dialog."""
+    return Response(
+        content="Unauthorized",
+        status_code=401,
+        headers={"WWW-Authenticate": 'Basic realm="API Docs"'},
+    )
+
+
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
+
+        # Docs routes — HTTP Basic Auth (independent of JWT session)
+        if path in BASIC_AUTH_ROUTES:
+            if not _check_basic_auth(request):
+                return _basic_auth_response()
+            return await call_next(request)
 
         # Skip auth for public routes
         if path in PUBLIC_ROUTES or path.startswith(PUBLIC_PREFIXES):
