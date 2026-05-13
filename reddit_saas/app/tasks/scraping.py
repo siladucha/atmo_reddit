@@ -15,6 +15,7 @@ from app.models.client import Client
 from app.models.scrape_log import ScrapeLog
 from app.models.subreddit import ClientSubreddit, Subreddit
 from app.models.thread import RedditThread
+from app.services.audit import log_system_action
 from app.services.reddit import scrape_subreddit, deduplicate_posts
 from app.services.transparency import record_activity_event
 
@@ -419,6 +420,23 @@ def scrape_subreddit_shared(self, subreddit_id: str) -> dict:
         }
         record_activity_event(db, "scrape", message, client_id=None, metadata=metadata)
 
+        # Audit log for admin audit logs page
+        try:
+            log_system_action(
+                db,
+                action="scrape_completed",
+                entity_type="subreddit",
+                entity_id=subreddit_uuid,
+                details={
+                    "subreddit_name": subreddit_name,
+                    "posts_found": len(posts),
+                    "posts_new": len(new_posts),
+                    "duration_ms": duration_ms,
+                },
+            )
+        except Exception as audit_err:
+            logger.warning("scrape_subreddit_shared: failed to write audit log: %s", audit_err)
+
         logger.info("scrape_subreddit_shared: %s", message)
         return {
             "status": "success",
@@ -464,6 +482,22 @@ def scrape_subreddit_shared(self, subreddit_id: str) -> dict:
             client_id=None,
             metadata={"subreddit_id": subreddit_id, "error": error_str[:500]},
         )
+
+        # Audit log for admin audit logs page
+        try:
+            log_system_action(
+                db,
+                action="scrape_failed",
+                entity_type="subreddit",
+                entity_id=subreddit_uuid,
+                details={
+                    "subreddit_name": subreddit_name,
+                    "error": error_str[:500],
+                },
+            )
+        except Exception as audit_err:
+            logger.warning("scrape_subreddit_shared: failed to write failure audit log: %s", audit_err)
+
         logger.error("scrape_subreddit_shared: Failed for subreddit %s: %s", subreddit_id, e)
         return {"status": "error", "subreddit_id": subreddit_id, "error": error_str[:200]}
 
