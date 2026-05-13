@@ -14,7 +14,6 @@ from app.models.thread import RedditThread
 from app.models.thread_score import ThreadScore
 from app.models.avatar import Avatar
 from app.models.comment_draft import CommentDraft
-from app.services.scoring import score_unscored_threads_for_client
 from app.services.generation import select_persona, generate_comment, edit_comment
 from app.services.transparency import record_activity_event
 from app.services.ai import ai_trigger_context
@@ -24,10 +23,13 @@ logger = logging.getLogger(__name__)
 
 @celery_app.task(name="score_threads", bind=True, max_retries=3)
 def score_threads(self, client_id: str, triggered_by: str = "scheduler"):
-    """Score all unscored threads for a client.
+    """Smart Score — avatar-centric thread scoring for a client.
 
-    Uses the shared subreddit registry: finds threads in the client's assigned
-    subreddits that lack a ThreadScore record for this client.
+    Instead of scoring ALL unscored threads (wasteful), iterates over the
+    client's active avatars and scores only threads each avatar can engage
+    with, limited by their daily budget.
+
+    This reduces scoring calls from 300+/run to 10-30/run total.
     """
     ai_trigger_context.set(triggered_by)
     db = SessionLocal()
@@ -46,38 +48,63 @@ def score_threads(self, client_id: str, triggered_by: str = "scheduler"):
                 logger.info(f"score_threads: client {client.client_name} is deactivated, skipping")
                 return 0
 
-            result = score_unscored_threads_for_client(db, client)
-            # Handle both dict (new) and int (legacy) return
-            if isinstance(result, dict):
-                count = result.get("scored", 0)
-            else:
-                count = result
+            # Smart scoring: iterate over eligible avatars
+            from app.services.smart_scoring import smart_score_for_avatar
 
-            # Record activity event with tag distribution from ThreadScore
-            try:
-                tag_rows = (
-                    db.query(ThreadScore.tag, func.count(ThreadScore.id))
-                    .filter(ThreadScore.client_id == client_id)
-                    .group_by(ThreadScore.tag)
-                    .all()
+            avatars = (
+                db.query(Avatar)
+                .filter(Avatar.active.is_(True))
+                .all()
+            )
+            client_avatars = [
+                a for a in avatars
+                if a.client_ids and str(client.id) in a.client_ids
+                and not a.is_frozen
+                and not a.is_shadowbanned
+                and a.health_status not in ("shadowbanned", "suspended")
+                and a.warming_phase != 0  # Mentor excluded
+            ]
+
+            total_scored = 0
+            total_engage = 0
+            total_monitor = 0
+            total_skip = 0
+
+            for avatar in client_avatars:
+                result = smart_score_for_avatar(db, avatar, client)
+                total_scored += result.threads_scored
+                total_engage += result.engage_count
+                total_monitor += len(result.monitor_threads)
+                total_skip += len(result.skip_threads)
+
+                logger.info(
+                    "score_threads: avatar=%s status=%s scored=%d engage=%d",
+                    avatar.reddit_username,
+                    result.status,
+                    result.threads_scored,
+                    result.engage_count,
                 )
-                tag_counts = {row[0]: row[1] for row in tag_rows}
-                engage = tag_counts.get("engage", 0)
-                monitor = tag_counts.get("monitor", 0)
-                skip = tag_counts.get("skip", 0)
 
-                message = f"Scored {count} threads: {engage} engage, {monitor} monitor, {skip} skip"
+            # Record activity event
+            try:
+                message = (
+                    f"Smart scored {total_scored} threads across "
+                    f"{len(client_avatars)} avatars: "
+                    f"{total_engage} engage, {total_monitor} monitor, {total_skip} skip"
+                )
                 metadata = {
-                    "threads_scored": count,
-                    "engage": engage,
-                    "monitor": monitor,
-                    "skip": skip,
+                    "threads_scored": total_scored,
+                    "engage": total_engage,
+                    "monitor": total_monitor,
+                    "skip": total_skip,
+                    "avatars_processed": len(client_avatars),
+                    "mode": "smart_score",
                 }
                 record_activity_event(db, "score", message, uuid.UUID(client_id), metadata)
             except Exception:
                 logger.exception("Failed to record score activity event")
 
-            return count
+            return total_scored
 
         except Exception as exc:
             # Record system error event
@@ -91,7 +118,6 @@ def score_threads(self, client_id: str, triggered_by: str = "scheduler"):
                 )
             except Exception:
                 logger.exception("Failed to record system error activity event")
-            # Also log to audit table
             try:
                 from app.services.audit import log_system_action
                 log_system_action(

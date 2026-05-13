@@ -330,12 +330,20 @@ def pipeline_score(
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
-    """Score unscored threads using pre-filter + batch scoring.
+    """Smart Score — avatar-centric thread scoring.
 
-    Returns detailed breakdown: candidates scored, pre-filtered out,
-    growth opportunities, and per-thread results.
+    Scores only threads this avatar can actually engage with, limited by
+    the avatar's daily budget. Dramatically reduces LLM calls compared to
+    the old client-wide scoring approach.
+
+    Flow:
+    1. Check avatar budget (daily limit - used today)
+    2. Determine available subreddits (phase-based)
+    3. Pull top threads by engagement from those subs
+    4. Score only budget × 3 threads (hard cap: 15)
+    5. Return engage threads ready for generation
     """
-    from app.services.scoring import score_unscored_threads_for_client
+    from app.services.smart_scoring import smart_score_for_avatar
 
     avatar, client = _get_avatar_and_client(db, avatar_id)
     if not avatar:
@@ -345,8 +353,9 @@ def pipeline_score(
 
     start = time.time()
     try:
-        result = score_unscored_threads_for_client(db, client, avatar=avatar)
+        result = smart_score_for_avatar(db, avatar, client)
     except Exception as e:
+        logger.exception("Smart scoring failed for avatar %s", avatar.reddit_username)
         return HTMLResponse(
             f'<div class="p-4 bg-red-900/30 border border-red-700 rounded-lg text-red-300">'
             f'Scoring failed: {str(e)[:200]}</div>',
@@ -354,66 +363,51 @@ def pipeline_score(
         )
     duration_ms = int((time.time() - start) * 1000)
 
-    # Handle both dict (new) and int (legacy) return
-    if isinstance(result, dict):
-        threads_scored = result.get("scored", 0)
-        engage_count = result.get("engage", 0)
-        monitor_count = result.get("monitor", 0)
-        skip_count = result.get("skip", 0)
-        pre_filtered_out = result.get("pre_filtered_out", 0)
-        growth_count = result.get("growth_opportunities", 0)
-        scores = result.get("scores", [])
-        growth_threads = result.get("growth_threads", [])
-        skipped_threads = result.get("skipped_threads", [])
-    else:
-        threads_scored = result
-        engage_count = (
-            db.query(sa_func.count(ThreadScore.id))
-            .filter(ThreadScore.client_id == client.id, ThreadScore.tag == "engage")
-            .scalar()
-        ) or 0
-        monitor_count = 0
-        skip_count = 0
-        pre_filtered_out = 0
-        growth_count = 0
-        scores = []
-        growth_threads = []
-        skipped_threads = []
-
-    # Build engage/monitor/skip thread lists for display
+    # Build thread display lists from SmartScoreResult
     engage_threads = []
     monitor_threads = []
     skip_threads_display = []
 
-    for score in scores:
+    for score in result.engage_threads:
         thread = db.query(RedditThread).filter(RedditThread.id == score.thread_id).first()
-        if not thread:
-            continue
-        item = {"thread": thread, "score": score}
-        if score.tag == "engage":
-            engage_threads.append(item)
-        elif score.tag == "monitor":
-            monitor_threads.append(item)
-        else:
-            skip_threads_display.append(item)
+        if thread:
+            engage_threads.append({"thread": thread, "score": score})
+
+    for score in result.monitor_threads:
+        thread = db.query(RedditThread).filter(RedditThread.id == score.thread_id).first()
+        if thread:
+            monitor_threads.append({"thread": thread, "score": score})
+
+    for score in result.skip_threads:
+        thread = db.query(RedditThread).filter(RedditThread.id == score.thread_id).first()
+        if thread:
+            skip_threads_display.append({"thread": thread, "score": score})
 
     return templates.TemplateResponse(
         name="partials/avatar_pipeline_score_result.html",
         context={
             "request": request,
-            "threads_scored": threads_scored,
+            "threads_scored": result.threads_scored,
             "duration_ms": duration_ms,
-            "engage_count": engage_count,
-            "monitor_count": monitor_count,
-            "skip_count": skip_count,
-            "pre_filtered_out": pre_filtered_out,
-            "growth_count": growth_count,
+            "engage_count": result.engage_count,
+            "monitor_count": len(result.monitor_threads),
+            "skip_count": len(result.skip_threads),
+            "pre_filtered_out": 0,
+            "growth_count": 0,
             "engage_threads": engage_threads,
             "monitor_threads": monitor_threads,
             "skip_threads": skip_threads_display,
-            "growth_threads": growth_threads,
-            "skipped_threads": skipped_threads[:10],  # Limit display
+            "growth_threads": [],
+            "skipped_threads": [],
             "avatar": avatar,
+            # Smart score budget info
+            "smart_score": True,
+            "daily_limit": result.daily_limit,
+            "used_today": result.used_today,
+            "remaining_budget": result.remaining_budget,
+            "threads_considered": result.threads_considered,
+            "smart_status": result.status,
+            "smart_message": result.message,
         },
         request=request,
     )
