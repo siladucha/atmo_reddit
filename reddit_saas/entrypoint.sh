@@ -1,6 +1,22 @@
 #!/bin/bash
 set -e
 
+echo "Ensuring pgvector extension..."
+python3 -c "
+from app.database import SessionLocal
+from sqlalchemy import text
+db = SessionLocal()
+try:
+    db.execute(text('CREATE EXTENSION IF NOT EXISTS vector'))
+    db.commit()
+    print('pgvector extension OK')
+except Exception as e:
+    db.rollback()
+    print(f'pgvector extension warning: {e}')
+finally:
+    db.close()
+" || echo "pgvector extension check skipped"
+
 echo "Running database migrations..."
 alembic upgrade head 2>&1 || {
     echo "Alembic migration failed, checking if tables exist..."

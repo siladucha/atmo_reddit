@@ -35,6 +35,9 @@
               {% if item.draft.strategic_angle %}
               <span class="bg-purple-50 text-purple-700 px-2 py-0.5 rounded">{{ item.draft.strategic_angle }}</span>
               {% endif %}
+              {% if item.draft.perspective_push and item.draft.perspective_push != 'undetected' %}
+              <span class="{% if item.draft.perspective_push == 'hard' %}bg-red-50 text-red-700{% elif item.draft.perspective_push == 'medium' %}bg-amber-50 text-amber-700{% else %}bg-green-50 text-green-700{% endif %} px-2 py-0.5 rounded">push:{{ item.draft.perspective_push }}</span>
+              {% endif %}
               <span class="text-gray-400">{{ item.draft.created_at.strftime('%b %d, %H:%M') if item.draft.created_at else '' }}</span>
             </div>
           </div>

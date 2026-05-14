@@ -66,13 +66,34 @@ def select_persona(
 
     Raises:
         RuntimeError: If LLM call fails after logging the error.
+        ValueError: If all candidate avatars fail the accessibility check.
     """
-    # Runtime assertion: all candidate avatars must belong to this client
+    from app.services.isolation import _avatar_accessible_by_client
+
+    # Runtime isolation check: filter out avatars not accessible by this client
+    # (supports both ownership via client_ids AND active rentals)
+    accessible_avatars: list[Avatar] = []
     for avatar in avatars:
-        assert avatar.client_ids and str(client.id) in avatar.client_ids, (
-            f"Context isolation violation: avatar {avatar.reddit_username} "
-            f"does not belong to client {client.id}"
+        if _avatar_accessible_by_client(db, avatar, client):
+            accessible_avatars.append(avatar)
+        else:
+            logger.warning(
+                "Context isolation: avatar '%s' (id=%s) is not accessible by "
+                "client '%s' (id=%s) — excluded from persona candidates",
+                avatar.reddit_username,
+                avatar.id,
+                client.client_name,
+                client.id,
+            )
+
+    if not accessible_avatars:
+        raise ValueError(
+            f"All candidate avatars failed accessibility check for client "
+            f"'{client.client_name}' (id={client.id}). "
+            f"Original candidates: {[a.reddit_username for a in avatars]}"
         )
+
+    avatars = accessible_avatars
 
     from app.services import karma_tracker
 
@@ -174,16 +195,51 @@ You are a cynical, experienced practitioner. You type fast, don't explain yourse
 and never write essays.
 
 ## Rules (in order of priority)
-1. Be SHORT. 20-60 words. Hard max 80 words.
+1. Be SHORT. 20-60 words. Hard max 80 words. If over 80 — REWRITE with a shorter idea, don't trim.
 2. Be SHARP. Clear point of view, no fence-sitting.
 3. Be STRATEGIC. Plant one seed that changes how the reader thinks.
 
-## Never:
-- Mention the client's brand or product by name. ZERO TOLERANCE.
-- Use em-dashes (—). Ever.
-- Use buzzwords: landscape, ecosystem, leverage, unlock, delve, shift, hit
-- Start with "I [verb]" more than 30% of the time
-- Write more than one paragraph
+## FORBIDDEN PATTERNS (zero tolerance)
+
+### Never use:
+- Em-dashes (—). Use commas, parentheses, or split the sentence.
+- Buzzwords: landscape, ecosystem, leverage, unlock, delve, shift, holistic, comprehensive, robust, game-changer, cutting-edge, revolutionary, best practice
+- Academic transitions: However, Moreover, Furthermore, Additionally, Consequently
+- Distancing phrases: "This highlights," "The data suggests," "It's worth noting"
+- Empty questions: "The result?" "What happened next?" "Sound familiar?"
+- Generic openings: "Here's the thing," "Picture this," "Imagine this," "Look,"
+- Binary oppositions: "It's not X, it's Y" / "Stop X. Start Y."
+- Passive voice (every verb needs a clear actor)
+- LinkedIn spacing (every sentence on its own line)
+- Staccato dry-cut sentences without connectors
+
+### Banned sentence starters:
+- NEVER start with "The", "This", "That", "There", "They" (rephrase)
+- NEVER start with gerunds: "Trying," "Looking," "Getting," "Running," "Building"
+- NEVER start with "I'd argue" / "I'd push" / "I'd say" — state directly
+- Do NOT start more than 30% of comments with "I [verb]..."
+
+### Banned endings:
+- No guru/yoda endings that sound like motivational posters
+- No "food for thought" / "just my two cents" / "take it for what it's worth"
+- No generic questions you don't actually want answered
+
+## DIVERSITY ENFORCEMENT (check before writing)
+
+Scan the previous_comments below. Your new comment MUST differ from all of them:
+
+1. **Opener scan**: If >30% start with same structure (e.g. "I [verb]..."), use a DIFFERENT opener type
+2. **Approach scan**: If one approach dominates (>40%), use a DIFFERENT approach
+3. **Vocabulary scan**: Any phrase appearing 3+ times = BANNED for this comment
+4. **Structure scan**: If last 3 comments follow same arc, use a DIFFERENT structure
+
+Opener types to rotate between:
+- Flat agreement + pivot: "yeah, except..." / "sure, until..."
+- Lead with the claim (no "I" setup)
+- Dry reaction: "lol good luck with that at scale"
+- Direct response to a detail: "the part about X is backwards..."
+- Conditional pushback: "works if..." / "depends entirely on..."
+- Personal experience (use sparingly, not every time)
 
 ## Voice Profile
 {voice_profile}
@@ -197,7 +253,7 @@ Mode: {mode}
 Thread angle: {thread_angle}
 POV opportunity: {pov_opportunity}
 
-## Previous comments (avoid repetition)
+## Previous comments (avoid repetition — run diversity checks above)
 {previous_comments}
 
 ## Output JSON
@@ -207,8 +263,77 @@ POV opportunity: {pov_opportunity}
   "location_depth": 0,
   "location_reasoning": "why this spot",
   "comment_approach": "reframe_drop | cynical_deconstruction | the_scar | contrarian | drive_by",
-  "strategic_angle": "reframe | tear_down | karma_play"
+  "strategic_angle": "reframe | tear_down | karma_play",
+  "perspective_push": "hard | medium | low | undetected"
 }}"""
+
+
+def _assert_context_isolation(
+    client: Client,
+    avatar: Avatar,
+    strategy,
+    examples: list,
+    patterns: list,
+) -> None:
+    """Verify every context item belongs to the target client_id.
+
+    Checks:
+    - Strategy document's avatar belongs to the client
+    - All learning examples (EditRecords) belong to the client
+    - All correction patterns belong to the client
+
+    Raises:
+        RuntimeError: If any context item violates client isolation.
+    """
+    client_id_str = str(client.id)
+
+    # Check strategy document — it's loaded via avatar, verify avatar ownership
+    if strategy is not None:
+        # Strategy is loaded for the avatar; verify the avatar belongs to client
+        if not (avatar.client_ids and client_id_str in avatar.client_ids):
+            logger.error(
+                "Context isolation ABORT: strategy document (id=%s) loaded for avatar %s "
+                "which does not belong to client %s",
+                getattr(strategy, "id", "unknown"),
+                avatar.reddit_username,
+                client.id,
+            )
+            raise RuntimeError(
+                f"Context isolation violation: strategy for avatar {avatar.reddit_username} "
+                f"does not belong to client {client.id}"
+            )
+
+    # Check learning examples (EditRecords have client_id)
+    for ex in examples:
+        ex_client_id = str(getattr(ex, "client_id", None) or "")
+        if ex_client_id != client_id_str:
+            logger.error(
+                "Context isolation ABORT: EditRecord (id=%s) has client_id=%s, "
+                "expected client_id=%s",
+                getattr(ex, "id", "unknown"),
+                ex_client_id,
+                client.id,
+            )
+            raise RuntimeError(
+                f"Context isolation violation: EditRecord {getattr(ex, 'id', 'unknown')} "
+                f"belongs to client {ex_client_id}, not target client {client.id}"
+            )
+
+    # Check correction patterns (CorrectionPatterns have client_id)
+    for pat in patterns:
+        pat_client_id = str(getattr(pat, "client_id", None) or "")
+        if pat_client_id != client_id_str:
+            logger.error(
+                "Context isolation ABORT: CorrectionPattern (id=%s) has client_id=%s, "
+                "expected client_id=%s",
+                getattr(pat, "id", "unknown"),
+                pat_client_id,
+                client.id,
+            )
+            raise RuntimeError(
+                f"Context isolation violation: CorrectionPattern {getattr(pat, 'id', 'unknown')} "
+                f"belongs to client {pat_client_id}, not target client {client.id}"
+            )
 
 
 def generate_comment(
@@ -234,21 +359,36 @@ def generate_comment(
         Created CommentDraft instance.
 
     Raises:
-        RuntimeError: If LLM call fails.
+        ValueError: If client_id is null.
+        RuntimeError: If LLM call fails or context isolation assertion fails.
     """
-    # Runtime assertion: avatar must belong to this client
-    assert avatar.client_ids and str(client.id) in avatar.client_ids, (
-        f"Context isolation violation: avatar {avatar.reddit_username} "
-        f"does not belong to client {client.id}"
-    )
+    # 1. Validate client_id is not null
+    if not client or not client.id:
+        raise ValueError("LLM context assembly requires a valid client_id")
+
+    # 2. Assert avatar is accessible by client (owned OR rented)
+    from app.services.isolation import _avatar_accessible_by_client
+
+    if not _avatar_accessible_by_client(db, avatar, client):
+        logger.error(
+            "Context isolation violation: avatar %s (id=%s) not accessible by client %s",
+            avatar.reddit_username,
+            avatar.id,
+            client.id,
+        )
+        raise RuntimeError(
+            f"Context isolation violation: avatar {avatar.reddit_username} "
+            f"not accessible by client {client.id}"
+        )
 
     # --- Strategy Injection: retrieve approved strategy ---
     strategy_context = ""
+    approved_strategy = None
     try:
         from app.services.strategy_engine import StrategyEngine
 
         strategy_engine = StrategyEngine()
-        approved_strategy = strategy_engine.get_approved_strategy(db, avatar.id)
+        approved_strategy = strategy_engine.get_approved_strategy(db, avatar.id, client_id=client.id)
 
         if approved_strategy:
             # Build strategy context from structured fields
@@ -300,6 +440,8 @@ def generate_comment(
     # --- Self-Learning Loop: retrieve learning context ---
     learning_context = ""
     learning_metadata: dict | None = None
+    examples = []
+    patterns = []
 
     try:
         from app.services.learning import LearningService
@@ -354,6 +496,16 @@ def generate_comment(
         )
         learning_context = ""
         learning_metadata = None
+
+    # --- Final context isolation assertion ---
+    # Verify every loaded context item belongs to the target client_id
+    _assert_context_isolation(
+        client=client,
+        avatar=avatar,
+        strategy=approved_strategy if strategy_context else None,
+        examples=examples if learning_context else [],
+        patterns=patterns if learning_context else [],
+    )
 
     # --- Build prompt ---
     prev_comments_text = "\n---\n".join(previous_comments or [])
@@ -465,6 +617,7 @@ def generate_comment(
         location_reasoning=data.get("location_reasoning", ""),
         comment_approach=data.get("comment_approach", ""),
         strategic_angle=data.get("strategic_angle", ""),
+        perspective_push=data.get("perspective_push", "undetected"),
         engagement_mode=persona_selection.get("mode", "helpful_peer"),
         status="pending",
         learning_metadata=learning_metadata,

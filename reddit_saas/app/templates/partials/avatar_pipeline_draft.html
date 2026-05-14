@@ -52,6 +52,11 @@
             Approach: <span class="text-white font-medium">{{ draft.comment_approach }}</span>
         </span>
         {% endif %}
+        {% if draft.perspective_push and draft.perspective_push != 'undetected' %}
+        <span class="px-2 py-1 rounded {% if draft.perspective_push == 'hard' %}bg-red-900/40 text-red-300 border border-red-700/50{% elif draft.perspective_push == 'medium' %}bg-amber-900/40 text-amber-300 border border-amber-700/50{% else %}bg-green-900/40 text-green-300 border border-green-700/50{% endif %}">
+            Push: <span class="font-medium">{{ draft.perspective_push }}</span>
+        </span>
+        {% endif %}
         {% if draft.comment_to and draft.comment_to != 'post' %}
         <span class="px-2 py-1 rounded bg-amber-900/40 text-amber-300 border border-amber-700/50">
             ↩ Reply to: <span class="font-medium">{{ draft.comment_to[:60] }}{% if draft.comment_to|length > 60 %}…{% endif %}</span>
@@ -68,7 +73,7 @@
     <div class="relative group/copy mb-3">
         <div class="flex items-center justify-between mb-1.5">
             <span class="text-[10px] uppercase tracking-wider text-gray-500 font-medium">Comment text</span>
-            <button onclick="navigator.clipboard.writeText(this.closest('.group\\/copy').querySelector('[data-copy-text]').innerText).then(()=>{this.textContent='✓ Copied';setTimeout(()=>this.textContent='📋 Copy',1500)})"
+            <button onclick="var t=this.closest('.group\\/copy').querySelector('[data-copy-text]').innerText;var a=document.createElement('textarea');a.value=t;a.style.position='fixed';a.style.opacity='0';document.body.appendChild(a);a.select();document.execCommand('copy');document.body.removeChild(a);this.textContent='✓ Copied';setTimeout(()=>this.textContent='📋 Copy',1500)"
                     class="text-[11px] text-gray-500 hover:text-indigo-400 transition-colors px-2 py-0.5 rounded bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50">
                 📋 Copy
             </button>

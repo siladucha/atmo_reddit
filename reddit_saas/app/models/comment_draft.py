@@ -29,6 +29,7 @@ class CommentDraft(Base):
     comment_approach: Mapped[str | None] = mapped_column(String(100), nullable=True)
     strategic_angle: Mapped[str | None] = mapped_column(String(100), nullable=True)
     engagement_mode: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    perspective_push: Mapped[str | None] = mapped_column(String(50), nullable=True)  # hard | medium | low | undetected
 
     # Status
     status: Mapped[str] = mapped_column(String(50), default="pending")  # pending | approved | rejected | posted

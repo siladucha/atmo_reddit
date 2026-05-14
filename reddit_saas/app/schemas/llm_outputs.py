@@ -47,6 +47,10 @@ class CommentOutput(BaseModel):
     location_reasoning: str
     comment_approach: str
     strategic_angle: str
+    perspective_push: str = Field(
+        default="undetected",
+        description="How strongly the company worldview is pushed: hard | medium | low | undetected",
+    )
 
 
 # --- Post Generation Schemas ---

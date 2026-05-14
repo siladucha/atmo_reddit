@@ -104,6 +104,24 @@ def score_threads(self, client_id: str, triggered_by: str = "scheduler"):
             except Exception:
                 logger.exception("Failed to record score activity event")
 
+            # Audit log for scoring batch completion
+            try:
+                from app.services.audit import log_system_action
+                log_system_action(
+                    db,
+                    action="scoring_batch_completed",
+                    entity_type="thread",
+                    client_id=uuid.UUID(client_id),
+                    details={
+                        "threads_scored": total_scored,
+                        "engage": total_engage,
+                        "monitor": total_monitor,
+                        "skip": total_skip,
+                    },
+                )
+            except Exception:
+                logger.exception("Failed to record scoring_batch_completed audit log")
+
             return total_scored
 
         except Exception as exc:
@@ -254,18 +272,29 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
                 logger.info(f"No new engage threads for {client.client_name}")
                 return 0
 
-            # Get previous comments for diversity check
-            previous = (
-                db.query(CommentDraft.ai_draft)
-                .filter(
-                    CommentDraft.client_id == client_id,
-                    CommentDraft.ai_draft.isnot(None),
-                )
-                .order_by(CommentDraft.created_at.desc())
-                .limit(20)
-                .all()
-            )
-            prev_comments = [p[0] for p in previous if p[0]]
+            # Get previous comments for diversity check — per avatar
+            # We'll build per-avatar prev_comments inside the loop below.
+            # Initialize a cache so we only query once per avatar.
+            _avatar_prev_cache: dict[str, list[str]] = {}
+
+            def _get_prev_comments_for_avatar(avatar_id_str: str) -> list[str]:
+                """Fetch last 20 posted/pending comments for an avatar (cached)."""
+                if avatar_id_str not in _avatar_prev_cache:
+                    recent = (
+                        db.query(CommentDraft.ai_draft)
+                        .filter(
+                            CommentDraft.avatar_id == avatar_id_str,
+                            CommentDraft.ai_draft.isnot(None),
+                            CommentDraft.status.in_(["posted", "approved", "pending"]),
+                        )
+                        .order_by(CommentDraft.created_at.desc())
+                        .limit(20)
+                        .all()
+                    )
+                    _avatar_prev_cache[avatar_id_str] = [r[0] for r in recent if r[0]]
+                return list(_avatar_prev_cache[avatar_id_str])
+
+            prev_comments: list[str] = []  # will be set per-avatar in loop
 
             generated = 0
             for thread in engage_threads:
@@ -299,8 +328,20 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
                             client_avatars[0],  # fallback to first avatar
                         )
 
-                    # Step 3: Safety gate
-                    safety = check_avatar_can_post(db, avatar, "professional")
+                    # Step 3: Safety gate.
+                    # Pass target_subreddit + client so PhasePolicy enforces
+                    # subreddit allowlist BEFORE we pay for LLM generation.
+                    # comment_text="" makes brand-mention checks no-op at this
+                    # stage (draft doesn't exist yet); brand classification is
+                    # repeated post-generation by check_comment_content.
+                    safety = check_avatar_can_post(
+                        db,
+                        avatar,
+                        "professional",
+                        target_subreddit=thread.subreddit,
+                        comment_text="",
+                        client=client,
+                    )
                     if not safety:
                         logger.info(f"Safety blocked {avatar.reddit_username}: {safety.reason}")
                         # Log to activity feed for visibility
@@ -345,12 +386,32 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
                             pass
                         continue
 
-                    # Step 4: Generate comment
+                    # Step 4: Generate comment (with per-avatar previous comments)
+                    prev_comments = _get_prev_comments_for_avatar(str(avatar.id))
                     draft = generate_comment(
                         db, thread, client, avatar, selection, prev_comments
                     )
 
-                    # Step 5: Content safety check
+                    # Step 5: Embedding diversity check (reject if too similar to previous)
+                    try:
+                        from app.services.embedding import check_comment_diversity
+                        if prev_comments and draft.ai_draft:
+                            is_diverse, max_sim = check_comment_diversity(
+                                draft.ai_draft, prev_comments, threshold=0.85
+                            )
+                            if not is_diverse:
+                                logger.warning(
+                                    f"Diversity check FAILED for avatar {avatar.reddit_username}: "
+                                    f"similarity={max_sim:.2f} > 0.85. Rejecting draft."
+                                )
+                                draft.status = "rejected"
+                                db.commit()
+                                continue
+                    except Exception as e:
+                        # Diversity check is non-critical — proceed if it fails
+                        logger.warning(f"Diversity check error (non-critical): {e}")
+
+                    # Step 6: Content safety check
                     from app.services.safety import check_comment_content
                     content_check = check_comment_content(draft.ai_draft or "")
                     if not content_check:
@@ -359,13 +420,13 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
                         db.commit()
                         continue
 
-                    # Step 6: Edit/clean comment
+                    # Step 7: Edit/clean comment
                     edit_comment(db, draft, thread, client)
 
-                    # Add to previous comments for next iteration
-                    prev_comments.insert(0, draft.ai_draft)
-                    if len(prev_comments) > 20:
-                        prev_comments = prev_comments[:20]
+                    # Add to previous comments for next iteration (update cache)
+                    if str(avatar.id) in _avatar_prev_cache:
+                        _avatar_prev_cache[str(avatar.id)].insert(0, draft.ai_draft)
+                        _avatar_prev_cache[str(avatar.id)] = _avatar_prev_cache[str(avatar.id)][:20]
 
                     generated += 1
 
@@ -903,6 +964,22 @@ def evaluate_all_avatar_phases():
             demoted,
             errors,
         )
+
+        try:
+            from app.services.audit import log_system_action
+            log_system_action(
+                db,
+                action="phase_evaluation_completed",
+                entity_type="avatar",
+                details={
+                    "evaluated": evaluated,
+                    "promoted": promoted,
+                    "demoted": demoted,
+                    "errors": errors,
+                },
+            )
+        except Exception as e:
+            logger.error(f"Failed to log phase_evaluation_completed audit entry: {e}")
 
         return {
             "evaluated": evaluated,
