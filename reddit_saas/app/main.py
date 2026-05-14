@@ -1,6 +1,8 @@
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request as FastAPIRequest
+from fastapi.exceptions import HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -9,7 +11,7 @@ from app.logging_config import setup_logging
 from app.middleware.auth import AuthMiddleware
 from app.middleware.errors import ErrorMiddleware
 from app.middleware.security import SecurityHeadersMiddleware, RateLimitMiddleware
-from app.routes import admin, auth, dashboard, review, pipeline, avatars, avatar_analysis, avatar_pipeline, clients, pages, dry_run, export
+from app.routes import admin, auth, dashboard, review, pipeline, avatars, avatar_analysis, avatar_pipeline, clients, pages, dry_run, export, decision_center
 from app.services.metrics_collector import (
     get_metrics_collector,
     install_metrics_logging_handler,
@@ -37,6 +39,62 @@ app = FastAPI(
 # Middleware (order matters: outermost wraps innermost)
 # Request flow: SecurityHeaders → RateLimit → ErrorHandler → Auth → Routes
 app.add_middleware(SecurityHeadersMiddleware)
+
+
+# --- Custom HTTP exception handlers (friendly HTML pages) ---
+
+ACCESS_DENIED_HTML = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access Denied — Reddit SaaS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body class="bg-[#0F172A] min-h-screen flex items-center justify-center font-['Inter']">
+    <div class="bg-[#1E293B] border border-slate-700 p-10 rounded-xl shadow-2xl max-w-md text-center">
+        <div class="text-5xl mb-4">🚫</div>
+        <h1 class="text-2xl font-semibold text-white mb-3">Access Denied</h1>
+        <p class="text-gray-400 mb-6">You don't have permission to view this page.</p>
+        <div class="flex gap-3 justify-center">
+            <a href="javascript:history.back()" class="px-4 py-2 bg-slate-700 text-gray-300 rounded-lg hover:bg-slate-600 transition-colors text-sm">← Go Back</a>
+            <a href="/admin/" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors text-sm">Dashboard</a>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+
+@app.exception_handler(HTTPException)
+async def custom_http_exception_handler(request: FastAPIRequest, exc: HTTPException):
+    """Render friendly HTML pages for 403 and 303 instead of raw JSON."""
+    # 303 redirect (unauthenticated / inactive user)
+    if exc.status_code == 303:
+        location = (exc.headers or {}).get("Location", "/login")
+        return RedirectResponse(url=location, status_code=303)
+
+    # 403 Access Denied — show styled page for browser requests
+    if exc.status_code == 403:
+        accept = request.headers.get("accept", "")
+        if "text/html" in accept:
+            return HTMLResponse(content=ACCESS_DENIED_HTML, status_code=403)
+        # API requests still get JSON
+        from fastapi.responses import JSONResponse
+        return JSONResponse(content={"detail": exc.detail}, status_code=403)
+
+    # All other HTTP exceptions — default FastAPI behavior
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        content={"detail": exc.detail},
+        status_code=exc.status_code,
+        headers=exc.headers,
+    )
+
+
+# --- End exception handlers ---
 app.add_middleware(
     RateLimitMiddleware,
     auth_limit=5,
@@ -64,6 +122,7 @@ app.include_router(pipeline.router, prefix="/pipeline", tags=["pipeline"])
 
 # UI Pages
 app.include_router(admin.router, tags=["admin-panel"])
+app.include_router(decision_center.router, tags=["decision-center"])
 app.include_router(avatar_pipeline.router, tags=["avatar-pipeline"])
 app.include_router(dry_run.router, tags=["dry-run"])
 app.include_router(pages.router, tags=["pages"])

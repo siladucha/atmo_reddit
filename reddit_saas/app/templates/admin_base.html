@@ -164,17 +164,62 @@
     <!-- Fixed Left Sidebar -->
     <aside id="admin-sidebar" class="fixed top-0 left-0 h-full w-60 bg-dark-steel border-r border-slate-700 flex flex-col z-50">
         <!-- App Name + Admin Badge -->
-        <div class="px-5 py-5 border-b border-slate-700">
+        <div class="px-5 py-4 border-b border-slate-700">
             <div class="flex items-center gap-2">
                 <span class="text-xl">📡</span>
-                <span class="sidebar-app-name text-white font-semibold text-lg">Reddit SaaS</span>
+                <span class="sidebar-app-name text-white font-semibold text-lg">ThreddOps</span>
             </div>
-            <span class="sidebar-admin-badge inline-block mt-1.5 px-2 py-0.5 text-xs font-medium rounded bg-indigo-600 text-white">Admin</span>
+
+            {# User card — hidden on collapsed tablet sidebar via sidebar-admin-badge #}
+            <div class="sidebar-admin-badge mt-3 pt-3 border-t border-slate-700/60">
+                <div class="flex items-center gap-2 min-w-0">
+                    {# Initials avatar #}
+                    <div class="flex-shrink-0 w-7 h-7 rounded-full bg-indigo-600/80 flex items-center justify-center text-xs font-semibold text-white select-none">
+                        {{ ((request.state.user_full_name or request.state.user_email or '?') | first) | upper }}
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-xs font-medium text-gray-200 truncate leading-tight">
+                            {{ request.state.user_full_name or request.state.user_email or 'Unknown' }}
+                        </div>
+                        {% if request.state.user_full_name %}
+                        <div class="text-[10px] text-gray-500 truncate leading-tight">
+                            {{ request.state.user_email or '' }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {# Role badge #}
+                <div class="mt-1.5 ml-9">
+                    {% set _role = request.state.user_role | default('') %}
+                    {% if _role == 'owner' %}
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-900/50 text-violet-300 border border-violet-700">👑 Owner</span>
+                    {% elif _role == 'partner' %}
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-900/50 text-indigo-300 border border-indigo-700">🤝 Partner</span>
+                    {% elif _role == 'qa' %}
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-900/50 text-amber-300 border border-amber-700">🔍 QA</span>
+                    {% elif _role == 'client_admin' %}
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/50 text-blue-300 border border-blue-700">🔧 Client Admin</span>
+                    {% elif _role == 'client_manager' %}
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/50 text-blue-300 border border-blue-700">👤 Manager</span>
+                    {% elif _role == 'client_viewer' %}
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-700/50 text-gray-400 border border-gray-600">👁 Viewer</span>
+                    {% else %}
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-700/50 text-gray-400 border border-gray-600">{{ _role or 'User' }}</span>
+                    {% endif %}
+                </div>
+            </div>
         </div>
 
         <!-- Navigation Links -->
+        {# Role-based nav visibility. Roles: owner, partner, qa, client_admin, client_manager, client_viewer, b2c_user #}
+        {% set role = request.state.user_role|default('') %}
+        {% set is_owner = role == 'owner' %}
+        {% set is_partner = role == 'partner' %}
+        {% set is_qa = role == 'qa' %}
+        {% set is_platform_admin = is_owner or is_partner %}
         <nav class="flex-1 overflow-y-auto sidebar-nav py-3 px-3 space-y-0.5">
-            {# ---------- OPERATIONS ---------- #}
+            {# ---------- OPERATIONS (owner only, except Review/Activity/Users for partner) ---------- #}
+            {% if is_owner or is_partner %}
             <div class="sidebar-group-label px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Operations</div>
 
             <a href="/admin/"
@@ -185,6 +230,28 @@
                 </svg>
                 <span class="sidebar-label">Dashboard</span>
             </a>
+            {% elif role in ('client_admin', 'client_manager') %}
+            <div class="sidebar-group-label px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">My Campaign</div>
+
+            <a href="/admin/"
+               class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
+                      {% if active_nav == 'dashboard' %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z"/>
+                </svg>
+                <span class="sidebar-label">Dashboard</span>
+            </a>
+            {% endif %}
+
+            {% if is_platform_admin or is_qa or role in ('client_admin', 'client_manager') %}
+            <a href="/admin/decision-center"
+               class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
+                      {% if active_nav == 'decision-center' %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5"/>
+                </svg>
+                <span class="sidebar-label">Decision Center</span>
+            </a>
 
             <a href="/admin/review"
                class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
@@ -194,7 +261,9 @@
                 </svg>
                 <span class="sidebar-label">Review Queue</span>
             </a>
+            {% endif %}
 
+            {% if is_owner %}
             <a href="/admin/scrape-queue"
                class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
                       {% if active_nav == 'scrape-queue' %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">
@@ -212,7 +281,9 @@
                 </svg>
                 <span class="sidebar-label">Tasks</span>
             </a>
+            {% endif %}
 
+            {% if is_platform_admin %}
             <a href="/admin/activity"
                class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
                       {% if active_nav == 'activity' %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">
@@ -221,7 +292,8 @@
                 </svg>
                 <span class="sidebar-label">Activity</span>
             </a>
-             <a href="/admin/users"
+
+            <a href="/admin/users"
                class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
                       {% if active_nav == 'users' %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">
                 <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -229,13 +301,13 @@
                 </svg>
                 <span class="sidebar-label">Users</span>
             </a>
-
-            
+            {% endif %}
 
             <!-- Group divider -->
             <div class="my-2 border-t border-slate-700"></div>
 
-            {# ---------- CONTENT ---------- #}
+            {# ---------- CONTENT (owner + partner + qa see all; client roles see limited) ---------- #}
+            {% if is_platform_admin or is_qa %}
             <div class="sidebar-group-label px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Content</div>
 
             <a href="/admin/clients"
@@ -283,14 +355,17 @@
                 </svg>
                 <span class="sidebar-label">Keywords</span>
             </a>
+            {% endif %}
 
-           
             <!-- Group divider -->
             <div class="my-2 border-t border-slate-700"></div>
 
-            {# ---------- MONITORING ---------- #}
+            {# ---------- MONITORING (owner: all; partner: AI Costs + Audit Logs) ---------- #}
+            {% if is_platform_admin %}
             <div class="sidebar-group-label px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Monitoring</div>
+            {% endif %}
 
+            {% if is_owner %}
             <a href="/admin/health"
                class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
                       {% if active_nav == 'health' %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">
@@ -308,7 +383,9 @@
                 </svg>
                 <span class="sidebar-label">Inspector</span>
             </a>
+            {% endif %}
 
+            {% if is_platform_admin %}
             <a href="/admin/ai-costs"
                class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
                       {% if active_nav == 'ai-costs' %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">
@@ -326,11 +403,13 @@
                 </svg>
                 <span class="sidebar-label">Audit Logs</span>
             </a>
+            {% endif %}
 
+            {# ---------- SETTINGS (owner only) ---------- #}
+            {% if is_owner %}
             <!-- Group divider -->
             <div class="my-2 border-t border-slate-700"></div>
 
-            {# ---------- SETTINGS ---------- #}
             <div class="sidebar-group-label px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Settings</div>
 
             <a href="/admin/settings"
@@ -361,6 +440,7 @@
                 </svg>
                 <span class="sidebar-label">Dry Run</span>
             </a>
+            {% endif %}
             {% endif %}
         </nav>
 
