@@ -533,6 +533,36 @@ def generate_comment(
         previous_comments=prev_comments_text,
     )
 
+    # --- Approach Diversity: select and inject approach constraint ---
+    approach_constraint = ""
+    try:
+        from app.services.approach_diversity import select_approach_for_avatar, format_approach_constraint
+        from app.services import karma_tracker
+
+        # Get avatar's karma in this specific subreddit
+        sub_karma_record = karma_tracker.get_karma_in_subreddit(db, avatar.id, thread.subreddit)
+        sub_karma = sub_karma_record.total_karma if sub_karma_record else 0
+
+        selected_approach = select_approach_for_avatar(
+            db,
+            avatar=avatar,
+            subreddit=thread.subreddit,
+            subreddit_karma=sub_karma,
+        )
+        if selected_approach:
+            approach_constraint = format_approach_constraint(selected_approach)
+            logger.info(
+                "Approach diversity: avatar=%s subreddit=r/%s karma=%d → forced approach=%s",
+                avatar.reddit_username, thread.subreddit, sub_karma, selected_approach,
+            )
+    except Exception:
+        # Approach diversity is non-critical — generation proceeds without constraint
+        logger.warning(
+            "Failed to compute approach diversity for avatar %s — proceeding without constraint",
+            avatar.reddit_username,
+        )
+        approach_constraint = ""
+
     # Inject learning context between voice profile and thread content
     if learning_context:
         # Insert learning context after the Voice Profile section in the system prompt
@@ -567,6 +597,10 @@ def generate_comment(
                 system_prompt = system_prompt + "\n\n" + strategy_context
         else:
             system_prompt = system_prompt + "\n\n" + strategy_context
+
+    # Inject approach diversity constraint (after all other context)
+    if approach_constraint:
+        system_prompt = system_prompt + "\n" + approach_constraint
 
     messages = [
         {"role": "system", "content": system_prompt},

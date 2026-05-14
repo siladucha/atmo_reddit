@@ -503,3 +503,175 @@ def scrape_subreddit_shared(self, subreddit_id: str) -> dict:
 
     finally:
         db.close()
+
+
+@celery_app.task(name="scrape_repurpose_all_subreddits")
+def scrape_repurpose_all_subreddits() -> dict:
+    """Scrape evergreen top posts (high upvotes, 1-3 years old) from all active subreddits.
+
+    Repurpose mode: finds high-engagement threads that still receive organic
+    traffic via Google/Reddit search. These are ideal for late comments that
+    get visibility without competing with fresh content.
+
+    Runs weekly (low frequency). Uses sort=top, time_filter=year, min_score threshold.
+    Skips locked threads. Deduplicates globally.
+
+    Returns:
+        Status dict with total results across all subreddits.
+    """
+    db = SessionLocal()
+    try:
+        from app.services.settings import is_scrape_enabled, get_setting_int
+        if not is_scrape_enabled(db):
+            logger.info("scrape_repurpose: scrape_enabled=false, skipping")
+            return {"status": "paused"}
+
+        # Configuration
+        min_score = get_setting_int(db, "repurpose_min_score", 50)
+        limit_per_sub = get_setting_int(db, "repurpose_limit_per_sub", 25)
+
+        # Get all active subreddits (from client assignments)
+        from app.models.subreddit import Subreddit, ClientSubredditAssignment
+        active_subs = (
+            db.query(Subreddit)
+            .join(ClientSubredditAssignment, ClientSubredditAssignment.subreddit_id == Subreddit.id)
+            .join(Client, Client.id == ClientSubredditAssignment.client_id)
+            .filter(
+                Subreddit.is_active.is_(True),
+                ClientSubredditAssignment.is_active.is_(True),
+                Client.is_active.is_(True),
+            )
+            .distinct()
+            .all()
+        )
+
+        if not active_subs:
+            logger.info("scrape_repurpose: no active subreddits found")
+            return {"status": "no_subreddits"}
+
+        # Global dedup set
+        existing_ids = set(
+            row[0]
+            for row in db.query(RedditThread.reddit_native_id).all()
+        )
+
+        total_found = 0
+        total_new = 0
+        subs_processed = 0
+        errors = []
+
+        for sub in active_subs:
+            try:
+                start = time.time()
+                posts = scrape_subreddit(
+                    sub.subreddit_name,
+                    limit=limit_per_sub,
+                    max_age_hours=0,  # No age filter — we want old posts
+                    sort="top",
+                    time_filter="year",
+                    min_score=min_score,
+                )
+
+                new_posts = deduplicate_posts(posts, existing_ids)
+
+                for post in new_posts:
+                    thread = RedditThread(
+                        subreddit_id=sub.id,
+                        type="repurpose",
+                        reddit_native_id=post["reddit_native_id"],
+                        subreddit=post["subreddit"],
+                        post_title=post["post_title"],
+                        post_body=post["post_body"],
+                        comments_json=post["comments_json"],
+                        url=post["url"],
+                        author=post["author"],
+                        score=post["score"],
+                        ups=post["ups"],
+                        downs=post["downs"],
+                        is_locked=post.get("is_locked", False),
+                        scraped_at=datetime.now(timezone.utc),
+                    )
+                    db.add(thread)
+                    existing_ids.add(post["reddit_native_id"])
+
+                db.commit()
+
+                duration_ms = int((time.time() - start) * 1000)
+                total_found += len(posts)
+                total_new += len(new_posts)
+                subs_processed += 1
+
+                # Record scrape log
+                scrape_log = ScrapeLog(
+                    subreddit_id=sub.id,
+                    client_id=None,
+                    subreddit_name=sub.subreddit_name,
+                    posts_found=len(posts),
+                    posts_new=len(new_posts),
+                    duration_ms=duration_ms,
+                    errors=None,
+                )
+                db.add(scrape_log)
+                db.commit()
+
+                if new_posts:
+                    logger.info(
+                        "scrape_repurpose: r/%s — %d found, %d new (min_score=%d, top/year)",
+                        sub.subreddit_name, len(posts), len(new_posts), min_score,
+                    )
+
+            except Exception as e:
+                logger.error("scrape_repurpose: failed for r/%s: %s", sub.subreddit_name, e)
+                errors.append({"subreddit": sub.subreddit_name, "error": str(e)[:200]})
+                db.rollback()
+                continue
+
+        # Record activity event
+        try:
+            message = (
+                f"Repurpose scrape complete: {subs_processed} subs, "
+                f"{total_found} found, {total_new} new (min_score={min_score})"
+            )
+            metadata = {
+                "subs_processed": subs_processed,
+                "total_found": total_found,
+                "total_new": total_new,
+                "min_score": min_score,
+                "time_filter": "year",
+                "errors": len(errors),
+            }
+            record_activity_event(db, "scrape", message, client_id=None, metadata=metadata)
+        except Exception:
+            pass
+
+        # Audit log
+        try:
+            log_system_action(
+                db,
+                action="repurpose_scrape_completed",
+                entity_type="system",
+                details={
+                    "subs_processed": subs_processed,
+                    "total_found": total_found,
+                    "total_new": total_new,
+                    "min_score": min_score,
+                    "errors": errors[:5],
+                },
+            )
+        except Exception:
+            pass
+
+        logger.info(
+            "scrape_repurpose: DONE — %d subs, %d found, %d new, %d errors",
+            subs_processed, total_found, total_new, len(errors),
+        )
+        return {
+            "status": "success",
+            "subs_processed": subs_processed,
+            "total_found": total_found,
+            "total_new": total_new,
+            "errors": len(errors),
+        }
+
+    finally:
+        db.close()

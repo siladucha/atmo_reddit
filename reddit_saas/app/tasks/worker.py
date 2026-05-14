@@ -27,8 +27,8 @@ celery_app.conf.update(
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
-    timezone="UTC",
-    enable_utc=True,
+    timezone="Asia/Jerusalem",
+    enable_utc=False,
     task_track_started=True,
     task_acks_late=True,
     worker_prefetch_multiplier=1,
@@ -73,6 +73,10 @@ celery_app.conf.update(
         "cqs-check-daily": {
             "task": "check_cqs_all_avatars",
             "schedule": crontab(hour=6, minute=30),  # After phase evaluation (06:00), before health check (07:30)
+        },
+        "repurpose-scrape-weekly": {
+            "task": "scrape_repurpose_all_subreddits",
+            "schedule": crontab(hour=3, minute=0, day_of_week="sunday"),  # Weekly, low-traffic time
         },
     },
     # Broker connection resilience

@@ -142,21 +142,26 @@ def scrape_subreddit(
     limit: int = 50,
     max_age_hours: int = 24,
     sort: str = "hot",
+    time_filter: str | None = None,
+    min_score: int = 0,
 ) -> list[dict]:
     """Scrape posts from a subreddit.
 
     Args:
         subreddit_name: Name without r/ prefix (e.g. 'cybersecurity')
         limit: Max posts to fetch
-        max_age_hours: Only return posts newer than this
+        max_age_hours: Only return posts newer than this (0 = no age filter)
         sort: 'hot', 'new', or 'top'
+        time_filter: For sort='top' — 'hour', 'day', 'week', 'month', 'year', 'all'.
+                     Defaults to 'day' if not specified.
+        min_score: Minimum post score (upvotes) to include. 0 = no filter.
 
     Returns:
         List of post dicts with standardized keys.
     """
     logger.info(
-        "REDDIT_API_CALL | action=scrape_subreddit | subreddit=r/%s | sort=%s | limit=%d | max_age_hours=%d",
-        subreddit_name, sort, limit, max_age_hours,
+        "REDDIT_API_CALL | action=scrape_subreddit | subreddit=r/%s | sort=%s | limit=%d | max_age_hours=%d | time_filter=%s | min_score=%d",
+        subreddit_name, sort, limit, max_age_hours, time_filter or "default", min_score,
     )
     start_time = time.time()
 
@@ -165,7 +170,10 @@ def scrape_subreddit(
     reddit = get_reddit_client("scrape_subreddit")
     subreddit = reddit.subreddit(subreddit_name)
 
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
+    # Age cutoff: 0 means no age filter (for repurpose mode)
+    cutoff = None
+    if max_age_hours > 0:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
 
     try:
         if sort == "hot":
@@ -173,7 +181,8 @@ def scrape_subreddit(
         elif sort == "new":
             submissions = subreddit.new(limit=limit)
         elif sort == "top":
-            submissions = subreddit.top(limit=limit, time_filter="day")
+            effective_time_filter = time_filter or "day"
+            submissions = subreddit.top(limit=limit, time_filter=effective_time_filter)
         else:
             submissions = subreddit.hot(limit=limit)
 
@@ -181,6 +190,7 @@ def scrape_subreddit(
         skipped_stickied = 0
         skipped_old = 0
         skipped_locked = 0
+        skipped_low_score = 0
         api_calls_estimate = 1  # Initial listing request
 
         for submission in submissions:
@@ -189,15 +199,21 @@ def scrape_subreddit(
                 skipped_stickied += 1
                 continue
 
-            # Skip posts older than cutoff
-            created_utc = datetime.fromtimestamp(submission.created_utc, tz=timezone.utc)
-            if created_utc < cutoff:
-                skipped_old += 1
-                continue
+            # Skip posts older than cutoff (if age filter is active)
+            if cutoff is not None:
+                created_utc = datetime.fromtimestamp(submission.created_utc, tz=timezone.utc)
+                if created_utc < cutoff:
+                    skipped_old += 1
+                    continue
 
             # Skip locked posts (cannot comment on them)
             if submission.locked:
                 skipped_locked += 1
+                continue
+
+            # Skip posts below minimum score threshold (for repurpose mode)
+            if min_score > 0 and submission.score < min_score:
+                skipped_low_score += 1
                 continue
 
             post = _submission_to_dict(submission)
@@ -210,9 +226,9 @@ def scrape_subreddit(
         logger.info(
             "REDDIT_API_RESULT | action=scrape_subreddit | subreddit=r/%s | "
             "posts_returned=%d | skipped_stickied=%d | skipped_old=%d | skipped_locked=%d | "
-            "est_api_calls=%d | duration_ms=%d",
+            "skipped_low_score=%d | est_api_calls=%d | duration_ms=%d",
             subreddit_name, len(posts), skipped_stickied, skipped_old, skipped_locked,
-            api_calls_estimate, duration_ms,
+            skipped_low_score, api_calls_estimate, duration_ms,
         )
         return posts
 
