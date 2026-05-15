@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, ForeignKey, func
+from sqlalchemy import String, DateTime, ForeignKey, Index, func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,3 +19,7 @@ class AuditLog(Base):
     entity_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    __table_args__ = (
+        Index("ix_audit_log_action_created", "action", created_at.desc()),
+    )

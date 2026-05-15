@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 
 import redis
 import sqlalchemy.exc
+from sqlalchemy import func as sa_func
 
 from app.database import SessionLocal
 from app.models.client import Client
@@ -112,10 +113,12 @@ def queue_tick() -> dict:
         return {"status": "error", "reason": "redis_unavailable"}
 
     # --- Query next stale subreddit from shared registry ---
-    # Query subreddits table, requiring at least one active assignment
-    # where the corresponding client is also active.
+    # Two sources:
+    # 1. Client-assigned subreddits (active client + active assignment)
+    # 2. Hobby/business subreddits of farm avatars (active, not frozen, no client)
     try:
-        candidates = (
+        # Source 1: client-assigned subreddits
+        client_candidates = (
             db.query(
                 Subreddit.id,
                 Subreddit.subreddit_name,
@@ -129,13 +132,64 @@ def queue_tick() -> dict:
                 Client.is_active.is_(True),
             )
             .group_by(Subreddit.id, Subreddit.subreddit_name, Subreddit.last_scraped_at)
-            .order_by(
-                Subreddit.last_scraped_at.asc().nulls_first(),
-                Subreddit.subreddit_name.asc(),
-            )
-            .limit(5)
             .all()
         )
+
+        # Source 2: hobby/business subreddits of farm avatars (no client assigned)
+        from app.models.avatar import Avatar
+        farm_avatars = (
+            db.query(Avatar)
+            .filter(
+                Avatar.active.is_(True),
+                Avatar.is_frozen.is_(False),
+                Avatar.warming_phase > 0,  # Not mentor
+                (Avatar.client_ids.is_(None)) | (Avatar.client_ids == "{}"),
+            )
+            .all()
+        )
+
+        # Collect subreddit names from farm avatars
+        farm_sub_names: set[str] = set()
+        for av in farm_avatars:
+            for raw_list in [av.hobby_subreddits or [], av.business_subreddits or []]:
+                if isinstance(raw_list, list):
+                    for item in raw_list:
+                        if isinstance(item, dict):
+                            name = item.get("subreddit") or item.get("name") or ""
+                        else:
+                            name = str(item)
+                        name = name.strip().replace("r/", "")
+                        if name:
+                            farm_sub_names.add(name.lower())
+
+        # Resolve farm sub names to Subreddit records
+        farm_candidates = []
+        if farm_sub_names:
+            farm_candidates = (
+                db.query(
+                    Subreddit.id,
+                    Subreddit.subreddit_name,
+                    Subreddit.last_scraped_at,
+                )
+                .filter(
+                    Subreddit.is_active.is_(True),
+                    sa_func.lower(Subreddit.subreddit_name).in_(farm_sub_names),
+                )
+                .all()
+            )
+
+        # Merge and deduplicate by subreddit ID
+        seen_ids: set = set()
+        candidates = []
+        for c in client_candidates + farm_candidates:
+            if c.id not in seen_ids:
+                seen_ids.add(c.id)
+                candidates.append(c)
+
+        # Sort: NULL last_scraped_at first, then oldest first
+        candidates.sort(key=lambda c: (c.last_scraped_at is not None, c.last_scraped_at or datetime.min.replace(tzinfo=timezone.utc)))
+        candidates = candidates[:5]
+
     except sqlalchemy.exc.OperationalError as e:
         logger.warning("queue_tick: Database unavailable for queue query: %s", e)
         db.close()

@@ -47,3 +47,16 @@
 1. Smoke-test пайплайна на реальном Reddit API (Task 1.1 в TODO)
 2. Alembic initial migration (Task 2.1)
 3. Pagination + Persona CRUD UI
+
+## Session — May 14, 2026
+
+### Bug Fix
+- Fixed `avatar.voice_profile` → `avatar.voice_profile_md` in `routes/avatar_pipeline.py:779`
+- Caused "Generation failed: 'Avatar' object has no attribute 'voice_profile'" on production
+
+### Audit Task Issued
+- Created `AUDIT_TASK.md` — comprehensive code audit task for Claude Code
+- Scope: all models, services, tasks, routes — cross-reference every attribute access
+- Goal: find ALL attribute mismatches, logic errors, broken references, runtime crashes
+- Status: **PENDING** — waiting for Claude Code execution
+- Command: `claude "Read AUDIT_TASK.md and execute the full audit as described. Be thorough — read every file, cross-reference every attribute access against the models. Output the full report."`

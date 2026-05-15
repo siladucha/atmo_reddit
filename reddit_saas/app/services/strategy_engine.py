@@ -85,13 +85,29 @@ class StrategyEngine:
             .first()
         )
 
-    def get_approved_strategy(self, db: Session, avatar_id: uuid.UUID) -> StrategyDocument | None:
+    def get_approved_strategy(
+        self, db: Session, avatar_id: uuid.UUID, client_id: uuid.UUID | None = None
+    ) -> StrategyDocument | None:
         """Get the approved + current strategy for pipeline use.
 
         Returns None if no strategy is both approved and current.
         Pipeline should only use strategies that have been explicitly approved.
+
+        If client_id is provided, verifies that the avatar is accessible by the
+        client (owned or rented). Returns None with a WARNING log if the avatar
+        is not accessible by the specified client.
+
+        Args:
+            db: SQLAlchemy database session.
+            avatar_id: The avatar whose strategy to load.
+            client_id: Optional client_id to enforce isolation. When provided,
+                       the strategy is only returned if the avatar is accessible
+                       by this client.
+
+        Returns:
+            The approved StrategyDocument, or None if not found or access denied.
         """
-        return (
+        strategy = (
             db.query(StrategyDocument)
             .filter(
                 StrategyDocument.avatar_id == avatar_id,
@@ -100,6 +116,37 @@ class StrategyEngine:
             )
             .first()
         )
+
+        if strategy is None:
+            return None
+
+        # If client_id provided, verify avatar accessibility
+        if client_id is not None:
+            from app.models.avatar import Avatar
+            from app.models.client import Client
+            from app.services.isolation import _avatar_accessible_by_client
+
+            avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+            client = db.query(Client).filter(Client.id == client_id).first()
+
+            if avatar is None or client is None:
+                logger.warning(
+                    "Strategy loading: avatar_id=%s or client_id=%s not found — skipping strategy",
+                    avatar_id,
+                    client_id,
+                )
+                return None
+
+            if not _avatar_accessible_by_client(db, avatar, client):
+                logger.warning(
+                    "Strategy isolation: avatar %s (id=%s) not accessible by client %s — skipping strategy",
+                    avatar.reddit_username,
+                    avatar_id,
+                    client_id,
+                )
+                return None
+
+        return strategy
 
     def get_strategy_history(
         self, db: Session, avatar_id: uuid.UUID, limit: int = 10

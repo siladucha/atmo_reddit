@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, Text, DateTime, func
+from sqlalchemy import Boolean, Integer, String, Text, DateTime, func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -25,6 +25,11 @@ class Client(Base):
     brand_domain: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    # RBAC & plan columns
+    max_avatars: Mapped[int] = mapped_column(Integer, default=3, server_default="3")
+    plan_type: Mapped[str] = mapped_column(String(20), default="starter", server_default="starter")
+    draft_approval_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     # Relationships
     subreddits = relationship("ClientSubreddit", back_populates="client")  # legacy, kept for migration

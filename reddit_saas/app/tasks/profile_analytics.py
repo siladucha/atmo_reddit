@@ -16,6 +16,7 @@ from sqlalchemy import or_
 from app.database import SessionLocal
 from app.models.avatar import Avatar
 from app.models.avatar_profile_snapshot import AvatarProfileSnapshot
+from app.services.audit import log_system_action
 from app.services.reddit_freshness import (
     profile_analytics_batch_limit,
     profile_analytics_freshness_hours,
@@ -134,6 +135,16 @@ def snapshot_profile_analytics_all_avatars(delay_seconds: float = 3.0) -> dict:
 
             if delay_seconds > 0:
                 time.sleep(delay_seconds)
+
+        try:
+            log_system_action(
+                db,
+                action="profile_analytics_batch_completed",
+                entity_type="avatar",
+                details=stats,
+            )
+        except Exception as e:
+            logger.error(f"Failed to log profile_analytics_batch_completed audit entry: {e}")
 
         return stats
     finally:

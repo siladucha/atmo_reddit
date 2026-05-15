@@ -442,6 +442,9 @@ def build_avatar_view(
     out.update({
         "email_address": avatar.email_address,
         "active_flag": avatar.active,
+        "is_frozen": avatar.is_frozen,
+        "freeze_reason": avatar.freeze_reason,
+        "frozen_at": avatar.frozen_at,
         "voice_profile_md": avatar.voice_profile_md,
         "tone_principles": avatar.tone_principles,
         "speech_patterns": avatar.speech_patterns,

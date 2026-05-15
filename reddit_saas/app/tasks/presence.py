@@ -3,6 +3,7 @@
 import logging
 
 from app.database import SessionLocal
+from app.services.audit import log_system_action
 from app.tasks.worker import celery_app
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,24 @@ def scan_avatar_presence_task(self, avatar_id: str):
         from app.services.presence import scan_avatar_presence
 
         records = scan_avatar_presence(db, avatar_uuid)
+
+        # Record audit log entry for presence scan completion
+        try:
+            log_system_action(
+                db,
+                action="presence_scan_completed",
+                entity_type="avatar",
+                entity_id=avatar_uuid,
+                details={
+                    "avatar_id": str(avatar_uuid),
+                    "subreddits_found": len(records),
+                },
+            )
+        except Exception:
+            logger.warning(
+                "scan_avatar_presence_task: failed to record audit log | avatar_id=%s",
+                avatar_id,
+            )
 
         logger.info(
             "scan_avatar_presence_task: completed | avatar_id=%s | subreddits=%d",

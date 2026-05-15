@@ -59,8 +59,10 @@
                     <option value="client_viewer">👁️ Client Viewer</option>
                     <option value="b2c_user">🎯 B2C User</option>
                     <option value="qa">🔍 QA</option>
+                    {% if request.state.user_role == 'owner' %}
                     <option value="partner">🤝 Partner</option>
                     <option value="owner">👑 Owner</option>
+                    {% endif %}
                 </select>
             </div>
             <div class="flex-1 min-w-[200px]">

@@ -12,6 +12,7 @@ from app.database import get_db
 from app.dependencies.admin import require_superuser
 from app.models.avatar import Avatar
 from app.models.user import User
+from app.models.user_role import UserRole
 from app.services.safety import get_avatar_health, quarantine_avatar
 
 logger = logging.getLogger(__name__)

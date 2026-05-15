@@ -16,9 +16,22 @@ All primary keys are UUIDs unless noted. All `*_id` foreign keys reference the p
 | `email` | String(255), UNIQUE, INDEX | |
 | `hashed_password` | String(255) | bcrypt |
 | `full_name` | String(255), nullable | |
+| `role` | String(20), INDEX | `owner` \| `partner` \| `client_admin` \| `client_manager` \| `client_viewer` \| `b2c_user` |
+| `client_id` | UUID, FK → `clients.id`, nullable | For client-scoped users |
 | `is_active` | Boolean, default `true` | |
-| `is_superuser` | Boolean, default `false` | |
+| `is_superuser` | Boolean, default `false` | Legacy — maps to `owner` role |
 | `created_at` | timestamptz | |
+
+### `user_client_assignments` — `app/models/user_client_assignment.py`
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID, PK | |
+| `user_id` | UUID, FK → `users.id`, CASCADE | |
+| `client_id` | UUID, FK → `clients.id`, CASCADE | |
+| `role` | String(20) | Mirrors user role for this client |
+| `is_active` | Boolean, default `true` | |
+| `created_at` | timestamptz | |
+| | UNIQUE(user_id, client_id) | |
 
 ---
 
@@ -40,6 +53,9 @@ One row per agency client. Stores everything the AI needs to write in their voic
 | `case_studies` | Text, nullable | |
 | `icp_profiles` | Text, nullable | |
 | `keywords` | JSONB, nullable | scoring keywords with priority |
+| `max_avatars` | Integer, default `3` | Plan limit on avatar count |
+| `plan_type` | String(20), default `'starter'` | seed \| starter \| growth \| scale \| agency |
+| `draft_approval_enabled` | Boolean, default `false` | Allows client_viewer to approve drafts |
 | `is_active` | Boolean, default `true` | |
 | `created_at` | timestamptz | |
 
@@ -88,8 +104,42 @@ Operational Reddit account layer. One row per Reddit account; one avatar can ser
 | `karma_post` | Integer, default `0` | |
 | `karma_comment` | Integer, default `0` | |
 | `is_shadowbanned` | Boolean, default `false` | |
+| `is_frozen` | Boolean, default `false` | |
+| `freeze_reason` | Text, nullable | |
+| `frozen_at` | timestamptz, nullable | |
+| `warming_phase` | Integer, default `1` | 0=mentor, 1-3=warming phases |
+| `is_farm_avatar` | Boolean, default `false` | Available for rental |
+| `rent_price` | Numeric(10,2), nullable | |
 | `last_health_check` | timestamptz, nullable | |
 | `created_at` | timestamptz | |
+
+### `avatar_rentals` — `app/models/avatar_rental.py`
+Farm avatar rentals — clients can rent pre-warmed avatars.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID, PK | |
+| `avatar_id` | UUID, FK → `avatars.id`, CASCADE | |
+| `client_id` | UUID, FK → `clients.id`, CASCADE | |
+| `is_active` | Boolean, default `true` | |
+| `rented_at` | timestamptz | |
+| `expires_at` | timestamptz, nullable | null = no expiry |
+| `price` | Numeric(10,2), nullable | |
+| | UNIQUE(avatar_id, client_id) | |
+
+### `avatar_assignments` — `app/models/avatar_assignment.py` [PLANNED]
+Links avatar owners (users) to avatars they manage for mobile posting.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID, PK | |
+| `user_id` | UUID, FK → `users.id`, CASCADE | |
+| `avatar_id` | UUID, FK → `avatars.id`, CASCADE | |
+| `role` | String(50), default `'owner'` | `owner` \| `viewer` |
+| `assigned_at` | timestamptz | |
+| `assigned_by` | UUID, FK → `users.id`, nullable | Admin who made assignment |
+| `is_active` | Boolean, default `true` | |
+| | UNIQUE(user_id, avatar_id) | |
 
 ---
 
@@ -137,6 +187,9 @@ Scraped Reddit posts. Used by both professional and hobby pipelines.
 | `engagement_mode` | String(100), nullable | `bullseye` \| `helpful_peer` \| `karma_only` |
 | `status` | String(50), default `'pending'` | `pending` \| `approved` \| `rejected` \| `posted` |
 | `posted_at` | timestamptz, nullable | |
+| `posted_by` | UUID, FK → `users.id`, nullable | Who confirmed posting (mobile app) |
+| `posted_source` | String(20), nullable | `web` \| `mobile_app` |
+| `posting_speed_seconds` | Integer, nullable | Seconds from approved to posted |
 | `created_at` | timestamptz | |
 
 ### `post_drafts` — `app/models/post_draft.py`
@@ -152,6 +205,9 @@ Scraped Reddit posts. Used by both professional and hobby pipelines.
 | `source_url` | Text, nullable | |
 | `status` | String(50), default `'pending'` | `pending` \| `approved` \| `rejected` \| `posted` |
 | `posted_at` | timestamptz, nullable | |
+| `posted_by` | UUID, FK → `users.id`, nullable | Who confirmed posting (mobile app) |
+| `posted_source` | String(20), nullable | `web` \| `mobile_app` |
+| `posting_speed_seconds` | Integer, nullable | Seconds from approved to posted |
 | `created_at` | timestamptz | |
 
 ### `hobby_subreddits` — `app/models/hobby.py`
@@ -207,3 +263,32 @@ Storage for hobby pipeline scrapes + their AI-generated comments. (Distinct from
 - **No `news_scrape` table.** Post creation sources material directly from `reddit_threads`. The original Ori workflow had a separate scraper; we collapsed it.
 - **No `parallel_job_results` table.** That was an n8n infrastructure artifact; Celery handles parallelism natively.
 - **Avatar / hobby subreddits** are stored both as a JSONB list on `avatars.hobby_subreddits` (which subs an avatar follows) AND as scraped content rows in the `hobby_subreddits` table (one row per scraped post). Same name, different roles.
+- **RBAC tables** (May 2026): `user_client_assignments` + `avatar_rentals` + extended columns on `users`, `clients`, `avatars`. Full permission matrix in `docs/permission_matrix.md`.
+- **Mobile posting tables** (PLANNED): `avatar_assignments` + `device_registrations` + `posting_events` + new columns on `comment_drafts`/`post_drafts` (`posted_by`, `posted_source`, `posting_speed_seconds`). See `.kiro/specs/mobile-posting-app/design.md`.
+
+## Planned Tables (Mobile Posting App)
+
+### `device_registrations` [PLANNED]
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID, PK | |
+| `user_id` | UUID, FK → `users.id`, CASCADE | |
+| `fcm_token` | String(500), UNIQUE | Firebase Cloud Messaging token |
+| `device_type` | String(20) | `ios` \| `android` |
+| `device_name` | String(255), nullable | |
+| `is_active` | Boolean, default `true` | |
+| `registered_at` | timestamptz | |
+| `last_seen_at` | timestamptz | |
+
+### `posting_events` [PLANNED]
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID, PK | |
+| `draft_id` | UUID | comment_draft or post_draft ID |
+| `draft_type` | String(20) | `comment` \| `post` |
+| `user_id` | UUID, FK → `users.id` | |
+| `avatar_id` | UUID, FK → `avatars.id` | |
+| `action` | String(50) | `tap_post` \| `confirm_posted` \| `skip` \| `reminder_sent` |
+| `device_type` | String(20), nullable | |
+| `ip_address` | String(45), nullable | |
+| `created_at` | timestamptz | |

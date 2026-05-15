@@ -819,3 +819,327 @@ def get_schedule_with_history(db: Session, now: datetime | None = None) -> list[
                 entry["prev_run_message"] = None
 
     return schedule
+
+
+# ---------------------------------------------------------------------------
+# Client Manager dashboard metrics
+# ---------------------------------------------------------------------------
+
+
+def get_client_manager_metrics(db: Session, client_id: uuid.UUID) -> dict[str, Any]:
+    """Aggregate metrics for a single client — used by client_manager/client_admin dashboard."""
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday())  # Monday
+
+    subreddits_count = (
+        db.query(sa_func.count(ClientSubredditAssignment.id))
+        .filter(
+            ClientSubredditAssignment.client_id == client_id,
+            ClientSubredditAssignment.is_active.is_(True),
+        )
+        .scalar()
+    ) or 0
+
+    avatars_count = (
+        db.query(sa_func.count(Avatar.id))
+        .filter(Avatar.active.is_(True), Avatar.client_ids.any(str(client_id)))
+        .scalar()
+    ) or 0
+
+    threads_count = (
+        db.query(sa_func.count(RedditThread.id))
+        .filter(RedditThread.client_id == client_id)
+        .scalar()
+    ) or 0
+
+    engage_count = (
+        db.query(sa_func.count(RedditThread.id))
+        .filter(RedditThread.client_id == client_id, RedditThread.tag == "engage")
+        .scalar()
+    ) or 0
+
+    pending_comments = (
+        db.query(sa_func.count(CommentDraft.id))
+        .filter(CommentDraft.client_id == client_id, CommentDraft.status == "pending")
+        .scalar()
+    ) or 0
+
+    # Today's metrics
+    today_threads = (
+        db.query(sa_func.count(RedditThread.id))
+        .filter(RedditThread.client_id == client_id, RedditThread.created_at >= today_start)
+        .scalar()
+    ) or 0
+
+    today_scored = (
+        db.query(sa_func.count(RedditThread.id))
+        .filter(
+            RedditThread.client_id == client_id,
+            RedditThread.created_at >= today_start,
+            RedditThread.tag.isnot(None),
+        )
+        .scalar()
+    ) or 0
+
+    today_generated = (
+        db.query(sa_func.count(CommentDraft.id))
+        .filter(CommentDraft.client_id == client_id, CommentDraft.created_at >= today_start)
+        .scalar()
+    ) or 0
+
+    today_approved = (
+        db.query(sa_func.count(CommentDraft.id))
+        .filter(
+            CommentDraft.client_id == client_id,
+            CommentDraft.status.in_(["approved", "posted"]),
+            CommentDraft.created_at >= today_start,
+        )
+        .scalar()
+    ) or 0
+
+    today_posted = (
+        db.query(sa_func.count(CommentDraft.id))
+        .filter(
+            CommentDraft.client_id == client_id,
+            CommentDraft.status == "posted",
+            CommentDraft.posted_at >= today_start,
+        )
+        .scalar()
+    ) or 0
+
+    # This week's metrics
+    week_generated = (
+        db.query(sa_func.count(CommentDraft.id))
+        .filter(CommentDraft.client_id == client_id, CommentDraft.created_at >= week_start)
+        .scalar()
+    ) or 0
+
+    week_approved = (
+        db.query(sa_func.count(CommentDraft.id))
+        .filter(
+            CommentDraft.client_id == client_id,
+            CommentDraft.status.in_(["approved", "posted"]),
+            CommentDraft.created_at >= week_start,
+        )
+        .scalar()
+    ) or 0
+
+    week_posted = (
+        db.query(sa_func.count(CommentDraft.id))
+        .filter(
+            CommentDraft.client_id == client_id,
+            CommentDraft.status == "posted",
+            CommentDraft.created_at >= week_start,
+        )
+        .scalar()
+    ) or 0
+
+    week_approval_rate = round((week_approved / week_generated * 100) if week_generated > 0 else 0)
+
+    return {
+        "subreddits_count": subreddits_count,
+        "avatars_count": avatars_count,
+        "threads_count": threads_count,
+        "engage_count": engage_count,
+        "pending_comments": pending_comments,
+        "today_threads": today_threads,
+        "today_scored": today_scored,
+        "today_generated": today_generated,
+        "today_approved": today_approved,
+        "today_posted": today_posted,
+        "week_generated": week_generated,
+        "week_approved": week_approved,
+        "week_posted": week_posted,
+        "week_approval_rate": week_approval_rate,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Client Manager dashboard HTMX panel data
+# ---------------------------------------------------------------------------
+
+
+def get_client_recent_drafts(
+    db: Session, client_id: uuid.UUID, limit: int = 10
+) -> list[dict[str, Any]]:
+    """Recent comment drafts for a client — for the client manager dashboard."""
+    now = datetime.now(timezone.utc)
+
+    drafts = (
+        db.query(CommentDraft)
+        .filter(CommentDraft.client_id == client_id)
+        .order_by(desc(CommentDraft.created_at))
+        .limit(limit)
+        .all()
+    )
+
+    result = []
+    for d in drafts:
+        # Get thread title
+        thread = db.query(RedditThread).filter(RedditThread.id == d.thread_id).first()
+        # Get avatar name
+        avatar = db.query(Avatar).filter(Avatar.id == d.avatar_id).first() if d.avatar_id else None
+
+        result.append({
+            "id": d.id,
+            "status": d.status,
+            "thread_title": (thread.post_title[:60] + "…") if thread and len(thread.post_title) > 60 else (thread.post_title if thread else "Unknown"),
+            "avatar_name": avatar.reddit_username if avatar else "—",
+            "subreddit": thread.subreddit if thread else "—",
+            "time_ago": _human_since(d.created_at, now),
+        })
+
+    return result
+
+
+def get_client_activity_feed(
+    db: Session, client_id: uuid.UUID, limit: int = 15
+) -> list[dict[str, Any]]:
+    """Recent activity events for a client — for the client manager dashboard."""
+    now = datetime.now(timezone.utc)
+
+    events = (
+        db.query(ActivityEvent)
+        .filter(ActivityEvent.client_id == client_id)
+        .order_by(desc(ActivityEvent.created_at))
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        {
+            "event_type": e.event_type,
+            "message": e.message,
+            "time_ago": _human_since(e.created_at, now),
+        }
+        for e in events
+    ]
+
+
+def get_client_avatars_summary(
+    db: Session, client_id: uuid.UUID
+) -> list[dict[str, Any]]:
+    """Avatar summary for a client — for the client manager dashboard."""
+    avatars = (
+        db.query(Avatar)
+        .filter(Avatar.active.is_(True), Avatar.client_ids.any(str(client_id)))
+        .order_by(Avatar.reddit_username)
+        .all()
+    )
+
+    result = []
+    for a in avatars:
+        # Determine health status
+        health = "healthy"
+        if hasattr(a, "health_status") and a.health_status:
+            health = a.health_status
+        elif a.is_frozen:
+            health = "frozen"
+
+        # Get total karma from subreddit_karma
+        total_karma = (
+            db.query(sa_func.sum(SubredditKarma.comment_karma))
+            .filter(SubredditKarma.avatar_id == a.id)
+            .scalar()
+        ) or 0
+
+        result.append({
+            "id": a.id,
+            "username": a.reddit_username,
+            "phase": a.warming_phase,
+            "karma": total_karma,
+            "is_frozen": a.is_frozen,
+            "health": health,
+        })
+
+    return result
+
+
+def get_client_subreddits_summary(
+    db: Session, client_id: uuid.UUID
+) -> list[dict[str, Any]]:
+    """Subreddit summary for a client — for the client manager dashboard."""
+    now = datetime.now(timezone.utc)
+
+    assignments = (
+        db.query(ClientSubredditAssignment)
+        .filter(
+            ClientSubredditAssignment.client_id == client_id,
+            ClientSubredditAssignment.is_active.is_(True),
+        )
+        .all()
+    )
+
+    result = []
+    for a in assignments:
+        sub = db.query(Subreddit).filter(Subreddit.id == a.subreddit_id).first()
+        if not sub:
+            continue
+
+        # Determine freshness
+        freshness = "red"
+        if sub.last_scraped_at:
+            age = now - (sub.last_scraped_at.replace(tzinfo=timezone.utc) if sub.last_scraped_at.tzinfo is None else sub.last_scraped_at)
+            if age <= timedelta(hours=24):
+                freshness = "green"
+            elif age <= timedelta(hours=72):
+                freshness = "yellow"
+
+        result.append({
+            "name": sub.subreddit_name,
+            "category": a.type or "professional",
+            "freshness": freshness,
+            "last_scraped": _human_since(sub.last_scraped_at, now) if sub.last_scraped_at else "Never",
+        })
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Partner dashboard — AI costs summary
+# ---------------------------------------------------------------------------
+
+
+def get_ai_costs_summary(db: Session) -> dict[str, Any]:
+    """AI costs summary for the current month — for partner dashboard."""
+    from app.models.ai_usage import AIUsageLog
+
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    total_cost = (
+        db.query(sa_func.sum(AIUsageLog.cost_usd))
+        .filter(AIUsageLog.created_at >= month_start)
+        .scalar()
+    ) or 0.0
+
+    total_calls = (
+        db.query(sa_func.count(AIUsageLog.id))
+        .filter(AIUsageLog.created_at >= month_start)
+        .scalar()
+    ) or 0
+
+    # Breakdown by model
+    model_rows = (
+        db.query(
+            AIUsageLog.model,
+            sa_func.sum(AIUsageLog.cost_usd).label("cost"),
+            sa_func.count(AIUsageLog.id).label("calls"),
+        )
+        .filter(AIUsageLog.created_at >= month_start)
+        .group_by(AIUsageLog.model)
+        .order_by(sa_func.sum(AIUsageLog.cost_usd).desc())
+        .all()
+    )
+
+    by_model = [
+        {"name": row.model or "unknown", "cost": float(row.cost or 0), "calls": row.calls}
+        for row in model_rows
+    ]
+
+    return {
+        "total_cost": float(total_cost),
+        "total_calls": total_calls,
+        "by_model": by_model,
+    }

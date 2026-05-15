@@ -1,0 +1,187 @@
+{% extends "admin_base.html" %}
+{% block title %}Dashboard — {{ client.client_name }}{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">{{ client.client_name }}</span> / <span class="text-white">Dashboard</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-semibold text-white">{{ client.client_name }}</h1>
+            {% if client.brand_name %}
+            <p class="text-sm text-gray-400 mt-0.5">{{ client.brand_name }}</p>
+            {% endif %}
+        </div>
+        {% if can_review %}
+        <a href="/admin/review?client_id={{ client.id }}"
+           class="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-500 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Review Queue
+        </a>
+        {% endif %}
+    </div>
+
+    {% set guide_title = "📖 Client Dashboard" %}
+    {% set guide_content %}
+    <p>Your campaign overview. Top metrics show current pipeline status for your brand.
+       Below you'll see recent activity, avatar performance, and pending items that need your attention.</p>
+    {% endset %}
+    {% include "partials/page_guide.html" %}
+
+    <!-- Top Metrics -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
+            <div class="text-xs text-gray-400 mb-1">Subreddits</div>
+            <div class="text-2xl font-mono font-semibold text-white">{{ metrics.subreddits_count }}</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
+            <div class="text-xs text-gray-400 mb-1">Avatars</div>
+            <div class="text-2xl font-mono font-semibold text-white">{{ metrics.avatars_count }}</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
+            <div class="text-xs text-gray-400 mb-1">Threads Found</div>
+            <div class="text-2xl font-mono font-semibold text-white">{{ metrics.threads_count }}</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
+            <div class="text-xs text-gray-400 mb-1">Engage</div>
+            <div class="text-2xl font-mono font-semibold text-emerald-400">{{ metrics.engage_count }}</div>
+        </div>
+        <a href="/admin/review?client_id={{ client.id }}"
+           class="bg-dark-steel rounded-lg p-4 border {% if metrics.pending_comments > 0 %}border-amber-600 hover:border-amber-500{% else %}border-slate-700 hover:border-slate-500{% endif %} transition-colors block">
+            <div class="text-xs text-gray-400 mb-1">Pending Review</div>
+            <div class="flex items-baseline gap-2">
+                <div class="text-2xl font-mono font-semibold {% if metrics.pending_comments > 0 %}text-amber-400{% else %}text-white{% endif %}">{{ metrics.pending_comments }}</div>
+                {% if metrics.pending_comments > 0 %}
+                <span class="text-[10px] text-amber-300">action needed</span>
+                {% endif %}
+            </div>
+        </a>
+    </div>
+
+    <!-- Today's Activity -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 px-4 py-3 mb-6">
+        <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <span class="text-xs text-gray-500 uppercase tracking-wider font-medium">Today</span>
+            <div class="flex items-center gap-1">
+                <span class="text-xs text-gray-400">Scraped</span>
+                <span class="text-sm font-mono font-medium text-white">{{ metrics.today_threads }}</span>
+            </div>
+            <div class="flex items-center gap-1">
+                <span class="text-xs text-gray-400">Scored</span>
+                <span class="text-sm font-mono font-medium text-white">{{ metrics.today_scored }}</span>
+            </div>
+            <div class="flex items-center gap-1">
+                <span class="text-xs text-gray-400">Generated</span>
+                <span class="text-sm font-mono font-medium text-white">{{ metrics.today_generated }}</span>
+            </div>
+            <div class="flex items-center gap-1">
+                <span class="text-xs text-gray-400">Approved</span>
+                <span class="text-sm font-mono font-medium text-green-400">{{ metrics.today_approved }}</span>
+            </div>
+            <div class="flex items-center gap-1">
+                <span class="text-xs text-gray-400">Posted</span>
+                <span class="text-sm font-mono font-medium text-indigo-400">{{ metrics.today_posted }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Two-column layout -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Main content -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Recent Drafts -->
+            <section class="bg-dark-steel rounded-lg border border-slate-700">
+                <header class="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+                    <h3 class="text-sm font-semibold text-gray-200">Recent Drafts</h3>
+                    <a href="/admin/review?client_id={{ client.id }}" class="text-xs text-indigo-400 hover:text-indigo-300">View all →</a>
+                </header>
+                <div id="recent-drafts-panel"
+                     hx-get="/admin/dashboard/client-drafts?client_id={{ client.id }}"
+                     hx-trigger="load, every 60s"
+                     hx-swap="innerHTML"
+                     class="p-4">
+                    <p class="text-gray-500 text-xs">Loading…</p>
+                </div>
+            </section>
+
+            <!-- Activity Feed -->
+            <section class="bg-dark-steel rounded-lg border border-slate-700">
+                <header class="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+                    <h3 class="text-sm font-semibold text-gray-200">Recent Activity</h3>
+                    <button class="text-xs text-gray-400 hover:text-white"
+                            hx-get="/admin/dashboard/client-activity?client_id={{ client.id }}"
+                            hx-target="#client-activity-panel"
+                            hx-swap="innerHTML">↻ refresh</button>
+                </header>
+                <div id="client-activity-panel"
+                     hx-get="/admin/dashboard/client-activity?client_id={{ client.id }}"
+                     hx-trigger="load"
+                     hx-swap="innerHTML"
+                     class="p-4">
+                    <p class="text-gray-500 text-xs">Loading…</p>
+                </div>
+            </section>
+        </div>
+
+        <!-- Side panels -->
+        <div class="space-y-6">
+            <!-- Avatars Overview -->
+            <section class="bg-dark-steel rounded-lg border border-slate-700">
+                <header class="px-4 py-3 border-b border-slate-700">
+                    <h3 class="text-sm font-semibold text-gray-200">Avatars</h3>
+                </header>
+                <div id="client-avatars-panel"
+                     hx-get="/admin/dashboard/client-avatars?client_id={{ client.id }}"
+                     hx-trigger="load"
+                     hx-swap="innerHTML"
+                     class="p-4">
+                    <p class="text-gray-500 text-xs">Loading…</p>
+                </div>
+            </section>
+
+            <!-- Subreddits -->
+            <section class="bg-dark-steel rounded-lg border border-slate-700">
+                <header class="px-4 py-3 border-b border-slate-700">
+                    <h3 class="text-sm font-semibold text-gray-200">Subreddits</h3>
+                </header>
+                <div id="client-subreddits-panel"
+                     hx-get="/admin/dashboard/client-subreddits?client_id={{ client.id }}"
+                     hx-trigger="load"
+                     hx-swap="innerHTML"
+                     class="p-4">
+                    <p class="text-gray-500 text-xs">Loading…</p>
+                </div>
+            </section>
+
+            <!-- Weekly Stats -->
+            <section class="bg-dark-steel rounded-lg border border-slate-700">
+                <header class="px-4 py-3 border-b border-slate-700">
+                    <h3 class="text-sm font-semibold text-gray-200">This Week</h3>
+                </header>
+                <div class="p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-gray-400">Comments Generated</span>
+                        <span class="text-sm font-mono text-white">{{ metrics.week_generated }}</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-gray-400">Comments Approved</span>
+                        <span class="text-sm font-mono text-green-400">{{ metrics.week_approved }}</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-gray-400">Comments Posted</span>
+                        <span class="text-sm font-mono text-indigo-400">{{ metrics.week_posted }}</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-gray-400">Approval Rate</span>
+                        <span class="text-sm font-mono {% if metrics.week_approval_rate >= 70 %}text-green-400{% elif metrics.week_approval_rate >= 40 %}text-amber-400{% else %}text-red-400{% endif %}">{{ metrics.week_approval_rate }}%</span>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+{% endblock %}

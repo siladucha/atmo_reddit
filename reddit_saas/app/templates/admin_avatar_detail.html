@@ -2,91 +2,40 @@
 {% block title %}Avatar: u/{{ avatar.reddit_username }}{% endblock %}
 
 {% block breadcrumbs %}
-<nav class="text-sm text-gray-400">
-    <a href="/admin/" class="hover:text-white">Admin</a>
-    <span class="mx-2 text-gray-600">/</span>
-    <a href="/admin/avatars" class="hover:text-white">Avatars</a>
-    <span class="mx-2 text-gray-600">/</span>
-    <span class="text-white">u/{{ avatar.reddit_username }}</span>
+<nav class="text-sm text-gray-400 truncate max-w-full">
+    <a href="/admin/avatars" class="hover:text-white">← Avatars</a>
+    <span class="mx-2 text-gray-600 hidden sm:inline">/</span>
+    <span class="text-white truncate inline-block max-w-[180px] sm:max-w-none align-bottom">u/{{ avatar.reddit_username }}</span>
 </nav>
 {% endblock %}
 
-{% block export_button %}
-<div class="relative" id="export-dropdown">
-    <button type="button"
-            onclick="document.getElementById('export-menu').classList.toggle('hidden')"
-            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium
-                   bg-slate-700 hover:bg-slate-600 text-gray-300 hover:text-white border border-slate-600
-                   transition-colors"
-            title="Export avatar data">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                  d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
-        </svg>
-        <span>Export</span>
-        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-        </svg>
-    </button>
-    <div id="export-menu"
-         class="hidden absolute right-0 mt-2 w-64 rounded-lg bg-slate-800 border border-slate-600 shadow-xl z-50 py-1">
-        <a href="/export/avatars/{{ avatar.id }}/report.md"
-           class="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:bg-slate-700 hover:text-white border-b border-slate-700">
-            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
-            </svg>
-            <div>
-                <div class="font-medium">Client Report (.md)</div>
-                <div class="text-[10px] text-gray-500">Оценки, статистика, рекомендации</div>
-            </div>
-        </a>
-        <a href="/export/avatars/{{ avatar.id }}/report"
-           class="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:bg-slate-700 hover:text-white border-b border-slate-700">
-            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
-            </svg>
-            <div>
-                <div>Full Data (.json)</div>
-                <div class="text-[10px] text-gray-500">Все данные + комментарии</div>
-            </div>
-        </a>
-        <a href="/export/avatars/{{ avatar.id }}"
-           class="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:bg-slate-700 hover:text-white">
-            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5"/>
-            </svg>
-            <div>
-                <div>Raw JSON</div>
-                <div class="text-[10px] text-gray-500">Технический экспорт</div>
-            </div>
-        </a>
-    </div>
-</div>
-<script>
-document.addEventListener('click', function(e) {
-    var dd = document.getElementById('export-dropdown');
-    var menu = document.getElementById('export-menu');
-    if (dd && menu && !dd.contains(e.target)) menu.classList.add('hidden');
-});
-</script>
-{% endblock %}
+{# Export dropdown intentionally not overridden — it lives in the Actions tab #}
+
+{% set badge_classes = {
+    'purple': 'bg-purple-900/40 text-purple-300 border-purple-700',
+    'green':  'bg-green-900/40 text-green-300 border-green-700',
+    'blue':   'bg-blue-900/40 text-blue-300 border-blue-700',
+    'amber':  'bg-amber-900/40 text-amber-300 border-amber-700',
+    'red':    'bg-red-900/40 text-red-300 border-red-700',
+    'slate':  'bg-slate-800/60 text-gray-300 border-slate-600'
+} %}
 
 {% block content %}
 <div class="space-y-6">
 
     <!-- Avatar Header -->
-    <div class="flex items-center justify-between">
-        <div class="flex items-center gap-4">
+    <div class="flex items-center justify-between gap-4 flex-wrap">
+        <div class="flex items-center gap-4 min-w-0">
             {% if health.reddit_icon_url %}
-            <img src="{{ health.reddit_icon_url }}" alt="avatar" class="w-12 h-12 rounded-full border border-slate-600">
+            <img src="{{ health.reddit_icon_url }}" alt="avatar" class="w-12 h-12 rounded-full border border-slate-600 flex-shrink-0">
             {% else %}
-            <div class="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center text-gray-400 text-lg font-bold">
+            <div class="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center text-gray-400 text-lg font-bold flex-shrink-0">
                 {{ avatar.reddit_username[0]|upper }}
             </div>
             {% endif %}
-            <div>
-                <h1 class="text-2xl font-semibold text-white">u/{{ avatar.reddit_username }}</h1>
-                <div class="flex items-center gap-3 mt-1">
+            <div class="min-w-0">
+                <h1 class="text-2xl font-semibold text-white truncate">u/{{ avatar.reddit_username }}</h1>
+                <div class="flex items-center gap-2 mt-1 flex-wrap">
                     {% if avatar.active %}
                     <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-green-900/50 text-green-400 border border-green-700">
                         <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>
@@ -107,1371 +56,1694 @@ document.addEventListener('click', function(e) {
                 </div>
             </div>
         </div>
-        <!-- Refresh All Button -->
         <div class="flex items-center gap-2">
             <a href="/admin/avatars/{{ avatar.id }}/refresh?force=1"
-               class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors bg-indigo-700 hover:bg-indigo-600 text-white border border-indigo-600">
+               class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-indigo-700 hover:bg-indigo-600 text-white border border-indigo-600">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                           d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Refresh All
-            </a>
-            <a href="/admin/avatars/{{ avatar.id }}"
-               class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-700 hover:bg-slate-600 text-gray-200 border border-slate-600"
-               title="Reload page">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
+                <span class="hidden sm:inline">Refresh</span>
             </a>
         </div>
     </div>
 
-    <div class="sticky top-0 z-10 -mx-1 bg-slate-night/95 py-2 backdrop-blur">
-        <div class="flex flex-wrap gap-1 rounded-lg border border-slate-700 bg-dark-steel p-1">
+    <!-- Critical Signal badges + tab nav (sticky) -->
+    <div class="sticky top-0 z-10 -mx-1 bg-slate-night/95 py-2 backdrop-blur space-y-2">
+        <!-- Signal badges row -->
+        <div class="flex flex-wrap gap-2" aria-label="Critical signals">
+            {# Phase badge — clickable, jumps to Overview (phase-details anchor) #}
+            <button type="button"
+                    data-avatar-jump="overview"
+                    data-avatar-anchor="phase-details"
+                    class="inline-flex items-center gap-2 px-2.5 py-1 rounded text-xs font-medium border {{ badge_classes[today.phase_badge.color] }} hover:brightness-110">
+                <span>{{ today.phase_badge.phase_label }}</span>
+                {% if today.phase_badge.status_suffix %}
+                <span class="opacity-80">· {{ today.phase_badge.status_suffix }}</span>
+                {% endif %}
+            </button>
+
+            {# Shadowban badge — clickable, jumps to Profile & Safety #}
+            <button type="button"
+                    data-avatar-jump="profile-safety"
+                    data-avatar-anchor="shadowban-section"
+                    class="inline-flex items-center gap-2 px-2.5 py-1 rounded text-xs font-medium border
+                           {% if shadowban_status.is_shadowbanned %}{{ badge_classes['red'] }}
+                           {% else %}{{ badge_classes['green'] }}{% endif %} hover:brightness-110">
+                <span>Shadowban</span>
+                <span class="opacity-80">· {{ 'YES' if shadowban_status.is_shadowbanned else 'No' }}</span>
+            </button>
+
+            {# Freeze badge #}
+            <button type="button"
+                    data-avatar-jump="profile-safety"
+                    data-avatar-anchor="freeze-section"
+                    class="inline-flex items-center gap-2 px-2.5 py-1 rounded text-xs font-medium border
+                           {% if avatar.is_frozen %}{{ badge_classes['red'] }}
+                           {% else %}{{ badge_classes['green'] }}{% endif %} hover:brightness-110">
+                <span>Freeze</span>
+                <span class="opacity-80">· {{ 'YES' if avatar.is_frozen else 'No' }}</span>
+            </button>
+
+            {# CQS badge #}
+            <button type="button"
+                    data-avatar-jump="profile-safety"
+                    data-avatar-anchor="cqs-section"
+                    class="inline-flex items-center gap-2 px-2.5 py-1 rounded text-xs font-medium border
+                           {% if avatar.cqs_level == 'lowest' or avatar.cqs_level == 'low' %}{{ badge_classes['red'] }}
+                           {% elif avatar.cqs_level in ('moderate', 'high', 'highest') %}{{ badge_classes['green'] }}
+                           {% else %}{{ badge_classes['slate'] }}{% endif %} hover:brightness-110">
+                <span>CQS</span>
+                <span class="opacity-80">· {{ (avatar.cqs_level or 'not checked')|upper }}</span>
+            </button>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex gap-1 rounded-lg border border-slate-700 bg-dark-steel p-1 overflow-x-auto whitespace-nowrap" role="tablist">
+            <button type="button" data-avatar-detail-tab="decision-center"
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium bg-indigo-600 text-white flex-shrink-0">
+                Decision Center
+            </button>
             <button type="button" data-avatar-detail-tab="overview"
-                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium bg-indigo-600 text-white">
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white flex-shrink-0">
                 Overview
             </button>
-            <button type="button" data-avatar-detail-tab="profile"
-                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
-                🎭 Profile
-            </button>
-            <button type="button" data-avatar-detail-tab="safety"
-                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
-                Safety / Shadowban
-            </button>
-            <button type="button" data-avatar-detail-tab="phase"
-                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
-                Phase
+            <button type="button" data-avatar-detail-tab="profile-safety"
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white flex-shrink-0">
+                Profile &amp; Safety
             </button>
             <button type="button" data-avatar-detail-tab="performance"
-                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white flex-shrink-0">
                 Performance
             </button>
-            <button type="button" data-avatar-detail-tab="drafts"
-                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
-                Drafts
-            </button>
             <button type="button" data-avatar-detail-tab="billing"
-                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white flex-shrink-0">
                 Billing
             </button>
-            <button type="button" data-avatar-detail-tab="analytics"
-                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
-                📊 Analytics
-            </button>
-            <button type="button" data-avatar-detail-tab="presence"
-                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
-                Presence
-            </button>
-            <button type="button" data-avatar-detail-tab="pipeline"
-                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
-                🎯 Pipeline
+            <button type="button" data-avatar-detail-tab="content"
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white flex-shrink-0">
+                Content
             </button>
             <button type="button" data-avatar-detail-tab="strategy"
-                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
-                🧠 Strategy
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white flex-shrink-0">
+                Strategy
             </button>
             <button type="button" data-avatar-detail-tab="actions"
-                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white flex-shrink-0">
                 Actions
             </button>
         </div>
     </div>
 
-    <div data-avatar-detail-panel="overview" class="avatar-detail-panel space-y-6">
+    {# ============================================================ DECISION CENTER #}
+    <div data-avatar-detail-panel="decision-center" class="avatar-detail-panel space-y-6">
 
-    <!-- Client Assignment -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Client Assignment</h2>
-        {% if assigned_clients %}
-        <div class="space-y-2 mb-4">
-            {% for c in assigned_clients %}
-            <div class="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
-                <div class="flex items-center gap-3">
-                    <span class="w-8 h-8 rounded-full bg-indigo-900/50 border border-indigo-700 flex items-center justify-center text-indigo-300 text-xs font-bold">
-                        {{ c.client_name[0]|upper }}
-                    </span>
-                    <div>
-                        <a href="/admin/clients/{{ c.id }}" class="text-sm font-medium text-white hover:text-indigo-400 transition-colors">{{ c.client_name }}</a>
-                        <div class="text-[11px] text-gray-500">{{ c.brand_name }}</div>
+        <!-- Live Pulse (loaded via HTMX) -->
+        <div id="dc-avatar-live-pulse"
+             hx-get="/admin/decision-center/live-pulse/{{ avatar.id }}"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
+                <div class="h-4 bg-gray-700 rounded w-48 mb-3"></div>
+                <div class="h-12 bg-gray-700 rounded w-full mb-3"></div>
+                <div class="h-4 bg-gray-700 rounded w-3/4"></div>
+            </div>
+        </div>
+
+        <!-- Decision Queue for this avatar (loaded via HTMX) -->
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-5">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Decision Queue</h2>
+                <a href="/admin/decision-center?avatar_id={{ avatar.id }}"
+                   class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
+                    Open full Decision Center →
+                </a>
+            </div>
+            <div id="dc-avatar-queue"
+                 hx-get="/admin/decision-center/queue?avatar_id={{ avatar.id }}"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                <div class="animate-pulse space-y-2">
+                    <div class="h-16 bg-gray-700 rounded w-full"></div>
+                    <div class="h-16 bg-gray-700 rounded w-full"></div>
+                    <div class="h-16 bg-gray-700 rounded w-full"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Insights (loaded via HTMX) -->
+        <div id="dc-avatar-insights"
+             hx-get="/admin/decision-center/insights/{{ avatar.id }}"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
+                <div class="h-4 bg-gray-700 rounded w-40 mb-3"></div>
+                <div class="h-24 bg-gray-700 rounded w-full mb-3"></div>
+                <div class="h-4 bg-gray-700 rounded w-2/3"></div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-5">
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Quick Actions</h2>
+            <div class="flex flex-wrap gap-2">
+                <form hx-post="/admin/decision-center/execute-action/{{ avatar.id }}"
+                      hx-target="#dc-avatar-action-result"
+                      hx-swap="innerHTML"
+                      class="inline">
+                    <input type="hidden" name="action_type" value="freeze">
+                    <button type="submit" {% if avatar.is_frozen %}disabled{% endif %}
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                                   {% if avatar.is_frozen %}bg-slate-700 text-gray-500 cursor-not-allowed
+                                   {% else %}bg-red-700 hover:bg-red-600 text-white{% endif %}">
+                        ❄ Freeze Avatar
+                    </button>
+                </form>
+                <form hx-post="/admin/decision-center/execute-action/{{ avatar.id }}"
+                      hx-target="#dc-avatar-action-result"
+                      hx-swap="innerHTML"
+                      class="inline">
+                    <input type="hidden" name="action_type" value="reduce_frequency">
+                    <button type="submit"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-700 hover:bg-amber-600 text-white transition-colors">
+                        ⚡ Reduce Frequency
+                    </button>
+                </form>
+                <form hx-post="/admin/decision-center/execute-action/{{ avatar.id }}"
+                      hx-target="#dc-avatar-action-result"
+                      hx-swap="innerHTML"
+                      class="inline">
+                    <input type="hidden" name="action_type" value="switch_subreddits">
+                    <button type="submit"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-600 hover:bg-slate-500 text-white transition-colors">
+                        🔀 Diversify Subreddits
+                    </button>
+                </form>
+            </div>
+            <div id="dc-avatar-action-result" class="mt-3"></div>
+        </div>
+
+    </div>
+
+    {# ============================================================ OVERVIEW #}
+    <div data-avatar-detail-panel="overview" class="avatar-detail-panel hidden space-y-6">
+
+        <!-- Today's Action card -->
+        <div class="bg-dark-steel rounded-lg border border-indigo-700/60 p-5">
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+                <div class="min-w-0 flex-1">
+                    <div class="text-xs uppercase tracking-wide text-indigo-300 mb-1">Today's Action</div>
+                    <p class="text-base text-white font-medium">{{ today.imperative }}</p>
+                </div>
+                <a href="#phase-details" data-avatar-anchor-link
+                   class="text-xs text-indigo-400 hover:text-indigo-300 whitespace-nowrap">View phase details →</a>
+            </div>
+
+            {% if today.quota_kind != 'none' and today.quota_limit > 0 %}
+            <div class="mt-4 flex flex-wrap items-center gap-4">
+                <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border
+                            {% if today.quota_used >= today.quota_limit %}bg-amber-900/30 border-amber-700/60 text-amber-300
+                            {% else %}bg-slate-800/60 border-slate-600 text-gray-200{% endif %}">
+                    <span class="text-xs uppercase tracking-wide opacity-70">{{ today.quota_kind }} today</span>
+                    <span class="font-mono text-sm">{{ today.quota_used }}/{{ today.quota_limit }}</span>
+                </div>
+
+                {% if today.next_gate_label %}
+                <div class="flex-1 min-w-[220px]">
+                    <div class="flex items-center justify-between text-xs mb-1">
+                        <span class="text-gray-400">Next gate: {{ today.next_gate_label }}</span>
+                        <span class="font-mono text-gray-400">
+                            {{ today.next_gate_current }}/{{ today.next_gate_required }}
+                        </span>
+                    </div>
+                    <div class="w-full bg-slate-700 rounded-full h-1.5">
+                        <div class="h-1.5 rounded-full {% if today.next_gate_pct >= 100 %}bg-green-500{% else %}bg-indigo-500{% endif %}"
+                             style="width: {{ today.next_gate_pct }}%"></div>
                     </div>
                 </div>
-                <span class="px-2.5 py-1 rounded text-xs font-medium bg-slate-800 text-gray-500 border border-slate-700">
-                    Client lifecycle
-                </span>
+                {% elif today.next_gate_pct == 100 and avatar.warming_phase > 0 and avatar.warming_phase < 3 %}
+                <div class="text-xs text-green-400">All gates met — ready for promotion review</div>
+                {% endif %}
             </div>
-            {% endfor %}
+            {% endif %}
         </div>
-        {% else %}
-        <p class="text-gray-500 text-sm mb-4">This avatar is not assigned to any client.</p>
-        {% endif %}
 
-        {% if unassigned_clients %}
-        <form method="post" action="/admin/avatars/assign-to-client" class="flex items-end gap-3">
-            <input type="hidden" name="avatar_id" value="{{ avatar.id }}">
-            <div class="flex-1">
-                <label class="block text-xs text-gray-400 mb-1">Assign to client</label>
-                <select name="client_id" required
-                        class="w-full text-sm bg-slate-night border border-slate-600 text-gray-200 rounded px-3 py-2 focus:outline-none focus:border-indigo-500">
-                    <option value="">Select client…</option>
-                    {% for c in unassigned_clients %}
-                    <option value="{{ c.id }}">{{ c.client_name }} ({{ c.brand_name }})</option>
-                    {% endfor %}
-                </select>
+        <!-- Client Assignment -->
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Client Assignment</h2>
+            {% if assigned_clients %}
+            <div class="space-y-2 mb-4">
+                {% for c in assigned_clients %}
+                <div class="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                    <div class="flex items-center gap-3">
+                        <span class="w-8 h-8 rounded-full bg-indigo-900/50 border border-indigo-700 flex items-center justify-center text-indigo-300 text-xs font-bold">
+                            {{ c.client_name[0]|upper }}
+                        </span>
+                        <div>
+                            <a href="/admin/clients/{{ c.id }}" class="text-sm font-medium text-white hover:text-indigo-400 transition-colors">{{ c.client_name }}</a>
+                            <div class="text-[11px] text-gray-500">{{ c.brand_name }}</div>
+                        </div>
+                    </div>
+                    <span class="px-2.5 py-1 rounded text-xs font-medium bg-slate-800 text-gray-500 border border-slate-700">
+                        Client lifecycle
+                    </span>
+                </div>
+                {% endfor %}
             </div>
-            <button type="submit"
-                    class="px-4 py-2 rounded-lg text-sm font-medium bg-green-700 hover:bg-green-600 text-white transition-colors">
-                Assign
-            </button>
-        </form>
-        {% endif %}
-    </div>
+            {% else %}
+            <p class="text-gray-500 text-sm mb-4">This avatar is not assigned to any client.</p>
+            {% endif %}
 
-    <!-- Confidence Score (loaded via HTMX) -->
-    <div id="confidence-container"
-         hx-get="/admin/avatars/{{ avatar.id }}/confidence"
-         hx-trigger="load"
-         hx-swap="innerHTML">
-      <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
-        <div class="h-4 bg-gray-700 rounded w-36 mb-3"></div>
-        <div class="h-6 bg-gray-700 rounded w-24"></div>
-      </div>
-    </div>
+            {% if unassigned_clients %}
+            <form method="post" action="/admin/avatars/assign-to-client" class="flex items-end gap-3">
+                <input type="hidden" name="avatar_id" value="{{ avatar.id }}">
+                <div class="flex-1">
+                    <label class="block text-xs text-gray-400 mb-1">Assign to client</label>
+                    <select name="client_id" required
+                            class="w-full text-sm bg-slate-night border border-slate-600 text-gray-200 rounded px-3 py-2 focus:outline-none focus:border-indigo-500">
+                        <option value="">Select client…</option>
+                        {% for c in unassigned_clients %}
+                        <option value="{{ c.id }}">{{ c.client_name }} ({{ c.brand_name }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit"
+                        class="px-4 py-2 rounded-lg text-sm font-medium bg-green-700 hover:bg-green-600 text-white transition-colors">
+                    Assign
+                </button>
+            </form>
+            {% endif %}
+        </div>
 
-    <!-- Profile Completeness (loaded via HTMX) -->
-    <div id="profile-completeness-container"
-         hx-get="/admin/avatars/{{ avatar.id }}/profile-completeness"
-         hx-trigger="load"
-         hx-swap="innerHTML">
-      <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
-        <div class="h-4 bg-gray-700 rounded w-40 mb-3"></div>
-        <div class="h-2.5 bg-gray-700 rounded w-full mb-2"></div>
-        <div class="h-3 bg-gray-700 rounded w-3/4"></div>
-      </div>
-    </div>
+        <!-- Confidence Score (loaded via HTMX) -->
+        <div id="confidence-container"
+             hx-get="/admin/avatars/{{ avatar.id }}/confidence"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+          <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
+            <div class="h-4 bg-gray-700 rounded w-36 mb-3"></div>
+            <div class="h-6 bg-gray-700 rounded w-24"></div>
+          </div>
+        </div>
 
-    <!-- Learned Patterns (loaded via HTMX) -->
-    <div id="learned-patterns-container"
-         hx-get="/admin/avatars/{{ avatar.id }}/learned-patterns"
-         hx-trigger="load"
-         hx-swap="innerHTML">
-      <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
-        <div class="h-4 bg-gray-700 rounded w-40 mb-3"></div>
-        <div class="h-3 bg-gray-700 rounded w-full mb-2"></div>
-        <div class="h-3 bg-gray-700 rounded w-3/4"></div>
-      </div>
-    </div>
+        <!-- Profile Completeness (loaded via HTMX) -->
+        <div id="profile-completeness-container"
+             hx-get="/admin/avatars/{{ avatar.id }}/profile-completeness"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+          <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
+            <div class="h-4 bg-gray-700 rounded w-40 mb-3"></div>
+            <div class="h-2.5 bg-gray-700 rounded w-full mb-2"></div>
+            <div class="h-3 bg-gray-700 rounded w-3/4"></div>
+          </div>
+        </div>
 
-    <!-- Learning / Voice Adaptation (loaded asynchronously via HTMX) -->
-    <div id="learning-panel-container"
-         hx-get="/admin/avatars/{{ avatar.id }}/learning-panel"
-         hx-trigger="load"
-         hx-swap="innerHTML">
-      <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
-        <div class="h-4 bg-gray-700 rounded w-48 mb-3"></div>
-        <div class="h-3 bg-gray-700 rounded w-full mb-2"></div>
-        <div class="h-3 bg-gray-700 rounded w-3/4"></div>
-      </div>
-    </div>
+        <!-- Learned Patterns (loaded via HTMX) -->
+        <div id="learned-patterns-container"
+             hx-get="/admin/avatars/{{ avatar.id }}/learned-patterns"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+          <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
+            <div class="h-4 bg-gray-700 rounded w-40 mb-3"></div>
+            <div class="h-3 bg-gray-700 rounded w-full mb-2"></div>
+            <div class="h-3 bg-gray-700 rounded w-3/4"></div>
+          </div>
+        </div>
 
-    </div>
-    <div data-avatar-detail-panel="profile" class="avatar-detail-panel hidden space-y-6">
-
-    <!-- Avatar Profile Management (lazy-loaded via HTMX) -->
-    <div id="avatar-profile-panel"
-         hx-get="/admin/avatars/{{ avatar.id }}/profile-panel"
-         hx-trigger="revealed once"
-         hx-swap="innerHTML">
-        <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
+        <!-- Learning / Voice Adaptation (loaded asynchronously via HTMX) -->
+        <div id="learning-panel-container"
+             hx-get="/admin/avatars/{{ avatar.id }}/learning-panel"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+          <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
             <div class="h-4 bg-gray-700 rounded w-48 mb-3"></div>
             <div class="h-3 bg-gray-700 rounded w-full mb-2"></div>
             <div class="h-3 bg-gray-700 rounded w-3/4"></div>
+          </div>
         </div>
-    </div>
 
-    </div>
-    <div data-avatar-detail-panel="safety" class="avatar-detail-panel hidden space-y-6">
+        <!-- ============================================ Phase details (anchored) -->
+        <div id="phase-details" class="space-y-6 scroll-mt-32">
 
-    <!-- Shadowban Status -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-        <div class="flex items-start justify-between gap-4 mb-4">
-            <div>
-                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-2">Shadowban Status</h2>
-                <div class="flex items-center gap-3">
-                    {% if shadowban_status.is_shadowbanned %}
-                    <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-red-900/40 text-red-300 border border-red-700">
-                        <span class="w-3 h-3 rounded-full bg-red-400"></span>
-                        Yes
+            <!-- Current Warming Phase (large badge) -->
+            <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Current Warming Phase</h2>
+                <div class="flex items-center gap-4 flex-wrap">
+                    {% if avatar.warming_phase == 0 %}
+                    <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-purple-900/40 text-purple-300 border border-purple-700">
+                        <span class="w-3 h-3 rounded-full bg-purple-400"></span>
+                        Mentor — Not in Pipeline
                     </span>
-                    {% else %}
+                    {% elif avatar.warming_phase == 1 %}
+                    <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-blue-900/40 text-blue-300 border border-blue-700">
+                        <span class="w-3 h-3 rounded-full bg-blue-400"></span>
+                        Phase 1 — Credibility Building
+                    </span>
+                    {% elif avatar.warming_phase == 2 %}
+                    <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-amber-900/40 text-amber-300 border border-amber-700">
+                        <span class="w-3 h-3 rounded-full bg-amber-400"></span>
+                        Phase 2 — Content Seeding
+                    </span>
+                    {% elif avatar.warming_phase == 3 %}
                     <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-green-900/40 text-green-400 border border-green-700">
                         <span class="w-3 h-3 rounded-full bg-green-400"></span>
-                        No
+                        Phase 3 — Brand Integration
                     </span>
                     {% endif %}
-                    <span class="px-2 py-0.5 rounded text-xs font-medium
-                          {% if shadowban_status.current_health_status == 'active' %}bg-green-900/50 text-green-400 border border-green-700
-                          {% elif shadowban_status.current_health_status == 'limited' %}bg-yellow-900/50 text-yellow-400 border border-yellow-800
-                          {% elif shadowban_status.current_health_status in ['shadowbanned', 'suspended'] %}bg-red-900/50 text-red-400 border border-red-700
-                          {% else %}bg-slate-700 text-gray-400 border border-slate-600{% endif %}">
-                        Health: {{ shadowban_status.current_health_status }}
+
+                    {% if health.phase_eligible_for_next %}
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-green-900/50 text-green-400 border border-green-600">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        Eligible for Promotion
                     </span>
+                    {% endif %}
+
+                    <span class="text-xs text-gray-500">In phase for {{ today.days_in_phase }} day{{ '' if today.days_in_phase == 1 else 's' }}</span>
                 </div>
             </div>
-            <button type="button"
-                    hx-post="/admin/avatars/{{ avatar.id }}/health-check"
-                    hx-target="#shadowban-health-check-result"
-                    hx-swap="innerHTML"
-                    class="px-3 py-2 rounded-lg text-sm font-medium bg-indigo-900/50 text-indigo-300 border border-indigo-700 hover:bg-indigo-800/50">
-                Check Health
-            </button>
-        </div>
 
-        <div id="shadowban-health-check-result" class="text-xs text-gray-500 mb-4">
-            {% if shadowban_status.last_checked_at %}
-            Last visibility check: {{ shadowban_status.last_checked_at.strftime('%Y-%m-%d %H:%M UTC') }}
-            {% else %}
-            Last visibility check: never
+            {% if health.phase_progress and avatar.warming_phase < 3 and avatar.warming_phase > 0 %}
+            {% set is_prewarmed = (health.reddit_karma_comment or 0) + (health.reddit_karma_post or 0) > 1000 and (health.reddit_account_age_days or 0) > 365 %}
+            {% if is_prewarmed %}
+            <div class="bg-amber-900/20 rounded-lg border border-amber-700/50 p-4">
+                <div class="flex items-start gap-3">
+                    <svg class="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <div>
+                        <p class="text-amber-300 text-sm font-medium">Pre-warmed Avatar</p>
+                        <p class="text-amber-200/70 text-xs mt-1">
+                            This account has {{ "{:,}".format((health.reddit_karma_comment or 0) + (health.reddit_karma_post or 0)) }} karma and is {{ health.reddit_account_age_days or 0 }} days old.
+                            It exceeds all standard warming criteria but remains in Phase {{ avatar.warming_phase }} because
+                            {% if health.phase_progress.subreddit_diversity is defined and health.phase_progress.subreddit_diversity.current < health.phase_progress.subreddit_diversity.required %}
+                            subreddit diversity is {{ health.phase_progress.subreddit_diversity.current }}/{{ health.phase_progress.subreddit_diversity.required }} (needs karma tracked in our system).
+                            {% else %}
+                            automatic phase evaluation hasn't promoted it yet. Next evaluation runs at 06:00 UTC daily.
+                            {% endif %}
+                            Use "Phase Override" in the Actions tab to set the correct phase manually, or set to Mentor if this avatar should not be in pipelines.
+                        </p>
+                    </div>
+                </div>
+            </div>
             {% endif %}
-        </div>
+            {% endif %}
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
-            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-                <div class="text-xs text-gray-400 uppercase tracking-wide">Detected Since</div>
-                <div class="text-sm text-gray-200 mt-1">
-                    {% if shadowban_status.detected_at %}
-                    {{ shadowban_status.detected_at.strftime('%Y-%m-%d %H:%M UTC') }}
-                    {% else %}
-                    Not detected
+            {% if avatar.warming_phase == 0 %}
+            <div class="bg-purple-900/20 rounded-lg border border-purple-700/50 p-5">
+                <div class="flex items-start gap-3">
+                    <svg class="w-5 h-5 text-purple-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                    </svg>
+                    <div>
+                        <p class="text-purple-300 text-sm font-medium">Mentor Avatar</p>
+                        <p class="text-purple-200/70 text-xs mt-1">
+                            This avatar is excluded from all automated pipelines (scoring, generation, hobby, posts).
+                            It is not subject to phase evaluation, promotion, or demotion.
+                            Mentor avatars are high-karma accounts used for reputation presence, not automated engagement.
+                        </p>
+                        {% if health.reddit_account_age_days %}
+                        <div class="flex gap-4 mt-3 text-xs text-purple-300/80">
+                            <span>Karma: {{ "{:,}".format((health.reddit_karma_comment or 0) + (health.reddit_karma_post or 0)) }}</span>
+                            <span>Account age: {{ health.reddit_account_age_days }} days</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if health.phase_progress and avatar.warming_phase > 0 %}
+            <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">
+                    Phase Progress — Requirements for Phase {{ avatar.warming_phase + 1 }}
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {% if health.phase_progress.karma is defined %}
+                    <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-gray-400">Karma</span>
+                            <span class="text-xs font-mono {% if health.phase_progress.karma.current >= health.phase_progress.karma.required %}text-green-400{% else %}text-gray-400{% endif %}">
+                                {{ health.phase_progress.karma.current }} / {{ health.phase_progress.karma.required }}
+                            </span>
+                        </div>
+                        {% set pct = [[(health.phase_progress.karma.current / (health.phase_progress.karma.required or 1) * 100)|int, 0]|max, 100]|min %}
+                        <div class="w-full bg-slate-700 rounded-full h-2">
+                            <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-indigo-500{% endif %}" style="width: {{ pct }}%"></div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if health.phase_progress.age_days is defined %}
+                    <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-gray-400">Account Age (days)</span>
+                            <span class="text-xs font-mono {% if health.phase_progress.age_days.current >= health.phase_progress.age_days.required %}text-green-400{% else %}text-gray-400{% endif %}">
+                                {{ health.phase_progress.age_days.current }} / {{ health.phase_progress.age_days.required }}
+                            </span>
+                        </div>
+                        {% set pct = [[(health.phase_progress.age_days.current / (health.phase_progress.age_days.required or 1) * 100)|int, 0]|max, 100]|min %}
+                        <div class="w-full bg-slate-700 rounded-full h-2">
+                            <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-indigo-500{% endif %}" style="width: {{ pct }}%"></div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if health.phase_progress.activity is defined %}
+                    <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-gray-400">Activity (comments)</span>
+                            {% if health.phase_progress.activity.required == 0 %}
+                            <span class="text-xs font-mono text-green-400">Waived (pre-warmed)</span>
+                            {% else %}
+                            <span class="text-xs font-mono {% if health.phase_progress.activity.current >= health.phase_progress.activity.required %}text-green-400{% else %}text-gray-400{% endif %}">
+                                {{ health.phase_progress.activity.current }} / {{ health.phase_progress.activity.required }}
+                            </span>
+                            {% endif %}
+                        </div>
+                        {% set pct = 100 if health.phase_progress.activity.required == 0 else [[(health.phase_progress.activity.current / (health.phase_progress.activity.required or 1) * 100)|int, 0]|max, 100]|min %}
+                        <div class="w-full bg-slate-700 rounded-full h-2">
+                            <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-indigo-500{% endif %}" style="width: {{ pct }}%"></div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if health.phase_progress.survival_rate is defined %}
+                    <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-gray-400">Survival Rate (%)</span>
+                            <span class="text-xs font-mono {% if health.phase_progress.survival_rate.current >= health.phase_progress.survival_rate.required %}text-green-400{% else %}text-gray-400{% endif %}">
+                                {{ health.phase_progress.survival_rate.current|round(1) }}% / {{ health.phase_progress.survival_rate.required }}%
+                            </span>
+                        </div>
+                        {% set pct = [[(health.phase_progress.survival_rate.current / (health.phase_progress.survival_rate.required or 1) * 100)|int, 0]|max, 100]|min %}
+                        <div class="w-full bg-slate-700 rounded-full h-2">
+                            <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-indigo-500{% endif %}" style="width: {{ pct }}%"></div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if health.phase_progress.avg_score is defined %}
+                    <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-gray-400">Avg Score (Phase 2→3)</span>
+                            <span class="text-xs font-mono {% if health.phase_progress.avg_score.current >= health.phase_progress.avg_score.required %}text-green-400{% else %}text-gray-400{% endif %}">
+                                {{ health.phase_progress.avg_score.current|round(1) }} / {{ health.phase_progress.avg_score.required }}
+                            </span>
+                        </div>
+                        {% set pct = [[(health.phase_progress.avg_score.current / (health.phase_progress.avg_score.required or 1) * 100)|int, 0]|max, 100]|min %}
+                        <div class="w-full bg-slate-700 rounded-full h-2">
+                            <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-indigo-500{% endif %}" style="width: {{ pct }}%"></div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if health.phase_progress.subreddit_diversity is defined %}
+                    <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm text-gray-400">Subreddit Diversity</span>
+                            <span class="text-xs font-mono {% if health.phase_progress.subreddit_diversity.current >= health.phase_progress.subreddit_diversity.required %}text-green-400{% else %}text-red-400{% endif %}">
+                                {{ health.phase_progress.subreddit_diversity.current }} / {{ health.phase_progress.subreddit_diversity.required }} subreddits
+                            </span>
+                        </div>
+                        {% set pct = [[(health.phase_progress.subreddit_diversity.current / (health.phase_progress.subreddit_diversity.required or 1) * 100)|int, 0]|max, 100]|min %}
+                        <div class="w-full bg-slate-700 rounded-full h-2">
+                            <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-red-500{% endif %}" style="width: {{ pct }}%"></div>
+                        </div>
+                        {% if health.phase_progress.subreddit_diversity.shortfall %}
+                        <p class="text-xs text-red-400/80 mt-1">{{ health.phase_progress.subreddit_diversity.shortfall }}</p>
+                        {% endif %}
+                    </div>
                     {% endif %}
                 </div>
             </div>
-            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-                <div class="text-xs text-gray-400 uppercase tracking-wide">Source</div>
-                <div class="text-sm text-gray-200 mt-1">{{ shadowban_status.source or 'none' }}</div>
+            {% elif avatar.warming_phase == 3 %}
+            <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Phase Progress</h2>
+                <p class="text-gray-400 text-sm">This avatar is at the maximum phase (Phase 3 — Brand Integration). No further promotion available.</p>
             </div>
-            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-                <div class="text-xs text-gray-400 uppercase tracking-wide">Legacy Flag</div>
-                <div class="text-sm text-gray-200 mt-1">{{ 'true' if shadowban_status.legacy_shadowban_flag else 'false' }}</div>
+            {% endif %}
+
+            <!-- Phase Transition History -->
+            <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Phase Transition History</h2>
+                {% if phase_history %}
+                <div class="space-y-3">
+                    {% for event in phase_history %}
+                    <div class="flex items-start gap-3 p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
+                        <div class="flex-shrink-0 mt-0.5">
+                            {% if event.event_type == 'phase_promotion' %}
+                            <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-900/50 text-green-400">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/>
+                                </svg>
+                            </span>
+                            {% elif event.event_type == 'auto_downgrade' %}
+                            <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-red-900/50 text-red-400">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
+                                </svg>
+                            </span>
+                            {% elif event.event_type == 'phase_override' %}
+                            <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-900/50 text-amber-400">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                </svg>
+                            </span>
+                            {% endif %}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="text-sm font-medium text-white">
+                                    {% if event.event_type == 'phase_promotion' %}Promotion
+                                    {% elif event.event_type == 'auto_downgrade' %}Auto Downgrade
+                                    {% elif event.event_type == 'phase_override' %}Admin Override
+                                    {% endif %}
+                                </span>
+                                {% if event.event_metadata %}
+                                <span class="text-xs text-gray-400">
+                                    Phase {{ event.event_metadata.get('previous_phase', '?') }} → Phase {{ event.event_metadata.get('new_phase', '?') }}
+                                </span>
+                                {% endif %}
+                            </div>
+                            {% if event.event_metadata %}
+                            <p class="text-xs text-gray-500 mt-1">
+                                {% if event.event_metadata.get('trigger_reason') %}
+                                    Reason: {{ event.event_metadata.get('trigger_reason') }}
+                                {% elif event.event_metadata.get('reason') %}
+                                    Reason: {{ event.event_metadata.get('reason') }}
+                                {% endif %}
+                            </p>
+                            {% if event.event_type == 'phase_override' and event.event_metadata.get('admin_user_id') %}
+                            <p class="text-xs text-gray-600 mt-1">Override by: {{ event.event_metadata.get('admin_user_id') }}</p>
+                            {% endif %}
+                            {% else %}
+                            <p class="text-xs text-gray-500 mt-1">{{ event.message }}</p>
+                            {% endif %}
+                            <p class="text-xs text-gray-600 mt-1">{{ event.created_at.strftime('%Y-%m-%d %H:%M UTC') }}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-gray-500 text-sm">No phase transitions recorded yet.</p>
+                {% endif %}
+            </div>
+
+        </div>
+
+        <!-- ============================================ Presence (anchored) -->
+        <div id="presence-details" class="scroll-mt-32">
+            <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Subreddit Coverage</h2>
+                    <div id="presence-scan-btn"
+                         hx-get="/admin/avatars/{{ avatar.id }}/presence-scan-button"
+                         hx-trigger="load"
+                         hx-swap="innerHTML">
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500 mb-4">
+                    Plan (assigned via clients) vs Actual (where this avatar appeared). Target/Hobby = assigned, Extra = organic activity.
+                </p>
+
+                <div id="avatar-subreddit-coverage"
+                     hx-get="/admin/avatars/{{ avatar.id }}/subreddit-coverage?sort_by=type&sort_dir=asc"
+                     hx-trigger="load"
+                     hx-swap="innerHTML">
+                    <p class="text-gray-500 text-sm py-4">Loading...</p>
+                </div>
             </div>
         </div>
 
-        <h3 class="text-xs text-gray-400 uppercase tracking-wide mb-3">System-Detected History</h3>
-        {% if shadowban_status.history %}
-        <div class="space-y-2">
-            {% for item in shadowban_status.history %}
-            <div class="bg-slate-800/50 rounded-lg border border-slate-700/50 p-3">
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                    <div class="text-sm text-gray-200">{{ item.label }}</div>
-                    <div class="text-xs text-gray-500">{{ item.created_at.strftime('%Y-%m-%d %H:%M UTC') }}</div>
-                </div>
-                <div class="mt-1 flex flex-wrap gap-2 text-[11px] text-gray-500">
-                    <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700">{{ item.action }}</span>
-                    {% if item.detection_method %}
-                    <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700">{{ item.detection_method }}</span>
-                    {% endif %}
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="text-sm text-gray-500 bg-slate-800/40 rounded-lg border border-slate-700/50 p-4">
-            No shadowban or health status changes have been recorded by the system yet.
-        </div>
-        {% endif %}
     </div>
 
-    <!-- CQS (Contributor Quality Score) -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-        <div class="flex items-start justify-between gap-4 mb-4">
-            <div>
-                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-2">Contributor Quality Score (CQS)</h2>
-                <div id="cqs-badge" class="flex items-center gap-3">
-                    {% if avatar.cqs_level %}
-                        {% set cqs = avatar.cqs_level %}
-                        {% if cqs == 'highest' %}
-                        <span class="px-2 py-1 rounded text-xs font-medium bg-green-900/50 text-green-400 border border-green-800">CQS: HIGHEST</span>
-                        {% elif cqs == 'high' %}
-                        <span class="px-2 py-1 rounded text-xs font-medium bg-green-900/30 text-green-300 border border-green-700">CQS: HIGH</span>
-                        {% elif cqs == 'moderate' %}
-                        <span class="px-2 py-1 rounded text-xs font-medium bg-yellow-900/50 text-yellow-400 border border-yellow-800">CQS: MODERATE</span>
-                        {% elif cqs == 'low' %}
-                        <span class="px-2 py-1 rounded text-xs font-medium bg-orange-900/50 text-orange-400 border border-orange-800">CQS: LOW</span>
-                        {% elif cqs == 'lowest' %}
-                        <span class="px-2 py-1 rounded text-xs font-medium bg-red-900/50 text-red-400 border border-red-800">CQS: LOWEST</span>
-                        {% endif %}
-                        {% if avatar.cqs_checked_at %}
-                        <span class="text-[10px] text-gray-500">Checked: {{ avatar.cqs_checked_at.strftime('%Y-%m-%d') }}</span>
-                        {% endif %}
-                    {% else %}
-                        <span class="px-2 py-1 rounded text-xs font-medium bg-gray-700/50 text-gray-400 border border-gray-600">CQS: NOT CHECKED</span>
-                    {% endif %}
-                </div>
-                {% if avatar.cqs_notes %}
-                <div class="text-xs text-gray-500 mt-2">{{ avatar.cqs_notes }}</div>
-                {% endif %}
-                {% if avatar.cqs_level == 'lowest' and avatar.warming_phase == 1 %}
-                <div class="mt-2 px-3 py-1.5 rounded-lg bg-blue-900/20 border border-blue-800/50 text-xs text-blue-300 inline-flex items-center gap-1.5">
-                    🔥 Warming mode — 1 hobby comment/day allowed. CQS will improve with activity.
-                </div>
-                {% endif %}
+    {# ============================================================ PROFILE & SAFETY #}
+    <div data-avatar-detail-panel="profile-safety" class="avatar-detail-panel hidden space-y-6">
+
+        <!-- Avatar Profile Management (lazy-loaded via HTMX) -->
+        <div id="avatar-profile-panel"
+             hx-get="/admin/avatars/{{ avatar.id }}/profile-panel"
+             hx-trigger="revealed once"
+             hx-swap="innerHTML">
+            <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
+                <div class="h-4 bg-gray-700 rounded w-48 mb-3"></div>
+                <div class="h-3 bg-gray-700 rounded w-full mb-2"></div>
+                <div class="h-3 bg-gray-700 rounded w-3/4"></div>
             </div>
-            <a href="https://www.reddit.com/r/WhatIsMyCQS/submit?selftext=true&title=What+is+my+CQS"
-               target="_blank"
-               class="px-3 py-2 rounded-lg text-sm font-medium bg-slate-700 text-gray-300 border border-slate-600 hover:bg-slate-600 whitespace-nowrap">
-                Check on Reddit ↗
-            </a>
         </div>
 
-        <!-- CQS Update Form -->
-        <form hx-post="/admin/avatars/{{ avatar.id }}/update-cqs"
-              hx-target="#cqs-badge"
-              hx-swap="innerHTML"
-              class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-            <div class="flex flex-wrap items-end gap-3">
+        <!-- Shadowban Status -->
+        <div id="shadowban-section" class="bg-dark-steel rounded-lg border border-slate-700 p-6 scroll-mt-32">
+            <div class="flex items-start justify-between gap-4 mb-4 flex-wrap">
                 <div>
-                    <label class="text-xs text-gray-400 block mb-1">CQS Level</label>
-                    <select name="cqs_level" class="bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-sm text-gray-200">
-                        <option value="highest" {% if avatar.cqs_level == 'highest' %}selected{% endif %}>Highest</option>
-                        <option value="high" {% if avatar.cqs_level == 'high' %}selected{% endif %}>High</option>
-                        <option value="moderate" {% if avatar.cqs_level == 'moderate' %}selected{% endif %}>Moderate</option>
-                        <option value="low" {% if avatar.cqs_level == 'low' %}selected{% endif %}>Low</option>
-                        <option value="lowest" {% if avatar.cqs_level == 'lowest' %}selected{% endif %}>Lowest</option>
-                    </select>
+                    <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-2">Shadowban Status</h2>
+                    <div class="flex items-center gap-3 flex-wrap">
+                        {% if shadowban_status.is_shadowbanned %}
+                        <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-red-900/40 text-red-300 border border-red-700">
+                            <span class="w-3 h-3 rounded-full bg-red-400"></span>
+                            Yes
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-green-900/40 text-green-400 border border-green-700">
+                            <span class="w-3 h-3 rounded-full bg-green-400"></span>
+                            No
+                        </span>
+                        {% endif %}
+                        <span class="px-2 py-0.5 rounded text-xs font-medium
+                              {% if shadowban_status.current_health_status == 'active' %}bg-green-900/50 text-green-400 border border-green-700
+                              {% elif shadowban_status.current_health_status == 'limited' %}bg-yellow-900/50 text-yellow-400 border border-yellow-800
+                              {% elif shadowban_status.current_health_status in ['shadowbanned', 'suspended'] %}bg-red-900/50 text-red-400 border border-red-700
+                              {% else %}bg-slate-700 text-gray-400 border border-slate-600{% endif %}">
+                            Health: {{ shadowban_status.current_health_status }}
+                        </span>
+                    </div>
                 </div>
-                <div class="flex-1 min-w-[200px]">
-                    <label class="text-xs text-gray-400 block mb-1">Notes (optional)</label>
-                    <input type="text" name="cqs_notes" value="{{ avatar.cqs_notes or '' }}"
-                           placeholder="e.g. checked via r/WhatIsMyCQS"
-                           class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-sm text-gray-200">
-                </div>
-                <button type="submit"
-                        class="px-4 py-1.5 rounded-lg text-sm font-medium bg-indigo-900/50 text-indigo-300 border border-indigo-700 hover:bg-indigo-800/50">
-                    Save CQS
+                <button type="button"
+                        hx-post="/admin/avatars/{{ avatar.id }}/health-check"
+                        hx-target="#shadowban-health-check-result"
+                        hx-swap="innerHTML"
+                        class="px-3 py-2 rounded-lg text-sm font-medium bg-indigo-900/50 text-indigo-300 border border-indigo-700 hover:bg-indigo-800/50">
+                    Check Health
                 </button>
             </div>
-            <div class="mt-3 text-[11px] text-gray-500">
-                <strong>Phase gates:</strong> Lowest + Phase 2+ → freeze avatar. Lowest + Phase 1 → cautious warming (1 hobby/day). Low → Phase 1 only. Moderate+ → Phase 2-3 eligible.
-                <br>Check CQS by posting in <a href="https://www.reddit.com/r/WhatIsMyCQS/" target="_blank" class="text-indigo-400 hover:underline">r/WhatIsMyCQS</a> — bot responds within minutes.
-            </div>
-        </form>
 
-        {% if avatar.cqs_checked_at %}
-        {% set cqs_age_days = ((now_utc - avatar.cqs_checked_at).total_seconds() / 86400) | int if now_utc is defined and avatar.cqs_checked_at else 999 %}
-        {% if cqs_age_days > 14 %}
-        <div class="mt-3 px-3 py-2 rounded-lg bg-yellow-900/20 border border-yellow-800/50 text-xs text-yellow-400">
-            ⚠ CQS was last checked {{ cqs_age_days }} days ago. Recommend re-checking every 1-2 weeks.
-        </div>
-        {% endif %}
-        {% endif %}
-    </div>
-
-    <!-- Freeze Status -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Freeze Status</h2>
-        <div class="flex items-center gap-4 mb-4">
-            {% if avatar.is_frozen %}
-            <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-red-900/40 text-red-300 border border-red-700">
-                <span class="w-3 h-3 rounded-full bg-red-400"></span>
-                Frozen
-            </span>
-            {% else %}
-            <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-green-900/40 text-green-400 border border-green-700">
-                <span class="w-3 h-3 rounded-full bg-green-400"></span>
-                Active
-            </span>
-            {% endif %}
-        </div>
-
-        {% if avatar.is_frozen %}
-        <!-- Frozen details -->
-        <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 mb-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <span class="text-xs text-gray-400 uppercase tracking-wide">Reason</span>
-                    <p class="text-sm text-gray-200 mt-1">{{ avatar.freeze_reason or 'No reason provided' }}</p>
-                </div>
-                <div>
-                    <span class="text-xs text-gray-400 uppercase tracking-wide">Frozen At</span>
-                    <p class="text-sm text-gray-200 mt-1">{{ avatar.frozen_at.strftime('%Y-%m-%d %H:%M UTC') if avatar.frozen_at else 'Unknown' }}</p>
-                </div>
-            </div>
-        </div>
-        <!-- Unfreeze button -->
-        <form method="post" action="/admin/avatars/{{ avatar.id }}/unfreeze"
-              hx-post="/admin/avatars/{{ avatar.id }}/unfreeze"
-              hx-swap="none">
-            <button type="submit"
-                    class="px-4 py-2 rounded-lg text-sm font-medium bg-green-600 hover:bg-green-700 text-white transition-colors">
-                Unfreeze Avatar
-            </button>
-        </form>
-        {% else %}
-        <!-- Freeze form -->
-        <form method="post" action="/admin/avatars/{{ avatar.id }}/freeze"
-              hx-post="/admin/avatars/{{ avatar.id }}/freeze"
-              hx-swap="none"
-              class="flex items-end gap-4 flex-wrap">
-            <div class="flex-1 min-w-[200px]">
-                <label for="freeze_reason" class="block text-sm text-gray-400 mb-1">Reason</label>
-                <input type="text" name="freeze_reason" id="freeze_reason" required
-                       placeholder="Reason for freezing this avatar..."
-                       class="w-full bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-500">
-            </div>
-            <button type="submit"
-                    class="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 hover:bg-red-700 text-white transition-colors">
-                Freeze Avatar
-            </button>
-        </form>
-        {% endif %}
-    </div>
-
-    </div>
-    <div data-avatar-detail-panel="phase" class="avatar-detail-panel hidden space-y-6">
-
-    <!-- Current Warming Phase (large badge) -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Current Warming Phase</h2>
-        <div class="flex items-center gap-4">
-            {% if avatar.warming_phase == 0 %}
-            <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-purple-900/40 text-purple-300 border border-purple-700">
-                <span class="w-3 h-3 rounded-full bg-purple-400"></span>
-                Mentor — Not in Pipeline
-            </span>
-            {% elif avatar.warming_phase == 1 %}
-            <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-blue-900/40 text-blue-300 border border-blue-700">
-                <span class="w-3 h-3 rounded-full bg-blue-400"></span>
-                Phase 1 — Credibility Building
-            </span>
-            {% elif avatar.warming_phase == 2 %}
-            <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-amber-900/40 text-amber-300 border border-amber-700">
-                <span class="w-3 h-3 rounded-full bg-amber-400"></span>
-                Phase 2 — Content Seeding
-            </span>
-            {% elif avatar.warming_phase == 3 %}
-            <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-green-900/40 text-green-400 border border-green-700">
-                <span class="w-3 h-3 rounded-full bg-green-400"></span>
-                Phase 3 — Brand Integration
-            </span>
-            {% endif %}
-
-            {% if health.phase_eligible_for_next %}
-            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-green-900/50 text-green-400 border border-green-600">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                </svg>
-                Eligible for Promotion
-            </span>
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- Pre-warmed notice -->
-    {% if health.phase_progress and avatar.warming_phase < 3 and avatar.warming_phase > 0 %}
-    {% set is_prewarmed = (health.reddit_karma_comment or 0) + (health.reddit_karma_post or 0) > 1000 and (health.reddit_account_age_days or 0) > 365 %}
-    {% if is_prewarmed %}
-    <div class="bg-amber-900/20 rounded-lg border border-amber-700/50 p-4">
-        <div class="flex items-start gap-3">
-            <svg class="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-            <div>
-                <p class="text-amber-300 text-sm font-medium">Pre-warmed Avatar</p>
-                <p class="text-amber-200/70 text-xs mt-1">
-                    This account has {{ "{:,}".format((health.reddit_karma_comment or 0) + (health.reddit_karma_post or 0)) }} karma and is {{ health.reddit_account_age_days or 0 }} days old.
-                    It exceeds all standard warming criteria but remains in Phase {{ avatar.warming_phase }} because
-                    {% if health.phase_progress.subreddit_diversity is defined and health.phase_progress.subreddit_diversity.current < health.phase_progress.subreddit_diversity.required %}
-                    subreddit diversity is {{ health.phase_progress.subreddit_diversity.current }}/{{ health.phase_progress.subreddit_diversity.required }} (needs karma tracked in our system).
-                    {% else %}
-                    automatic phase evaluation hasn't promoted it yet. Next evaluation runs at 06:00 UTC daily.
-                    {% endif %}
-                    Use "Override Phase" below to set the correct phase manually, or set to Mentor if this avatar should not be in pipelines.
-                </p>
-            </div>
-        </div>
-    </div>
-    {% endif %}
-    {% endif %}
-
-    <!-- Mentor info block -->
-    {% if avatar.warming_phase == 0 %}
-    <div class="bg-purple-900/20 rounded-lg border border-purple-700/50 p-5">
-        <div class="flex items-start gap-3">
-            <svg class="w-5 h-5 text-purple-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-            </svg>
-            <div>
-                <p class="text-purple-300 text-sm font-medium">Mentor Avatar</p>
-                <p class="text-purple-200/70 text-xs mt-1">
-                    This avatar is excluded from all automated pipelines (scoring, generation, hobby, posts).
-                    It is not subject to phase evaluation, promotion, or demotion.
-                    Mentor avatars are high-karma accounts used for reputation presence, not automated engagement.
-                </p>
-                {% if health.reddit_account_age_days %}
-                <div class="flex gap-4 mt-3 text-xs text-purple-300/80">
-                    <span>Karma: {{ "{:,}".format((health.reddit_karma_comment or 0) + (health.reddit_karma_post or 0)) }}</span>
-                    <span>Account age: {{ health.reddit_account_age_days }} days</span>
-                </div>
+            <div id="shadowban-health-check-result" class="text-xs text-gray-500 mb-4">
+                {% if shadowban_status.last_checked_at %}
+                Last visibility check: {{ shadowban_status.last_checked_at.strftime('%Y-%m-%d %H:%M UTC') }}
+                {% else %}
+                Last visibility check: never
                 {% endif %}
             </div>
-        </div>
-    </div>
-    {% endif %}
 
-    <!-- Phase Progress -->
-    {% if health.phase_progress and avatar.warming_phase > 0 %}
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">
-            Phase Progress — Requirements for Phase {{ avatar.warming_phase + 1 }}
-        </h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {% if health.phase_progress.karma is defined %}
-            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-sm text-gray-400">Karma</span>
-                    <span class="text-xs font-mono {% if health.phase_progress.karma.current >= health.phase_progress.karma.required %}text-green-400{% else %}text-gray-400{% endif %}">
-                        {{ health.phase_progress.karma.current }} / {{ health.phase_progress.karma.required }}
-                    </span>
-                </div>
-                {% set pct = [[(health.phase_progress.karma.current / (health.phase_progress.karma.required or 1) * 100)|int, 0]|max, 100]|min %}
-                <div class="w-full bg-slate-700 rounded-full h-2">
-                    <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-indigo-500{% endif %}" style="width: {{ pct }}%"></div>
-                </div>
-            </div>
-            {% endif %}
-
-            {% if health.phase_progress.age_days is defined %}
-            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-sm text-gray-400">Account Age (days)</span>
-                    <span class="text-xs font-mono {% if health.phase_progress.age_days.current >= health.phase_progress.age_days.required %}text-green-400{% else %}text-gray-400{% endif %}">
-                        {{ health.phase_progress.age_days.current }} / {{ health.phase_progress.age_days.required }}
-                    </span>
-                </div>
-                {% set pct = [[(health.phase_progress.age_days.current / (health.phase_progress.age_days.required or 1) * 100)|int, 0]|max, 100]|min %}
-                <div class="w-full bg-slate-700 rounded-full h-2">
-                    <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-indigo-500{% endif %}" style="width: {{ pct }}%"></div>
-                </div>
-            </div>
-            {% endif %}
-
-            {% if health.phase_progress.activity is defined %}
-            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-sm text-gray-400">Activity (comments)</span>
-                    {% if health.phase_progress.activity.required == 0 %}
-                    <span class="text-xs font-mono text-green-400">Waived (pre-warmed)</span>
-                    {% else %}
-                    <span class="text-xs font-mono {% if health.phase_progress.activity.current >= health.phase_progress.activity.required %}text-green-400{% else %}text-gray-400{% endif %}">
-                        {{ health.phase_progress.activity.current }} / {{ health.phase_progress.activity.required }}
-                    </span>
-                    {% endif %}
-                </div>
-                {% set pct = 100 if health.phase_progress.activity.required == 0 else [[(health.phase_progress.activity.current / (health.phase_progress.activity.required or 1) * 100)|int, 0]|max, 100]|min %}
-                <div class="w-full bg-slate-700 rounded-full h-2">
-                    <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-indigo-500{% endif %}" style="width: {{ pct }}%"></div>
-                </div>
-            </div>
-            {% endif %}
-
-            {% if health.phase_progress.survival_rate is defined %}
-            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-sm text-gray-400">Survival Rate (%)</span>
-                    <span class="text-xs font-mono {% if health.phase_progress.survival_rate.current >= health.phase_progress.survival_rate.required %}text-green-400{% else %}text-gray-400{% endif %}">
-                        {{ health.phase_progress.survival_rate.current|round(1) }}% / {{ health.phase_progress.survival_rate.required }}%
-                    </span>
-                </div>
-                {% set pct = [[(health.phase_progress.survival_rate.current / (health.phase_progress.survival_rate.required or 1) * 100)|int, 0]|max, 100]|min %}
-                <div class="w-full bg-slate-700 rounded-full h-2">
-                    <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-indigo-500{% endif %}" style="width: {{ pct }}%"></div>
-                </div>
-            </div>
-            {% endif %}
-
-            {% if health.phase_progress.avg_score is defined %}
-            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-sm text-gray-400">Avg Score (Phase 2→3)</span>
-                    <span class="text-xs font-mono {% if health.phase_progress.avg_score.current >= health.phase_progress.avg_score.required %}text-green-400{% else %}text-gray-400{% endif %}">
-                        {{ health.phase_progress.avg_score.current|round(1) }} / {{ health.phase_progress.avg_score.required }}
-                    </span>
-                </div>
-                {% set pct = [[(health.phase_progress.avg_score.current / (health.phase_progress.avg_score.required or 1) * 100)|int, 0]|max, 100]|min %}
-                <div class="w-full bg-slate-700 rounded-full h-2">
-                    <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-indigo-500{% endif %}" style="width: {{ pct }}%"></div>
-                </div>
-            </div>
-            {% endif %}
-
-            {% if health.phase_progress.subreddit_diversity is defined %}
-            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-sm text-gray-400">Subreddit Diversity</span>
-                    <span class="text-xs font-mono {% if health.phase_progress.subreddit_diversity.current >= health.phase_progress.subreddit_diversity.required %}text-green-400{% else %}text-red-400{% endif %}">
-                        {{ health.phase_progress.subreddit_diversity.current }} / {{ health.phase_progress.subreddit_diversity.required }} subreddits
-                    </span>
-                </div>
-                {% set pct = [[(health.phase_progress.subreddit_diversity.current / (health.phase_progress.subreddit_diversity.required or 1) * 100)|int, 0]|max, 100]|min %}
-                <div class="w-full bg-slate-700 rounded-full h-2">
-                    <div class="h-2 rounded-full {% if pct >= 100 %}bg-green-500{% else %}bg-red-500{% endif %}" style="width: {{ pct }}%"></div>
-                </div>
-                {% if health.phase_progress.subreddit_diversity.shortfall %}
-                <p class="text-xs text-red-400/80 mt-1">{{ health.phase_progress.subreddit_diversity.shortfall }}</p>
-                {% endif %}
-            </div>
-            {% endif %}
-        </div>
-    </div>
-    {% elif avatar.warming_phase == 3 %}
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Phase Progress</h2>
-        <p class="text-gray-400 text-sm">This avatar is at the maximum phase (Phase 3 — Brand Integration). No further promotion available.</p>
-    </div>
-    {% elif avatar.warming_phase == 0 %}
-    {# Mentor — no progress bars needed, info block shown above #}
-    {% endif %}
-
-    <!-- Phase Transition History -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Phase Transition History</h2>
-        {% if phase_history %}
-        <div class="space-y-3">
-            {% for event in phase_history %}
-            <div class="flex items-start gap-3 p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
-                <!-- Event type icon -->
-                <div class="flex-shrink-0 mt-0.5">
-                    {% if event.event_type == 'phase_promotion' %}
-                    <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-900/50 text-green-400">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/>
-                        </svg>
-                    </span>
-                    {% elif event.event_type == 'auto_downgrade' %}
-                    <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-red-900/50 text-red-400">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
-                        </svg>
-                    </span>
-                    {% elif event.event_type == 'phase_override' %}
-                    <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-900/50 text-amber-400">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                        </svg>
-                    </span>
-                    {% endif %}
-                </div>
-                <!-- Event details -->
-                <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 flex-wrap">
-                        <span class="text-sm font-medium text-white">
-                            {% if event.event_type == 'phase_promotion' %}Promotion
-                            {% elif event.event_type == 'auto_downgrade' %}Auto Downgrade
-                            {% elif event.event_type == 'phase_override' %}Admin Override
-                            {% endif %}
-                        </span>
-                        {% if event.event_metadata %}
-                        <span class="text-xs text-gray-400">
-                            Phase {{ event.event_metadata.get('previous_phase', '?') }} → Phase {{ event.event_metadata.get('new_phase', '?') }}
-                        </span>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+                <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                    <div class="text-xs text-gray-400 uppercase tracking-wide">Detected Since</div>
+                    <div class="text-sm text-gray-200 mt-1">
+                        {% if shadowban_status.detected_at %}
+                        {{ shadowban_status.detected_at.strftime('%Y-%m-%d %H:%M UTC') }}
+                        {% else %}
+                        Not detected
                         {% endif %}
                     </div>
-                    {% if event.event_metadata %}
-                    <p class="text-xs text-gray-500 mt-1">
-                        {% if event.event_metadata.get('trigger_reason') %}
-                            Reason: {{ event.event_metadata.get('trigger_reason') }}
-                        {% elif event.event_metadata.get('reason') %}
-                            Reason: {{ event.event_metadata.get('reason') }}
-                        {% endif %}
-                    </p>
-                    {% if event.event_type == 'phase_override' and event.event_metadata.get('admin_user_id') %}
-                    <p class="text-xs text-gray-600 mt-1">Override by: {{ event.event_metadata.get('admin_user_id') }}</p>
-                    {% endif %}
-                    {% else %}
-                    <p class="text-xs text-gray-500 mt-1">{{ event.message }}</p>
-                    {% endif %}
-                    <p class="text-xs text-gray-600 mt-1">{{ event.created_at.strftime('%Y-%m-%d %H:%M UTC') }}</p>
+                </div>
+                <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                    <div class="text-xs text-gray-400 uppercase tracking-wide">Source</div>
+                    <div class="text-sm text-gray-200 mt-1">{{ shadowban_status.source or 'none' }}</div>
+                </div>
+                <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                    <div class="text-xs text-gray-400 uppercase tracking-wide">Legacy Flag</div>
+                    <div class="text-sm text-gray-200 mt-1">{{ 'true' if shadowban_status.legacy_shadowban_flag else 'false' }}</div>
                 </div>
             </div>
-            {% endfor %}
+
+            <h3 class="text-xs text-gray-400 uppercase tracking-wide mb-3">System-Detected History</h3>
+            {% if shadowban_status.history %}
+            <div class="space-y-2">
+                {% for item in shadowban_status.history %}
+                <div class="bg-slate-800/50 rounded-lg border border-slate-700/50 p-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="text-sm text-gray-200">{{ item.label }}</div>
+                        <div class="text-xs text-gray-500">{{ item.created_at.strftime('%Y-%m-%d %H:%M UTC') }}</div>
+                    </div>
+                    <div class="mt-1 flex flex-wrap gap-2 text-[11px] text-gray-500">
+                        <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700">{{ item.action }}</span>
+                        {% if item.detection_method %}
+                        <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700">{{ item.detection_method }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-sm text-gray-500 bg-slate-800/40 rounded-lg border border-slate-700/50 p-4">
+                No shadowban or health status changes have been recorded by the system yet.
+            </div>
+            {% endif %}
         </div>
-        {% else %}
-        <p class="text-gray-500 text-sm">No phase transitions recorded yet.</p>
-        {% endif %}
-    </div>
+
+        <!-- CQS (Contributor Quality Score) -->
+        <div id="cqs-section" class="bg-dark-steel rounded-lg border border-slate-700 p-6 scroll-mt-32">
+            <div class="flex items-start justify-between gap-4 mb-4 flex-wrap">
+                <div>
+                    <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-2">Contributor Quality Score (CQS)</h2>
+                    <div id="cqs-badge" class="flex items-center gap-3 flex-wrap">
+                        {% if avatar.cqs_level %}
+                            {% set cqs = avatar.cqs_level %}
+                            {% if cqs == 'highest' %}
+                            <span class="px-2 py-1 rounded text-xs font-medium bg-green-900/50 text-green-400 border border-green-800">CQS: HIGHEST</span>
+                            {% elif cqs == 'high' %}
+                            <span class="px-2 py-1 rounded text-xs font-medium bg-green-900/30 text-green-300 border border-green-700">CQS: HIGH</span>
+                            {% elif cqs == 'moderate' %}
+                            <span class="px-2 py-1 rounded text-xs font-medium bg-yellow-900/50 text-yellow-400 border border-yellow-800">CQS: MODERATE</span>
+                            {% elif cqs == 'low' %}
+                            <span class="px-2 py-1 rounded text-xs font-medium bg-orange-900/50 text-orange-400 border border-orange-800">CQS: LOW</span>
+                            {% elif cqs == 'lowest' %}
+                            <span class="px-2 py-1 rounded text-xs font-medium bg-red-900/50 text-red-400 border border-red-800">CQS: LOWEST</span>
+                            {% endif %}
+                            {% if avatar.cqs_checked_at %}
+                            <span class="text-[10px] text-gray-500">Checked: {{ avatar.cqs_checked_at.strftime('%Y-%m-%d') }}</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="px-2 py-1 rounded text-xs font-medium bg-gray-700/50 text-gray-400 border border-gray-600">CQS: NOT CHECKED</span>
+                        {% endif %}
+                    </div>
+                    {% if avatar.cqs_notes %}
+                    <div class="text-xs text-gray-500 mt-2">{{ avatar.cqs_notes }}</div>
+                    {% endif %}
+                    {% if avatar.cqs_level == 'lowest' and avatar.warming_phase == 1 %}
+                    <div class="mt-2 px-3 py-1.5 rounded-lg bg-blue-900/20 border border-blue-800/50 text-xs text-blue-300 inline-flex items-center gap-1.5">
+                        🔥 Warming mode — 1 hobby comment/day allowed. CQS will improve with activity.
+                    </div>
+                    {% endif %}
+                </div>
+                <a href="https://www.reddit.com/r/WhatIsMyCQS/submit?selftext=true&title=What+is+my+CQS"
+                   target="_blank"
+                   class="px-3 py-2 rounded-lg text-sm font-medium bg-slate-700 text-gray-300 border border-slate-600 hover:bg-slate-600 whitespace-nowrap">
+                    Check on Reddit ↗
+                </a>
+            </div>
+
+            <form hx-post="/admin/avatars/{{ avatar.id }}/update-cqs"
+                  hx-target="#cqs-badge"
+                  hx-swap="innerHTML"
+                  class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                <div class="flex flex-wrap items-end gap-3">
+                    <div>
+                        <label class="text-xs text-gray-400 block mb-1">CQS Level</label>
+                        <select name="cqs_level" class="bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-sm text-gray-200">
+                            <option value="highest" {% if avatar.cqs_level == 'highest' %}selected{% endif %}>Highest</option>
+                            <option value="high" {% if avatar.cqs_level == 'high' %}selected{% endif %}>High</option>
+                            <option value="moderate" {% if avatar.cqs_level == 'moderate' %}selected{% endif %}>Moderate</option>
+                            <option value="low" {% if avatar.cqs_level == 'low' %}selected{% endif %}>Low</option>
+                            <option value="lowest" {% if avatar.cqs_level == 'lowest' %}selected{% endif %}>Lowest</option>
+                        </select>
+                    </div>
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="text-xs text-gray-400 block mb-1">Notes (optional)</label>
+                        <input type="text" name="cqs_notes" value="{{ avatar.cqs_notes or '' }}"
+                               placeholder="e.g. checked via r/WhatIsMyCQS"
+                               class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-sm text-gray-200">
+                    </div>
+                    <button type="submit"
+                            class="px-4 py-1.5 rounded-lg text-sm font-medium bg-indigo-900/50 text-indigo-300 border border-indigo-700 hover:bg-indigo-800/50">
+                        Save CQS
+                    </button>
+                </div>
+                <div class="mt-3 text-[11px] text-gray-500">
+                    <strong>Phase gates:</strong> Lowest + Phase 2+ → freeze avatar. Lowest + Phase 1 → cautious warming (1 hobby/day). Low → Phase 1 only. Moderate+ → Phase 2-3 eligible.
+                    <br>Check CQS by posting in <a href="https://www.reddit.com/r/WhatIsMyCQS/" target="_blank" class="text-indigo-400 hover:underline">r/WhatIsMyCQS</a> — bot responds within minutes.
+                </div>
+            </form>
+
+            {% if avatar.cqs_checked_at %}
+            {% set cqs_age_days = ((now_utc - avatar.cqs_checked_at).total_seconds() / 86400) | int if now_utc is defined and avatar.cqs_checked_at else 999 %}
+            {% if cqs_age_days > 14 %}
+            <div class="mt-3 px-3 py-2 rounded-lg bg-yellow-900/20 border border-yellow-800/50 text-xs text-yellow-400">
+                ⚠ CQS was last checked {{ cqs_age_days }} days ago. Recommend re-checking every 1-2 weeks.
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+
+        <!-- Freeze Status -->
+        <div id="freeze-section" class="bg-dark-steel rounded-lg border border-slate-700 p-6 scroll-mt-32">
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Freeze Status</h2>
+            <div class="flex items-center gap-4 mb-4">
+                {% if avatar.is_frozen %}
+                <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-red-900/40 text-red-300 border border-red-700">
+                    <span class="w-3 h-3 rounded-full bg-red-400"></span>
+                    Frozen
+                </span>
+                {% else %}
+                <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-green-900/40 text-green-400 border border-green-700">
+                    <span class="w-3 h-3 rounded-full bg-green-400"></span>
+                    Active
+                </span>
+                {% endif %}
+            </div>
+
+            {% if avatar.is_frozen %}
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 mb-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <span class="text-xs text-gray-400 uppercase tracking-wide">Reason</span>
+                        <p class="text-sm text-gray-200 mt-1">{{ avatar.freeze_reason or 'No reason provided' }}</p>
+                    </div>
+                    <div>
+                        <span class="text-xs text-gray-400 uppercase tracking-wide">Frozen At</span>
+                        <p class="text-sm text-gray-200 mt-1">{{ avatar.frozen_at.strftime('%Y-%m-%d %H:%M UTC') if avatar.frozen_at else 'Unknown' }}</p>
+                    </div>
+                </div>
+            </div>
+            <form method="post" action="/admin/avatars/{{ avatar.id }}/unfreeze"
+                  hx-post="/admin/avatars/{{ avatar.id }}/unfreeze"
+                  hx-swap="none">
+                <button type="submit"
+                        class="px-4 py-2 rounded-lg text-sm font-medium bg-green-600 hover:bg-green-700 text-white transition-colors">
+                    Unfreeze Avatar
+                </button>
+            </form>
+            {% else %}
+            <form method="post" action="/admin/avatars/{{ avatar.id }}/freeze"
+                  hx-post="/admin/avatars/{{ avatar.id }}/freeze"
+                  hx-swap="none"
+                  class="flex items-end gap-4 flex-wrap">
+                <div class="flex-1 min-w-[200px]">
+                    <label for="freeze_reason" class="block text-sm text-gray-400 mb-1">Reason</label>
+                    <input type="text" name="freeze_reason" id="freeze_reason" required
+                           placeholder="Reason for freezing this avatar..."
+                           class="w-full bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-500">
+                </div>
+                <button type="submit"
+                        class="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 hover:bg-red-700 text-white transition-colors">
+                    Freeze Avatar
+                </button>
+            </form>
+            {% endif %}
+        </div>
 
     </div>
+
+    {# ============================================================ PERFORMANCE (perf + analytics) #}
     <div data-avatar-detail-panel="performance" class="avatar-detail-panel hidden space-y-6">
 
-    <!-- Removal Rate Analytics (loaded via HTMX) -->
-    <div id="removal-analytics-container"
-         hx-get="/admin/avatars/{{ avatar.id }}/removal-analytics"
-         hx-trigger="revealed"
-         hx-swap="innerHTML">
-      <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
-        <div class="h-4 bg-gray-700 rounded w-32 mb-3"></div>
-        <div class="h-6 bg-gray-700 rounded w-20"></div>
-      </div>
-    </div>
-
-    <!-- Pattern Performance: What Works / What Fails (loaded via HTMX) -->
-    <div id="pattern-performance-container"
-         hx-get="/admin/avatars/{{ avatar.id }}/pattern-performance"
-         hx-trigger="revealed"
-         hx-swap="innerHTML">
-      <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
-        <div class="h-4 bg-gray-700 rounded w-44 mb-3"></div>
-        <div class="h-3 bg-gray-700 rounded w-full mb-2"></div>
-        <div class="h-3 bg-gray-700 rounded w-2/3"></div>
-      </div>
-    </div>
-
-    <!-- Pipeline Stats -->
-    {% if stats %}
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Pipeline Stats</h2>
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 text-center">
-                <div class="text-2xl font-bold text-white">{{ stats.hobby_total }}</div>
-                <div class="text-xs text-gray-400 mt-1">Hobby Posts Scraped</div>
-            </div>
-            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 text-center">
-                <div class="text-2xl font-bold text-amber-400">{{ stats.hobby_pending }}</div>
-                <div class="text-xs text-gray-400 mt-1">Hobby Pending</div>
-            </div>
-            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 text-center">
-                <div class="text-2xl font-bold text-blue-400">{{ stats.pro_pending }}</div>
-                <div class="text-xs text-gray-400 mt-1">Pro Pending</div>
-            </div>
-            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 text-center">
-                <div class="text-2xl font-bold text-green-400">{{ stats.pro_approved }}</div>
-                <div class="text-xs text-gray-400 mt-1">Pro Approved</div>
-            </div>
-            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 text-center">
-                <div class="text-2xl font-bold text-purple-400">{{ stats.pro_posted }}</div>
-                <div class="text-xs text-gray-400 mt-1">Posted</div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Karma History (30 days) -->
-    {% if karma_history and (karma_history.total_comments > 0 or karma_history.total_posts > 0 or karma_history.snapshot_count > 0 or karma_history.reddit_total_karma > 0) %}
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Karma — Last 30 Days</h2>
-            <div class="flex items-center gap-3">
-                <span class="text-xs text-gray-500">Reddit total: <span class="text-white font-mono">{{ karma_history.reddit_total_karma }}</span></span>
-                <span class="px-2 py-0.5 rounded text-xs font-medium
-                    {% if karma_history.trend == 'up' %}bg-green-900/50 text-green-400 border border-green-700
-                    {% elif karma_history.trend == 'down' %}bg-red-900/50 text-red-400 border border-red-700
-                    {% else %}bg-slate-700 text-gray-400 border border-slate-600{% endif %}">
-                    {% if karma_history.trend == 'up' %}↑ Trending up
-                    {% elif karma_history.trend == 'down' %}↓ Trending down
-                    {% else %}→ Flat{% endif %}
-                </span>
-            </div>
+        <!-- Removal Rate Analytics (loaded via HTMX) -->
+        <div id="removal-analytics-container"
+             hx-get="/admin/avatars/{{ avatar.id }}/removal-analytics"
+             hx-trigger="revealed once"
+             hx-swap="innerHTML">
+          <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
+            <div class="h-4 bg-gray-700 rounded w-32 mb-3"></div>
+            <div class="h-6 bg-gray-700 rounded w-20"></div>
+          </div>
         </div>
 
-        {% if karma_history.snapshot_count > 0 %}
-        <div class="mb-5 rounded-lg border border-indigo-800/50 bg-indigo-950/20 p-3">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                    <div class="text-xs text-indigo-300 uppercase tracking-wide">Reddit account snapshots</div>
-                    <div class="text-sm text-gray-300 mt-1">
-                        {{ karma_history.snapshot_count }} snapshot{{ '' if karma_history.snapshot_count == 1 else 's' }}
-                        {% if karma_history.latest_snapshot_at %}
-                        · latest {{ karma_history.latest_snapshot_at.strftime('%Y-%m-%d %H:%M UTC') }}
-                        {% endif %}
+        <!-- Pattern Performance: What Works / What Fails (loaded via HTMX) -->
+        <div id="pattern-performance-container"
+             hx-get="/admin/avatars/{{ avatar.id }}/pattern-performance"
+             hx-trigger="revealed once"
+             hx-swap="innerHTML">
+          <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
+            <div class="h-4 bg-gray-700 rounded w-44 mb-3"></div>
+            <div class="h-3 bg-gray-700 rounded w-full mb-2"></div>
+            <div class="h-3 bg-gray-700 rounded w-2/3"></div>
+          </div>
+        </div>
+
+        <!-- Pipeline Stats -->
+        {% if stats %}
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Pipeline Stats</h2>
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 text-center">
+                    <div class="text-2xl font-bold text-white">{{ stats.hobby_total }}</div>
+                    <div class="text-xs text-gray-400 mt-1">Hobby Posts Scraped</div>
+                </div>
+                <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 text-center">
+                    <div class="text-2xl font-bold text-amber-400">{{ stats.hobby_pending }}</div>
+                    <div class="text-xs text-gray-400 mt-1">Hobby Pending</div>
+                </div>
+                <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 text-center">
+                    <div class="text-2xl font-bold text-blue-400">{{ stats.pro_pending }}</div>
+                    <div class="text-xs text-gray-400 mt-1">Pro Pending</div>
+                </div>
+                <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 text-center">
+                    <div class="text-2xl font-bold text-green-400">{{ stats.pro_approved }}</div>
+                    <div class="text-xs text-gray-400 mt-1">Pro Approved</div>
+                </div>
+                <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 text-center">
+                    <div class="text-2xl font-bold text-purple-400">{{ stats.pro_posted }}</div>
+                    <div class="text-xs text-gray-400 mt-1">Posted</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Karma History (30 days) -->
+        {% if karma_history and (karma_history.total_comments > 0 or karma_history.total_posts > 0 or karma_history.snapshot_count > 0 or karma_history.reddit_total_karma > 0) %}
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+            <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Karma — Last 30 Days</h2>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <div class="inline-flex rounded-md border border-slate-600 overflow-hidden text-xs" role="group" aria-label="Karma granularity">
+                        <button type="button" data-karma-granularity="weekly"
+                                class="karma-gran-btn px-2.5 py-1 bg-indigo-600 text-white">Weekly</button>
+                        <button type="button" data-karma-granularity="daily"
+                                class="karma-gran-btn px-2.5 py-1 bg-slate-800 text-gray-300 hover:text-white">Daily</button>
                     </div>
+                    <span class="text-xs text-gray-500">Reddit total: <span class="text-white font-mono">{{ karma_history.reddit_total_karma }}</span></span>
+                    <span class="px-2 py-0.5 rounded text-xs font-medium
+                        {% if karma_history.trend == 'up' %}bg-green-900/50 text-green-400 border border-green-700
+                        {% elif karma_history.trend == 'down' %}bg-red-900/50 text-red-400 border border-red-700
+                        {% else %}bg-slate-700 text-gray-400 border border-slate-600{% endif %}">
+                        {% if karma_history.trend == 'up' %}↑ Trending up
+                        {% elif karma_history.trend == 'down' %}↓ Trending down
+                        {% else %}→ Flat{% endif %}
+                    </span>
                 </div>
-                <div class="text-right">
-                    <div class="text-xl font-bold text-white">{{ karma_history.latest_snapshot_total_karma if karma_history.latest_snapshot_total_karma is not none else karma_history.reddit_total_karma }}</div>
-                    <div class="text-[10px] text-gray-500">Latest snapshot total</div>
-                </div>
             </div>
-        </div>
-        {% endif %}
 
-        <!-- Summary stats -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-            <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 text-center">
-                {% set display_delta = karma_history.total_karma if karma_history.total_karma != 0 else karma_history.snapshot_delta_karma %}
-                <div class="text-xl font-bold {% if display_delta and display_delta > 0 %}text-green-400{% elif display_delta and display_delta < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
-                    {% if display_delta is none %}n/a{% else %}{% if display_delta > 0 %}+{% endif %}{{ display_delta }}{% endif %}
-                </div>
-                <div class="text-[10px] text-gray-500 mt-1">30d Delta</div>
-            </div>
-            <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 text-center">
-                <div class="text-xl font-bold text-blue-400">{{ karma_history.total_comments }}</div>
-                <div class="text-[10px] text-gray-500 mt-1">Comments Posted</div>
-            </div>
-            <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 text-center">
-                <div class="text-xl font-bold text-purple-400">{{ karma_history.total_posts }}</div>
-                <div class="text-[10px] text-gray-500 mt-1">Posts Created</div>
-            </div>
-            <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 text-center">
-                <div class="text-xl font-bold text-gray-300">{{ karma_history.avg_daily_karma }}</div>
-                <div class="text-[10px] text-gray-500 mt-1">Avg Daily Karma</div>
-            </div>
-        </div>
-
-        <!-- Daily sparkline (CSS bar chart) -->
-        <div class="mb-5">
-            <h3 class="text-xs text-gray-500 mb-2">Daily karma / account snapshots (30 days)</h3>
-            <div class="flex items-end gap-px h-16">
-                {% set max_karma = namespace(val=1) %}
-                {% for d in karma_history.days %}
-                    {% if d.reddit_total_karma is not none and d.reddit_total_karma|abs > max_karma.val %}
-                        {% set max_karma.val = d.reddit_total_karma|abs %}
-                    {% elif d.total|abs > max_karma.val %}
-                        {% set max_karma.val = d.total|abs %}
-                    {% endif %}
-                {% endfor %}
-                {% for d in karma_history.days %}
-                {% set bar_value = d.reddit_total_karma if d.reddit_total_karma is not none else d.total %}
-                {% set height_pct = ((bar_value|abs) / max_karma.val * 100)|int if max_karma.val > 0 else 0 %}
-                <div class="flex-1 min-w-0 rounded-t-sm transition-all
-                    {% if d.reddit_total_karma is not none %}bg-indigo-500/70 hover:bg-indigo-400
-                    {% elif d.total > 0 %}bg-green-600/70 hover:bg-green-500
-                    {% elif d.total < 0 %}bg-red-600/70 hover:bg-red-500
-                    {% else %}bg-slate-700 hover:bg-slate-600{% endif %}"
-                    style="height: {{ [height_pct, 4]|max }}%"
-                    title="{{ d.date }}: {% if d.reddit_total_karma is not none %}{{ d.reddit_total_karma }} Reddit total karma snapshot{% else %}{{ d.total }} tracked karma ({{ d.comments_posted }} comments, {{ d.posts_posted }} posts){% endif %}">
-                </div>
-                {% endfor %}
-            </div>
-            <div class="flex justify-between mt-1">
-                <span class="text-[9px] text-gray-600">{{ karma_history.days[0].date[5:] if karma_history.days else '' }}</span>
-                <span class="text-[9px] text-gray-600">today</span>
-            </div>
-        </div>
-
-        <!-- By subreddit breakdown -->
-        {% if karma_history.by_subreddit %}
-        <h3 class="text-xs text-gray-500 mb-2">Karma by subreddit</h3>
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="text-left text-gray-500 border-b border-slate-700">
-                        <th class="pb-2 text-[10px] uppercase tracking-wider font-medium">Subreddit</th>
-                        <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">Comments</th>
-                        <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">Total Karma</th>
-                        <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">Avg</th>
-                        <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">Best</th>
-                        <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">Worst</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-700/50">
-                    {% for s in karma_history.by_subreddit %}
-                    <tr class="hover:bg-slate-700/20">
-                        <td class="py-2">
-                            <a href="/admin/subreddits/detail/{{ s.subreddit }}"
-                               class="text-gray-200 hover:text-indigo-400 transition-colors">
-                                r/{{ s.subreddit }}
-                            </a>
-                        </td>
-                        <td class="py-2 text-center font-mono text-xs text-gray-400">{{ s.comment_count }}</td>
-                        <td class="py-2 text-center font-mono text-xs
-                            {% if s.total_karma > 0 %}text-green-400{% elif s.total_karma < 0 %}text-red-400{% else %}text-gray-500{% endif %}">
-                            {% if s.total_karma > 0 %}+{% endif %}{{ s.total_karma }}
-                        </td>
-                        <td class="py-2 text-center font-mono text-xs text-gray-400">{{ s.avg_score }}</td>
-                        <td class="py-2 text-center font-mono text-xs text-green-400">+{{ s.best_score }}</td>
-                        <td class="py-2 text-center font-mono text-xs {% if s.worst_score < 0 %}text-red-400{% else %}text-gray-500{% endif %}">{{ s.worst_score }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% endif %}
-    </div>
-    {% elif karma_history %}
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Karma — Last 30 Days</h2>
-        <p class="text-gray-500 text-sm">No posted comments or posts in the last 30 days. Karma tracking starts after the first post is marked as "posted".</p>
-    </div>
-    {% endif %}
-
-    </div>
-    <div data-avatar-detail-panel="billing" class="avatar-detail-panel hidden space-y-6">
-
-    <!-- AI Costs (Billing) -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">AI Billing</h2>
-
-        {% if ai_billing and ai_billing.total_calls > 0 %}
-        <!-- Summary cards -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
-                <div class="text-[11px] text-gray-500 uppercase tracking-wider">Total Cost</div>
-                <div class="text-lg font-semibold text-white mt-1">${{ "%.4f"|format(ai_billing.total_cost) }}</div>
-            </div>
-            <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
-                <div class="text-[11px] text-gray-500 uppercase tracking-wider">Last 7 days</div>
-                <div class="text-lg font-semibold text-white mt-1">${{ "%.4f"|format(ai_billing.cost_7d) }}</div>
-            </div>
-            <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
-                <div class="text-[11px] text-gray-500 uppercase tracking-wider">Last 30 days</div>
-                <div class="text-lg font-semibold text-white mt-1">${{ "%.4f"|format(ai_billing.cost_30d) }}</div>
-            </div>
-            <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
-                <div class="text-[11px] text-gray-500 uppercase tracking-wider">Total Calls</div>
-                <div class="text-lg font-semibold text-white mt-1">{{ ai_billing.total_calls }}</div>
-            </div>
-        </div>
-
-        <!-- Breakdown by operation -->
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left">
-                <thead>
-                    <tr class="border-b border-slate-700">
-                        <th class="px-3 py-2 text-gray-400 uppercase text-xs font-medium">Operation</th>
-                        <th class="px-3 py-2 text-gray-400 uppercase text-xs font-medium text-right">Calls</th>
-                        <th class="px-3 py-2 text-gray-400 uppercase text-xs font-medium text-right">Input Tokens</th>
-                        <th class="px-3 py-2 text-gray-400 uppercase text-xs font-medium text-right">Output Tokens</th>
-                        <th class="px-3 py-2 text-gray-400 uppercase text-xs font-medium text-right">Cost</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in ai_billing.costs_by_operation %}
-                    <tr class="border-b border-slate-700/50 hover:bg-slate-700/20">
-                        <td class="px-3 py-2">
-                            <span class="px-2 py-0.5 rounded text-xs font-medium
-                                {% if row.operation == 'scoring' %}bg-amber-900/50 text-amber-400
-                                {% elif row.operation == 'generation' %}bg-violet-900/50 text-violet-400
-                                {% elif row.operation == 'persona_select' %}bg-blue-900/50 text-blue-400
-                                {% elif row.operation == 'editing' %}bg-green-900/50 text-green-400
-                                {% elif row.operation == 'hobby_comment' %}bg-cyan-900/50 text-cyan-400
-                                {% else %}bg-slate-700 text-gray-400{% endif %}">
-                                {{ row.operation }}
-                            </span>
-                        </td>
-                        <td class="px-3 py-2 text-gray-300 text-right font-mono">{{ row.call_count }}</td>
-                        <td class="px-3 py-2 text-gray-300 text-right font-mono">{{ "{:,}".format(row.total_input) }}</td>
-                        <td class="px-3 py-2 text-gray-300 text-right font-mono">{{ "{:,}".format(row.total_output) }}</td>
-                        <td class="px-3 py-2 text-white text-right font-mono">${{ "%.4f"|format(row.total_cost) }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-                <tfoot>
-                    <tr class="border-t border-slate-600">
-                        <td class="px-3 py-2 text-gray-300 font-medium">Total</td>
-                        <td class="px-3 py-2 text-white text-right font-mono font-medium">{{ ai_billing.total_calls }}</td>
-                        <td class="px-3 py-2 text-gray-400 text-right">—</td>
-                        <td class="px-3 py-2 text-gray-400 text-right">—</td>
-                        <td class="px-3 py-2 text-white text-right font-mono font-medium">${{ "%.4f"|format(ai_billing.total_cost) }}</td>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
-        {% else %}
-        <p class="text-sm text-gray-500">No AI usage recorded for this avatar yet.</p>
-        {% endif %}
-
-        {% if assigned_clients %}
-        <p class="text-xs text-gray-500 mt-4 border-t border-slate-700 pt-3">
-            Client-level costs:
-            {% for c in assigned_clients %}
-            <a href="/admin/clients/{{ c.id }}" class="text-indigo-400 hover:text-indigo-300">{{ c.client_name }}</a>{% if not loop.last %}, {% endif %}
-            {% endfor %}
-        </p>
-        {% endif %}
-    </div>
-
-    <!-- Recent AI Calls (detail log) -->
-    {% if ai_billing and ai_billing.recent_calls %}
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Recent AI Calls (last 30)</h2>
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left">
-                <thead>
-                    <tr class="border-b border-slate-700">
-                        <th class="px-2 py-2 text-gray-400 uppercase text-xs font-medium">Time</th>
-                        <th class="px-2 py-2 text-gray-400 uppercase text-xs font-medium">Pipeline Node</th>
-                        <th class="px-2 py-2 text-gray-400 uppercase text-xs font-medium">Model</th>
-                        <th class="px-2 py-2 text-gray-400 uppercase text-xs font-medium">Subreddit</th>
-                        <th class="px-2 py-2 text-gray-400 uppercase text-xs font-medium">Trigger</th>
-                        <th class="px-2 py-2 text-gray-400 uppercase text-xs font-medium text-right">Tokens</th>
-                        <th class="px-2 py-2 text-gray-400 uppercase text-xs font-medium text-right">Cost</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for call in ai_billing.recent_calls %}
-                    <tr class="border-b border-slate-700/50 hover:bg-slate-700/20">
-                        <td class="px-2 py-1.5 text-gray-500 font-mono text-xs whitespace-nowrap">{{ call.created_at.strftime('%m-%d %H:%M') }}</td>
-                        <td class="px-2 py-1.5">
-                            <span class="px-1.5 py-0.5 rounded text-xs font-medium
-                                {% if call.operation == 'scoring' %}bg-amber-900/50 text-amber-400
-                                {% elif call.operation == 'generation' %}bg-violet-900/50 text-violet-400
-                                {% elif call.operation == 'persona_select' %}bg-blue-900/50 text-blue-400
-                                {% elif call.operation == 'editing' %}bg-green-900/50 text-green-400
-                                {% elif call.operation == 'hobby_comment' %}bg-cyan-900/50 text-cyan-400
-                                {% else %}bg-slate-700 text-gray-400{% endif %}">
-                                {{ call.operation }}
-                            </span>
-                        </td>
-                        <td class="px-2 py-1.5 text-gray-300 text-xs font-mono truncate max-w-[140px]" title="{{ call.model }}">
-                            {% set model_short = call.model.split('/')[-1] if '/' in call.model else call.model %}
-                            {{ model_short[:25] }}
-                        </td>
-                        <td class="px-2 py-1.5 text-gray-300 text-xs">
-                            {% if call.subreddit_name %}
-                            <span class="text-gray-400">r/</span>{{ call.subreddit_name }}
-                            {% else %}
-                            <span class="text-gray-600">—</span>
-                            {% endif %}
-                        </td>
-                        <td class="px-2 py-1.5">
-                            {% if call.triggered_by %}
-                            <span class="px-1.5 py-0.5 rounded text-xs
-                                {% if call.triggered_by == 'manual' %}bg-orange-900/40 text-orange-400
-                                {% else %}bg-slate-700 text-gray-400{% endif %}">
-                                {{ call.triggered_by }}
-                            </span>
-                            {% else %}
-                            <span class="text-gray-600 text-xs">scheduled</span>
-                            {% endif %}
-                        </td>
-                        <td class="px-2 py-1.5 text-gray-400 text-right font-mono text-xs">{{ "{:,}".format(call.input_tokens + call.output_tokens) }}</td>
-                        <td class="px-2 py-1.5 text-white text-right font-mono text-xs">${{ "%.4f"|format(call.cost_usd|float) }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    {% endif %}
-
-    </div>
-    <div data-avatar-detail-panel="drafts" class="avatar-detail-panel hidden space-y-6">
-
-    <!-- Pending Actions: Professional Comments -->
-    {% if pro_drafts %}
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">
-            Professional Comments ({{ pro_drafts|length }})
-        </h2>
-        <div class="space-y-4">
-            {% for item in pro_drafts %}
-            <div class="bg-slate-800/50 rounded-lg border border-slate-700/50 overflow-hidden">
-                <!-- Thread header -->
-                <div class="px-4 py-3 border-b border-slate-700/50 flex items-start justify-between">
+            {% if karma_history.snapshot_count > 0 %}
+            <div class="mb-5 rounded-lg border border-indigo-800/50 bg-indigo-950/20 p-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                        <div class="text-sm font-medium text-white">{{ item.thread.post_title[:80] if item.thread else 'Unknown' }}</div>
-                        <div class="flex items-center gap-2 mt-1 text-xs">
-                            <span class="text-gray-400">r/{{ item.thread.subreddit if item.thread else '?' }}</span>
-                            {% if item.draft.engagement_mode %}
-                            <span class="px-1.5 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">{{ item.draft.engagement_mode }}</span>
-                            {% endif %}
-                            {% if item.draft.strategic_angle %}
-                            <span class="px-1.5 py-0.5 rounded bg-purple-900/50 text-purple-300 border border-purple-700/50">{{ item.draft.strategic_angle }}</span>
-                            {% endif %}
-                            {% if item.draft.comment_approach %}
-                            <span class="px-1.5 py-0.5 rounded bg-amber-900/50 text-amber-300 border border-amber-700/50">{{ item.draft.comment_approach }}</span>
+                        <div class="text-xs text-indigo-300 uppercase tracking-wide">Reddit account snapshots</div>
+                        <div class="text-sm text-gray-300 mt-1">
+                            {{ karma_history.snapshot_count }} snapshot{{ '' if karma_history.snapshot_count == 1 else 's' }}
+                            {% if karma_history.latest_snapshot_at %}
+                            · latest {{ karma_history.latest_snapshot_at.strftime('%Y-%m-%d %H:%M UTC') }}
                             {% endif %}
                         </div>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs px-2 py-0.5 rounded
-                            {% if item.draft.status == 'pending' %}bg-amber-900/50 text-amber-300 border border-amber-700
-                            {% elif item.draft.status == 'approved' %}bg-green-900/50 text-green-300 border border-green-700
-                            {% elif item.draft.status == 'posted' %}bg-purple-900/50 text-purple-300 border border-purple-700
-                            {% else %}bg-red-900/50 text-red-300 border border-red-700{% endif %}">
-                            {{ item.draft.status }}
-                        </span>
-                        <span class="text-xs text-gray-500">{{ item.draft.created_at.strftime('%b %d %H:%M') if item.draft.created_at else '' }}</span>
+                    <div class="text-right">
+                        <div class="text-xl font-bold text-white">{{ karma_history.latest_snapshot_total_karma if karma_history.latest_snapshot_total_karma is not none else karma_history.reddit_total_karma }}</div>
+                        <div class="text-[10px] text-gray-500">Latest snapshot total</div>
                     </div>
                 </div>
-
-                <!-- WHERE: Reply location -->
-                {% if item.draft.comment_to %}
-                <div class="px-4 py-2 border-b border-slate-700/50 bg-slate-900/30">
-                    <span class="text-xs text-amber-400 font-medium">📍 Reply to: </span>
-                    <span class="text-xs text-gray-300 italic">
-                        {% if item.draft.comment_to == 'post' %}Top-level (depth 0)
-                        {% else %}"{{ item.draft.comment_to[:100] }}" (depth {{ item.draft.location_depth or '?' }}){% endif %}
-                    </span>
-                    {% if item.draft.location_reasoning %}
-                    <div class="text-xs text-gray-500 mt-0.5">↳ {{ item.draft.location_reasoning }}</div>
-                    {% endif %}
-                </div>
-                {% endif %}
-
-                <!-- WHAT: Comment text -->
-                <div class="px-4 py-3">
-                    <div class="bg-slate-900 rounded p-3 text-sm text-gray-200 font-mono leading-relaxed border border-slate-700">{{ item.draft.ai_draft }}</div>
-                </div>
-
-                <!-- Link to Reddit -->
-                {% if item.thread and item.thread.url %}
-                <div class="px-4 py-2 border-t border-slate-700/50">
-                    <a href="{{ item.thread.url }}" target="_blank" class="text-xs text-blue-400 hover:text-blue-300">Open thread on Reddit ↗</a>
-                </div>
-                {% endif %}
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Pending Actions: Hobby Comments -->
-    {% if hobby_comments %}
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">
-            Hobby Comments — Karma Building ({{ hobby_comments|length }})
-        </h2>
-        <div class="space-y-3">
-            {% for h in hobby_comments %}
-            {% if h.ai_comment %}
-            <div class="bg-slate-800/50 rounded-lg border border-slate-700/50 p-4">
-                <div class="flex items-center justify-between mb-2">
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs px-2 py-0.5 rounded bg-blue-900/50 text-blue-300 border border-blue-700/50">r/{{ h.subreddit }}</span>
-                        <span class="text-xs text-gray-400">{{ h.post_title[:50] }}{% if h.post_title|length > 50 %}…{% endif %}</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs px-1.5 py-0.5 rounded
-                            {% if h.status == 'pending' %}bg-amber-900/50 text-amber-300 border border-amber-700
-                            {% elif h.status == 'posted' %}bg-green-900/50 text-green-300 border border-green-700
-                            {% else %}bg-slate-700 text-gray-400 border border-slate-600{% endif %}">
-                            {{ h.status or 'new' }}
-                        </span>
-                        <span class="text-xs text-gray-500">{{ h.created_at.strftime('%b %d %H:%M') if h.created_at else '' }}</span>
-                    </div>
-                </div>
-                <div class="bg-slate-900 rounded p-3 text-sm text-gray-200 font-mono leading-relaxed border border-slate-700">{{ h.ai_comment }}</div>
-                {% if h.url %}
-                <div class="mt-2">
-                    <a href="{{ h.url }}" target="_blank" class="text-xs text-blue-400 hover:text-blue-300">Open on Reddit ↗</a>
-                </div>
-                {% endif %}
             </div>
             {% endif %}
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
 
-    </div>
-    <div data-avatar-detail-panel="analytics" class="avatar-detail-panel hidden space-y-6">
-
-    <!-- Profile Analytics (loaded on demand via HTMX) -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Reddit Profile Analytics</h2>
-            <button type="button"
-                    hx-get="/admin/avatars/{{ avatar.id }}/profile-analytics?refresh=1"
-                    hx-target="#profile-analytics-content"
-                    hx-indicator="#analytics-spinner"
-                    hx-swap="innerHTML"
-                    class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Refresh from Reddit
-            </button>
-        </div>
-        <p class="text-xs text-gray-500 mb-4">
-            Shows saved profile analytics. Click "Refresh from Reddit" to fetch fresh data from Reddit API and save (3-8 sec).
-        </p>
-
-        <!-- Loading spinner -->
-        <div id="analytics-spinner" class="htmx-indicator flex items-center justify-center py-8">
-            <div class="flex items-center gap-3">
-                <svg class="animate-spin h-5 w-5 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span class="text-sm text-gray-400">Fetching from Reddit API...</span>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+                <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 text-center">
+                    {% set display_delta = karma_history.total_karma if karma_history.total_karma != 0 else karma_history.snapshot_delta_karma %}
+                    <div class="text-xl font-bold {% if display_delta and display_delta > 0 %}text-green-400{% elif display_delta and display_delta < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
+                        {% if display_delta is none %}n/a{% else %}{% if display_delta > 0 %}+{% endif %}{{ display_delta }}{% endif %}
+                    </div>
+                    <div class="text-[10px] text-gray-500 mt-1">30d Delta</div>
+                </div>
+                <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 text-center">
+                    <div class="text-xl font-bold text-blue-400">{{ karma_history.total_comments }}</div>
+                    <div class="text-[10px] text-gray-500 mt-1">Comments Posted</div>
+                </div>
+                <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 text-center">
+                    <div class="text-xl font-bold text-purple-400">{{ karma_history.total_posts }}</div>
+                    <div class="text-[10px] text-gray-500 mt-1">Posts Created</div>
+                </div>
+                <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 text-center">
+                    <div class="text-xl font-bold text-gray-300">{{ karma_history.avg_daily_karma }}</div>
+                    <div class="text-[10px] text-gray-500 mt-1">Avg Daily Karma</div>
+                </div>
             </div>
+
+            <!-- Sparkline (daily/weekly toggle handled client-side) -->
+            <div class="mb-5">
+                <h3 class="text-xs text-gray-500 mb-2" data-karma-title>Weekly karma aggregates (last 30 days)</h3>
+                <div id="karma-chart-bars" class="flex items-end gap-px h-16">
+                    {% set max_karma = namespace(val=1) %}
+                    {% for d in karma_history.days %}
+                        {% if d.reddit_total_karma is not none and d.reddit_total_karma|abs > max_karma.val %}
+                            {% set max_karma.val = d.reddit_total_karma|abs %}
+                        {% elif d.total|abs > max_karma.val %}
+                            {% set max_karma.val = d.total|abs %}
+                        {% endif %}
+                    {% endfor %}
+                    {% for d in karma_history.days %}
+                    {% set bar_value = d.reddit_total_karma if d.reddit_total_karma is not none else d.total %}
+                    {% set height_pct = ((bar_value|abs) / max_karma.val * 100)|int if max_karma.val > 0 else 0 %}
+                    <div class="karma-bar flex-1 min-w-0 rounded-t-sm transition-all
+                        {% if d.reddit_total_karma is not none %}bg-indigo-500/70 hover:bg-indigo-400
+                        {% elif d.total > 0 %}bg-green-600/70 hover:bg-green-500
+                        {% elif d.total < 0 %}bg-red-600/70 hover:bg-red-500
+                        {% else %}bg-slate-700 hover:bg-slate-600{% endif %}"
+                        data-karma-date="{{ d.date }}"
+                        data-karma-value="{{ bar_value|abs }}"
+                        data-karma-max="{{ max_karma.val }}"
+                        style="height: {{ [height_pct, 4]|max }}%"
+                        title="{{ d.date }}: {% if d.reddit_total_karma is not none %}{{ d.reddit_total_karma }} Reddit total karma snapshot{% else %}{{ d.total }} tracked karma ({{ d.comments_posted }} comments, {{ d.posts_posted }} posts){% endif %}">
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="flex justify-between mt-1">
+                    <span class="text-[9px] text-gray-600">{{ karma_history.days[0].date[5:] if karma_history.days else '' }}</span>
+                    <span class="text-[9px] text-gray-600">today</span>
+                </div>
+            </div>
+
+            {% if karma_history.by_subreddit %}
+            <h3 class="text-xs text-gray-500 mb-2">Karma by subreddit</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-500 border-b border-slate-700">
+                            <th class="pb-2 text-[10px] uppercase tracking-wider font-medium">Subreddit</th>
+                            <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">Comments</th>
+                            <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">Total Karma</th>
+                            <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">Avg</th>
+                            <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">Best</th>
+                            <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">Worst</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-700/50">
+                        {% for s in karma_history.by_subreddit %}
+                        <tr class="hover:bg-slate-700/20">
+                            <td class="py-2">
+                                <a href="/admin/subreddits/detail/{{ s.subreddit }}"
+                                   class="text-gray-200 hover:text-indigo-400 transition-colors">
+                                    r/{{ s.subreddit }}
+                                </a>
+                            </td>
+                            <td class="py-2 text-center font-mono text-xs text-gray-400">{{ s.comment_count }}</td>
+                            <td class="py-2 text-center font-mono text-xs
+                                {% if s.total_karma > 0 %}text-green-400{% elif s.total_karma < 0 %}text-red-400{% else %}text-gray-500{% endif %}">
+                                {% if s.total_karma > 0 %}+{% endif %}{{ s.total_karma }}
+                            </td>
+                            <td class="py-2 text-center font-mono text-xs text-gray-400">{{ s.avg_score }}</td>
+                            <td class="py-2 text-center font-mono text-xs text-green-400">+{{ s.best_score }}</td>
+                            <td class="py-2 text-center font-mono text-xs {% if s.worst_score < 0 %}text-red-400{% else %}text-gray-500{% endif %}">{{ s.worst_score }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
         </div>
-
-        <!-- Analytics content (auto-loads saved snapshot on tab open) -->
-        <div id="profile-analytics-content"
-             hx-get="/admin/avatars/{{ avatar.id }}/profile-analytics"
-             hx-trigger="revealed"
-             hx-indicator="#analytics-spinner"
-             hx-swap="innerHTML">
+        {% elif karma_history %}
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Karma — Last 30 Days</h2>
+            <p class="text-gray-500 text-sm">No posted comments or posts in the last 30 days. Karma tracking starts after the first post is marked as "posted".</p>
         </div>
-    </div>
+        {% endif %}
 
-    </div>
-    <div data-avatar-detail-panel="presence" class="avatar-detail-panel hidden space-y-6">
+        <!-- Reddit Profile Analytics (from old analytics tab) -->
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+            <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Reddit Profile Analytics</h2>
+                <button type="button"
+                        hx-get="/admin/avatars/{{ avatar.id }}/profile-analytics?refresh=1"
+                        hx-target="#profile-analytics-content"
+                        hx-indicator="#analytics-spinner"
+                        hx-swap="innerHTML"
+                        class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Refresh from Reddit
+                </button>
+            </div>
+            <p class="text-xs text-gray-500 mb-4">
+                Shows saved profile analytics. Click "Refresh from Reddit" to fetch fresh data from Reddit API and save (3-8 sec).
+            </p>
 
-    <!-- Subreddit Coverage: Plan vs Actual -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-        <div class="flex items-center justify-between mb-2">
-            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Subreddit Coverage</h2>
-            <div id="presence-scan-btn"
-                 hx-get="/admin/avatars/{{ avatar.id }}/presence-scan-button"
-                 hx-trigger="revealed"
+            <div id="analytics-spinner" class="htmx-indicator flex items-center justify-center py-8">
+                <div class="flex items-center gap-3">
+                    <svg class="animate-spin h-5 w-5 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span class="text-sm text-gray-400">Fetching from Reddit API...</span>
+                </div>
+            </div>
+
+            <div id="profile-analytics-content"
+                 hx-get="/admin/avatars/{{ avatar.id }}/profile-analytics"
+                 hx-trigger="revealed once"
+                 hx-indicator="#analytics-spinner"
                  hx-swap="innerHTML">
             </div>
         </div>
-        <p class="text-xs text-gray-500 mb-4">
-            Plan (assigned via clients) vs Actual (where this avatar appeared). Target/Hobby = assigned, Extra = organic activity.
-        </p>
 
-        <div id="avatar-subreddit-coverage"
-             hx-get="/admin/avatars/{{ avatar.id }}/subreddit-coverage?sort_by=type&sort_dir=asc"
-             hx-trigger="revealed"
+    </div>
+
+    {# ============================================================ BILLING #}
+    <div data-avatar-detail-panel="billing" class="avatar-detail-panel hidden space-y-6">
+
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">AI Billing</h2>
+
+            {% if ai_billing and ai_billing.total_calls > 0 %}
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
+                    <div class="text-[11px] text-gray-500 uppercase tracking-wider">Total Cost</div>
+                    <div class="text-lg font-semibold text-white mt-1">${{ "%.4f"|format(ai_billing.total_cost) }}</div>
+                </div>
+                <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
+                    <div class="text-[11px] text-gray-500 uppercase tracking-wider">Last 7 days</div>
+                    <div class="text-lg font-semibold text-white mt-1">${{ "%.4f"|format(ai_billing.cost_7d) }}</div>
+                </div>
+                <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
+                    <div class="text-[11px] text-gray-500 uppercase tracking-wider">Last 30 days</div>
+                    <div class="text-lg font-semibold text-white mt-1">${{ "%.4f"|format(ai_billing.cost_30d) }}</div>
+                </div>
+                <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
+                    <div class="text-[11px] text-gray-500 uppercase tracking-wider">Total Calls</div>
+                    <div class="text-lg font-semibold text-white mt-1">{{ ai_billing.total_calls }}</div>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left">
+                    <thead>
+                        <tr class="border-b border-slate-700">
+                            <th class="px-3 py-2 text-gray-400 uppercase text-xs font-medium">Operation</th>
+                            <th class="px-3 py-2 text-gray-400 uppercase text-xs font-medium text-right">Calls</th>
+                            <th class="px-3 py-2 text-gray-400 uppercase text-xs font-medium text-right">Input Tokens</th>
+                            <th class="px-3 py-2 text-gray-400 uppercase text-xs font-medium text-right">Output Tokens</th>
+                            <th class="px-3 py-2 text-gray-400 uppercase text-xs font-medium text-right">Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in ai_billing.costs_by_operation %}
+                        <tr class="border-b border-slate-700/50 hover:bg-slate-700/20">
+                            <td class="px-3 py-2">
+                                <span class="px-2 py-0.5 rounded text-xs font-medium
+                                    {% if row.operation == 'scoring' %}bg-amber-900/50 text-amber-400
+                                    {% elif row.operation == 'generation' %}bg-violet-900/50 text-violet-400
+                                    {% elif row.operation == 'persona_select' %}bg-blue-900/50 text-blue-400
+                                    {% elif row.operation == 'editing' %}bg-green-900/50 text-green-400
+                                    {% elif row.operation == 'hobby_comment' %}bg-cyan-900/50 text-cyan-400
+                                    {% else %}bg-slate-700 text-gray-400{% endif %}">
+                                    {{ row.operation }}
+                                </span>
+                            </td>
+                            <td class="px-3 py-2 text-gray-300 text-right font-mono">{{ row.call_count }}</td>
+                            <td class="px-3 py-2 text-gray-300 text-right font-mono">{{ "{:,}".format(row.total_input) }}</td>
+                            <td class="px-3 py-2 text-gray-300 text-right font-mono">{{ "{:,}".format(row.total_output) }}</td>
+                            <td class="px-3 py-2 text-white text-right font-mono">${{ "%.4f"|format(row.total_cost) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="border-t border-slate-600">
+                            <td class="px-3 py-2 text-gray-300 font-medium">Total</td>
+                            <td class="px-3 py-2 text-white text-right font-mono font-medium">{{ ai_billing.total_calls }}</td>
+                            <td class="px-3 py-2 text-gray-400 text-right">—</td>
+                            <td class="px-3 py-2 text-gray-400 text-right">—</td>
+                            <td class="px-3 py-2 text-white text-right font-mono font-medium">${{ "%.4f"|format(ai_billing.total_cost) }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-500">No AI usage recorded for this avatar yet.</p>
+            {% endif %}
+
+            {% if assigned_clients %}
+            <p class="text-xs text-gray-500 mt-4 border-t border-slate-700 pt-3">
+                Client-level costs:
+                {% for c in assigned_clients %}
+                <a href="/admin/clients/{{ c.id }}" class="text-indigo-400 hover:text-indigo-300">{{ c.client_name }}</a>{% if not loop.last %}, {% endif %}
+                {% endfor %}
+            </p>
+            {% endif %}
+        </div>
+
+        {% if ai_billing and ai_billing.recent_calls %}
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Recent AI Calls (last 30)</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left">
+                    <thead>
+                        <tr class="border-b border-slate-700">
+                            <th class="px-2 py-2 text-gray-400 uppercase text-xs font-medium">Time</th>
+                            <th class="px-2 py-2 text-gray-400 uppercase text-xs font-medium">Pipeline Node</th>
+                            <th class="px-2 py-2 text-gray-400 uppercase text-xs font-medium">Model</th>
+                            <th class="px-2 py-2 text-gray-400 uppercase text-xs font-medium">Subreddit</th>
+                            <th class="px-2 py-2 text-gray-400 uppercase text-xs font-medium">Trigger</th>
+                            <th class="px-2 py-2 text-gray-400 uppercase text-xs font-medium text-right">Tokens</th>
+                            <th class="px-2 py-2 text-gray-400 uppercase text-xs font-medium text-right">Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for call in ai_billing.recent_calls %}
+                        <tr class="border-b border-slate-700/50 hover:bg-slate-700/20">
+                            <td class="px-2 py-1.5 text-gray-500 font-mono text-xs whitespace-nowrap">{{ call.created_at.strftime('%m-%d %H:%M') }}</td>
+                            <td class="px-2 py-1.5">
+                                <span class="px-1.5 py-0.5 rounded text-xs font-medium
+                                    {% if call.operation == 'scoring' %}bg-amber-900/50 text-amber-400
+                                    {% elif call.operation == 'generation' %}bg-violet-900/50 text-violet-400
+                                    {% elif call.operation == 'persona_select' %}bg-blue-900/50 text-blue-400
+                                    {% elif call.operation == 'editing' %}bg-green-900/50 text-green-400
+                                    {% elif call.operation == 'hobby_comment' %}bg-cyan-900/50 text-cyan-400
+                                    {% else %}bg-slate-700 text-gray-400{% endif %}">
+                                    {{ call.operation }}
+                                </span>
+                            </td>
+                            <td class="px-2 py-1.5 text-gray-300 text-xs font-mono truncate max-w-[140px]" title="{{ call.model }}">
+                                {% set model_short = call.model.split('/')[-1] if '/' in call.model else call.model %}
+                                {{ model_short[:25] }}
+                            </td>
+                            <td class="px-2 py-1.5 text-gray-300 text-xs">
+                                {% if call.subreddit_name %}
+                                <span class="text-gray-400">r/</span>{{ call.subreddit_name }}
+                                {% else %}
+                                <span class="text-gray-600">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-2 py-1.5">
+                                {% if call.triggered_by %}
+                                <span class="px-1.5 py-0.5 rounded text-xs
+                                    {% if call.triggered_by == 'manual' %}bg-orange-900/40 text-orange-400
+                                    {% else %}bg-slate-700 text-gray-400{% endif %}">
+                                    {{ call.triggered_by }}
+                                </span>
+                                {% else %}
+                                <span class="text-gray-600 text-xs">scheduled</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-2 py-1.5 text-gray-400 text-right font-mono text-xs">{{ "{:,}".format(call.input_tokens + call.output_tokens) }}</td>
+                            <td class="px-2 py-1.5 text-white text-right font-mono text-xs">${{ "%.4f"|format(call.cost_usd|float) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+
+    {# ============================================================ CONTENT (drafts + pipeline) #}
+    <div data-avatar-detail-panel="content" class="avatar-detail-panel hidden space-y-6">
+
+        <!-- Professional Comments -->
+        {% if pro_drafts %}
+        {% set pro_count = pro_drafts|length %}
+        {% set pro_pending_count = pro_drafts | selectattr('draft.status', 'equalto', 'pending') | list | length %}
+        {% set pro_approved_count = pro_drafts | selectattr('draft.status', 'equalto', 'approved') | list | length %}
+        {% set pro_posted_count = pro_drafts | selectattr('draft.status', 'equalto', 'posted') | list | length %}
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">
+                Professional Comments ({{ pro_count }})
+                <span class="text-[11px] text-gray-500 normal-case font-normal ml-2">
+                    {{ pro_pending_count }} pending · {{ pro_approved_count }} approved · {{ pro_posted_count }} posted
+                </span>
+            </h2>
+            <div class="space-y-4">
+                {% for item in pro_drafts %}
+                {% if loop.index == 6 and pro_count > 5 %}
+                <details class="space-y-4 group">
+                    <summary class="cursor-pointer text-sm text-indigo-400 hover:text-indigo-300 py-2">
+                        Show {{ pro_count - 5 }} more
+                    </summary>
+                    <div class="space-y-4 mt-3">
+                {% endif %}
+                <div class="bg-slate-800/50 rounded-lg border border-slate-700/50 overflow-hidden">
+                    <div class="px-4 py-3 border-b border-slate-700/50 flex items-start justify-between gap-3 flex-wrap">
+                        <div class="min-w-0">
+                            <div class="text-sm font-medium text-white">{{ item.thread.post_title[:80] if item.thread else 'Unknown' }}</div>
+                            <div class="flex items-center gap-2 mt-1 text-xs flex-wrap">
+                                <span class="text-gray-400">r/{{ item.thread.subreddit if item.thread else '?' }}</span>
+                                {% if item.draft.engagement_mode %}
+                                <span class="px-1.5 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">{{ item.draft.engagement_mode }}</span>
+                                {% endif %}
+                                {% if item.draft.strategic_angle %}
+                                <span class="px-1.5 py-0.5 rounded bg-purple-900/50 text-purple-300 border border-purple-700/50">{{ item.draft.strategic_angle }}</span>
+                                {% endif %}
+                                {% if item.draft.comment_approach %}
+                                <span class="px-1.5 py-0.5 rounded bg-amber-900/50 text-amber-300 border border-amber-700/50">{{ item.draft.comment_approach }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            <span class="text-xs px-2 py-0.5 rounded
+                                {% if item.draft.status == 'pending' %}bg-amber-900/50 text-amber-300 border border-amber-700
+                                {% elif item.draft.status == 'approved' %}bg-green-900/50 text-green-300 border border-green-700
+                                {% elif item.draft.status == 'posted' %}bg-purple-900/50 text-purple-300 border border-purple-700
+                                {% else %}bg-red-900/50 text-red-300 border border-red-700{% endif %}">
+                                {{ item.draft.status }}
+                            </span>
+                            <span class="text-xs text-gray-500">{{ item.draft.created_at.strftime('%b %d %H:%M') if item.draft.created_at else '' }}</span>
+                        </div>
+                    </div>
+
+                    {% if item.draft.comment_to %}
+                    <div class="px-4 py-2 border-b border-slate-700/50 bg-slate-900/30">
+                        <span class="text-xs text-amber-400 font-medium">📍 Reply to: </span>
+                        <span class="text-xs text-gray-300 italic">
+                            {% if item.draft.comment_to == 'post' %}Top-level (depth 0)
+                            {% else %}"{{ item.draft.comment_to[:100] }}" (depth {{ item.draft.location_depth or '?' }}){% endif %}
+                        </span>
+                        {% if item.draft.location_reasoning %}
+                        <div class="text-xs text-gray-500 mt-0.5">↳ {{ item.draft.location_reasoning }}</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    <div class="px-4 py-3">
+                        <div class="bg-slate-900 rounded p-3 text-sm text-gray-200 font-mono leading-relaxed border border-slate-700">{{ item.draft.ai_draft }}</div>
+                    </div>
+
+                    {% if item.thread and item.thread.url %}
+                    <div class="px-4 py-2 border-t border-slate-700/50">
+                        <a href="{{ item.thread.url }}" target="_blank" class="text-xs text-blue-400 hover:text-blue-300">Open thread on Reddit ↗</a>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                {% if pro_count > 5 %}
+                    </div>
+                </details>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Hobby Comments -->
+        {% if hobby_comments %}
+        {% set hobby_visible = hobby_comments | selectattr('ai_comment') | list %}
+        {% set hobby_count = hobby_visible|length %}
+        {% if hobby_count > 0 %}
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">
+                Hobby Comments — Karma Building ({{ hobby_count }})
+            </h2>
+            <div class="space-y-3">
+                {% for h in hobby_visible %}
+                {% if loop.index == 6 and hobby_count > 5 %}
+                <details class="space-y-3 group">
+                    <summary class="cursor-pointer text-sm text-indigo-400 hover:text-indigo-300 py-2">
+                        Show {{ hobby_count - 5 }} more
+                    </summary>
+                    <div class="space-y-3 mt-3">
+                {% endif %}
+                <div class="bg-slate-800/50 rounded-lg border border-slate-700/50 p-4">
+                    <div class="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="text-xs px-2 py-0.5 rounded bg-blue-900/50 text-blue-300 border border-blue-700/50">r/{{ h.subreddit }}</span>
+                            <span class="text-xs text-gray-400 truncate">{{ h.post_title[:50] }}{% if h.post_title|length > 50 %}…{% endif %}</span>
+                        </div>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            <span class="text-xs px-1.5 py-0.5 rounded
+                                {% if h.status == 'pending' %}bg-amber-900/50 text-amber-300 border border-amber-700
+                                {% elif h.status == 'posted' %}bg-green-900/50 text-green-300 border border-green-700
+                                {% else %}bg-slate-700 text-gray-400 border border-slate-600{% endif %}">
+                                {{ h.status or 'new' }}
+                            </span>
+                            <span class="text-xs text-gray-500">{{ h.created_at.strftime('%b %d %H:%M') if h.created_at else '' }}</span>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900 rounded p-3 text-sm text-gray-200 font-mono leading-relaxed border border-slate-700">{{ h.ai_comment }}</div>
+                    {% if h.url %}
+                    <div class="mt-2">
+                        <a href="{{ h.url }}" target="_blank" class="text-xs text-blue-400 hover:text-blue-300">Open on Reddit ↗</a>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                {% if hobby_count > 5 %}
+                    </div>
+                </details>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        {% endif %}
+
+        <!-- Manual Pipeline (lazy-loaded) -->
+        <div id="pipeline-panel-content"
+             hx-get="/admin/avatars/{{ avatar.id }}/pipeline"
+             hx-trigger="revealed once"
              hx-swap="innerHTML">
-            <p class="text-gray-500 text-sm py-4">Loading...</p>
+            <div class="flex items-center gap-2 text-sm text-gray-400 p-6">
+                <svg class="animate-spin h-4 w-4 text-indigo-400" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                Loading pipeline panel...
+            </div>
         </div>
-    </div>
 
     </div>
-    <div data-avatar-detail-panel="pipeline" class="avatar-detail-panel hidden space-y-6">
 
-    <!-- Manual Pipeline (lazy-loaded when tab is clicked) -->
-    <div id="pipeline-panel-content"
-         hx-get="/admin/avatars/{{ avatar.id }}/pipeline"
-         hx-trigger="revealed"
-         hx-swap="innerHTML">
-        <div class="flex items-center gap-2 text-sm text-gray-400 p-6">
-            <svg class="animate-spin h-4 w-4 text-indigo-400" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-            </svg>
-            Loading pipeline panel...
-        </div>
-    </div>
-
-    </div>
+    {# ============================================================ STRATEGY #}
     <div data-avatar-detail-panel="strategy" class="avatar-detail-panel hidden space-y-6">
-
-    <!-- Strategy Document (lazy-loaded via HTMX) -->
-    <div id="strategy-panel-content"
-         hx-get="/admin/avatars/{{ avatar.id }}/strategy-panel"
-         hx-trigger="revealed once"
-         hx-swap="innerHTML">
-        <div class="flex items-center justify-center py-8 text-gray-500">
-            <svg class="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-            </svg>
-            Loading strategy...
+        <div id="strategy-panel-content"
+             hx-get="/admin/avatars/{{ avatar.id }}/strategy-panel"
+             hx-trigger="revealed once"
+             hx-swap="innerHTML">
+            <div class="flex items-center justify-center py-8 text-gray-500">
+                <svg class="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                Loading strategy...
+            </div>
         </div>
     </div>
 
-    </div>
+    {# ============================================================ ACTIONS #}
     <div data-avatar-detail-panel="actions" class="avatar-detail-panel hidden space-y-6">
 
-    <!-- Export & Reports -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Export & Reports</h2>
-        <p class="text-xs text-gray-500 mb-4">Download avatar data for client delivery or internal use.</p>
-        <div class="flex flex-wrap gap-3">
-            <a href="/export/avatars/{{ avatar.id }}/report.md"
-               class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
-                </svg>
-                Client Report (.md)
-            </a>
-            <a href="/export/avatars/{{ avatar.id }}/report"
-               class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-slate-700 hover:bg-slate-600 text-gray-200 border border-slate-600 transition-colors">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
-                </svg>
-                Full Data (.json)
-            </a>
-            <a href="/export/avatars/{{ avatar.id }}"
-               class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-slate-700 hover:bg-slate-600 text-gray-200 border border-slate-600 transition-colors">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5"/>
-                </svg>
-                Raw JSON
-            </a>
+        <!-- Export & Reports -->
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Export &amp; Reports</h2>
+            <p class="text-xs text-gray-500 mb-4">Download avatar data for client delivery or internal use.</p>
+            <div class="flex flex-wrap gap-3">
+                <a href="/export/avatars/{{ avatar.id }}/report.md"
+                   class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+                    </svg>
+                    Client Report (.md)
+                </a>
+                <a href="/export/avatars/{{ avatar.id }}/report"
+                   class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-slate-700 hover:bg-slate-600 text-gray-200 border border-slate-600 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+                    </svg>
+                    Full Data (.json)
+                </a>
+                <a href="/export/avatars/{{ avatar.id }}"
+                   class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-slate-700 hover:bg-slate-600 text-gray-200 border border-slate-600 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5"/>
+                    </svg>
+                    Raw JSON
+                </a>
+            </div>
         </div>
-    </div>
 
-    <!-- Phase Override Form -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Phase Override</h2>
-        <form method="post" action="/admin/avatars/{{ avatar.id }}/phase-override"
-              hx-post="/admin/avatars/{{ avatar.id }}/phase-override"
-              hx-swap="none"
-              class="flex items-end gap-4 flex-wrap">
-            <div>
-                <label for="target_phase" class="block text-sm text-gray-400 mb-1">Target Phase</label>
-                <select name="target_phase" id="target_phase"
-                        class="bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
-                    <option value="0" {% if avatar.warming_phase == 0 %}selected{% endif %}>Mentor — Not in Pipeline</option>
-                    <option value="1" {% if avatar.warming_phase == 1 %}selected{% endif %}>Phase 1 — Credibility Building</option>
-                    <option value="2" {% if avatar.warming_phase == 2 %}selected{% endif %}>Phase 2 — Content Seeding</option>
-                    <option value="3" {% if avatar.warming_phase == 3 %}selected{% endif %}>Phase 3 — Brand Integration</option>
-                </select>
-            </div>
-            <div class="flex-1 min-w-[200px]">
-                <label for="reason" class="block text-sm text-gray-400 mb-1">Reason</label>
-                <input type="text" name="reason" id="reason" required
-                       placeholder="Reason for override..."
-                       class="w-full bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-500">
-            </div>
-            <button type="submit"
-                    class="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
-                Apply Override
-            </button>
-        </form>
-    </div>
+        <!-- Phase Override -->
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Phase Override</h2>
+            <form method="post" action="/admin/avatars/{{ avatar.id }}/phase-override"
+                  hx-post="/admin/avatars/{{ avatar.id }}/phase-override"
+                  hx-swap="none"
+                  class="flex items-end gap-4 flex-wrap">
+                <div>
+                    <label for="target_phase" class="block text-sm text-gray-400 mb-1">Target Phase</label>
+                    <select name="target_phase" id="target_phase"
+                            class="bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="0" {% if avatar.warming_phase == 0 %}selected{% endif %}>Mentor — Not in Pipeline</option>
+                        <option value="1" {% if avatar.warming_phase == 1 %}selected{% endif %}>Phase 1 — Credibility Building</option>
+                        <option value="2" {% if avatar.warming_phase == 2 %}selected{% endif %}>Phase 2 — Content Seeding</option>
+                        <option value="3" {% if avatar.warming_phase == 3 %}selected{% endif %}>Phase 3 — Brand Integration</option>
+                    </select>
+                </div>
+                <div class="flex-1 min-w-[200px]">
+                    <label for="reason" class="block text-sm text-gray-400 mb-1">Reason</label>
+                    <input type="text" name="reason" id="reason" required
+                           placeholder="Reason for override..."
+                           class="w-full bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-500">
+                </div>
+                <button type="submit"
+                        class="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                    Apply Override
+                </button>
+            </form>
+        </div>
 
     </div>
 
 </div>
 
 <script>
+(function() {
+    "use strict";
+
+    // Legacy tab ids → consolidated ids (+ optional anchor)
+    const LEGACY_TAB_MAP = {
+        "profile":   { tab: "profile-safety", anchor: null },
+        "safety":    { tab: "profile-safety", anchor: null },
+        "phase":     { tab: "overview",       anchor: "phase-details" },
+        "presence":  { tab: "overview",       anchor: "presence-details" },
+        "drafts":    { tab: "content",        anchor: null },
+        "pipeline":  { tab: "content",        anchor: null },
+        "analytics": { tab: "performance",    anchor: null },
+    };
+    const VALID_TABS = new Set([
+        "decision-center", "overview", "profile-safety", "performance", "billing",
+        "content", "strategy", "actions"
+    ]);
+
+    function readHashTab() {
+        const raw = (window.location.hash || "").replace(/^#/, "");
+        const params = new URLSearchParams(raw);
+        const tab = params.get("tab");
+        const anchor = params.get("anchor");
+        return { tab, anchor };
+    }
+
+    function readQueryTab() {
+        return new URLSearchParams(window.location.search).get("tab");
+    }
+
+    function resolveTabRequest(requestedTab, requestedAnchor) {
+        if (!requestedTab) return { tab: "decision-center", anchor: null };
+        if (LEGACY_TAB_MAP[requestedTab]) {
+            const m = LEGACY_TAB_MAP[requestedTab];
+            return { tab: m.tab, anchor: requestedAnchor || m.anchor };
+        }
+        if (VALID_TABS.has(requestedTab)) {
+            return { tab: requestedTab, anchor: requestedAnchor || null };
+        }
+        return { tab: "decision-center", anchor: null };
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
         const tabs = Array.from(document.querySelectorAll("[data-avatar-detail-tab]"));
         const panels = Array.from(document.querySelectorAll("[data-avatar-detail-panel]"));
 
-        function activateTab(tabName, updateUrl = true) {
-            const targetTab = tabs.some((tab) => tab.dataset.avatarDetailTab === tabName) ? tabName : "overview";
+        function activateTab(tabName, anchor, opts) {
+            opts = opts || {};
+            const resolved = resolveTabRequest(tabName, anchor || null);
+
             tabs.forEach((tab) => {
-                const active = tab.dataset.avatarDetailTab === targetTab;
+                const active = tab.dataset.avatarDetailTab === resolved.tab;
                 tab.classList.toggle("bg-indigo-600", active);
                 tab.classList.toggle("text-white", active);
                 tab.classList.toggle("text-gray-400", !active);
                 tab.classList.toggle("hover:text-white", !active);
+                if (active && opts.scrollTabIntoView !== false) {
+                    try {
+                        tab.scrollIntoView({ block: "nearest", inline: "center" });
+                    } catch (e) { /* old browsers */ }
+                }
             });
 
             panels.forEach((panel) => {
-                panel.classList.toggle("hidden", panel.dataset.avatarDetailPanel !== targetTab);
+                panel.classList.toggle("hidden", panel.dataset.avatarDetailPanel !== resolved.tab);
             });
 
-            // Trigger HTMX revealed on newly visible panel elements
-            // (IntersectionObserver may not fire when parent switches from display:none)
-            const activePanel = panels.find(p => p.dataset.avatarDetailPanel === targetTab);
+            const activePanel = panels.find(p => p.dataset.avatarDetailPanel === resolved.tab);
             if (activePanel) {
+                // Force-fire revealed once for partials that haven't loaded yet.
+                // Display:none parents prevent IntersectionObserver from firing on activation.
                 setTimeout(() => {
                     activePanel.querySelectorAll("[hx-trigger*='revealed']").forEach(el => {
-                        if (el.innerHTML.trim() === "" || el.querySelector(".animate-pulse") || el.textContent.includes("Loading")) {
-                            htmx.trigger(el, "revealed");
+                        const stillLoading = el.innerHTML.trim() === ""
+                            || el.querySelector(".animate-pulse")
+                            || el.textContent.includes("Loading");
+                        if (stillLoading && window.htmx) {
+                            window.htmx.trigger(el, "revealed");
                         }
                     });
                 }, 50);
             }
 
-            if (updateUrl) {
-                const url = new URL(window.location.href);
-                url.searchParams.set("tab", targetTab);
-                history.replaceState(null, "", url);
+            if (opts.updateUrl !== false) {
+                const params = new URLSearchParams();
+                params.set("tab", resolved.tab);
+                if (resolved.anchor) params.set("anchor", resolved.anchor);
+                history.replaceState(null, "", "#" + params.toString());
             }
+
+            if (resolved.anchor) {
+                // Scroll to anchor after panel becomes visible
+                setTimeout(() => {
+                    const target = document.getElementById(resolved.anchor);
+                    if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+                }, 80);
+            }
+
+            return resolved;
         }
 
+        // Tab clicks
         tabs.forEach((tab) => {
-            tab.addEventListener("click", () => activateTab(tab.dataset.avatarDetailTab));
+            tab.addEventListener("click", () => activateTab(tab.dataset.avatarDetailTab, null));
         });
 
-        const initialTab = new URLSearchParams(window.location.search).get("tab") || window.location.hash.replace("#", "");
+        // Signal badges + anchor jumps
+        document.querySelectorAll("[data-avatar-jump]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                activateTab(btn.dataset.avatarJump, btn.dataset.avatarAnchor || null);
+            });
+        });
+
+        // "View phase details" link inside Today's Action card — same-tab anchor only
+        document.querySelectorAll("[data-avatar-anchor-link]").forEach((link) => {
+            link.addEventListener("click", (e) => {
+                e.preventDefault();
+                const href = link.getAttribute("href") || "";
+                const anchorId = href.replace(/^#/, "");
+                if (!anchorId) return;
+                const target = document.getElementById(anchorId);
+                if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+            });
+        });
+
+        // Initial state: hash first, then legacy ?tab=, default overview
+        const hashState = readHashTab();
+        const legacyQueryTab = readQueryTab();
+        const initialTab = hashState.tab || legacyQueryTab;
+        const initialAnchor = hashState.anchor;
         if (initialTab) {
-            activateTab(initialTab, false);
+            activateTab(initialTab, initialAnchor, { scrollTabIntoView: false });
+        }
+
+        // Karma chart granularity toggle (daily / weekly)
+        const STORAGE_KEY = "avatarDetail:karmaGranularity";
+        const chartContainer = document.getElementById("karma-chart-bars");
+        const titleEl = document.querySelector("[data-karma-title]");
+        const granButtons = Array.from(document.querySelectorAll(".karma-gran-btn"));
+
+        function applyGranularity(granularity) {
+            if (!chartContainer) return;
+            try {
+                localStorage.setItem(STORAGE_KEY, granularity);
+            } catch (e) { /* private mode */ }
+
+            granButtons.forEach((btn) => {
+                const active = btn.dataset.karmaGranularity === granularity;
+                btn.classList.toggle("bg-indigo-600", active);
+                btn.classList.toggle("text-white", active);
+                btn.classList.toggle("bg-slate-800", !active);
+                btn.classList.toggle("text-gray-300", !active);
+            });
+
+            const bars = Array.from(chartContainer.querySelectorAll(".karma-bar"));
+            if (granularity === "daily") {
+                if (titleEl) titleEl.textContent = "Daily karma / account snapshots (30 days)";
+                bars.forEach((b) => { b.style.display = ""; b.dataset.weeklyAggregate = ""; });
+                return;
+            }
+
+            // Weekly: group bars in chunks of 7 from the right (most recent), hide others, set first of each group to aggregate height
+            if (titleEl) titleEl.textContent = "Weekly karma aggregates (last 30 days)";
+            const reversed = bars.slice().reverse();
+            const buckets = [];
+            for (let i = 0; i < reversed.length; i += 7) {
+                buckets.push(reversed.slice(i, i + 7));
+            }
+            // Hide all bars first
+            bars.forEach((b) => { b.style.display = "none"; });
+            // For each bucket, pick its first (most recent) bar to display with aggregated height
+            const maxVal = Math.max(1, ...bars.map((b) => parseFloat(b.dataset.karmaMax || "1")));
+            buckets.forEach((bucket) => {
+                if (!bucket.length) return;
+                const sum = bucket.reduce((acc, b) => acc + (parseFloat(b.dataset.karmaValue) || 0), 0);
+                const display = bucket[0];
+                display.style.display = "";
+                const pct = Math.max(4, Math.min(100, Math.round((sum / maxVal) * 100)));
+                display.style.height = pct + "%";
+                display.style.flex = "1 1 14%";
+                display.title = display.dataset.karmaDate + " — week sum: " + sum;
+            });
+        }
+
+        if (chartContainer) {
+            granButtons.forEach((btn) => {
+                btn.addEventListener("click", () => applyGranularity(btn.dataset.karmaGranularity));
+            });
+            let saved = "weekly";
+            try { saved = localStorage.getItem(STORAGE_KEY) || "weekly"; } catch (e) { /* */ }
+            applyGranularity(saved === "daily" ? "daily" : "weekly");
         }
     });
+})();
 </script>
 {% endblock %}

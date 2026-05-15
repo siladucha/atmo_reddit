@@ -105,11 +105,17 @@
 function copyToClipboard(elementId, button) {
     const el = document.getElementById(elementId);
     const text = el.innerText;
-    navigator.clipboard.writeText(text).then(() => {
-        const original = button.innerText;
-        button.innerText = 'Copied!';
-        setTimeout(() => { button.innerText = original; }, 1500);
-    });
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    const original = button.innerText;
+    button.innerText = 'Copied!';
+    setTimeout(() => { button.innerText = original; }, 1500);
 }
 </script>
 {% endblock %}

@@ -31,7 +31,7 @@ from app.models.avatar import Avatar
 from app.models.comment_draft import CommentDraft
 from app.models.subreddit_karma import SubredditKarma
 from app.models.thread import RedditThread
-from app.services.sanitize import ensure_username_bare
+from app.services.sanitize import clean_subreddit_list, ensure_username_bare
 
 logger = logging.getLogger(__name__)
 
@@ -40,22 +40,17 @@ def _classify_subreddit(avatar: Avatar, subreddit_name: str) -> str:
     """Return "professional" | "hobby" | "unknown" for the given subreddit.
 
     Uses the avatar's hobby_subreddits / business_subreddits configuration as
-    the source of truth. Avatars assigned to professional subreddits via a
-    client are reflected in business_subreddits; hobby_subreddits is the
-    avatar's personal karma-building list.
+    the source of truth. Both fields are JSONB and may contain plain strings
+    or dicts (legacy Ori format); clean_subreddit_list normalizes both shapes.
     """
     sub_lower = (subreddit_name or "").lower()
 
-    business = avatar.business_subreddits or []
-    if isinstance(business, dict):  # JSONB may store as object
-        business = list(business.keys())
-    if any((s or "").lower() == sub_lower for s in business):
+    business = {s.lower() for s in clean_subreddit_list(avatar.business_subreddits)}
+    if sub_lower in business:
         return "professional"
 
-    hobby = avatar.hobby_subreddits or []
-    if isinstance(hobby, dict):
-        hobby = list(hobby.keys())
-    if any((s or "").lower() == sub_lower for s in hobby):
+    hobby = {s.lower() for s in clean_subreddit_list(avatar.hobby_subreddits)}
+    if sub_lower in hobby:
         return "hobby"
 
     return "unknown"

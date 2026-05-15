@@ -1,6 +1,6 @@
-# Development override — exposes ports and mounts source code for hot reload.
-# Usage:
-# docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+# Development override — mounts source code for hot-reload on all services.
+# Usage:  docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+# Or:     make dev
 
 services:
   app:
@@ -17,11 +17,20 @@ services:
           sleep 2;
         done;
         until nc -z redis 6379; do
-          echo 'waiting for redis...';
+          echo 'waiting for redis...'; 
           sleep 2;
         done;
+        alembic upgrade head;
         uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
       "
+
+  celery:
+    volumes:
+      - .:/app
+
+  celery-beat:
+    volumes:
+      - .:/app
 
   db:
     ports:

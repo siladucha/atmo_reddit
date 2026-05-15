@@ -1,0 +1,19 @@
+<!-- Subreddits summary for a single client -->
+{% if subreddits %}
+<div class="space-y-1.5">
+    {% for sub in subreddits %}
+    <div class="flex items-center justify-between px-2 py-1.5 rounded hover:bg-slate-700/30 transition-colors">
+        <div class="flex items-center gap-2 min-w-0">
+            <span class="w-2 h-2 rounded-full flex-shrink-0
+                {% if sub.freshness == 'green' %}bg-green-400
+                {% elif sub.freshness == 'yellow' %}bg-amber-400
+                {% else %}bg-red-400{% endif %}" title="Last scraped: {{ sub.last_scraped or 'Never' }}"></span>
+            <span class="text-xs text-gray-300 truncate">r/{{ sub.name }}</span>
+        </div>
+        <span class="text-[10px] text-gray-500 flex-shrink-0">{{ sub.category }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-gray-500 text-xs text-center py-4">No subreddits configured</p>
+{% endif %}

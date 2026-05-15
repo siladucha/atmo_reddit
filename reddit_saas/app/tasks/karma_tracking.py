@@ -25,6 +25,7 @@ from app.models.avatar import Avatar
 from app.models.comment_draft import CommentDraft
 from app.models.post_draft import PostDraft
 from app.models.thread import RedditThread
+from app.services.audit import log_system_action
 from app.services.sanitize import ensure_username_bare
 from app.services.transparency import record_activity_event
 
@@ -84,6 +85,24 @@ def track_karma_all_avatars():
                 logger.error(f"Karma tracking failed for u/{avatar.reddit_username}: {e}")
                 db.rollback()
                 continue
+
+        # Record audit log entry for batch completion
+        try:
+            log_system_action(
+                db,
+                action="karma_tracking_batch_completed",
+                entity_type="karma",
+                details={
+                    "avatars_processed": total_stats["avatars_processed"],
+                    "comments_updated": total_stats["comments_updated"],
+                    "posts_updated": total_stats["posts_updated"],
+                    "deletions_detected": total_stats["deletions_detected"],
+                    "demotions_triggered": total_stats["demotions_triggered"],
+                    "errors": total_stats["errors"],
+                },
+            )
+        except Exception:
+            logger.warning("Failed to record karma tracking audit log entry")
 
         # Record summary activity event
         try:

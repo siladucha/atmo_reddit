@@ -43,4 +43,5 @@ class AvatarSubredditPresence(Base):
     __table_args__ = (
         UniqueConstraint("avatar_id", "subreddit_name", name="uq_avatar_subreddit_presence"),
         Index("ix_avatar_subreddit_presence_avatar_id", "avatar_id"),
+        Index("ix_avatar_presence_avatar_activity", "avatar_id", last_activity_at.desc()),
     )

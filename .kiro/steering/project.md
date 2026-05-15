@@ -15,21 +15,23 @@ A Reddit marketing SaaS platform. AI monitors subreddits, scores posts, generate
 ## Business Model
 - **Agency clients** — we manage everything for them (onboarding, config, monitoring, posting)
 - **Self-service clients** — they manage their own setup (future, not yet implemented)
-- Multi-tenancy with role-based access is planned but deferred to post-MVP
+- **RBAC implemented** — 6 roles (owner/partner/client_admin/client_manager/client_viewer/b2c_user) with full data isolation
 - **Revenue model**: Monthly SaaS subscription ($149–$1,499) + managed service upsell (+$1,200–$1,800) + pre-warmed avatar fees (one-time $199–$499)
 - **Agency model**: Per-client-slot pricing ($999–$3,499/mo for 3–20 clients). Annual contracts only.
 - **Key moat**: Pre-warmed avatar inventory (aged accounts with karma). Cannot be replicated overnight by competitors.
+- **Avatar Owner Workforce**: Hired workers/freelancers who own Reddit accounts. Paid per-post ($0.50-2.00) or monthly salary. Use mobile app to post approved content.
 
 ## Tech Stack (Current — Celery/Redis on DigitalOcean)
 - **Backend:** Python 3.11+ / FastAPI
 - **Templates/UI:** Jinja2 + HTMX
 - **CSS:** Tailwind CSS (CDN)
 - **Database:** PostgreSQL 16 / SQLAlchemy 2.0 / Alembic (Docker on DO Droplet)
-- **Auth:** JWT (python-jose + passlib), `is_superuser` flag for admin access
+- **Auth:** JWT (python-jose + passlib), RBAC with 6 roles (owner/partner/client_admin/client_manager/client_viewer/b2c_user)
 - **Task Queue:** Celery + Redis
 - **Cache/Locks:** Redis 7
 - **Reddit:** PRAW
 - **AI/LLM:** LiteLLM (Gemini Flash for scoring, Claude Sonnet for generation)
+- **Mobile App:** Flutter (Dart) — posting app for avatar owners
 - **Deploy:** DigitalOcean Droplet + Docker Compose (app + PostgreSQL + Redis + Celery)
 - **Observability:** Logging + admin dashboard
 
@@ -58,7 +60,7 @@ rsync -avz --exclude='.venv/' --exclude='__pycache__/' --exclude='.hypothesis/' 
 ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml build && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
 
 # Check health:
-ssh root@161.35.27.165 "curl -s http://localhost:8000/health"
+ssh root@161.35.27.165 "curl -s http://localhost/health"
 
 # View logs:
 ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f --tail=50"
@@ -75,6 +77,7 @@ ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docke
 - **AWS migration planned**: When enterprise clients require it OR 100+ avatars OR ops burden > 4h/week. $7K AWS credits available.
 - **PostgreSQL in Docker** (current): Migrate to DO Managed DB ($15/mo) when 5+ paying clients.
 - **SQS migration deferred**: Celery + Redis works fine for current scale (50 avatars).
+- **Timezone**: All containers, PostgreSQL, Celery Beat, and logs use `Asia/Jerusalem` (IDT/IST). Set via `TZ` env var in docker-compose + `PGTZ` for PostgreSQL + `-c timezone=Asia/Jerusalem` in postgres command + Celery `timezone="Asia/Jerusalem"` config.
 
 ### Migration Status (Celery → SQS)
 - Migration spec exists (`.kiro/specs/sqs-valkey-migration/`) but NOT yet implemented
@@ -101,17 +104,22 @@ reddit_saas/
 │   ├── main.py                # FastAPI app
 │   ├── seed.py                # Seed data (NeuroYoga + defaults)
 │   ├── dependencies/
-│   │   └── admin.py           # require_superuser dependency
+│   │   ├── admin.py           # require_superuser dependency (delegates to require_platform_admin)
+│   │   └── permissions.py     # RBAC guards (require_owner, require_platform_admin, require_client_access, etc.)
 │   ├── middleware/
 │   │   ├── auth.py            # JWT auth middleware
 │   │   └── errors.py          # Error handling middleware
-│   ├── models/                # SQLAlchemy models (23 models)
-│   │   ├── user.py            # User (is_superuser, is_active)
-│   │   ├── client.py          # Client (keywords JSONB, profiles)
-│   │   ├── avatar.py          # Avatar (client_ids, voice, is_frozen, warming_phase)
+│   ├── models/                # SQLAlchemy models (26 models)
+│   │   ├── user.py            # User (role, is_active, client_id)
+│   │   ├── user_role.py       # UserRole enum (owner/partner/client_admin/client_manager/client_viewer/b2c_user)
+│   │   ├── user_client_assignment.py # UserClientAssignment (user↔client mapping)
+│   │   ├── client.py          # Client (keywords JSONB, profiles, max_avatars, plan_type, draft_approval_enabled)
+│   │   ├── avatar.py          # Avatar (client_ids, voice, is_frozen, warming_phase, is_farm_avatar)
+│   │   ├── avatar_rental.py   # AvatarRental (farm avatar rentals)
+│   │   ├── avatar_assignment.py # AvatarAssignment (avatar↔owner for mobile posting) [PLANNED]
 │   │   ├── thread.py          # RedditThread (is_locked, locked_detected_at)
-│   │   ├── comment_draft.py   # CommentDraft (status workflow, learning_metadata)
-│   │   ├── post_draft.py      # PostDraft
+│   │   ├── comment_draft.py   # CommentDraft (status workflow, learning_metadata, posted_by, posted_source)
+│   │   ├── post_draft.py      # PostDraft (posted_by, posted_source)
 │   │   ├── subreddit.py       # Subreddit, ClientSubreddit, ClientSubredditAssignment
 │   │   ├── hobby.py           # HobbySubreddit
 │   │   ├── ai_usage.py        # AIUsageLog (cost tracking)
@@ -133,6 +141,7 @@ reddit_saas/
 │   │   └── llm_outputs.py     # ScoringOutput, CommentOutput
 │   ├── routes/
 │   │   ├── admin.py           # Admin panel (all /admin/* routes)
+│   │   ├── mobile.py          # Mobile API (/api/mobile/*) [PLANNED]
 │   │   ├── pages.py           # User-facing pages (dashboard, review, etc.)
 │   │   ├── auth.py            # Login/register API
 │   │   ├── avatar_analysis.py # Avatar behavioral analysis API
@@ -144,7 +153,7 @@ reddit_saas/
 │   │   ├── export.py          # Data export endpoints
 │   │   ├── pipeline.py        # Pipeline trigger API
 │   │   └── review.py          # Review API (with learning hook)
-│   ├── services/              # Business logic (48 services)
+│   ├── services/              # Business logic (50 services)
 │   │   ├── admin.py           # Admin CRUD
 │   │   ├── ai.py              # LLM calls (LiteLLM) + schema validation
 │   │   ├── audit.py           # Audit logging
@@ -162,6 +171,7 @@ reddit_saas/
 │   │   ├── health_checker.py  # Shadowban/health detection
 │   │   ├── health_metrics.py  # Health metrics aggregation
 │   │   ├── inspector.py       # System inspector
+│   │   ├── isolation.py       # LLM context isolation (avatar_accessible_by_client)
 │   │   ├── karma_feedback.py  # Karma feedback loop
 │   │   ├── karma_history.py   # Karma history tracking
 │   │   ├── karma_tracker.py   # Karma tracking service
@@ -174,8 +184,11 @@ reddit_saas/
 │   │   ├── phase_types.py     # Phase type definitions
 │   │   ├── phase.py           # Avatar warming phases
 │   │   ├── post_generation.py # Post generation
+│   │   ├── posting_analytics.py # Posting team analytics [PLANNED]
 │   │   ├── pre_filter.py      # Pre-filter logic (avatar health exclusion)
 │   │   ├── presence.py        # Avatar subreddit presence scanning
+│   │   ├── push_notifications.py # FCM push notifications [PLANNED]
+│   │   ├── query_scope.py     # Query scoping (RBAC data isolation)
 │   │   ├── rate_limiter.py    # Rate limiting
 │   │   ├── reddit_freshness.py # Reddit data freshness checks
 │   │   ├── reddit_profile_analytics.py # Reddit profile analytics
@@ -211,13 +224,30 @@ reddit_saas/
 │   │   └── partials/          # HTMX partials (65 files)
 │   └── static/
 ├── alembic/                   # DB migrations
-├── tests/                     # 40 test files
+├── tests/                     # 50+ test files (incl. RBAC property-based tests)
 ├── Makefile                   # Docker/DB commands (db-sync, fresh-start, etc.)
 ├── DOCKER.md                  # Container data management docs
 ├── pyproject.toml
 ├── Dockerfile
 ├── docker-compose.yml
 └── entrypoint.sh              # Migrations + seed on startup
+
+ramp_poster/                   # Flutter mobile app [PLANNED — parallel development]
+├── lib/
+│   ├── main.dart
+│   ├── screens/
+│   │   ├── login_screen.dart
+│   │   ├── queue_screen.dart
+│   │   ├── detail_screen.dart
+│   │   └── stats_screen.dart
+│   ├── services/
+│   │   └── api_client.dart    # Dio + JWT interceptor
+│   ├── models/
+│   │   └── draft.dart
+│   └── providers/
+│       └── queue_provider.dart
+├── pubspec.yaml
+└── README.md
 ```
 
 ## What's Built (MVP Status — May 12, 2026)
@@ -227,7 +257,9 @@ reddit_saas/
 - **7-step onboarding wizard**: client profile → subreddits → keywords → avatars → personas → pipeline config → test run
 - **NeuroYoga seed data**: first client (ATMO) with subreddits, keywords, persona
 - **User-facing pages**: dashboard, review queue, threads, avatars, settings
-- **JWT authentication** + admin access control
+- **RBAC** (6 roles): owner, partner, client_admin, client_manager, client_viewer, b2c_user — with query scoping, permission guards, LLM context isolation
+- **JWT authentication** + role-based access control + client data isolation
+- **Avatar Farm & Rentals**: farm avatars, rental model, client-scoped access
 - **Docker workflow**: Makefile with `db-sync`, `fresh-start`, `db-dump`/`db-restore` commands
 - **Entrypoint**: auto-detects existing tables (pg_restore), stamps Alembic instead of re-creating
 
@@ -277,7 +309,7 @@ reddit_saas/
 
 ## What's NOT Built Yet
 - Production deployment (Docker Compose ready, not deployed to AWS)
-- Self-service client access (multi-tenancy, role-based views)
+- **Mobile Posting App** (Flutter) — one-tap posting for avatar owners (spec ready, see `.kiro/specs/mobile-posting-app/`)
 - Strategy Questions feedback loop — LLM generates questions_for_client in strategy; future: multiple-choice answers (A/B/C/D) + free text field, saved as client preferences, injected into next strategy generation. MVP: questions visible in strategy markdown only, no answer mechanism.
 - Subreddit rule extraction (PRAW sidebar/wiki → LLM parsing → compliance checks)
 - Comment outcome tracking (karma snapshots at 4h/24h/48h + removal detection)
@@ -290,7 +322,6 @@ reddit_saas/
 - White-label (custom domain, branding) — deferred
 - Cross-avatar routing / upvote coordination — deferred
 - Viral acceleration rules — deferred
-- GoLogin/AdsPower browser automation — deferred (posting is manual)
 - Auto-generated PDF reports — deferred
 
 ## Key Data Flow
@@ -300,8 +331,9 @@ reddit_saas/
 4. Self-learning loop injects few-shot examples + correction patterns into generation prompt
 5. Human reviews drafts → approve/reject/edit (locked indicator visible)
 6. Learning service captures edits → extracts patterns → improves future generation
-7. Approved comments posted manually to Reddit
-8. Periodic liveness refresh auto-rejects drafts for newly locked threads
+7. Approved comments → push notification to avatar owner's mobile app
+8. Avatar owner opens app → sees queue → taps "Post" → clipboard + Reddit opens → pastes → confirms
+9. Periodic liveness refresh auto-rejects drafts for newly locked threads
 
 ## Task Architecture (Current — Celery + Redis)
 - **Producer**: FastAPI app / Celery Beat sends tasks
@@ -311,7 +343,7 @@ reddit_saas/
 - **Rate Limiter**: Redis sorted set sliding window
 - **Retry**: bind=True, max_retries=3, countdown=60×2^attempt (AI tasks only)
 
-### Celery Beat Schedule (UTC)
+### Celery Beat Schedule (Israel Time — Asia/Jerusalem)
 | Time | Task | Purpose |
 |------|------|---------|
 | every 60s | `queue_tick` | Scrape scheduling (gated by DB interval) |
@@ -327,6 +359,16 @@ reddit_saas/
 ## Comment Draft Status Workflow
 `pending` → `approved` / `rejected` → `posted`
 
+## Posting Workflow (Mobile App)
+1. Admin/manager approves draft → status = `approved`
+2. Push notification sent to avatar owner's mobile app
+3. Owner opens app → sees approved drafts queue
+4. Owner taps "Post" → text copied to clipboard → Reddit opens in browser
+5. Owner pastes comment in Reddit → submits
+6. Owner returns to app → confirms "Posted" → status = `posted`
+
+**Legal protection:** Owner posts from their own device/IP. No programmatic Reddit API posting. Human in the loop at every step.
+
 ## Keywords Structure (JSONB in clients.keywords)
 ```json
 {"high": ["term1", "term2"], "medium": ["term3"], "low": ["term4"]}
@@ -334,6 +376,7 @@ reddit_saas/
 
 ## Key Reference Files
 - `docs/memory.md` — Project knowledge base
+- `docs/permission_matrix.md` — RBAC permission matrix (6 roles × 16 resource categories)
 - `docs/update_for_tzvi_may11.md` — Latest status update for Tzvi
 - `docs/aws_budget_may2026.md` — Detailed AWS budget with SQS/Valkey calculations
 - `docs/aws_cost_estimate.md` — AWS cost estimate (summary, scaling projections)
@@ -342,6 +385,8 @@ reddit_saas/
 - `docs/file_index.md` — Index of all Ori's handoff files
 - `docs/Reddit Project Legal Risks.docx` — 6 categories of legal exposure (Tzvi's lawyer)
 - `docs/Reddit_Avatar_Army_Business_Brief.docx` — Full product/pricing/agency model (May 2026)
+- `.kiro/specs/mobile-posting-app/` — Mobile posting app spec (Flutter + backend API)
+- `.kiro/specs/rbac-client-isolation/` — RBAC spec (DONE)
 - `Reddit Personas-Grid view.csv` — Avatar voice profiles
 - `keywords-Grid view.csv` — Scoring keywords
 - `XM Cyber _ Write comments copy.json` — Ori's prompts (most valuable)

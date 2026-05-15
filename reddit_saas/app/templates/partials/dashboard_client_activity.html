@@ -1,0 +1,23 @@
+<!-- Recent activity events for a single client -->
+{% if events %}
+<div class="space-y-2 max-h-64 overflow-y-auto">
+    {% for event in events %}
+    <div class="flex items-start gap-2 text-xs">
+        <span class="flex-shrink-0 mt-0.5">
+            {% if event.event_type == 'scrape' %}🔍
+            {% elif event.event_type == 'score' %}📊
+            {% elif event.event_type == 'generate' %}✍️
+            {% elif event.event_type == 'review' %}✅
+            {% elif event.event_type == 'post' %}📤
+            {% else %}📌{% endif %}
+        </span>
+        <div class="min-w-0 flex-1">
+            <span class="text-gray-300">{{ event.message }}</span>
+            <span class="text-gray-500 ml-1">{{ event.time_ago }}</span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-gray-500 text-xs text-center py-4">No recent activity</p>
+{% endif %}

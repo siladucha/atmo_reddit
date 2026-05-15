@@ -1,0 +1,98 @@
+{% extends "marketing_base.html" %}
+
+{% block title %}RAMP — Reddit Marketing, Managed for You{% endblock %}
+{% block meta_description %}Grow your brand on Reddit with AI-powered engagement. Safe, scalable, and effective. Choose personal brand growth or enterprise-scale managed marketing.{% endblock %}
+{% block og_title %}RAMP — Reddit Marketing, Managed for You{% endblock %}
+{% block og_description %}Grow your brand on Reddit with AI-powered engagement. Safe, scalable, and effective.{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="relative overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 sm:py-32 lg:py-40">
+        <div class="text-center max-w-4xl mx-auto">
+            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-gray-900 tracking-tight leading-tight">
+                Reddit Marketing,
+                <span class="text-indigo-600">Managed for You</span>
+            </h1>
+            <p class="mt-6 text-lg sm:text-xl lg:text-2xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+                Grow your brand on Reddit with AI-powered engagement. Safe, scalable, and effective.
+            </p>
+        </div>
+    </div>
+    <!-- Decorative background element -->
+    <div class="absolute inset-0 -z-10 overflow-hidden" aria-hidden="true">
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-indigo-100 opacity-30 blur-3xl"></div>
+    </div>
+</section>
+
+<!-- Product Cards Section -->
+<section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
+    <div class="text-center mb-12">
+        <h2 class="text-2xl sm:text-3xl font-bold text-gray-900">Choose Your Path</h2>
+        <p class="mt-3 text-gray-600 text-lg">Two solutions tailored to your needs</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 max-w-5xl mx-auto">
+        <!-- Mobile Card — Personal Brand -->
+        <a href="/mobile"
+           data-track-click="product_card_mobile"
+           class="group block bg-white rounded-2xl border border-gray-200 shadow-md hover:shadow-xl hover:border-indigo-300 transition-all duration-300 transform hover:-translate-y-1 p-8 lg:p-10">
+            <div class="flex items-center space-x-3 mb-4">
+                <span class="text-3xl" aria-hidden="true">🚀</span>
+                <h3 class="text-xl lg:text-2xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
+                    Personal Brand
+                </h3>
+            </div>
+            <p class="text-gray-600 text-base lg:text-lg leading-relaxed mb-6">
+                Grow your personal brand on Reddit with managed persona-driven engagement. Build credibility, earn karma, and reach your audience authentically.
+            </p>
+            <span class="inline-flex items-center text-indigo-600 font-semibold group-hover:translate-x-1 transition-transform">
+                Learn more
+                <svg class="ml-2 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+            </span>
+        </a>
+
+        <!-- Proxy Card — Enterprise Scale -->
+        <a href="/proxy"
+           data-track-click="product_card_proxy"
+           class="group block bg-white rounded-2xl border border-gray-200 shadow-md hover:shadow-xl hover:border-indigo-300 transition-all duration-300 transform hover:-translate-y-1 p-8 lg:p-10">
+            <div class="flex items-center space-x-3 mb-4">
+                <span class="text-3xl" aria-hidden="true">🏢</span>
+                <h3 class="text-xl lg:text-2xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
+                    Enterprise Scale
+                </h3>
+            </div>
+            <p class="text-gray-600 text-base lg:text-lg leading-relaxed mb-6">
+                Fully managed Reddit marketing for brands and agencies. Multiple avatars, advanced targeting, and dedicated account management at scale.
+            </p>
+            <span class="inline-flex items-center text-indigo-600 font-semibold group-hover:translate-x-1 transition-transform">
+                Learn more
+                <svg class="ml-2 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+            </span>
+        </a>
+    </div>
+</section>
+
+<!-- Client Login Section -->
+<section class="bg-gray-50 border-t border-gray-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+        <div class="max-w-2xl mx-auto text-center">
+            <h2 class="text-xl sm:text-2xl font-bold text-gray-900 mb-3">Already a client?</h2>
+            <p class="text-gray-600 mb-6">
+                Access your dashboard to review AI-generated comments, track avatar performance, and manage your Reddit engagement campaigns.
+            </p>
+            <a href="/login"
+               class="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
+                <svg class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
+                </svg>
+                Go to Dashboard
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}

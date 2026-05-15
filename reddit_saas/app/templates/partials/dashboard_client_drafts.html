@@ -1,0 +1,34 @@
+<!-- Recent drafts for a single client (client manager dashboard) -->
+{% if drafts %}
+<div class="space-y-2">
+    {% for draft in drafts %}
+    <div class="flex items-start gap-3 p-2 rounded-lg hover:bg-slate-700/30 transition-colors">
+        <div class="flex-shrink-0 mt-0.5">
+            {% if draft.status == 'pending' %}
+            <span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>
+            {% elif draft.status == 'approved' %}
+            <span class="w-2 h-2 rounded-full bg-green-400 inline-block"></span>
+            {% elif draft.status == 'posted' %}
+            <span class="w-2 h-2 rounded-full bg-indigo-400 inline-block"></span>
+            {% elif draft.status == 'rejected' %}
+            <span class="w-2 h-2 rounded-full bg-red-400 inline-block"></span>
+            {% endif %}
+        </div>
+        <div class="min-w-0 flex-1">
+            <div class="text-xs text-gray-300 truncate" title="{{ draft.thread_title }}">{{ draft.thread_title }}</div>
+            <div class="text-[10px] text-gray-500 mt-0.5">
+                {{ draft.avatar_name }} · r/{{ draft.subreddit }} · {{ draft.time_ago }}
+            </div>
+        </div>
+        <span class="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded
+            {% if draft.status == 'pending' %}bg-amber-900/30 text-amber-300
+            {% elif draft.status == 'approved' %}bg-green-900/30 text-green-300
+            {% elif draft.status == 'posted' %}bg-indigo-900/30 text-indigo-300
+            {% elif draft.status == 'rejected' %}bg-red-900/30 text-red-300
+            {% endif %}">{{ draft.status }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-gray-500 text-xs text-center py-4">No recent drafts</p>
+{% endif %}

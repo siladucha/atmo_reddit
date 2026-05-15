@@ -450,6 +450,24 @@ class LearningService:
             if not candidates:
                 return []
 
+            # Post-load assertion: verify all candidates belong to the expected client_id
+            verified_candidates = []
+            for record in candidates:
+                if record.client_id != client_id:
+                    logger.error(
+                        "SECURITY: Few-shot candidate EditRecord %s has client_id=%s, "
+                        "expected client_id=%s — excluding from results",
+                        record.id,
+                        record.client_id,
+                        client_id,
+                    )
+                else:
+                    verified_candidates.append(record)
+            candidates = verified_candidates
+
+            if not candidates:
+                return []
+
             # Score each candidate by relevance
             def relevance_score(record: EditRecord) -> tuple[int, int, datetime]:
                 sub_match = 2 if record.subreddit == subreddit else 0
@@ -526,7 +544,21 @@ class LearningService:
                 .all()
             )
 
-            return patterns
+            # Post-load assertion: verify all patterns belong to the expected client_id
+            verified_patterns = []
+            for pattern in patterns:
+                if pattern.client_id != client_id:
+                    logger.error(
+                        "SECURITY: CorrectionPattern %s has client_id=%s, "
+                        "expected client_id=%s — excluding from results",
+                        pattern.id,
+                        pattern.client_id,
+                        client_id,
+                    )
+                else:
+                    verified_patterns.append(pattern)
+
+            return verified_patterns
 
         except Exception:
             logger.exception(

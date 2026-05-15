@@ -11,6 +11,9 @@ class UserRole(str, Enum):
                      Cannot modify system settings or kill switches.
     qa             — Cross-client reviewer (Jenny). Can review/approve/reject all clients.
                      Read-only access to client data. Can warm own avatars.
+    client_admin   — B2B company administrator. Scoped to own client. Can manage team
+                     (create/edit/deactivate client_manager and client_viewer users),
+                     manage avatars, approve drafts, configure client-level settings.
     client_manager — B2B client contact. Scoped to own client. Can approve/reject,
                      add subreddits/keywords. Cannot manage avatars or system config.
     client_viewer  — B2B read-only observer. Scoped to own client. Dashboard + reports only.
@@ -21,6 +24,7 @@ class UserRole(str, Enum):
     owner = "owner"
     partner = "partner"
     qa = "qa"
+    client_admin = "client_admin"
     client_manager = "client_manager"
     client_viewer = "client_viewer"
     b2c_user = "b2c_user"
@@ -42,6 +46,7 @@ class UserRole(str, Enum):
             UserRole.owner,
             UserRole.partner,
             UserRole.qa,
+            UserRole.client_admin,
             UserRole.client_manager,
         )
 
@@ -52,8 +57,11 @@ class UserRole(str, Enum):
 
     @property
     def can_manage_avatars(self) -> bool:
-        """Returns True for roles that can assign/freeze/configure avatars."""
-        return self in (UserRole.owner, UserRole.partner)
+        """Returns True for roles that can assign/freeze/configure avatars.
+
+        For client_admin this is scoped to their own company's avatars.
+        """
+        return self in (UserRole.owner, UserRole.partner, UserRole.client_admin)
 
     @property
     def can_manage_system(self) -> bool:
@@ -79,3 +87,26 @@ class UserRole(str, Enum):
     def can_warm_avatars(self) -> bool:
         """Returns True for roles that can own/warm personal avatars (farm)."""
         return self in (UserRole.owner, UserRole.partner, UserRole.qa)
+
+    @property
+    def can_manage_team(self) -> bool:
+        """Returns True for roles that can manage team members within own company.
+
+        client_admin can create/edit/deactivate client_manager and client_viewer
+        users within their own company only.
+        """
+        return self == UserRole.client_admin
+
+    @property
+    def is_client_scoped(self) -> bool:
+        """Returns True for roles scoped to a single client (own company).
+
+        These roles use User.client_id for single-company scoping and cannot
+        access data belonging to other clients.
+        """
+        return self in (
+            UserRole.client_admin,
+            UserRole.client_manager,
+            UserRole.client_viewer,
+            UserRole.b2c_user,
+        )

@@ -8,9 +8,11 @@ from pydantic import BaseModel
 
 from app.database import get_db
 from app.dependencies.admin import require_superuser
+from app.models.client import Client
 from app.models.comment_draft import CommentDraft
 from app.models.post_draft import PostDraft
 from app.models.user import User
+from app.services.access_control import can_approve_drafts
 from app.services.transparency import record_activity_event
 from app.services import audit as audit_service
 

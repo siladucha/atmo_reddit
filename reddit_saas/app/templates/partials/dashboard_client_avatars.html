@@ -1,0 +1,29 @@
+<!-- Avatars summary for a single client -->
+{% if avatars %}
+<div class="space-y-2">
+    {% for avatar in avatars %}
+    <div class="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-700/30 transition-colors">
+        <div class="flex-shrink-0">
+            {% if avatar.is_frozen %}
+            <span class="w-2.5 h-2.5 rounded-full bg-blue-400 inline-block" title="Frozen"></span>
+            {% elif avatar.health == 'healthy' %}
+            <span class="w-2.5 h-2.5 rounded-full bg-green-400 inline-block" title="Healthy"></span>
+            {% elif avatar.health == 'warning' %}
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" title="Warning"></span>
+            {% else %}
+            <span class="w-2.5 h-2.5 rounded-full bg-red-400 inline-block" title="{{ avatar.health }}"></span>
+            {% endif %}
+        </div>
+        <div class="min-w-0 flex-1">
+            <div class="text-xs text-gray-200 truncate">u/{{ avatar.username }}</div>
+            <div class="text-[10px] text-gray-500">Phase {{ avatar.phase }} · {{ avatar.karma }} karma</div>
+        </div>
+        {% if avatar.is_frozen %}
+        <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-300">❄️ frozen</span>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-gray-500 text-xs text-center py-4">No avatars assigned</p>
+{% endif %}

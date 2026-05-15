@@ -19,6 +19,9 @@ from app.models.analysis_edit import AnalysisEditRecord
 from app.models.avatar_subreddit_presence import AvatarSubredditPresence
 from app.models.edit_record import EditRecord
 from app.models.correction_pattern import CorrectionPattern
+from app.models.avatar_rental import AvatarRental
+from app.models.user_client_assignment import UserClientAssignment
+from app.models.strategy_document import StrategyDocument
 
 __all__ = [
     "User",
@@ -44,4 +47,7 @@ __all__ = [
     "AvatarSubredditPresence",
     "EditRecord",
     "CorrectionPattern",
+    "AvatarRental",
+    "UserClientAssignment",
+    "StrategyDocument",
 ]

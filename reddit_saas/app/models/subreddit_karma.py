@@ -56,6 +56,7 @@ class SubredditKarma(Base):
     __table_args__ = (
         UniqueConstraint("avatar_id", "subreddit_name", name="uq_subreddit_karma_avatar_sub"),
         Index("ix_subreddit_karma_avatar", "avatar_id"),
+        Index("ix_subreddit_karma_avatar_updated", "avatar_id", last_updated_at.desc()),
     )
 
     @property

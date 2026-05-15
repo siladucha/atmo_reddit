@@ -79,7 +79,12 @@ def admin_client(db, superuser):
         yield db
 
     app.dependency_overrides[get_db] = override_get_db
-    token = create_access_token(data={"sub": str(superuser.id), "email": superuser.email})
+    token = create_access_token(data={
+        "sub": str(superuser.id),
+        "email": superuser.email,
+        "role": superuser.user_role.value,
+        "is_superuser": superuser.is_superuser,
+    })
     with TestClient(app) as c:
         c.cookies.set("access_token", token)
         yield c
@@ -95,7 +100,12 @@ def regular_client(db, regular_user):
         yield db
 
     app.dependency_overrides[get_db] = override_get_db
-    token = create_access_token(data={"sub": str(regular_user.id), "email": regular_user.email})
+    token = create_access_token(data={
+        "sub": str(regular_user.id),
+        "email": regular_user.email,
+        "role": regular_user.user_role.value,
+        "is_superuser": regular_user.is_superuser,
+    })
     with TestClient(app) as c:
         c.cookies.set("access_token", token)
         yield c

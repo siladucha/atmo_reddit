@@ -32,7 +32,13 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Email already registered")
 
     user = create_user(db, email=data.email, password=data.password, full_name=data.full_name)
-    token = create_access_token(data={"sub": str(user.id), "email": user.email})
+    token = create_access_token(data={
+        "sub": str(user.id),
+        "email": user.email,
+        "full_name": user.full_name or "",
+        "role": user.user_role.value,
+        "is_superuser": user.is_superuser,
+    })
     return TokenResponse(access_token=token)
 
 
@@ -42,5 +48,11 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    token = create_access_token(data={"sub": str(user.id), "email": user.email})
+    token = create_access_token(data={
+        "sub": str(user.id),
+        "email": user.email,
+        "full_name": user.full_name or "",
+        "role": user.user_role.value,
+        "is_superuser": user.is_superuser,
+    })
     return TokenResponse(access_token=token)

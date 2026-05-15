@@ -6,13 +6,16 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies.admin import require_superuser
+from app.dependencies.admin import require_user_management_access
+from app.dependencies.permissions import get_current_user, require_owner
+from app.dependencies.permissions import verify_client_access_from_path
 from app.models.avatar import Avatar
 from app.models.client import Client
 from app.models.subreddit import ClientSubreddit, ClientSubredditAssignment, Subreddit
@@ -22,6 +25,7 @@ from app.services import audit as audit_service
 from app.services import health_metrics
 from app.services import inspector as inspector_service
 from app.services import operations_dashboard
+from app.services import team_management as team_mgmt
 from app.services import transparency
 from app.services.dry_run import is_dry_run_enabled_global
 from app.services.metrics_collector import (
@@ -63,16 +67,70 @@ def _paginate(page: int, per_page: int, total: int) -> dict:
 @router.get("/", response_class=HTMLResponse)
 def admin_dashboard(
     request: Request,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Operations Dashboard — unified daily-ops view at `/admin/`.
+    """Operations Dashboard — role-aware daily-ops view at `/admin/`.
 
-    The shell renders synchronously; client cards / freshness / run-history /
-    avatar-health / schedule are filled in via HTMX partials so the page can
-    auto-refresh without a full reload.
+    - Owner: full system dashboard (topology, kill switches, backups, all panels)
+    - Partner: business-focused dashboard (clients, pipeline, AI costs, no infra)
+    - Client Manager/Admin: single-client dashboard (their client's metrics)
+
+    The shell renders synchronously; panels are filled via HTMX partials.
     """
+    from app.models.user_role import UserRole
     from app.services.settings import get_setting
+
+    role = current_user.user_role
+
+    # Reconcile: if JWT role differs from DB-resolved role (e.g. legacy
+    # is_superuser users whose role field is empty), prefer the JWT role
+    # for dashboard routing since it was set at login from user_role.value.
+    jwt_role = getattr(request.state, "user_role", "")
+    if jwt_role and jwt_role != role.value:
+        try:
+            role = UserRole(jwt_role)
+        except ValueError:
+            pass
+
+    # --- Client Manager / Client Admin: single-client dashboard ---
+    if role.is_client_scoped and current_user.client_id:
+        client = db.query(Client).filter(Client.id == current_user.client_id).first()
+        if not client:
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url="/login", status_code=303)
+
+        metrics = operations_dashboard.get_client_manager_metrics(db, client.id)
+        return templates.TemplateResponse(
+            name="admin_dashboard_client_manager.html",
+            context={
+                "request": request,
+                "active_nav": "dashboard",
+                "client": client,
+                "metrics": metrics,
+                "can_review": role.can_review,
+            },
+            request=request,
+        )
+
+    # --- Partner: business-focused dashboard ---
+    if role == UserRole.partner:
+        metrics = operations_dashboard.get_top_metrics(db)
+        clients_list = operations_dashboard.list_active_clients(db)
+        return templates.TemplateResponse(
+            name="admin_dashboard_partner.html",
+            context={
+                "request": request,
+                "active_nav": "dashboard",
+                "metrics": metrics,
+                "clients": clients_list,
+            },
+            request=request,
+        )
+
+    # --- Owner: full system dashboard ---
+    if role != UserRole.owner and not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Access Denied")
 
     metrics = operations_dashboard.get_top_metrics(db)
     clients_list = operations_dashboard.list_active_clients(db)
@@ -364,6 +422,7 @@ def dashboard_trigger(
     action: str,
     client_id: uuid.UUID,
     current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
     db: Session = Depends(get_db),
 ):
     """HTMX-friendly per-client pipeline trigger that returns a toast partial.
@@ -461,6 +520,111 @@ def dashboard_run_all(
 
 
 # ---------------------------------------------------------------------------
+# Role-specific dashboard HTMX partials
+# ---------------------------------------------------------------------------
+
+
+@router.get("/dashboard/ai-costs-summary", response_class=HTMLResponse)
+def dashboard_ai_costs_summary(
+    request: Request,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """AI costs summary panel for partner dashboard."""
+    ai_costs = operations_dashboard.get_ai_costs_summary(db)
+    return templates.TemplateResponse(
+        name="partials/dashboard_ai_costs_summary.html",
+        context={"request": request, "ai_costs": ai_costs},
+        request=request,
+    )
+
+
+@router.get("/dashboard/client-drafts", response_class=HTMLResponse)
+def dashboard_client_drafts(
+    request: Request,
+    client_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Recent drafts panel for client manager dashboard."""
+    cid = uuid.UUID(client_id)
+    # Verify access: platform admins can view any, client-scoped must match
+    if current_user.user_role.is_client_scoped:
+        if current_user.client_id != cid:
+            raise HTTPException(status_code=403, detail="Access Denied")
+
+    drafts = operations_dashboard.get_client_recent_drafts(db, cid, limit=10)
+    return templates.TemplateResponse(
+        name="partials/dashboard_client_drafts.html",
+        context={"request": request, "drafts": drafts},
+        request=request,
+    )
+
+
+@router.get("/dashboard/client-activity", response_class=HTMLResponse)
+def dashboard_client_activity(
+    request: Request,
+    client_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Activity feed panel for client manager dashboard."""
+    cid = uuid.UUID(client_id)
+    if current_user.user_role.is_client_scoped:
+        if current_user.client_id != cid:
+            raise HTTPException(status_code=403, detail="Access Denied")
+
+    events = operations_dashboard.get_client_activity_feed(db, cid, limit=15)
+    return templates.TemplateResponse(
+        name="partials/dashboard_client_activity.html",
+        context={"request": request, "events": events},
+        request=request,
+    )
+
+
+@router.get("/dashboard/client-avatars", response_class=HTMLResponse)
+def dashboard_client_avatars(
+    request: Request,
+    client_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Avatars panel for client manager dashboard."""
+    cid = uuid.UUID(client_id)
+    if current_user.user_role.is_client_scoped:
+        if current_user.client_id != cid:
+            raise HTTPException(status_code=403, detail="Access Denied")
+
+    avatars = operations_dashboard.get_client_avatars_summary(db, cid)
+    return templates.TemplateResponse(
+        name="partials/dashboard_client_avatars.html",
+        context={"request": request, "avatars": avatars},
+        request=request,
+    )
+
+
+@router.get("/dashboard/client-subreddits", response_class=HTMLResponse)
+def dashboard_client_subreddits(
+    request: Request,
+    client_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Subreddits panel for client manager dashboard."""
+    cid = uuid.UUID(client_id)
+    if current_user.user_role.is_client_scoped:
+        if current_user.client_id != cid:
+            raise HTTPException(status_code=403, detail="Access Denied")
+
+    subreddits = operations_dashboard.get_client_subreddits_summary(db, cid)
+    return templates.TemplateResponse(
+        name="partials/dashboard_client_subreddits.html",
+        context={"request": request, "subreddits": subreddits},
+        request=request,
+    )
+
+
+# ---------------------------------------------------------------------------
 # User management (6.2)
 # ---------------------------------------------------------------------------
 
@@ -469,12 +633,23 @@ def admin_users(
     request: Request,
     page: int = 1,
     per_page: int = 20,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_user_management_access),
     db: Session = Depends(get_db),
 ):
-    users, total = admin_service.list_users(db, page, per_page)
+    from app.models.user_role import UserRole
+
+    # client_admin only sees users within their own company
+    if current_user.user_role == UserRole.client_admin:
+        query = db.query(User).filter(User.client_id == current_user.client_id)
+        total = query.count()
+        offset = (page - 1) * per_page
+        users = query.order_by(User.created_at.desc()).offset(offset).limit(per_page).all()
+        clients_list = db.query(Client).filter(Client.id == current_user.client_id).all()
+    else:
+        users, total = admin_service.list_users(db, page, per_page)
+        clients_list = db.query(Client).filter(Client.is_active.is_(True)).order_by(Client.client_name).all()
+
     pagination = _paginate(page, per_page, total)
-    clients_list = db.query(Client).filter(Client.is_active.is_(True)).order_by(Client.client_name).all()
 
     return templates.TemplateResponse(
         name="admin_users.html",
@@ -500,7 +675,7 @@ def admin_create_user(
     is_superuser: bool = Form(False),
     user_client_id: str = Form(""),
     user_role: str = Form("client_manager"),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_user_management_access),
     db: Session = Depends(get_db),
 ):
     from app.models.user_role import UserRole
@@ -512,6 +687,21 @@ def admin_create_user(
             role_enum = UserRole(user_role)
         except ValueError:
             role_enum = UserRole.client_manager
+
+        # Resolve target client_id for permission check
+        target_client_id = None
+        if user_client_id and user_client_id.strip():
+            try:
+                target_client_id = uuid.UUID(user_client_id)
+            except ValueError:
+                pass
+
+        # Enforce team management scope (raises 403 if unauthorized)
+        team_mgmt.validate_team_management(
+            requesting_user=current_user,
+            target_role=role_enum,
+            target_client_id=target_client_id,
+        )
 
         # Set is_superuser based on role for backward compat
         effective_is_superuser = role_enum in (UserRole.owner, UserRole.partner)
@@ -529,19 +719,24 @@ def admin_create_user(
         db.commit()
 
         # Link user to client if specified and role is client-scoped
-        if user_client_id and user_client_id.strip():
-            if role_enum in (UserRole.client_manager, UserRole.client_viewer, UserRole.b2c_user):
-                try:
-                    new_user.client_id = uuid.UUID(user_client_id)
-                    db.commit()
-                except ValueError:
-                    pass
+        if target_client_id:
+            if role_enum in (UserRole.client_manager, UserRole.client_viewer, UserRole.b2c_user, UserRole.client_admin):
+                new_user.client_id = target_client_id
+                db.commit()
     except ValueError as e:
         error = str(e)
 
-    users, total = admin_service.list_users(db)
+    # Re-fetch user list (scoped for client_admin)
+    if current_user.user_role == UserRole.client_admin:
+        query = db.query(User).filter(User.client_id == current_user.client_id)
+        total = query.count()
+        users = query.order_by(User.created_at.desc()).limit(20).all()
+        clients_list = db.query(Client).filter(Client.id == current_user.client_id).all()
+    else:
+        users, total = admin_service.list_users(db)
+        clients_list = db.query(Client).filter(Client.is_active.is_(True)).order_by(Client.client_name).all()
+
     pagination = _paginate(1, 20, total)
-    clients_list = db.query(Client).filter(Client.is_active.is_(True)).order_by(Client.client_name).all()
 
     return templates.TemplateResponse(
         name="admin_users.html",
@@ -562,10 +757,21 @@ def admin_create_user(
 def admin_toggle_user_active(
     request: Request,
     user_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_user_management_access),
     db: Session = Depends(get_db),
 ):
     try:
+        # Load target user for permission check
+        target_user = db.query(User).filter(User.id == user_id).first()
+        if not target_user:
+            raise ValueError("User not found")
+
+        # Enforce team management scope (raises 403 if unauthorized)
+        team_mgmt.validate_user_deactivation(
+            requesting_user=current_user,
+            target_user=target_user,
+        )
+
         user = admin_service.toggle_user_active(db, user_id, current_user.id)
     except ValueError:
         user = db.query(User).filter(User.id == user_id).first()
@@ -600,10 +806,17 @@ def admin_toggle_user_superuser(
 def admin_delete_user(
     request: Request,
     user_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_user_management_access),
     db: Session = Depends(get_db),
 ):
     try:
+        # Load target user for permission check
+        target_user = db.query(User).filter(User.id == user_id).first()
+        if target_user:
+            team_mgmt.validate_user_deactivation(
+                requesting_user=current_user,
+                target_user=target_user,
+            )
         admin_service.toggle_user_active(db, user_id, current_user.id)
     except ValueError:
         pass
@@ -738,6 +951,7 @@ def client_transparency(
     request: Request,
     client_id: uuid.UUID,
     current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
     db: Session = Depends(get_db),
 ):
     client = db.query(Client).filter(Client.id == client_id).first()
@@ -768,6 +982,7 @@ def client_activity_feed(
     request: Request,
     client_id: uuid.UUID,
     current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
     db: Session = Depends(get_db),
 ):
     events = transparency.get_activity_events(db, client_id=client_id, limit=100)
@@ -783,6 +998,7 @@ def admin_client_detail(
     request: Request,
     client_id: uuid.UUID,
     current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
     db: Session = Depends(get_db),
 ):
     from app.models.strategy_document import StrategyDocument
@@ -1021,6 +1237,7 @@ def admin_client_subreddits_table(
     sort_by: str = "type",
     sort_dir: str = "asc",
     current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
     db: Session = Depends(get_db),
 ):
     """HTMX endpoint: returns the sortable subreddit coverage table partial."""
@@ -1059,6 +1276,7 @@ def admin_client_update(
     brand_voice: str = Form(""),
     icp_profiles: str = Form(""),
     current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
     db: Session = Depends(get_db),
 ):
     try:
@@ -1086,6 +1304,7 @@ def admin_client_deactivate(
     request: Request,
     client_id: uuid.UUID,
     current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
     db: Session = Depends(get_db),
 ):
     try:
@@ -1100,6 +1319,7 @@ def admin_client_activate(
     request: Request,
     client_id: uuid.UUID,
     current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
     db: Session = Depends(get_db),
 ):
     try:
@@ -1118,6 +1338,7 @@ def admin_keywords(
     request: Request,
     client_id: uuid.UUID,
     current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
     db: Session = Depends(get_db),
 ):
     client = db.query(Client).filter(Client.id == client_id).first()
@@ -1175,6 +1396,7 @@ def admin_add_keyword(
     name: str = Form(...),
     priority: str = Form("MEDIUM"),
     current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
     db: Session = Depends(get_db),
 ):
     valid, err = admin_service.validate_keyword(name, priority)
@@ -1194,6 +1416,7 @@ def admin_remove_keyword(
     client_id: uuid.UUID,
     index: int,
     current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
     db: Session = Depends(get_db),
 ):
     try:
@@ -1213,6 +1436,7 @@ def admin_update_keyword(
     index: int,
     priority: str = Form(...),
     current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
     db: Session = Depends(get_db),
 ):
     try:
@@ -2185,6 +2409,7 @@ def admin_available_avatars_for_client(
     request: Request,
     client_id: uuid.UUID,
     current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
     db: Session = Depends(get_db),
 ):
     """Return a partial with unassigned avatars that can be assigned to this client."""
@@ -2225,6 +2450,7 @@ def admin_avatar_detail(
     from app.models.audit import AuditLog
     from app.models.thread import RedditThread
     from app.services.safety import get_avatar_health
+    from app.services.avatar_today import compute_today_recommendation
     from sqlalchemy import desc, func, or_
 
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
@@ -2454,6 +2680,8 @@ def admin_avatar_detail(
         "history": shadowban_history,
     }
 
+    today = compute_today_recommendation(db, avatar, health, pro_pending=pro_pending)
+
     return templates.TemplateResponse(
         name="admin_avatar_detail.html",
         context={
@@ -2477,6 +2705,7 @@ def admin_avatar_detail(
             "unassigned_clients": unassigned_clients,
             "karma_history": karma_history,
             "shadowban_status": shadowban_status,
+            "today": today,
             "now_utc": datetime.now(timezone.utc),
         },
         request=request,
@@ -3186,7 +3415,7 @@ def admin_toggle_pipeline_control(
     request: Request,
     setting_key: str = Form(...),
     setting_value: str = Form(...),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ):
     """Toggle a pipeline control setting (pipeline_enabled, generation_enabled, scrape_enabled)."""
@@ -3238,6 +3467,7 @@ def admin_subreddits(
     request: Request,
     client_id: uuid.UUID,
     current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
     db: Session = Depends(get_db),
 ):
     from app.models.ai_usage import AIUsageLog
@@ -3291,6 +3521,7 @@ def admin_add_subreddit(
     subreddit_name: str = Form(...),
     subreddit_type: str = Form("professional"),
     current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
     db: Session = Depends(get_db),
 ):
     valid, err = admin_service.validate_subreddit_name(subreddit_name)
@@ -3348,6 +3579,7 @@ def admin_remove_subreddit(
     client_id: uuid.UUID,
     subreddit_id: uuid.UUID,
     current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
     db: Session = Depends(get_db),
 ):
     try:
@@ -3833,6 +4065,7 @@ def onboard_step_get(
     client_id: str,
     step_num: int,
     current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
     db: Session = Depends(get_db),
 ):
     """Render wizard step n (1-7)."""
@@ -3947,6 +4180,7 @@ def onboard_step_post(
     client_id: str,
     step_num: int,
     current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
     db: Session = Depends(get_db),
     # Step 1 fields
     client_name: Optional[str] = Form(None),
@@ -4191,6 +4425,7 @@ async def onboard_step4_avatars(
     request: Request,
     client_id: uuid.UUID,
     current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
     db: Session = Depends(get_db),
 ):
     """Process avatar assignment from wizard step 4 (async to handle multi-value form)."""
@@ -4231,7 +4466,7 @@ async def onboard_step4_avatars(
 @router.get("/settings", response_class=HTMLResponse)
 def admin_settings(
     request: Request,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ):
     """Display all system settings grouped by category."""
@@ -4278,7 +4513,7 @@ def admin_settings(
 @router.post("/settings/bulk-save", response_class=HTMLResponse)
 async def admin_bulk_save_settings(
     request: Request,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ):
     """Bulk-save multiple settings from form data (HTMX partial response)."""
@@ -4328,7 +4563,7 @@ async def admin_bulk_save_settings(
 @router.post("/settings/test/reddit", response_class=HTMLResponse)
 def admin_test_reddit(
     request: Request,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ):
     """Test Reddit API connection and return HTMX partial with result."""
@@ -4362,7 +4597,7 @@ def admin_test_reddit(
 @router.post("/settings/test/llm", response_class=HTMLResponse)
 def admin_test_llm(
     request: Request,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ):
     """Test LLM API connection and return HTMX partial with result."""
@@ -4398,7 +4633,7 @@ def admin_update_setting(
     request: Request,
     key: str,
     value: str = Form(...),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ):
     """Save a single setting value (HTMX partial response)."""
@@ -4575,7 +4810,7 @@ def admin_scrape_queue_waiting_list(
 @router.post("/scrape-queue/toggle", response_class=HTMLResponse)
 def admin_scrape_queue_toggle(
     request: Request,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ):
     """Toggle scrape_enabled setting on/off."""
@@ -4595,7 +4830,7 @@ def admin_scrape_queue_settings(
     tick_interval: int = Form(...),
     freshness_hours: int = Form(...),
     max_rpm: int = Form(...),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ):
     """Update scrape queue settings with validation."""

@@ -2,6 +2,18 @@
 # Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 services:
+  nginx:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
   app:
     restart: always
     deploy:
@@ -54,6 +66,8 @@ services:
         -c work_mem=4MB
         -c maintenance_work_mem=64MB
         -c max_connections=50
+        -c timezone=Asia/Jerusalem
+        -c log_timezone=Asia/Jerusalem
     deploy:
       resources:
         limits:

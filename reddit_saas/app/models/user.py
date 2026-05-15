@@ -1,9 +1,9 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, func
+from sqlalchemy import Index, String, Boolean, DateTime, ForeignKey, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.models.user_role import UserRole
@@ -21,6 +21,13 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(20), default=UserRole.client_viewer.value, server_default="client_viewer")
     client_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    client = relationship("Client", foreign_keys=[client_id], lazy="joined")
+
+    __table_args__ = (
+        Index("ix_users_role", "role"),
+    )
 
     @property
     def user_role(self) -> UserRole:

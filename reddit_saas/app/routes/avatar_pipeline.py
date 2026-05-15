@@ -99,6 +99,21 @@ def _get_avatar_subreddits(db: Session, avatar: Avatar, client: Client | None) -
             seen.add(name.lower())
             subreddits.append({"name": name, "type": "hobby"})
 
+    # Business subreddits (from avatar directly) — for farm avatars without client
+    if not client and avatar.warming_phase >= 2:
+        business_subs_raw = avatar.business_subreddits or []
+        if isinstance(business_subs_raw, str):
+            business_subs_raw = [s.strip() for s in business_subs_raw.split(",")]
+        for item in business_subs_raw:
+            if isinstance(item, dict):
+                name = item.get("subreddit") or item.get("name") or ""
+            else:
+                name = str(item)
+            name = name.strip().replace("r/", "")
+            if name and name.lower() not in seen:
+                seen.add(name.lower())
+                subreddits.append({"name": name, "type": "business"})
+
     return subreddits
 
 
@@ -531,8 +546,23 @@ def pipeline_threads(
             hobby_subs.append(name.lower())
 
     if not client:
-        # No client — hobby-only mode: show fresh threads from hobby subreddits
-        if not hobby_subs:
+        # No client — farm mode: show fresh threads from hobby + business subreddits
+        # Phase 1: hobby only. Phase 2+: hobby + business.
+        available_subs = list(hobby_subs)
+        if phase >= 2:
+            business_raw = avatar.business_subreddits or []
+            if isinstance(business_raw, str):
+                business_raw = [s.strip() for s in business_raw.split(",")]
+            for item in business_raw:
+                if isinstance(item, dict):
+                    name = item.get("subreddit") or item.get("name") or ""
+                else:
+                    name = str(item)
+                name = name.strip().replace("r/", "")
+                if name and name.lower() not in [s.lower() for s in available_subs]:
+                    available_subs.append(name.lower())
+
+        if not available_subs:
             return templates.TemplateResponse(
                 name="partials/avatar_pipeline_threads.html",
                 context={
@@ -549,7 +579,7 @@ def pipeline_threads(
         from datetime import timedelta
         freshness_cutoff = datetime.now(timezone.utc) - timedelta(hours=72)
 
-        # Get threads from hobby subreddits directly (no scoring needed)
+        # Get threads from available subreddits directly (no scoring needed)
         existing_draft_thread_ids = (
             db.query(CommentDraft.thread_id)
             .filter(CommentDraft.avatar_id == avatar.id)
@@ -558,7 +588,7 @@ def pipeline_threads(
         threads_raw = (
             db.query(RedditThread)
             .filter(
-                sa_func.lower(RedditThread.subreddit).in_(hobby_subs),
+                sa_func.lower(RedditThread.subreddit).in_([s.lower() for s in available_subs]),
                 RedditThread.is_locked.is_(False),
                 RedditThread.scraped_at >= freshness_cutoff,
                 ~RedditThread.id.in_(existing_draft_thread_ids),
@@ -746,7 +776,7 @@ def pipeline_generate(
             import json as json_mod
 
             # Build hobby generation prompt
-            voice = avatar.voice_profile or "Casual, helpful community member"
+            voice = avatar.voice_profile_md or "Casual, helpful community member"
             system_prompt = f"""You are writing a Reddit comment as a regular community member.
 Your voice: {voice}
 
@@ -832,8 +862,17 @@ Author: u/{thread.author}"""
     # --- Client mode (professional pipeline) ---
     comment_type = "professional"
 
-    # Safety check
-    safety = check_avatar_can_post(db, avatar, comment_type, thread.subreddit)
+    # Safety check — pass client + empty comment_text so PhasePolicy enforces
+    # subreddit allowlist before we pay for LLM generation. Brand checks are
+    # a no-op on empty text and re-applied post-generation by content checks.
+    safety = check_avatar_can_post(
+        db,
+        avatar,
+        comment_type,
+        target_subreddit=thread.subreddit,
+        comment_text="",
+        client=client,
+    )
     if not safety:
         # Log the block so it's visible in audit logs and activity feed
         log_action(
@@ -1257,8 +1296,16 @@ def pipeline_regenerate(
     if existing_drafts:
         db.commit()
 
-    # Safety check
-    safety = check_avatar_can_post(db, avatar, "professional", thread.subreddit)
+    # Safety check — pass client + empty comment_text so PhasePolicy enforces
+    # subreddit allowlist (see pipeline_generate for rationale).
+    safety = check_avatar_can_post(
+        db,
+        avatar,
+        "professional",
+        target_subreddit=thread.subreddit,
+        comment_text="",
+        client=client,
+    )
     if not safety:
         return HTMLResponse(
             f'<div class="p-4 bg-yellow-900/30 border border-yellow-700 rounded-lg text-yellow-300">'

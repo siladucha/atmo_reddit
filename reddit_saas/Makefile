@@ -9,6 +9,12 @@
 up:  ## Start all containers (detached)
 	docker compose up -d
 
+dev:  ## Start with hot-reload (mounts source, no rebuild needed)
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+dev-d:  ## Start with hot-reload in background
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
 down:  ## Stop all containers (preserves data volume)
 	docker compose down
 

@@ -76,9 +76,10 @@ def _create_test_avatars(db: Session, count: int) -> list[Avatar]:
 
 
 def _create_test_subreddit(db: Session, name: str) -> Subreddit:
-    """Create a test subreddit record."""
+    """Create a test subreddit record with unique name to avoid constraint violations."""
+    unique_name = f"{name}_{uuid.uuid4().hex[:8]}"
     sub = Subreddit(
-        subreddit_name=name,
+        subreddit_name=unique_name,
         is_active=True,
     )
     db.add(sub)
@@ -262,14 +263,9 @@ class TestScrapeAuditLog:
              patch("app.tasks.scraping.deduplicate_posts", return_value=mock_posts[:posts_new]), \
              patch("app.services.settings.get_setting_int", return_value=0):
 
-            # Create a mock self for the bound task
-            mock_self = MagicMock()
-            mock_self.request = MagicMock()
-            mock_self.request.retries = 0
-
             from app.tasks.scraping import scrape_subreddit_shared
-            # Call the underlying function (unwrap Celery task)
-            scrape_subreddit_shared(mock_self, str(sub.id))
+            # Call the task directly — Celery handles self binding for bind=True tasks
+            scrape_subreddit_shared(str(sub.id))
 
         logs = _get_audit_logs_by_action(db, "scrape_completed")
         assert len(logs) >= 1, (
@@ -295,12 +291,8 @@ class TestScrapeAuditLog:
              patch("app.tasks.scraping.scrape_subreddit", side_effect=Exception("Reddit API error")), \
              patch("app.services.settings.get_setting_int", return_value=0):
 
-            mock_self = MagicMock()
-            mock_self.request = MagicMock()
-            mock_self.request.retries = 0
-
             from app.tasks.scraping import scrape_subreddit_shared
-            scrape_subreddit_shared(mock_self, str(sub.id))
+            scrape_subreddit_shared(str(sub.id))
 
         logs = _get_audit_logs_by_action(db, "scrape_failed")
         assert len(logs) >= 1, (
@@ -385,14 +377,8 @@ class TestPresenceScanAuditLog:
         with patch("app.tasks.presence.SessionLocal", return_value=db), \
              patch("app.services.presence.scan_avatar_presence", return_value=mock_records):
 
-            mock_self = MagicMock()
-            mock_self.request = MagicMock()
-            mock_self.request.retries = 0
-            mock_self.retry = MagicMock(side_effect=Exception("retry"))
-            mock_self.MaxRetriesExceededError = Exception
-
             from app.tasks.presence import scan_avatar_presence_task
-            scan_avatar_presence_task(mock_self, str(avatar.id))
+            scan_avatar_presence_task(str(avatar.id))
 
         logs = _get_audit_logs_by_action(db, "presence_scan_completed")
         assert len(logs) >= 1, (
@@ -531,14 +517,9 @@ class TestScoringAuditLog:
              patch("app.services.settings.is_pipeline_enabled", return_value=True), \
              patch("app.services.scoring.score_unscored_threads_for_client", return_value={"scored": threads_scored}):
 
-            # Mock the tag distribution query
-            mock_self = MagicMock()
-            mock_self.request = MagicMock()
-            mock_self.request.retries = 0
-
             from app.tasks.ai_pipeline import score_threads
-            # We need to call the underlying function with the mock self
-            score_threads(mock_self, str(client.id), triggered_by="test")
+            # Call the task directly — Celery handles self binding for bind=True tasks
+            score_threads(str(client.id), triggered_by="test")
 
         logs = _get_audit_logs_by_action(db, "scoring_batch_completed")
         assert len(logs) >= 1, (

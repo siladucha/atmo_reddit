@@ -24,4 +24,5 @@ class ScrapeLog(Base):
     __table_args__ = (
         Index("ix_scrape_log_client_sub_time", "client_id", "subreddit_name", "scraped_at"),
         Index("ix_scrape_log_subreddit_name", "subreddit_name"),
+        Index("ix_scrape_log_subreddit_scraped", "subreddit_id", scraped_at.desc()),
     )

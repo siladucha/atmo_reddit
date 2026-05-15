@@ -1,0 +1,107 @@
+<!-- Waitlist Signup Form Partial -->
+<section id="waitlist-form" class="py-16 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-xl mx-auto">
+        <h2 class="text-2xl font-bold text-gray-900 text-center mb-2">Join the Waitlist</h2>
+        <p class="text-gray-600 text-center mb-8">Be the first to know when we launch.</p>
+
+        {% if error_message %}
+        <div class="mb-6 rounded-md bg-red-50 border border-red-200 p-4">
+            <div class="flex">
+                <svg class="h-5 w-5 text-red-400 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                </svg>
+                <p class="text-sm text-red-700">{{ error_message }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <form action="/waitlist/signup" method="POST" class="space-y-5">
+            <!-- Email (required) -->
+            <div>
+                <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email <span class="text-red-500">*</span></label>
+                <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    required
+                    placeholder="your@email.com"
+                    value="{{ form_data.email if form_data and form_data.email else '' }}"
+                    class="w-full rounded-md border border-gray-300 px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                >
+                {% if errors and errors.email %}
+                <p class="mt-1 text-sm text-red-600">{{ errors.email }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Company (optional) -->
+            <div>
+                <label for="company" class="block text-sm font-medium text-gray-700 mb-1">Company</label>
+                <input
+                    type="text"
+                    id="company"
+                    name="company"
+                    placeholder="Company name"
+                    value="{{ form_data.company if form_data and form_data.company else '' }}"
+                    class="w-full rounded-md border border-gray-300 px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                >
+            </div>
+
+            <!-- Role (optional) -->
+            <div>
+                <label for="role" class="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <input
+                    type="text"
+                    id="role"
+                    name="role"
+                    placeholder="Your role"
+                    value="{{ form_data.role if form_data and form_data.role else '' }}"
+                    class="w-full rounded-md border border-gray-300 px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                >
+            </div>
+
+            <!-- Accounts Count (optional) -->
+            <div>
+                <label for="accounts_count" class="block text-sm font-medium text-gray-700 mb-1">Number of Reddit Accounts</label>
+                <input
+                    type="number"
+                    id="accounts_count"
+                    name="accounts_count"
+                    min="1"
+                    max="10000"
+                    placeholder="Number of Reddit accounts"
+                    value="{{ form_data.accounts_count if form_data and form_data.accounts_count else '' }}"
+                    class="w-full rounded-md border border-gray-300 px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                >
+            </div>
+
+            <!-- Feedback (optional) -->
+            <div>
+                <label for="feedback" class="block text-sm font-medium text-gray-700 mb-1">Feedback</label>
+                <textarea
+                    id="feedback"
+                    name="feedback"
+                    rows="3"
+                    maxlength="1000"
+                    placeholder="What would you like to see?"
+                    class="w-full rounded-md border border-gray-300 px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors resize-y"
+                >{{ form_data.feedback if form_data and form_data.feedback else '' }}</textarea>
+            </div>
+
+            <!-- Hidden fields -->
+            <input type="hidden" name="price_tier" value="{{ form_data.price_tier if form_data else '' }}">
+            <input type="hidden" name="variant_shown" value="{{ form_data.variant_shown if form_data else '{}' }}">
+            <input type="hidden" name="source_page" value="{{ request.path }}">
+
+            <!-- Submit button -->
+            <div class="pt-2">
+                <button
+                    type="submit"
+                    data-track-click="waitlist_submit"
+                    class="w-full rounded-md bg-indigo-600 px-6 py-3 text-base font-semibold text-white shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
+                >
+                    Join the Waitlist
+                </button>
+            </div>
+        </form>
+    </div>
+</section>

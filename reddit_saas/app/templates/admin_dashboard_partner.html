@@ -1,0 +1,219 @@
+{% extends "admin_base.html" %}
+{% block title %}Dashboard — Partner{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> / <span class="text-white">Dashboard</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <h1 class="text-2xl font-semibold text-white mb-6">Business Overview</h1>
+
+    {% set guide_title = "📖 Partner Dashboard" %}
+    {% set guide_content %}
+    <p>Your business command center. Top metrics show what needs attention right now.
+       Client cards below show per-client pipeline health. Use the pipeline triggers
+       to manually kick off scraping, scoring, or generation for all clients.</p>
+    <p><strong class="text-gray-300">Auto-refresh:</strong> client cards update every 60 seconds.</p>
+    {% endset %}
+    {% include "partials/page_guide.html" %}
+
+    <!-- Top Metrics Bar -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <a href="/admin/review"
+           class="bg-dark-steel rounded-lg p-5 border {% if metrics.pending_reviews > 0 %}border-amber-600 hover:border-amber-500{% else %}border-slate-700 hover:border-slate-500{% endif %} transition-colors block">
+            <div class="text-sm text-gray-400 mb-1">Pending Reviews</div>
+            <div class="flex items-baseline gap-2">
+                <div class="text-3xl font-mono font-semibold {% if metrics.pending_reviews > 0 %}text-amber-400{% else %}text-white{% endif %}">{{ metrics.pending_reviews }}</div>
+                {% if metrics.pending_reviews > 0 %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-500/20 text-amber-300">action needed</span>
+                {% endif %}
+            </div>
+        </a>
+        <a href="/admin/clients"
+           class="bg-dark-steel rounded-lg p-5 border border-slate-700 hover:border-slate-500 transition-colors block">
+            <div class="text-sm text-gray-400 mb-1">Active Clients</div>
+            <div class="text-3xl font-mono font-semibold text-white">{{ metrics.total_clients }}</div>
+        </a>
+        <a href="/admin/avatars"
+           class="bg-dark-steel rounded-lg p-5 border border-slate-700 hover:border-slate-500 transition-colors block">
+            <div class="text-sm text-gray-400 mb-1">Active Avatars</div>
+            <div class="text-3xl font-mono font-semibold text-white">{{ metrics.total_avatars }}</div>
+        </a>
+        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+            <div class="text-sm text-gray-400 mb-1">Today Posted</div>
+            <div class="text-3xl font-mono font-semibold text-indigo-400">{{ metrics.today.posted }}</div>
+        </div>
+    </div>
+
+    <!-- Today's Pipeline Summary -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 px-4 py-3 mb-6">
+        <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <span class="text-xs text-gray-500 uppercase tracking-wider font-medium">Today</span>
+            <div class="flex items-center gap-1">
+                <span class="text-xs text-gray-400">Scraped</span>
+                <span class="text-sm font-mono font-medium text-white">{{ metrics.today.threads }}</span>
+            </div>
+            <div class="flex items-center gap-1">
+                <span class="text-xs text-gray-400">Scored</span>
+                <span class="text-sm font-mono font-medium text-white">{{ metrics.today.scored }}</span>
+            </div>
+            <div class="flex items-center gap-1">
+                <span class="text-xs text-gray-400">Generated</span>
+                <span class="text-sm font-mono font-medium text-white">{{ metrics.today.generated }}</span>
+            </div>
+            <div class="flex items-center gap-1">
+                <span class="text-xs text-gray-400">Approved</span>
+                <span class="text-sm font-mono font-medium text-green-400">{{ metrics.today.approved }}</span>
+            </div>
+            <div class="flex items-center gap-1">
+                <span class="text-xs text-gray-400">Posted</span>
+                <span class="text-sm font-mono font-medium text-indigo-400">{{ metrics.today.posted }}</span>
+            </div>
+            <span class="h-4 w-px bg-slate-700 mx-1"></span>
+            <div class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full {% if metrics.worker_online %}bg-green-400{% else %}bg-red-400 animate-pulse{% endif %}"></span>
+                <span class="text-xs {% if metrics.worker_online %}text-green-400{% else %}text-red-400{% endif %}">
+                    Worker {% if metrics.worker_online %}online{% else %}offline{% endif %}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast slot -->
+    <div id="dashboard-toast" class="mb-4"></div>
+
+    <!-- Run All Bulk Controls -->
+    <div class="bg-dark-steel rounded-lg p-4 border border-slate-700 mb-6">
+        <div class="flex flex-wrap items-center gap-3">
+            <span class="text-sm text-gray-400 mr-2">Run All (every active client):</span>
+            <button hx-post="/admin/dashboard/run-all/scrape"
+                    hx-target="#dashboard-toast" hx-swap="innerHTML"
+                    hx-indicator="#run-all-spinner"
+                    class="px-3 py-1.5 bg-slate-700 border border-slate-600 text-gray-200 rounded text-sm hover:bg-slate-600 transition-colors">
+                🔍 Scrape All
+            </button>
+            <button hx-post="/admin/dashboard/run-all/score"
+                    hx-target="#dashboard-toast" hx-swap="innerHTML"
+                    hx-indicator="#run-all-spinner"
+                    class="px-3 py-1.5 bg-slate-700 border border-slate-600 text-gray-200 rounded text-sm hover:bg-slate-600 transition-colors">
+                📊 Score All
+            </button>
+            <button hx-post="/admin/dashboard/run-all/generate"
+                    hx-target="#dashboard-toast" hx-swap="innerHTML"
+                    hx-indicator="#run-all-spinner"
+                    class="px-3 py-1.5 bg-slate-700 border border-slate-600 text-gray-200 rounded text-sm hover:bg-slate-600 transition-colors">
+                ✍️ Generate All
+            </button>
+            <button hx-post="/admin/dashboard/run-all/full-pipeline"
+                    hx-target="#dashboard-toast" hx-swap="innerHTML"
+                    hx-indicator="#run-all-spinner"
+                    hx-confirm="Run the full pipeline for every active client?"
+                    class="px-3 py-1.5 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-500 transition-colors">
+                🚀 Full Pipeline All
+            </button>
+            <span id="run-all-spinner" class="htmx-indicator text-xs text-gray-400">queuing…</span>
+        </div>
+    </div>
+
+    <!-- Two-column layout: client cards (left) + side panels (right) -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Client cards (wider) -->
+        <div class="lg:col-span-2 space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-medium text-gray-300">Clients</h2>
+                <span class="text-xs text-gray-500">auto-refresh every 60s</span>
+            </div>
+            <div id="client-cards"
+                 hx-get="/admin/dashboard/clients"
+                 hx-trigger="load, every 60s"
+                 hx-swap="innerHTML">
+                <div class="bg-dark-steel rounded-lg p-8 border border-slate-700 text-center">
+                    <p class="text-gray-500 text-sm">Loading client status…</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Side panels -->
+        <div class="space-y-6">
+            <!-- AI Costs Summary -->
+            <section class="bg-dark-steel rounded-lg border border-slate-700">
+                <header class="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+                    <h3 class="text-sm font-semibold text-gray-200">💰 AI Costs (this month)</h3>
+                    <a href="/admin/ai-costs" class="text-xs text-indigo-400 hover:text-indigo-300">View details →</a>
+                </header>
+                <div id="ai-costs-summary"
+                     hx-get="/admin/dashboard/ai-costs-summary"
+                     hx-trigger="load"
+                     hx-swap="innerHTML"
+                     class="p-4">
+                    <p class="text-gray-500 text-xs">Loading…</p>
+                </div>
+            </section>
+
+            <!-- Avatar Health -->
+            <section class="bg-dark-steel rounded-lg border border-slate-700">
+                <header class="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+                    <h3 class="text-sm font-semibold text-gray-200">Avatar Health</h3>
+                    <button class="text-xs text-gray-400 hover:text-white"
+                            hx-get="/admin/dashboard/avatar-health"
+                            hx-target="#avatar-health-panel"
+                            hx-swap="innerHTML">↻ refresh</button>
+                </header>
+                <div id="avatar-health-panel"
+                     hx-get="/admin/dashboard/avatar-health"
+                     hx-trigger="load"
+                     hx-swap="innerHTML"
+                     class="p-4">
+                    <p class="text-gray-500 text-xs">Loading…</p>
+                </div>
+            </section>
+
+            <!-- Schedule -->
+            <section class="bg-dark-steel rounded-lg border border-slate-700">
+                <header class="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+                    <h3 class="text-sm font-semibold text-gray-200">Schedule</h3>
+                </header>
+                <div id="schedule-panel"
+                     hx-get="/admin/dashboard/schedule"
+                     hx-trigger="load"
+                     hx-swap="innerHTML"
+                     class="p-4">
+                    <p class="text-gray-500 text-xs">Loading…</p>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Run History (full width below) -->
+    <section class="mt-8 bg-dark-steel rounded-lg border border-slate-700">
+        <header class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-slate-700">
+            <h3 class="text-sm font-semibold text-gray-200">Run History</h3>
+            <div class="flex items-center gap-2">
+                <select name="client_id"
+                        hx-get="/admin/dashboard/run-history"
+                        hx-include="this"
+                        hx-target="#run-history-panel"
+                        hx-swap="innerHTML"
+                        class="bg-slate-night border border-slate-700 text-gray-300 text-xs rounded px-2 py-1 focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">All clients</option>
+                    {% for c in clients %}
+                    <option value="{{ c.id }}">{{ c.client_name }}</option>
+                    {% endfor %}
+                </select>
+                <button class="text-xs text-gray-400 hover:text-white"
+                        hx-get="/admin/dashboard/run-history"
+                        hx-target="#run-history-panel"
+                        hx-swap="innerHTML">↻ refresh</button>
+            </div>
+        </header>
+        <div id="run-history-panel"
+             hx-get="/admin/dashboard/run-history"
+             hx-trigger="load"
+             hx-swap="innerHTML"
+             class="p-4">
+            <p class="text-gray-500 text-xs">Loading…</p>
+        </div>
+    </section>
+</div>
+{% endblock %}

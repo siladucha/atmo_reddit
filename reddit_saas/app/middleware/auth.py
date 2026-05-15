@@ -98,10 +98,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # Attach user info to request state
         request.state.user_id = payload.get("sub")
         request.state.user_email = payload.get("email")
+        request.state.user_full_name = payload.get("full_name", "")
+        request.state.user_role = payload.get("role", "")
+        request.state.is_superuser = payload.get("is_superuser", False)
 
         logger.debug(
-            "AUTH_REQUEST | method=%s | path=%s | user=%s",
-            request.method, path, payload.get("email"),
+            "AUTH_REQUEST | method=%s | path=%s | user=%s | role=%s",
+            request.method, path, payload.get("email"), payload.get("role"),
         )
 
         return await call_next(request)

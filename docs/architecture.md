@@ -3,30 +3,31 @@
 ## System Overview
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                    AWS Cloud                         │
-│                                                     │
-│  ┌──────────┐   ┌──────────┐   ┌──────────────┐   │
-│  │  EC2     │   │  RDS     │   │ ElastiCache  │   │
-│  │          │   │ Postgres │   │   Redis      │   │
-│  │ FastAPI  │◄─►│          │   │              │   │
-│  │ Celery   │◄─►│ 10 tables│   │  Job queue   │   │
-│  │ Jinja2   │   │          │   │              │   │
-│  └────┬─────┘   └──────────┘   └──────────────┘   │
-│       │                                             │
-│       │         ┌──────────┐                        │
-│       └────────►│ Bedrock  │                        │
-│                 │ Claude   │                        │
-│                 │ Haiku    │                        │
-│                 └──────────┘                        │
-└─────────────────────────────────────────────────────┘
-        ▲                              ▲
-        │ HTTPS                        │ Reddit API
-        │                              │
-   ┌────┴────┐                   ┌─────┴─────┐
-   │  Users  │                   │  Reddit   │
-   │ (Tzvi)  │                   │   API     │
-   └─────────┘                   └───────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                    DigitalOcean / AWS Cloud                          │
+│                                                                     │
+│  ┌──────────┐   ┌──────────┐   ┌──────────────┐                   │
+│  │  EC2/DO  │   │PostgreSQL│   │    Redis     │                   │
+│  │          │   │          │   │              │                   │
+│  │ FastAPI  │◄─►│ 26 tables│   │  Job queue   │                   │
+│  │ Celery   │◄─►│          │   │  Locks       │                   │
+│  │ Jinja2   │   │          │   │              │                   │
+│  └────┬─────┘   └──────────┘   └──────────────┘                   │
+│       │                                                             │
+│       │         ┌──────────┐                                        │
+│       └────────►│ LiteLLM  │                                        │
+│                 │ Claude   │                                        │
+│                 │ Gemini   │                                        │
+│                 └──────────┘                                        │
+└───────┬─────────────────────────────────────────────────────────────┘
+        │                              ▲                    ▲
+        │ HTTPS                        │ Reddit API         │ FCM
+        │                              │                    │
+   ┌────┴────┐    ┌─────────┐   ┌─────┴─────┐    ┌───────┴───────┐
+   │  Admin  │    │ Client  │   │  Reddit   │    │ Mobile App    │
+   │  (Max)  │    │  Users  │   │   API     │    │ (Flutter)     │
+   └─────────┘    └─────────┘   └───────────┘    │ Avatar Owners │
+                                                   └───────────────┘
 ```
 
 ## Tech Stack
@@ -36,13 +37,15 @@
 | Web framework | FastAPI | API + server-side rendering |
 | Templates | Jinja2 + HTMX | Interactive UI without JS framework |
 | CSS | Tailwind CSS | Styling |
-| Database | PostgreSQL (RDS) | All persistent data |
+| Database | PostgreSQL 16 (Docker) | All persistent data |
 | ORM | SQLAlchemy 2.0 + Alembic | Models + migrations |
-| Auth | JWT (python-jose) | User authentication |
-| Background jobs | Celery + Redis (ElastiCache) | Scraping, AI calls, scheduling |
+| Auth | JWT (python-jose) + RBAC | 6 roles, query scoping, permission guards |
+| Background jobs | Celery + Redis | Scraping, AI calls, scheduling |
 | Reddit | PRAW | Official Reddit API client |
-| AI/LLM | Amazon Bedrock (via LiteLLM) | Claude Sonnet 4 + Claude Haiku |
-| Deploy | Docker on EC2 | Containerized deployment |
+| AI/LLM | LiteLLM (Gemini Flash + Claude Sonnet) | Scoring + generation |
+| Mobile | Flutter (Dart) | Posting app for avatar owners |
+| Push | Firebase Cloud Messaging (FCM) | Notifications to mobile app |
+| Deploy | Docker Compose on DigitalOcean | Containerized deployment |
 
 ---
 
@@ -56,8 +59,10 @@ users
   email (unique)
   hashed_password
   full_name
+  role (varchar(20))             -- owner | partner | client_admin | client_manager | client_viewer | b2c_user
+  client_id (FK → clients, nullable)  -- for client-scoped users
   is_active
-  is_superuser
+  is_superuser                   -- legacy, maps to 'owner' role
   created_at
 
 clients
@@ -71,8 +76,20 @@ clients
   brand_voice (text)            -- tone and style guidelines
   icp_profiles (text)           -- ideal customer profiles
   keywords (jsonb)              -- scoring keywords with priorities
+  max_avatars (int, default 3)  -- plan limit
+  plan_type (varchar(20))       -- seed | starter | growth | scale | agency
+  draft_approval_enabled (bool) -- allows client_viewer to approve drafts
   is_active
   created_at
+
+user_client_assignments
+  id (uuid, PK)
+  user_id (FK → users, CASCADE)
+  client_id (FK → clients, CASCADE)
+  role (varchar(20))            -- mirrors user role for this client
+  is_active
+  created_at
+  UNIQUE(user_id, client_id)
 
 personas
   id (uuid, PK)
@@ -100,8 +117,34 @@ avatars
   karma_post (int)
   karma_comment (int)
   is_shadowbanned (bool)
+  is_frozen (bool)
+  freeze_reason (text)
+  frozen_at (timestamp)
+  warming_phase (int)           -- 0=mentor, 1-3=warming phases
+  is_farm_avatar (bool)         -- available for rental
+  rent_price (decimal)
   last_health_check (timestamp)
   created_at
+
+avatar_rentals
+  id (uuid, PK)
+  avatar_id (FK → avatars, CASCADE)
+  client_id (FK → clients, CASCADE)
+  is_active (bool)
+  rented_at (timestamp)
+  expires_at (timestamp, nullable)
+  price (decimal, nullable)
+  UNIQUE(avatar_id, client_id)
+
+avatar_assignments                -- for mobile posting app (PLANNED)
+  id (uuid, PK)
+  user_id (FK → users, CASCADE)
+  avatar_id (FK → avatars, CASCADE)
+  role (varchar(50))            -- 'owner' | 'viewer'
+  assigned_at (timestamp)
+  assigned_by (FK → users)
+  is_active (bool)
+  UNIQUE(user_id, avatar_id)
 
 client_subreddits
   id (uuid, PK)
@@ -152,6 +195,9 @@ comment_drafts
   engagement_mode (text)        -- bullseye | helpful_peer | karma_only
   status ('pending' | 'approved' | 'rejected' | 'posted')
   posted_at (timestamp)
+  posted_by (FK → users)        -- who confirmed posting (mobile app)
+  posted_source (varchar(20))   -- 'web' | 'mobile_app'
+  posting_speed_seconds (int)   -- seconds from approved to posted
   created_at
 
 post_drafts
@@ -167,6 +213,9 @@ post_drafts
   status ('pending' | 'approved' | 'rejected' | 'posted')
   source_url (text)
   posted_at (timestamp)
+  posted_by (FK → users)        -- who confirmed posting (mobile app)
+  posted_source (varchar(20))   -- 'web' | 'mobile_app'
+  posting_speed_seconds (int)   -- seconds from approved to posted
   created_at
 ```
 
@@ -177,7 +226,7 @@ ai_usage_log
   id (uuid, PK)
   client_id (FK → clients)
   operation (text)              -- 'scoring' | 'persona_select' | 'generation' | 'editing'
-  model (text)                  -- 'claude-sonnet-4' | 'claude-haiku-3.5'
+  model (text)                  -- 'claude-sonnet-4' | 'gemini-2.5-flash-lite'
   input_tokens (int)
   output_tokens (int)
   cost_usd (decimal)
@@ -188,10 +237,31 @@ audit_log
   id (uuid, PK)
   user_id (FK → users)
   client_id (FK → clients)
-  action (text)                 -- 'approve_comment' | 'reject_comment' | 'edit_comment' | etc.
+  action (text)                 -- 'approve_comment' | 'reject_comment' | 'edit_comment' | 'confirm_posted' | etc.
   entity_type (text)            -- 'comment_draft' | 'post_draft'
   entity_id (uuid)
-  details (jsonb)
+  details (jsonb)               -- includes source='mobile_app' for mobile actions
+  created_at
+
+device_registrations            -- for mobile push notifications (PLANNED)
+  id (uuid, PK)
+  user_id (FK → users, CASCADE)
+  fcm_token (varchar(500), UNIQUE)
+  device_type (varchar(20))     -- 'ios' | 'android'
+  device_name (varchar(255))
+  is_active (bool)
+  registered_at (timestamp)
+  last_seen_at (timestamp)
+
+posting_events                  -- mobile posting analytics (PLANNED)
+  id (uuid, PK)
+  draft_id (uuid)
+  draft_type (varchar(20))      -- 'comment' | 'post'
+  user_id (FK → users)
+  avatar_id (FK → avatars)
+  action (varchar(50))          -- 'tap_post' | 'confirm_posted' | 'skip' | 'reminder_sent'
+  device_type (varchar(20))
+  ip_address (varchar(45))
   created_at
 ```
 
@@ -263,14 +333,20 @@ audit_log
    │   Actions: Approve / Edit / Reject / Redraft
    │   On approve: status → 'approved'
    │   Log to audit_log
+   │   Push notification sent to avatar owner's mobile app
    │
    ▼
-7. MANUAL POSTING ─────────────────────────────────────
-   │ Tzvi logs into Reddit avatar account
-   │ Copies approved comment
-   │ Posts manually
-   │ Marks as 'posted' in UI
-   │ Log to audit_log
+7. MOBILE POSTING (Flutter App) ───────────────────────
+   │ Avatar owner receives push notification
+   │ Opens app → sees approved drafts queue
+   │ Taps "Post":
+   │   - Comment text copied to clipboard
+   │   - Reddit thread opens in browser
+   │   - Owner pastes comment, submits on Reddit
+   │ Returns to app → confirms "Posted"
+   │ Status → 'posted', posted_at = now()
+   │ Log to audit_log (source='mobile_app')
+   │ Log to posting_events (speed tracking)
 ```
 
 ### Flow 2: Hobby Karma Building
@@ -324,16 +400,17 @@ audit_log
 
 ## UI Pages
 
-### Admin Pages (Max)
+### Admin Pages (Max — `owner` role)
 
 | Page | Purpose |
 |------|---------|
 | `/admin/dashboard` | AI costs, usage stats, credit remaining, forecasts |
 | `/admin/clients` | Manage clients (CRUD) |
 | `/admin/avatars` | Manage avatars, health status, karma tracking |
+| `/admin/posting-team` | Avatar owner stats, posting speed, compliance |
 | `/admin/jobs` | Background job status, logs |
 
-### Client Review Pages (Tzvi / client team)
+### Client Review Pages (Tzvi / client team — `partner`/`client_admin`/`client_manager`)
 
 | Page | Purpose |
 |------|---------|
@@ -341,6 +418,16 @@ audit_log
 | `/review/posts` | Review queue: pending post drafts |
 | `/review/tracking` | Published comments/posts history |
 | `/review/analytics` | Basic stats: comments/day, karma trends |
+
+### Mobile App (Avatar Owners — Flutter)
+
+| Screen | Purpose |
+|--------|---------|
+| Login | Email + password, biometric re-login |
+| Queue | Approved drafts per avatar (tabs), pull-to-refresh |
+| Detail | Full comment text, thread context, "Post" button |
+| Confirm | "Did you post?" dialog after returning from Reddit |
+| Stats | Posted today/week, streak, avg speed |
 
 ### Onboarding Pages
 
@@ -404,10 +491,15 @@ Two middleware layers in [`reddit_saas/app/middleware/`](../reddit_saas/app/midd
 ## Security
 
 - All passwords hashed (bcrypt)
-- JWT tokens stored in HttpOnly cookies (not localStorage)
+- JWT tokens stored in HttpOnly cookies (web) / secure storage (mobile)
 - HTTPS only (ACM certificate, AWS deploy)
 - Reddit avatar credentials encrypted in DB
+- **RBAC with 6 roles** — deny-by-default permission matrix (see `docs/permission_matrix.md`)
+- **Query scoping** — client-scoped users only see their own data (enforced at DB query level)
+- **LLM context isolation** — runtime assertions prevent cross-client data leakage in AI prompts
 - No client data exposed between tenants (`client_id` filtering on every query)
-- Audit log for all human actions
+- Audit log for all human actions (includes `source='mobile_app'` for mobile)
 - AI usage log for cost tracking
 - Auth middleware enforces login on all protected routes
+- **Mobile app security**: biometric auth, SSL pinning, no local draft persistence, 7-day token expiry
+- **Avatar ownership validation**: mobile API validates avatar assignment before any action

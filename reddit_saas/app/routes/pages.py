@@ -22,13 +22,14 @@ from app.models.user import User
 from app.services.auth import authenticate_user, create_user, create_access_token, get_user_by_email
 from app.services.cookies import set_auth_cookie, delete_auth_cookie
 from app.services import audit as audit_service
+from app.services.access_control import can_approve_drafts
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
-ALLOWED_TABS = ("overview", "subreddits", "avatars", "threads", "review", "reports")
+ALLOWED_TABS = ("overview", "subreddits", "keywords", "avatars", "threads", "review", "reports")
 
 
 def _resolve_tab(tab: str) -> str:
@@ -71,11 +72,13 @@ def _truncate_voice_profile(text: str | None, max_len: int = 200) -> str:
 
 def _tab_overview(client_id: UUID, db: Session) -> dict:
     """Return context dict with overview metrics and company profile fields."""
+    from app.models.subreddit import ClientSubredditAssignment
+
     client = db.query(Client).filter(Client.id == client_id).first()
 
     subreddits_count = (
-        db.query(func.count(ClientSubreddit.id))
-        .filter(ClientSubreddit.client_id == client_id, ClientSubreddit.is_active.is_(True))
+        db.query(func.count(ClientSubredditAssignment.id))
+        .filter(ClientSubredditAssignment.client_id == client_id, ClientSubredditAssignment.is_active.is_(True))
         .scalar()
     )
 
@@ -117,18 +120,24 @@ def _tab_overview(client_id: UUID, db: Session) -> dict:
 
 def _tab_subreddits(client_id: UUID, db: Session) -> dict:
     """Return active subreddits for the client with freshness colours."""
+    from app.models.subreddit import ClientSubredditAssignment, Subreddit
+
     rows = (
-        db.query(ClientSubreddit)
-        .filter(ClientSubreddit.client_id == client_id, ClientSubreddit.is_active.is_(True))
+        db.query(ClientSubredditAssignment)
+        .join(Subreddit, ClientSubredditAssignment.subreddit_id == Subreddit.id)
+        .filter(
+            ClientSubredditAssignment.client_id == client_id,
+            ClientSubredditAssignment.is_active.is_(True),
+        )
         .all()
     )
 
     subreddits = [
         {
-            "name": r.subreddit_name,
+            "name": r.subreddit.subreddit_name,
             "type": r.type,
-            "last_scraped_at": r.last_scraped_at,
-            "freshness": _freshness_color(r.last_scraped_at),
+            "last_scraped_at": r.subreddit.last_scraped_at,
+            "freshness": _freshness_color(r.subreddit.last_scraped_at),
         }
         for r in rows
     ]
@@ -136,13 +145,52 @@ def _tab_subreddits(client_id: UUID, db: Session) -> dict:
     return {"subreddits": subreddits}
 
 
+def _tab_keywords(client_id: UUID, db: Session) -> dict:
+    """Return keywords for the client grouped by priority."""
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client or not client.keywords:
+        return {"keywords": [], "keywords_by_priority": {"high": [], "medium": [], "low": []}}
+
+    keywords_by_priority = {
+        "high": client.keywords.get("high", []),
+        "medium": client.keywords.get("medium", []),
+        "low": client.keywords.get("low", []),
+    }
+
+    # Flat list for total count
+    keywords_flat = []
+    for priority in ("high", "medium", "low"):
+        for name in client.keywords.get(priority, []):
+            keywords_flat.append({"name": name, "priority": priority})
+
+    return {"keywords": keywords_flat, "keywords_by_priority": keywords_by_priority}
+
+
 def _tab_avatars(client_id: UUID, db: Session, is_admin: bool) -> dict:
-    """Return client avatars and (for admins) unassigned avatars."""
-    client_avatars = (
+    """Return client avatars (all, not just active) enriched via build_avatar_view."""
+    from app.services.avatars_query import build_avatar_view
+    from app.services.safety import get_avatar_health
+
+    raw_avatars = (
         db.query(Avatar)
-        .filter(Avatar.active.is_(True), Avatar.client_ids.any(str(client_id)))
+        .filter(Avatar.client_ids.any(str(client_id)))
         .all()
     )
+
+    # Batch-fetch related clients (same pattern as avatars page)
+    all_client_ids: set[str] = set()
+    for a in raw_avatars:
+        for cid in (a.client_ids or []):
+            if cid:
+                all_client_ids.add(str(cid))
+    client_by_id: dict = {}
+    if all_client_ids:
+        clients = db.query(Client).filter(Client.id.in_(all_client_ids)).all()
+        client_by_id = {str(c.id): c for c in clients}
+
+    # Enrich each avatar through the canonical path
+    all_avatars = [build_avatar_view(a, get_avatar_health(db, a), client_by_id) for a in raw_avatars]
+    client_avatars = [v for v in all_avatars if v.get("active_flag", True)]
 
     unassigned_avatars: list = []
     if is_admin:
@@ -153,8 +201,10 @@ def _tab_avatars(client_id: UUID, db: Session, is_admin: bool) -> dict:
         ]
 
     return {
+        "all_avatars": all_avatars,
         "client_avatars": client_avatars,
         "unassigned_avatars": unassigned_avatars,
+        "now_utc": datetime.now(timezone.utc),
     }
 
 
@@ -324,8 +374,11 @@ def guide_page(request: Request):
 # --- Auth Pages ---
 
 @router.get("/login", response_class=HTMLResponse)
-def login_page(request: Request):
-    return _render(request, "login.html")
+def login_page(request: Request, error: str | None = None):
+    context = {}
+    if error == "no_access":
+        context["error"] = "Your account is not configured yet. Please contact your administrator."
+    return _render(request, "login.html", context)
 
 
 @router.post("/login", response_class=HTMLResponse)
@@ -333,8 +386,14 @@ def login_submit(request: Request, email: str = Form(...), password: str = Form(
     user = authenticate_user(db, email, password)
     if not user:
         return _render(request, "login.html", {"error": "Invalid credentials"})
-    token = create_access_token(data={"sub": str(user.id), "email": user.email})
-    response = RedirectResponse(url="/", status_code=303)
+    token = create_access_token(data={
+        "sub": str(user.id),
+        "email": user.email,
+        "full_name": user.full_name or "",
+        "role": user.user_role.value,
+        "is_superuser": user.is_superuser,
+    })
+    response = RedirectResponse(url="/home", status_code=303)
     set_auth_cookie(response, token)
     return response
 
@@ -372,7 +431,8 @@ def root_redirect(request: Request, db: Session = Depends(get_db)):
 
     - owner/partner → admin panel
     - qa → admin review queue (cross-client)
-    - client_manager/client_viewer/b2c_user → their Client Hub
+    - client_admin/client_manager → admin panel (role-specific dashboard)
+    - client_viewer/b2c_user → their Client Hub
     """
     current_user = _get_current_user(request, db)
 
@@ -389,12 +449,46 @@ def root_redirect(request: Request, db: Session = Depends(get_db)):
     if role.is_internal:
         return RedirectResponse(url="/admin/", status_code=303)
 
-    # Client-scoped users go to their hub
+    # Client admin/manager go to their Client Hub (not admin panel)
+    from app.models.user_role import UserRole
+    if role in (UserRole.client_admin, UserRole.client_manager) and current_user.client_id:
+        return RedirectResponse(url=f"/clients/{current_user.client_id}", status_code=303)
+
+    # Client-scoped users (viewer, b2c) go to their hub
     if current_user.client_id:
         return RedirectResponse(url=f"/clients/{current_user.client_id}", status_code=303)
 
     # Authenticated but no client assigned — send to login error path.
     return RedirectResponse(url="/login", status_code=303)
+
+
+@router.get("/home", response_class=HTMLResponse)
+def home_redirect(request: Request, db: Session = Depends(get_db)):
+    """Post-login entry point. Routes user to their role-appropriate dashboard."""
+    current_user = _get_current_user(request, db)
+
+    if not current_user:
+        return RedirectResponse(url="/login", status_code=303)
+
+    role = current_user.user_role
+
+    if role.is_admin_level or role.is_internal:
+        return RedirectResponse(url="/admin/", status_code=303)
+
+    # Client admin/manager go to their Client Hub
+    from app.models.user_role import UserRole
+    if role in (UserRole.client_admin, UserRole.client_manager) and current_user.client_id:
+        return RedirectResponse(url=f"/clients/{current_user.client_id}", status_code=303)
+
+    if current_user.client_id:
+        return RedirectResponse(url=f"/clients/{current_user.client_id}", status_code=303)
+
+    # User has no client assignment — cannot route anywhere meaningful
+    logger.warning(
+        "HOME_NO_DESTINATION | user_id=%s | email=%s | role=%s | client_id=%s",
+        current_user.id, current_user.email, role.value, current_user.client_id,
+    )
+    return RedirectResponse(url="/login?error=no_access", status_code=303)
 
 
 # --- Client Create ---
@@ -493,6 +587,8 @@ def client_hub_tab(
         tab_context = _tab_overview(client_id, db)
     elif tab_name == "subreddits":
         tab_context = _tab_subreddits(client_id, db)
+    elif tab_name == "keywords":
+        tab_context = _tab_keywords(client_id, db)
     elif tab_name == "avatars":
         tab_context = _tab_avatars(client_id, db, is_admin)
     elif tab_name == "threads":
@@ -577,6 +673,125 @@ def client_hub_add_subreddit(
     return _render(request, "partials/client_hub_subreddits.html", tab_context, db=db)
 
 
+# --- Keywords Management (Client Hub) ---
+
+@router.post("/clients/{client_id}/keywords/add", response_class=HTMLResponse)
+def client_hub_add_keyword(
+    client_id: UUID,
+    request: Request,
+    keyword: str = Form(...),
+    priority: str = Form("medium"),
+    db: Session = Depends(get_db),
+):
+    """Add a keyword from the Client Hub keywords tab."""
+    from app.services import admin as admin_service
+
+    current_user = _get_current_user(request, db)
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404)
+
+    # Permission check: superuser or own client
+    if current_user and not current_user.is_superuser:
+        if current_user.client_id != client.id:
+            raise HTTPException(status_code=403)
+
+    flash = None
+    name = keyword.strip()
+    prio = priority.upper()
+
+    valid, err = admin_service.validate_keyword(name, prio)
+    if not valid:
+        flash = {"level": "error", "message": err}
+    else:
+        try:
+            user_id = current_user.id if current_user else None
+            admin_service.add_keyword(db, client_id, name, prio, user_id)
+            flash = {"level": "success", "message": f"Added keyword '{name}' ({priority})."}
+        except ValueError as e:
+            flash = {"level": "error", "message": str(e)}
+
+    tab_context = _tab_keywords(client_id, db)
+    tab_context["client"] = client
+    tab_context["flash"] = flash
+    return _render(request, "partials/client_hub_keywords.html", tab_context, db=db)
+
+
+@router.post("/clients/{client_id}/keywords/remove", response_class=HTMLResponse)
+def client_hub_remove_keyword(
+    client_id: UUID,
+    request: Request,
+    keyword: str = Form(...),
+    priority: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Remove a keyword from the Client Hub keywords tab."""
+    current_user = _get_current_user(request, db)
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404)
+
+    # Permission check: superuser or own client
+    if current_user and not current_user.is_superuser:
+        if current_user.client_id != client.id:
+            raise HTTPException(status_code=403)
+
+    # Remove keyword from JSONB
+    if client.keywords and priority in client.keywords:
+        kw_list = client.keywords.get(priority, [])
+        if keyword in kw_list:
+            kw_list.remove(keyword)
+            # Force SQLAlchemy to detect JSONB change
+            updated = dict(client.keywords)
+            updated[priority] = kw_list
+            client.keywords = updated
+            db.commit()
+
+    tab_context = _tab_keywords(client_id, db)
+    tab_context["client"] = client
+    tab_context["flash"] = {"level": "success", "message": f"Removed keyword '{keyword}'."}
+    return _render(request, "partials/client_hub_keywords.html", tab_context, db=db)
+
+
+@router.post("/clients/{client_id}/keywords/update", response_class=HTMLResponse)
+def client_hub_update_keyword(
+    client_id: UUID,
+    request: Request,
+    keyword: str = Form(...),
+    old_priority: str = Form(...),
+    new_priority: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Update keyword priority from the Client Hub keywords tab."""
+    current_user = _get_current_user(request, db)
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404)
+
+    # Permission check: superuser or own client
+    if current_user and not current_user.is_superuser:
+        if current_user.client_id != client.id:
+            raise HTTPException(status_code=403)
+
+    # Move keyword from old_priority to new_priority
+    if client.keywords and old_priority != new_priority:
+        updated = dict(client.keywords)
+        old_list = updated.get(old_priority, [])
+        if keyword in old_list:
+            old_list.remove(keyword)
+            updated[old_priority] = old_list
+            new_list = updated.get(new_priority, [])
+            new_list.append(keyword)
+            updated[new_priority] = new_list
+            client.keywords = updated
+            db.commit()
+
+    tab_context = _tab_keywords(client_id, db)
+    tab_context["client"] = client
+    tab_context["flash"] = {"level": "success", "message": f"Updated '{keyword}' to {new_priority.upper()}."}
+    return _render(request, "partials/client_hub_keywords.html", tab_context, db=db)
+
+
 # --- Review Comments ---
 
 @router.get("/review", response_class=HTMLResponse)
@@ -634,8 +849,6 @@ def approve_comment(comment_id: UUID, request: Request, db: Session = Depends(ge
     current_user = _get_current_user(request, db)
     if not current_user:
         raise HTTPException(status_code=403, detail="Authentication required")
-    if not current_user.user_role.can_review:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
     draft = db.query(CommentDraft).filter(CommentDraft.id == comment_id).first()
     if not draft:
         raise HTTPException(status_code=404)
@@ -643,6 +856,10 @@ def approve_comment(comment_id: UUID, request: Request, db: Session = Depends(ge
     if not current_user.user_role.can_view_all_clients:
         if current_user.client_id != draft.client_id:
             raise HTTPException(status_code=403)
+    # Check draft approval permission (role-based + client flag for client_viewer)
+    client = db.query(Client).filter(Client.id == draft.client_id).first()
+    if not client or not can_approve_drafts(current_user, client):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
     draft.status = "approved"
     db.commit()
     audit_service.log_action(
@@ -699,14 +916,16 @@ def reject_comment(comment_id: UUID, request: Request, db: Session = Depends(get
     current_user = _get_current_user(request, db)
     if not current_user:
         raise HTTPException(status_code=403, detail="Authentication required")
-    if not current_user.user_role.can_review:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
     draft = db.query(CommentDraft).filter(CommentDraft.id == comment_id).first()
     if not draft:
         raise HTTPException(status_code=404)
     if not current_user.user_role.can_view_all_clients:
         if current_user.client_id != draft.client_id:
             raise HTTPException(status_code=403)
+    # Check draft approval permission (role-based + client flag for client_viewer)
+    client = db.query(Client).filter(Client.id == draft.client_id).first()
+    if not client or not can_approve_drafts(current_user, client):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
     draft.status = "rejected"
     db.commit()
     audit_service.log_action(
@@ -745,6 +964,10 @@ def revert_comment(comment_id: UUID, request: Request, db: Session = Depends(get
     if not current_user.is_superuser:
         if current_user.client_id != draft.client_id:
             raise HTTPException(status_code=403)
+    # Check draft approval permission (role-based + client flag for client_viewer)
+    client = db.query(Client).filter(Client.id == draft.client_id).first()
+    if not client or not can_approve_drafts(current_user, client):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
     if draft.status == "posted":
         return HTMLResponse('<span class="text-amber-400 font-medium">Cannot revert posted comments</span>')
     old_status = draft.status
@@ -780,6 +1003,10 @@ def set_comment_status(
     if not current_user.is_superuser:
         if current_user.client_id != draft.client_id:
             raise HTTPException(status_code=403)
+    # Check draft approval permission (role-based + client flag for client_viewer)
+    client = db.query(Client).filter(Client.id == draft.client_id).first()
+    if not client or not can_approve_drafts(current_user, client):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     allowed_statuses = {"pending", "approved", "rejected", "posted"}
     if new_status not in allowed_statuses:
@@ -900,6 +1127,10 @@ def edit_comment_text(comment_id: UUID, request: Request, edited_text: str = For
     if not current_user.is_superuser:
         if current_user.client_id != draft.client_id:
             raise HTTPException(status_code=403)
+    # Check draft approval permission (role-based + client flag for client_viewer)
+    client = db.query(Client).filter(Client.id == draft.client_id).first()
+    if not client or not can_approve_drafts(current_user, client):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
     draft.edited_draft = edited_text
     db.commit()
     audit_service.log_action(
@@ -930,6 +1161,10 @@ def mark_posted(
     if not current_user.is_superuser:
         if current_user.client_id != draft.client_id:
             raise HTTPException(status_code=403)
+    # Check draft approval permission (role-based + client flag for client_viewer)
+    client = db.query(Client).filter(Client.id == draft.client_id).first()
+    if not client or not can_approve_drafts(current_user, client):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     from datetime import datetime, timezone
     draft.status = "posted"

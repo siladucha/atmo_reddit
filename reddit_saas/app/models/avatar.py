@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, Text, Boolean, Integer, DateTime, func
+from sqlalchemy import String, Text, Boolean, Integer, DateTime, Numeric, func
 from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -17,6 +17,10 @@ class Avatar(Base):
     reddit_username: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     email_address: Mapped[str | None] = mapped_column(String(255), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # Farm / rental
+    is_farm_avatar: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    rent_price: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
 
     # Voice & personality
     voice_profile_md: Mapped[str | None] = mapped_column(Text, nullable=True)

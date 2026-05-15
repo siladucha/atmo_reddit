@@ -30,6 +30,7 @@ from app.services.phase_types import (
     PolicyStatus,
     RampUpStage,
 )
+from app.services.sanitize import clean_subreddit_list
 
 logger = logging.getLogger(__name__)
 
@@ -267,9 +268,12 @@ class PhasePolicy:
                 reason=f"Phase 1: only hobby comments allowed, got '{comment_type}'",
             )
 
-        # Rule: Only subreddits in avatar.hobby_subreddits allowed
-        hobby_subs = avatar.hobby_subreddits or []
-        if target_subreddit not in hobby_subs:
+        # Rule: Only subreddits in avatar.hobby_subreddits allowed.
+        # hobby_subreddits is JSONB and may contain either bare strings or
+        # dicts of the form {"subreddit": "name"} / {"name": "name"} (legacy
+        # Ori format). Normalize via clean_subreddit_list so both shapes work.
+        hobby_subs = {s.lower() for s in clean_subreddit_list(avatar.hobby_subreddits)}
+        if (target_subreddit or "").lower() not in hobby_subs:
             return PolicyResult(
                 status=PolicyStatus.blocked,
                 reason=f"Phase 1: subreddit '{target_subreddit}' not in hobby_subreddits",
@@ -318,11 +322,12 @@ class PhasePolicy:
                 reason=f"Phase 2: comment type '{comment_type}' not allowed",
             )
 
-        # Rule: Subreddits in hobby_subreddits OR business_subreddits allowed
-        hobby_subs = avatar.hobby_subreddits or []
-        business_subs = avatar.business_subreddits or []
-        allowed_subs = set(hobby_subs) | set(business_subs)
-        if target_subreddit not in allowed_subs:
+        # Rule: Subreddits in hobby_subreddits OR business_subreddits allowed.
+        # Both fields are JSONB; normalize for the dict-vs-string shape (see Phase 1).
+        hobby_subs = {s.lower() for s in clean_subreddit_list(avatar.hobby_subreddits)}
+        business_subs = {s.lower() for s in clean_subreddit_list(avatar.business_subreddits)}
+        allowed_subs = hobby_subs | business_subs
+        if (target_subreddit or "").lower() not in allowed_subs:
             return PolicyResult(
                 status=PolicyStatus.blocked,
                 reason=f"Phase 2: subreddit '{target_subreddit}' not in allowed subreddits",

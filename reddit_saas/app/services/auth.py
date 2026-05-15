@@ -69,5 +69,8 @@ def authenticate_user(db: Session, email: str, password: str) -> User | None:
     if not user or not verify_password(password, user.hashed_password):
         logger.warning("AUTH_FAILED | email=%s | reason=%s", email, "user_not_found" if not user else "bad_password")
         return None
+    if not user.is_active:
+        logger.warning("AUTH_FAILED | email=%s | reason=user_deactivated | user_id=%s", email, user.id)
+        return None
     logger.info("AUTH_SUCCESS | email=%s | user_id=%s | is_superuser=%s", email, user.id, user.is_superuser)
     return user

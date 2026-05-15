@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 40" width="120" height="40">
+  <!-- Geometric accent mark -->
+  <rect x="4" y="8" width="6" height="24" rx="2" fill="#4F46E5"/>
+  <rect x="12" y="14" width="4" height="18" rx="1" fill="#818CF8"/>
+  <!-- RAMP text -->
+  <text x="24" y="29" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="700" fill="#1E293B" letter-spacing="-0.5">RAMP</text>
+</svg>
