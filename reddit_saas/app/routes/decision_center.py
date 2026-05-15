@@ -24,6 +24,7 @@ from app.dependencies.admin import require_superuser
 from app.models.avatar import Avatar
 from app.models.client import Client
 from app.models.comment_draft import CommentDraft
+from app.models.strategy_document import StrategyDocument
 from app.models.user import User
 from app.services.risk_prediction import (
     compute_risk_prediction,
@@ -137,6 +138,37 @@ def decision_center_live_pulse(
         "reddit_status": avatar.reddit_status or "unknown",
     }
 
+    # Operational alerts (strategy approval, etc.)
+    operational_alerts = []
+
+    # Check strategy approval status
+    current_strategy = (
+        db.query(StrategyDocument)
+        .filter(
+            StrategyDocument.avatar_id == avatar_id,
+            StrategyDocument.is_current.is_(True),
+        )
+        .first()
+    )
+    if current_strategy and not current_strategy.is_approved:
+        operational_alerts.append({
+            "type": "warning",
+            "icon": "📋",
+            "title": "Strategy not approved",
+            "description": f"Strategy v{current_strategy.version} generated {current_strategy.generated_at.strftime('%d.%m.%Y %H:%M') if current_strategy.generated_at else 'N/A'} — pipeline runs without strategy guidance",
+            "action_url": f"/admin/avatars/{avatar_id}#tab=strategy",
+            "action_label": "Review Strategy",
+        })
+    elif not current_strategy:
+        operational_alerts.append({
+            "type": "info",
+            "icon": "📋",
+            "title": "No strategy generated",
+            "description": "This avatar has no strategy document — generation runs without strategic context",
+            "action_url": f"/admin/avatars/{avatar_id}#tab=strategy",
+            "action_label": "Generate Strategy",
+        })
+
     return templates.TemplateResponse(
         name="partials/dc_live_pulse.html",
         context={
@@ -145,6 +177,7 @@ def decision_center_live_pulse(
             "risk": risk,
             "sparkline_data": sparkline_data,
             "badges": badges,
+            "operational_alerts": operational_alerts,
         },
         request=request,
     )
