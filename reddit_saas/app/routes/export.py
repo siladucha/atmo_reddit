@@ -1,18 +1,53 @@
-"""JSON export endpoints — download page data as JSON files."""
+"""JSON export endpoints — download page data as JSON files.
+
+Permission model:
+- Platform-wide exports (all clients, users, audit logs, AI costs): require_superuser (owner/partner)
+- Client-scoped reports (client report, avatar report): require_report_access
+  - owner/partner: always allowed
+  - client_admin/client_manager: allowed for their own client only
+"""
 
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies.admin import require_superuser
+from app.dependencies.permissions import get_current_user
 from app.models.user import User
+from app.models.user_role import UserRole
 from app.services import export as export_service
 
 router = APIRouter(prefix="/export", tags=["export"])
+
+
+async def require_report_access(user: User = Depends(get_current_user)) -> User:
+    """Allow owner, partner, client_admin, and client_manager to access reports.
+
+    - owner/partner: platform-wide access (all reports)
+    - client_admin/client_manager: scoped to their own client (enforced per-endpoint)
+
+    Raises 403 for client_viewer, b2c_user, or other roles.
+    """
+    allowed_roles = (UserRole.owner, UserRole.partner, UserRole.client_admin, UserRole.client_manager)
+    if user.user_role not in allowed_roles and not user.is_superuser:
+        raise HTTPException(status_code=403, detail="Access Denied")
+    return user
+
+
+def _verify_client_scope(user: User, client_id: uuid.UUID) -> None:
+    """Verify that a client-scoped user can access the given client_id.
+
+    Raises 403 if the user is client-scoped and client_id doesn't match.
+    Owner/partner always pass.
+    """
+    if user.user_role in (UserRole.owner, UserRole.partner) or user.is_superuser:
+        return
+    if user.client_id != client_id:
+        raise HTTPException(status_code=403, detail="Access Denied")
 
 
 def _json_download(data: list | dict, filename: str) -> JSONResponse:
@@ -35,10 +70,12 @@ def export_clients(
 @router.get("/clients/{client_id}/report.md")
 def export_client_markdown_report(
     client_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_report_access),
     db: Session = Depends(get_db),
 ):
     """Markdown client report for delivery — pipeline stats, avatar performance, recommendations."""
+    _verify_client_scope(current_user, client_id)
+
     from fastapi.responses import Response
     from app.services.client_report import generate_client_report_md
 
@@ -61,10 +98,11 @@ def export_client_markdown_report(
 @router.get("/clients/{client_id}/report")
 def export_client_json_report(
     client_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_report_access),
     db: Session = Depends(get_db),
 ):
     """JSON client report — full pipeline data for programmatic use."""
+    _verify_client_scope(current_user, client_id)
     from app.services.client_report import (
         _score_client_profile,
         _get_pipeline_stats,
@@ -109,10 +147,17 @@ def export_avatars(
 @router.get("/avatars/{avatar_id}")
 def export_single_avatar(
     avatar_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_report_access),
     db: Session = Depends(get_db),
 ):
     """Export a single avatar with profile analytics as avatar_{username}.json."""
+    # Client-scoped users: verify avatar belongs to their client
+    if current_user.user_role not in (UserRole.owner, UserRole.partner) and not current_user.is_superuser:
+        from app.models.avatar import Avatar
+        avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+        if not avatar or (current_user.client_id and str(current_user.client_id) not in (avatar.client_ids or [])):
+            raise HTTPException(status_code=403, detail="Access Denied")
+
     data = export_service.export_single_avatar(db, avatar_id)
     if data is None:
         return JSONResponse(content={"error": "Avatar not found"}, status_code=404)
@@ -123,10 +168,17 @@ def export_single_avatar(
 @router.get("/avatars/{avatar_id}/report")
 def export_avatar_client_report(
     avatar_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_report_access),
     db: Session = Depends(get_db),
 ):
     """Full avatar report for client delivery — profile, stats, comments, subreddit activity."""
+    # Client-scoped users: verify avatar belongs to their client
+    if current_user.user_role not in (UserRole.owner, UserRole.partner) and not current_user.is_superuser:
+        from app.models.avatar import Avatar
+        avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+        if not avatar or (current_user.client_id and str(current_user.client_id) not in (avatar.client_ids or [])):
+            raise HTTPException(status_code=403, detail="Access Denied")
+
     data = export_service.export_avatar_client_report(db, avatar_id)
     if data is None:
         return JSONResponse(content={"error": "Avatar not found"}, status_code=404)
@@ -138,10 +190,17 @@ def export_avatar_client_report(
 @router.get("/avatars/{avatar_id}/report.md")
 def export_avatar_markdown_report(
     avatar_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_report_access),
     db: Session = Depends(get_db),
 ):
     """Markdown avatar report for client delivery — quality scores, activity, recommendations."""
+    # Client-scoped users: verify avatar belongs to their client
+    if current_user.user_role not in (UserRole.owner, UserRole.partner) and not current_user.is_superuser:
+        from app.models.avatar import Avatar
+        avatar_check = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+        if not avatar_check or (current_user.client_id and str(current_user.client_id) not in (avatar_check.client_ids or [])):
+            raise HTTPException(status_code=403, detail="Access Denied")
+
     from fastapi.responses import Response
     from app.services.avatar_report import generate_avatar_report_md
 
@@ -166,9 +225,14 @@ def export_avatar_markdown_report(
 def export_threads(
     client_id: str | None = Query(None),
     tag: str | None = Query(None),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_report_access),
     db: Session = Depends(get_db),
 ):
+    # Client-scoped users must provide their own client_id
+    if current_user.user_role not in (UserRole.owner, UserRole.partner) and not current_user.is_superuser:
+        if not client_id or uuid.UUID(client_id) != current_user.client_id:
+            raise HTTPException(status_code=403, detail="Access Denied")
+
     cid = uuid.UUID(client_id) if client_id else None
     data = export_service.export_threads(db, client_id=cid, tag=tag)
     suffix = f"_{client_id[:8]}" if client_id else ""
@@ -179,9 +243,14 @@ def export_threads(
 def export_comments(
     client_id: str | None = Query(None),
     status: str | None = Query(None),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_report_access),
     db: Session = Depends(get_db),
 ):
+    # Client-scoped users must provide their own client_id
+    if current_user.user_role not in (UserRole.owner, UserRole.partner) and not current_user.is_superuser:
+        if not client_id or uuid.UUID(client_id) != current_user.client_id:
+            raise HTTPException(status_code=403, detail="Access Denied")
+
     cid = uuid.UUID(client_id) if client_id else None
     data = export_service.export_comment_drafts(db, client_id=cid, status=status)
     suffix = f"_{client_id[:8]}" if client_id else ""
@@ -191,9 +260,14 @@ def export_comments(
 @router.get("/subreddits")
 def export_subreddits(
     client_id: str | None = Query(None),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_report_access),
     db: Session = Depends(get_db),
 ):
+    # Client-scoped users must provide their own client_id
+    if current_user.user_role not in (UserRole.owner, UserRole.partner) and not current_user.is_superuser:
+        if not client_id or uuid.UUID(client_id) != current_user.client_id:
+            raise HTTPException(status_code=403, detail="Access Denied")
+
     cid = uuid.UUID(client_id) if client_id else None
     data = export_service.export_subreddits(db, client_id=cid)
     suffix = f"_{client_id[:8]}" if client_id else ""
@@ -236,9 +310,14 @@ def export_users(
 @router.get("/activity")
 def export_activity(
     client_id: str | None = Query(None),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_report_access),
     db: Session = Depends(get_db),
 ):
+    # Client-scoped users must provide their own client_id
+    if current_user.user_role not in (UserRole.owner, UserRole.partner) and not current_user.is_superuser:
+        if not client_id or uuid.UUID(client_id) != current_user.client_id:
+            raise HTTPException(status_code=403, detail="Access Denied")
+
     cid = uuid.UUID(client_id) if client_id else None
     data = export_service.export_activity_events(db, client_id=cid)
     suffix = f"_{client_id[:8]}" if client_id else ""
