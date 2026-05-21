@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAMP — Maintenance</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+            max-width: 480px;
+        }
+        .icon {
+            font-size: 3rem;
+            margin-bottom: 1.5rem;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: #f8fafc;
+        }
+        p {
+            font-size: 1rem;
+            color: #94a3b8;
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+        }
+        .retry-hint {
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+        .auto-refresh {
+            margin-top: 1rem;
+            font-size: 0.75rem;
+            color: #475569;
+        }
+    </style>
+    <meta http-equiv="refresh" content="10">
+</head>
+<body>
+    <div class="container">
+        <div class="icon">&#9881;</div>
+        <h1>System Update in Progress</h1>
+        <p>RAMP is restarting with updates. This usually takes less than 30 seconds.</p>
+        <div class="retry-hint">This page will auto-refresh in 10 seconds.</div>
+        <div class="auto-refresh">If the page doesn't reload, <a href="/" style="color:#60a5fa;">click here</a>.</div>
+    </div>
+</body>
+</html>
