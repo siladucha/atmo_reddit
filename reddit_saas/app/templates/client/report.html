@@ -4,9 +4,20 @@
 
 {% block content %}
 <div id="portal-content">
-    <div style="margin-bottom:var(--space-4);">
-        <h1 class="text-h1">Insights & Report</h1>
-        <p class="text-small" style="margin-top:4px;">Campaign performance over the last 30 days.</p>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-4);">
+        <div>
+            <h1 class="text-h1">Insights & Report</h1>
+            <p class="text-small" style="margin-top:4px;">Campaign performance over the last {{ report.days }} days.</p>
+        </div>
+        <!-- Period selector -->
+        <div style="display:flex;gap:4px;background:var(--color-surface-alt);border-radius:var(--radius-pill);padding:3px;">
+            {% for p in [30, 60, 90] %}
+            <a href="?days={{ p }}"
+               style="padding:6px 14px;border-radius:var(--radius-pill);font-size:var(--text-small);text-decoration:none;font-weight:500;transition:all 0.15s;
+               {% if report.days == p %}background:var(--color-orange);color:#fff;{% else %}color:var(--color-muted);{% endif %}"
+               {% if report.days != p %}onmouseover="this.style.color='var(--color-white)'" onmouseout="this.style.color='var(--color-muted)'"{% endif %}>{{ p }}d</a>
+            {% endfor %}
+        </div>
     </div>
 
     <!-- Info block -->
@@ -18,7 +29,7 @@
 
     <!-- Engagement Funnel -->
     <div style="margin-bottom:var(--space-4);">
-        <h2 class="text-h3" style="margin-bottom:var(--space-2);">Engagement Funnel (30 days)</h2>
+        <h2 class="text-h3" style="margin-bottom:var(--space-2);">Engagement Funnel ({{ report.days }} days)</h2>
         <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:var(--space-2);">
             <div class="surface" style="padding:var(--space-3);text-align:center;">
                 <p class="text-small" style="margin-bottom:4px;">Threads Found</p>
@@ -73,7 +84,7 @@
     <!-- Subreddit Performance -->
     {% if report.sub_performance %}
     <div style="margin-bottom:var(--space-4);">
-        <h2 class="text-h3" style="margin-bottom:var(--space-2);">Subreddit Performance (30 days)</h2>
+        <h2 class="text-h3" style="margin-bottom:var(--space-2);">Subreddit Performance ({{ report.days }} days)</h2>
         <div class="surface" style="overflow:hidden;">
             <table style="width:100%;border-collapse:collapse;font-size:var(--text-small);">
                 <thead>

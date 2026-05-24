@@ -586,17 +586,22 @@ def portal_strategy(
 def portal_report(
     request: Request,
     client_id: UUID,
+    days: int = 30,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Client portal report — full insights page."""
+    """Client portal report — full insights page with configurable period (30/60/90 days)."""
     from app.models.comment_draft import CommentDraft
     from app.models.thread import RedditThread
     from app.models.subreddit import ClientSubredditAssignment, Subreddit
 
+    # Validate period
+    if days not in (30, 60, 90):
+        days = 30
+
     now = datetime.now(timezone.utc)
     week_start = now - timedelta(days=7)
-    month_start = now - timedelta(days=30)
+    month_start = now - timedelta(days=days)
 
     # --- Weekly stats ---
     week_generated = (
@@ -744,6 +749,7 @@ def portal_report(
     ) or 0
 
     report = {
+        "days": days,
         "week_generated": week_generated,
         "week_approved": week_approved,
         "week_posted": week_posted,
