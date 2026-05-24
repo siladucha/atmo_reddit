@@ -6,37 +6,121 @@
 <div id="portal-content">
     <div style="margin-bottom:var(--space-4);">
         <h1 class="text-h1">Avatars</h1>
-        <p class="text-small" style="margin-top:4px;">Your brand personas active on Reddit.</p>
+        <p class="text-small" style="margin-top:4px;">Your brand personas on Reddit. {{ avatars | length }} total.</p>
+    </div>
+
+    <!-- Info block -->
+    <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-4);">
+        <p style="font-size:var(--text-small);color:#a5b4fc;line-height:1.5;">
+            Avatars are Reddit accounts managed on your behalf. Each goes through warming phases: Phase 1 builds credibility with hobby posts, Phase 2 seeds content, Phase 3 integrates your brand. Karma shows community trust. Health monitors for Reddit restrictions.
+        </p>
     </div>
 
     {% if avatars %}
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-3);">
-        {% for avatar in avatars %}
-        <div class="surface" style="padding:var(--space-3);position:relative;">
-            {% if avatar.is_shadowbanned %}
-            <div style="background:var(--color-red);color:#fff;font-size:var(--text-micro);font-weight:600;text-align:center;padding:4px;border-radius:var(--radius-card) var(--radius-card) 0 0;margin:-24px -24px 16px -24px;">
-                PAUSED
-            </div>
-            {% endif %}
-            <p style="font-weight:600;color:var(--color-white);margin-bottom:4px;">{{ avatar.name }}</p>
-            <p class="text-small" style="margin-bottom:8px;">{{ avatar.bio[:80] }}{% if avatar.bio|length > 80 %}...{% endif %}</p>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                {% if avatar.warming_phase == 1 %}
-                <span class="badge-grey">Phase 1</span>
-                {% elif avatar.warming_phase == 2 %}
-                <span class="badge-orange">Phase 2</span>
-                {% elif avatar.warming_phase == 3 %}
-                <span class="badge-green">Phase 3</span>
-                {% elif avatar.warming_phase == 0 %}
-                <span style="background:#7c3aed;color:#fff;font-size:var(--text-micro);font-weight:600;padding:2px 8px;border-radius:var(--radius-pill);">Mentor</span>
-                {% endif %}
-                <span class="text-small">{{ avatar.karma_tier }}</span>
-            </div>
-            {% if avatar.last_active_at %}
-            <p class="text-small">Last active: {{ avatar.last_active_at }}</p>
-            {% endif %}
-        </div>
-        {% endfor %}
+    <div class="surface" style="overflow:hidden;">
+        <table style="width:100%;border-collapse:collapse;font-size:var(--text-small);">
+            <thead>
+                <tr style="border-bottom:1px solid var(--color-border);">
+                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Status</th>
+                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Username</th>
+                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Reddit</th>
+                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Phase</th>
+                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Karma</th>
+                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Health</th>
+                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">CQS</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for av in avatars %}
+                <tr style="border-bottom:1px solid var(--color-border);{% if not av.active_flag %}opacity:0.5;{% endif %}">
+                    <!-- Status -->
+                    <td style="padding:12px 16px;">
+                        {% if av.is_frozen %}
+                        <span style="display:inline-flex;align-items:center;gap:6px;">
+                            <span style="width:8px;height:8px;border-radius:50%;background:#6366f1;"></span>
+                            <span style="color:#a5b4fc;font-size:var(--text-micro);font-weight:500;">FROZEN</span>
+                        </span>
+                        {% elif av.health_status == 'shadowbanned' %}
+                        <span style="display:inline-flex;align-items:center;gap:6px;">
+                            <span style="width:8px;height:8px;border-radius:50%;background:var(--color-red);"></span>
+                            <span style="color:var(--color-red);font-size:var(--text-micro);font-weight:500;">SHADOW</span>
+                        </span>
+                        {% elif not av.active_flag %}
+                        <span style="display:inline-flex;align-items:center;gap:6px;">
+                            <span style="width:8px;height:8px;border-radius:50%;background:var(--color-muted);"></span>
+                            <span style="color:var(--color-muted);font-size:var(--text-micro);font-weight:500;">INACTIVE</span>
+                        </span>
+                        {% elif av.reddit_status == 'active' %}
+                        <span style="display:inline-flex;align-items:center;gap:6px;">
+                            <span style="width:8px;height:8px;border-radius:50%;background:var(--color-green);"></span>
+                            <span style="color:var(--color-green);font-size:var(--text-micro);font-weight:500;">ACTIVE</span>
+                        </span>
+                        {% else %}
+                        <span style="display:inline-flex;align-items:center;gap:6px;">
+                            <span style="width:8px;height:8px;border-radius:50%;background:var(--color-orange);"></span>
+                            <span style="color:var(--color-orange);font-size:var(--text-micro);font-weight:500;">{{ (av.reddit_status or 'unknown') | upper }}</span>
+                        </span>
+                        {% endif %}
+                    </td>
+                    <!-- Username -->
+                    <td style="padding:12px 16px;">
+                        <a href="/clients/{{ client_id }}/avatars/{{ av.id }}" style="color:var(--color-white);font-weight:500;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{{ av.username }}</a>
+                    </td>
+                    <!-- Reddit status -->
+                    <td style="padding:12px 16px;color:var(--color-muted);">
+                        {{ av.reddit_status or '—' }}
+                    </td>
+                    <!-- Phase -->
+                    <td style="padding:12px 16px;">
+                        {% if av.warming_phase == 0 %}
+                        <span style="padding:2px 8px;border-radius:var(--radius-pill);background:rgba(124,58,237,0.2);color:#a78bfa;font-size:var(--text-micro);font-weight:500;">Mentor</span>
+                        {% elif av.warming_phase == 1 %}
+                        <span class="badge-grey">Phase 1</span>
+                        {% elif av.warming_phase == 2 %}
+                        <span class="badge-orange">Phase 2</span>
+                        {% elif av.warming_phase == 3 %}
+                        <span class="badge-green">Phase 3</span>
+                        {% endif %}
+                    </td>
+                    <!-- Karma -->
+                    <td style="padding:12px 16px;color:var(--color-white);font-family:ui-monospace,monospace;">
+                        {{ (av.reddit_karma_comment or 0) + (av.reddit_karma_post or 0) }}
+                    </td>
+                    <!-- Health -->
+                    <td style="padding:12px 16px;">
+                        {% if av.health_status == 'healthy' or av.health_status == 'active' %}
+                        <span style="color:var(--color-green);">●</span>
+                        {% elif av.health_status == 'shadowbanned' %}
+                        <span style="color:var(--color-red);">● shadow</span>
+                        {% elif av.health_status == 'suspended' %}
+                        <span style="color:var(--color-red);">● suspended</span>
+                        {% elif av.health_status == 'limited' %}
+                        <span style="color:var(--color-orange);">● limited</span>
+                        {% else %}
+                        <span style="color:var(--color-muted);">—</span>
+                        {% endif %}
+                    </td>
+                    <!-- CQS -->
+                    <td style="padding:12px 16px;">
+                        {% if av.cqs_level == 'high' %}
+                        <span style="color:var(--color-green);font-weight:500;">High</span>
+                        {% elif av.cqs_level == 'medium' %}
+                        <span style="color:var(--color-orange);font-weight:500;">Medium</span>
+                        {% elif av.cqs_level == 'low' %}
+                        <span style="color:var(--color-orange);font-weight:500;">Low</span>
+                        {% elif av.cqs_level == 'lowest' %}
+                        <span style="color:var(--color-red);font-weight:500;">Lowest</span>
+                        {% else %}
+                        <span style="color:var(--color-muted);">—</span>
+                        {% endif %}
+                        {% if av.cqs_stale %}
+                        <span style="color:var(--color-muted);font-size:var(--text-micro);margin-left:4px;">stale</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
     {% else %}
     <div class="surface" style="padding:var(--space-5);text-align:center;">

@@ -586,6 +586,32 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
                     db.commit()
                     generated += 1
 
+                    # Also create a CommentDraft so it appears in client Review Queue
+                    try:
+                        # Determine client_id from avatar
+                        draft_client_id = None
+                        if avatar.client_ids:
+                            draft_client_id = avatar.client_ids[0]
+
+                        from app.models.comment_draft import CommentDraft as CD
+                        import uuid as uuid_mod
+                        draft = CD(
+                            id=uuid_mod.uuid4(),
+                            thread_id=None,
+                            hobby_post_id=post.id,
+                            avatar_id=avatar.id,
+                            client_id=draft_client_id,
+                            type="hobby",
+                            ai_draft=comment_text,
+                            status="pending",
+                            comment_approach="hobby_engagement",
+                        )
+                        db.add(draft)
+                        db.commit()
+                    except Exception as draft_err:
+                        logger.warning(f"Failed to create CommentDraft for hobby post {post.id}: {draft_err}")
+                        db.rollback()
+
                     # Add to previous_comments for diversity in this batch
                     previous_comments.insert(0, comment_text)
                     if len(previous_comments) > 20:

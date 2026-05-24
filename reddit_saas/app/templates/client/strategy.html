@@ -1,0 +1,61 @@
+{% extends "client_base.html" %}
+
+{% block title %}Strategy — {{ client_name }}{% endblock %}
+
+{% block content %}
+<div id="portal-content">
+    <div style="margin-bottom:var(--space-4);">
+        <h1 class="text-h1">Current Strategy</h1>
+        <p class="text-small" style="margin-top:4px;">AI-generated engagement strategy for each of your avatars.</p>
+    </div>
+
+    <!-- Info block -->
+    <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-4);">
+        <p style="font-size:var(--text-small);color:#a5b4fc;line-height:1.5;">
+            Each avatar has an AI-generated strategy document that guides its engagement style — which subreddits to prioritize, what tone to use, how often to post, and what hooks to employ. Strategies are regenerated periodically and must be approved before they take effect.
+        </p>
+    </div>
+
+    {% if strategies %}
+    <div style="display:flex;flex-direction:column;gap:var(--space-3);">
+        {% for s in strategies %}
+        <div class="surface" style="padding:var(--space-3);">
+            <!-- Header -->
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="font-weight:600;color:var(--color-white);">{{ s.avatar_name }}</span>
+                    <span class="text-micro">v{{ s.version }}</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    {% if s.is_approved %}
+                    <span class="badge-green">APPROVED</span>
+                    {% else %}
+                    <span class="badge-orange">PENDING</span>
+                    {% endif %}
+                    <span class="text-small">{{ s.generated_at }}</span>
+                </div>
+            </div>
+
+            <!-- Strategy content -->
+            {% if s.document_md %}
+            <div style="background:var(--color-surface-alt);border-radius:var(--radius-card);padding:var(--space-3);max-height:300px;overflow-y:auto;">
+                <pre style="white-space:pre-wrap;word-wrap:break-word;font-family:inherit;font-size:var(--text-small);color:var(--color-muted);margin:0;line-height:1.6;">{{ s.document_md }}</pre>
+            </div>
+            {% elif s.goals %}
+            <div style="background:var(--color-surface-alt);border-radius:var(--radius-card);padding:var(--space-3);">
+                <p class="text-small" style="color:var(--color-white);font-weight:500;margin-bottom:8px;">Goals</p>
+                <pre style="white-space:pre-wrap;word-wrap:break-word;font-family:inherit;font-size:var(--text-small);color:var(--color-muted);margin:0;">{{ s.goals | tojson(indent=2) }}</pre>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="surface" style="padding:var(--space-5);text-align:center;">
+        <p style="font-size:24px;margin-bottom:var(--space-2);">📋</p>
+        <p style="color:var(--color-white);font-weight:500;margin-bottom:8px;">Strategy is being generated</p>
+        <p class="text-small">Once your avatars are configured, the AI will generate an engagement strategy.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

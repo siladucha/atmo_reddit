@@ -1,0 +1,156 @@
+{% extends "client_base.html" %}
+
+{% block title %}Report — {{ client_name }}{% endblock %}
+
+{% block content %}
+<div id="portal-content">
+    <div style="margin-bottom:var(--space-4);">
+        <h1 class="text-h1">Insights & Report</h1>
+        <p class="text-small" style="margin-top:4px;">Campaign performance over the last 30 days.</p>
+    </div>
+
+    <!-- Info block -->
+    <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-4);">
+        <p style="font-size:var(--text-small);color:#a5b4fc;line-height:1.5;">
+            Generated = AI wrote a comment. Approved = your team confirmed it. Posted = live on Reddit. Upvotes = real community engagement. The funnel below shows how threads flow from discovery to published comments.
+        </p>
+    </div>
+
+    <!-- Engagement Funnel -->
+    <div style="margin-bottom:var(--space-4);">
+        <h2 class="text-h3" style="margin-bottom:var(--space-2);">Engagement Funnel (30 days)</h2>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:var(--space-2);">
+            <div class="surface" style="padding:var(--space-3);text-align:center;">
+                <p class="text-small" style="margin-bottom:4px;">Threads Found</p>
+                <p class="text-display">{{ report.threads_scored }}</p>
+            </div>
+            <div class="surface" style="padding:var(--space-3);text-align:center;">
+                <p class="text-small" style="margin-bottom:4px;">Selected</p>
+                <p class="text-display" style="color:var(--color-orange);">{{ report.threads_engage }}</p>
+                <p class="text-small">{{ report.engage_rate }}% engage rate</p>
+            </div>
+            <div class="surface" style="padding:var(--space-3);text-align:center;">
+                <p class="text-small" style="margin-bottom:4px;">Drafts Created</p>
+                <p class="text-display">{{ report.week_generated }}</p>
+                <p class="text-small">this week</p>
+            </div>
+            <div class="surface" style="padding:var(--space-3);text-align:center;">
+                <p class="text-small" style="margin-bottom:4px;">Posted</p>
+                <p class="text-display" style="color:var(--color-green);">{{ report.month_posted }}</p>
+                <p class="text-small">this month</p>
+            </div>
+            <div class="surface" style="padding:var(--space-3);text-align:center;">
+                <p class="text-small" style="margin-bottom:4px;">Upvotes Earned</p>
+                <p class="text-display" style="color:var(--color-green);">{{ report.month_upvotes }}</p>
+                <p class="text-small">total engagement</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Weekly summary -->
+    <div style="margin-bottom:var(--space-4);">
+        <h2 class="text-h3" style="margin-bottom:var(--space-2);">This Week</h2>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-2);">
+            <div class="surface" style="padding:var(--space-3);text-align:center;">
+                <p class="text-small" style="margin-bottom:4px;">Generated</p>
+                <p class="text-display">{{ report.week_generated }}</p>
+            </div>
+            <div class="surface" style="padding:var(--space-3);text-align:center;">
+                <p class="text-small" style="margin-bottom:4px;">Approved</p>
+                <p class="text-display">{{ report.week_approved }}</p>
+            </div>
+            <div class="surface" style="padding:var(--space-3);text-align:center;">
+                <p class="text-small" style="margin-bottom:4px;">Posted</p>
+                <p class="text-display">{{ report.week_posted }}</p>
+            </div>
+            <div class="surface" style="padding:var(--space-3);text-align:center;">
+                <p class="text-small" style="margin-bottom:4px;">Approval Rate</p>
+                <p class="text-display">{{ report.week_approval_rate }}%</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Subreddit Performance -->
+    {% if report.sub_performance %}
+    <div style="margin-bottom:var(--space-4);">
+        <h2 class="text-h3" style="margin-bottom:var(--space-2);">Subreddit Performance (30 days)</h2>
+        <div class="surface" style="overflow:hidden;">
+            <table style="width:100%;border-collapse:collapse;font-size:var(--text-small);">
+                <thead>
+                    <tr style="border-bottom:1px solid var(--color-border);">
+                        <th style="padding:10px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;">Subreddit</th>
+                        <th style="padding:10px 12px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;">Type</th>
+                        <th style="padding:10px 12px;text-align:center;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;">Comments</th>
+                        <th style="padding:10px 12px;text-align:center;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;">Upvotes</th>
+                        <th style="padding:10px 12px;text-align:center;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;">Avg Score</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sub in report.sub_performance %}
+                    {% if sub.activity > 0 %}
+                    <tr style="border-bottom:1px solid var(--color-border);">
+                        <td style="padding:10px 16px;">
+                            <a href="https://reddit.com/r/{{ sub.name }}" target="_blank" rel="noopener" style="color:var(--color-white);font-weight:500;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">r/{{ sub.name }}</a>
+                        </td>
+                        <td style="padding:10px 12px;">
+                            {% if sub.type == 'hobby' %}
+                            <span style="padding:2px 8px;border-radius:var(--radius-pill);background:rgba(139,92,246,0.15);color:#a78bfa;font-size:var(--text-micro);">hobby</span>
+                            {% else %}
+                            <span style="padding:2px 8px;border-radius:var(--radius-pill);background:rgba(59,130,246,0.15);color:#60a5fa;font-size:var(--text-micro);">professional</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding:10px 12px;text-align:center;font-family:ui-monospace,monospace;color:var(--color-white);">{{ sub.activity }}</td>
+                        <td style="padding:10px 12px;text-align:center;font-family:ui-monospace,monospace;color:{% if sub.upvotes > 0 %}var(--color-green){% else %}var(--color-muted){% endif %};">{{ sub.upvotes }}</td>
+                        <td style="padding:10px 12px;text-align:center;font-family:ui-monospace,monospace;color:var(--color-muted);">{{ sub.avg_score }}</td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Top Performing Comments -->
+    {% if report.top_comments %}
+    <div>
+        <h2 class="text-h3" style="margin-bottom:var(--space-2);">Top Performing Comments</h2>
+        <p class="text-small" style="margin-bottom:var(--space-2);">Comments with the highest community engagement.</p>
+        <div style="display:flex;flex-direction:column;gap:var(--space-2);">
+            {% for comment in report.top_comments %}
+            <div class="surface" style="padding:var(--space-3);">
+                <!-- Header -->
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <a href="https://reddit.com/r/{{ comment.subreddit }}" target="_blank" rel="noopener" style="padding:2px 8px;border-radius:var(--radius-pill);background:var(--color-surface-alt);color:var(--color-muted);font-size:var(--text-micro);text-decoration:none;">r/{{ comment.subreddit }}</a>
+                        <span class="text-small" style="color:var(--color-muted);">{{ comment.avatar }}</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="color:var(--color-green);font-weight:700;font-size:var(--text-body);">▲ {{ comment.score }}</span>
+                        <span class="text-small">{{ comment.posted_at }}</span>
+                    </div>
+                </div>
+                <!-- Thread title -->
+                {% if comment.thread_url %}
+                <a href="{{ comment.thread_url }}" target="_blank" rel="noopener" style="font-size:var(--text-small);color:var(--color-white);font-weight:500;text-decoration:none;display:block;margin-bottom:8px;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{{ comment.thread_title }} ↗</a>
+                {% elif comment.thread_title %}
+                <p style="font-size:var(--text-small);color:var(--color-white);font-weight:500;margin-bottom:8px;">{{ comment.thread_title }}</p>
+                {% endif %}
+                <!-- Comment text -->
+                <div style="background:var(--color-surface-alt);border-radius:8px;padding:10px 14px;">
+                    <p style="color:var(--color-muted);font-size:var(--text-small);line-height:1.5;">{{ comment.text }}{% if comment.text | length >= 200 %}…{% endif %}</p>
+                </div>
+                {% if comment.reddit_url %}
+                <a href="{{ comment.reddit_url }}" target="_blank" rel="noopener" style="font-size:var(--text-small);color:var(--color-muted);text-decoration:none;margin-top:8px;display:inline-block;" onmouseover="this.style.color='var(--color-white)'" onmouseout="this.style.color='var(--color-muted)'">View on Reddit →</a>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="surface" style="padding:var(--space-4);text-align:center;">
+        <p class="text-small">Posted comments will appear here once they receive engagement from the community.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

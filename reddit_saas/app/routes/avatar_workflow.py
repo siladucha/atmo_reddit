@@ -267,6 +267,28 @@ Upvotes: {hobby_post.post_ups or 0}"""
         hobby_post.status = "pending"
         db.commit()
 
+        # Also create CommentDraft for client Review Queue
+        try:
+            import uuid as uuid_mod
+            draft_client_id = None
+            if avatar.client_ids:
+                draft_client_id = avatar.client_ids[0]
+            draft = CommentDraft(
+                id=uuid_mod.uuid4(),
+                thread_id=None,
+                hobby_post_id=hobby_post.id,
+                avatar_id=avatar.id,
+                client_id=draft_client_id,
+                type="hobby",
+                ai_draft=comment_text,
+                status="pending",
+                comment_approach="hobby_engagement",
+            )
+            db.add(draft)
+            db.commit()
+        except Exception as draft_err:
+            logger.warning(f"Failed to create CommentDraft for hobby: {draft_err}")
+
         return HTMLResponse(f'''
         <span class="text-green-400 text-xs font-medium">✓ Done</span>
         ''')

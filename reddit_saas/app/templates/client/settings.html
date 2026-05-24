@@ -5,14 +5,96 @@
 {% block content %}
 <div id="portal-content">
     <div style="margin-bottom:var(--space-4);">
-        <h1 class="text-h1">Settings</h1>
-        <p class="text-small" style="margin-top:4px;">Manage your campaign configuration.</p>
+        <h1 class="text-h1">Campaign Profile</h1>
+        <p class="text-small" style="margin-top:4px;">This is what the AI knows about your brand. It uses this context to generate relevant, on-brand comments.</p>
     </div>
 
-    <div class="surface" style="padding:var(--space-5);text-align:center;">
-        <p style="font-size:24px;margin-bottom:var(--space-2);">⚙️</p>
-        <p style="color:var(--color-white);font-weight:500;margin-bottom:8px;">Settings coming soon</p>
-        <p class="text-small">Keywords, subreddits, and brand guardrails management will be available here.</p>
+    <!-- Info block -->
+    <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-4);">
+        <p style="font-size:var(--text-small);color:#a5b4fc;line-height:1.5;">
+            These fields were set during onboarding and directly influence how the AI writes comments. The more detailed your profile, the better the output quality. Contact your account manager to update these settings.
+        </p>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:var(--space-3);">
+
+        {% if profile.company_profile %}
+        <div class="surface" style="padding:var(--space-3);">
+            <h3 style="font-size:var(--text-h3);color:var(--color-white);margin-bottom:8px;">Company Profile</h3>
+            <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:8px;">What your company does — used to ensure avatars never misrepresent your product.</p>
+            <div style="background:var(--color-surface-alt);border-radius:8px;padding:12px 16px;">
+                <p style="color:var(--color-white);font-size:var(--text-body);line-height:1.6;white-space:pre-wrap;">{{ profile.company_profile }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if profile.company_worldview %}
+        <div class="surface" style="padding:var(--space-3);">
+            <h3 style="font-size:var(--text-h3);color:var(--color-white);margin-bottom:8px;">Worldview</h3>
+            <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:8px;">Your brand's philosophy — shapes the perspective avatars take in discussions.</p>
+            <div style="background:var(--color-surface-alt);border-radius:8px;padding:12px 16px;">
+                <p style="color:var(--color-white);font-size:var(--text-body);line-height:1.6;white-space:pre-wrap;">{{ profile.company_worldview }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if profile.company_problem %}
+        <div class="surface" style="padding:var(--space-3);">
+            <h3 style="font-size:var(--text-h3);color:var(--color-white);margin-bottom:8px;">Problem You Solve</h3>
+            <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:8px;">The pain point your product addresses — helps AI identify relevant threads.</p>
+            <div style="background:var(--color-surface-alt);border-radius:8px;padding:12px 16px;">
+                <p style="color:var(--color-white);font-size:var(--text-body);line-height:1.6;white-space:pre-wrap;">{{ profile.company_problem }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if profile.competitive_landscape %}
+        <div class="surface" style="padding:var(--space-3);">
+            <h3 style="font-size:var(--text-h3);color:var(--color-white);margin-bottom:8px;">Competitive Landscape</h3>
+            <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:8px;">Who you compete with — ensures avatars never accidentally promote competitors.</p>
+            <div style="background:var(--color-surface-alt);border-radius:8px;padding:12px 16px;">
+                <p style="color:var(--color-white);font-size:var(--text-body);line-height:1.6;white-space:pre-wrap;">{{ profile.competitive_landscape }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if profile.brand_voice %}
+        <div class="surface" style="padding:var(--space-3);">
+            <h3 style="font-size:var(--text-h3);color:var(--color-white);margin-bottom:8px;">Brand Voice</h3>
+            <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:8px;">How your brand sounds — the tone and style guide for all generated content.</p>
+            <div style="background:var(--color-surface-alt);border-radius:8px;padding:12px 16px;">
+                <p style="color:var(--color-white);font-size:var(--text-body);line-height:1.6;white-space:pre-wrap;">{{ profile.brand_voice }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if profile.icp_profiles %}
+        <div class="surface" style="padding:var(--space-3);">
+            <h3 style="font-size:var(--text-h3);color:var(--color-white);margin-bottom:8px;">Ideal Customer Profile</h3>
+            <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:8px;">Who you're trying to reach — determines which threads and subreddits are prioritized.</p>
+            <div style="background:var(--color-surface-alt);border-radius:8px;padding:12px 16px;">
+                <p style="color:var(--color-white);font-size:var(--text-body);line-height:1.6;white-space:pre-wrap;">{{ profile.icp_profiles }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if profile.case_studies %}
+        <div class="surface" style="padding:var(--space-3);">
+            <h3 style="font-size:var(--text-h3);color:var(--color-white);margin-bottom:8px;">Case Studies</h3>
+            <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:8px;">Success stories the AI can reference when relevant.</p>
+            <div style="background:var(--color-surface-alt);border-radius:8px;padding:12px 16px;">
+                <p style="color:var(--color-white);font-size:var(--text-body);line-height:1.6;white-space:pre-wrap;">{{ profile.case_studies }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if not profile.company_profile and not profile.brand_voice %}
+        <div class="surface" style="padding:var(--space-5);text-align:center;">
+            <p style="font-size:24px;margin-bottom:var(--space-2);">📝</p>
+            <p style="color:var(--color-white);font-weight:500;margin-bottom:8px;">Profile not configured yet</p>
+            <p class="text-small">Your account manager will set up your brand profile during onboarding.</p>
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

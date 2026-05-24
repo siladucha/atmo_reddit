@@ -1,0 +1,108 @@
+{% extends "client_base.html" %}
+
+{% block title %}Subreddits — {{ client_name }}{% endblock %}
+
+{% block content %}
+<div id="portal-content">
+    <div style="margin-bottom:var(--space-4);">
+        <h1 class="text-h1">Subreddits</h1>
+        <p class="text-small" style="margin-top:4px;">Communities we're monitoring and engaging in. {{ subreddits | length }} configured.</p>
+    </div>
+
+    <!-- Info block -->
+    <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-4);">
+        <p style="font-size:var(--text-small);color:#a5b4fc;line-height:1.5;">
+            These are the Reddit communities we scan for relevant conversations. Professional subreddits are where your target audience discusses industry topics. Hobby subreddits build avatar credibility. We scrape new posts every few hours and score them for engagement potential.
+        </p>
+    </div>
+
+    {% if subreddits %}
+    <div class="surface" style="overflow:hidden;">
+        <table style="width:100%;border-collapse:collapse;font-size:var(--text-small);">
+            <thead>
+                <tr style="border-bottom:1px solid var(--color-border);">
+                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Status</th>
+                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Subreddit</th>
+                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Type</th>
+                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Last Scraped</th>
+                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Last Result</th>
+                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Next Scrape</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sub in subreddits %}
+                <tr style="border-bottom:1px solid var(--color-border);{% if not sub.is_active %}opacity:0.5;{% endif %}">
+                    <!-- Status -->
+                    <td style="padding:12px 16px;">
+                        {% if sub.status == 'fresh' %}
+                        <span style="display:inline-flex;align-items:center;gap:6px;">
+                            <span style="width:8px;height:8px;border-radius:50%;background:var(--color-green);"></span>
+                            <span style="color:var(--color-green);font-size:var(--text-micro);font-weight:500;">ACTIVE</span>
+                        </span>
+                        {% elif sub.status == 'stale' %}
+                        <span style="display:inline-flex;align-items:center;gap:6px;">
+                            <span style="width:8px;height:8px;border-radius:50%;background:var(--color-orange);"></span>
+                            <span style="color:var(--color-orange);font-size:var(--text-micro);font-weight:500;">STALE</span>
+                        </span>
+                        {% elif sub.status == 'paused' %}
+                        <span style="display:inline-flex;align-items:center;gap:6px;">
+                            <span style="width:8px;height:8px;border-radius:50%;background:var(--color-muted);"></span>
+                            <span style="color:var(--color-muted);font-size:var(--text-micro);font-weight:500;">PAUSED</span>
+                        </span>
+                        {% else %}
+                        <span style="display:inline-flex;align-items:center;gap:6px;">
+                            <span style="width:8px;height:8px;border-radius:50%;background:var(--color-muted);"></span>
+                            <span style="color:var(--color-muted);font-size:var(--text-micro);font-weight:500;">PENDING</span>
+                        </span>
+                        {% endif %}
+                    </td>
+                    <!-- Subreddit name -->
+                    <td style="padding:12px 16px;">
+                        <span style="color:var(--color-white);font-weight:500;">r/{{ sub.name }}</span>
+                    </td>
+                    <!-- Type -->
+                    <td style="padding:12px 16px;">
+                        {% if sub.type == 'hobby' %}
+                        <span style="padding:2px 8px;border-radius:var(--radius-pill);background:rgba(139,92,246,0.15);color:#a78bfa;font-size:var(--text-micro);font-weight:500;">hobby</span>
+                        {% else %}
+                        <span style="padding:2px 8px;border-radius:var(--radius-pill);background:rgba(59,130,246,0.15);color:#60a5fa;font-size:var(--text-micro);font-weight:500;">professional</span>
+                        {% endif %}
+                    </td>
+                    <!-- Last Scraped -->
+                    <td style="padding:12px 16px;color:var(--color-muted);">
+                        {{ sub.last_scraped }}
+                    </td>
+                    <!-- Last Result -->
+                    <td style="padding:12px 16px;">
+                        {% if sub.last_result %}
+                            {% if sub.last_result.error %}
+                            <span style="color:var(--color-red);font-size:var(--text-micro);">ERROR</span>
+                            {% else %}
+                            <span style="color:var(--color-muted);">{{ sub.last_result.posts_found }} found, {{ sub.last_result.posts_new }} new</span>
+                            {% endif %}
+                        {% else %}
+                        <span style="color:var(--color-muted);">—</span>
+                        {% endif %}
+                    </td>
+                    <!-- Next Scrape -->
+                    <td style="padding:12px 16px;">
+                        {% if sub.next_scrape %}
+                        <span style="color:{% if sub.next_scrape == 'due now' %}var(--color-orange){% else %}var(--color-muted){% endif %};">{{ sub.next_scrape }}</span>
+                        {% else %}
+                        <span style="color:var(--color-muted);">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="surface" style="padding:var(--space-5);text-align:center;">
+        <p style="font-size:24px;margin-bottom:var(--space-2);">🌐</p>
+        <p style="color:var(--color-white);font-weight:500;margin-bottom:8px;">No subreddits configured yet</p>
+        <p class="text-small">Your account manager will set these up for you.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -7,8 +7,49 @@
     <!-- Page header -->
     <div style="margin-bottom:var(--space-4);">
         <h1 class="text-h1">Review Queue</h1>
-        <p class="text-small" style="margin-top:4px;">{{ pending_count }} draft{{ 's' if pending_count != 1 else '' }} waiting for your approval</p>
+        <p class="text-small" style="margin-top:4px;">{{ pending_count }} draft{{ 's' if pending_count != 1 else '' }} waiting for your approval.</p>
     </div>
+
+    <!-- Info block -->
+    <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-4);">
+        <p style="font-size:var(--text-small);color:#a5b4fc;line-height:1.5;">
+            {% if can_review %}
+            The AI generates comment drafts for relevant threads. <strong>Approve</strong> to mark ready for posting, <strong>Edit &amp; Approve</strong> to fix the text first (your edits train the AI to write better next time), or <strong>Skip</strong> to reject. Approved comments are posted by avatar owners from their own devices.
+            {% else %}
+            These are AI-generated comment drafts waiting for review. Your team's managers approve or edit them before they're posted. You have view-only access.
+            {% endif %}
+        </p>
+    </div>
+
+    <!-- Avatar filter -->
+    {% if avatar_options and avatar_options | length > 1 %}
+    <div style="margin-bottom:var(--space-3);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span class="text-small" style="color:var(--color-muted);">Filter:</span>
+        <button onclick="filterDrafts('')" id="filter-all" style="padding:4px 12px;border-radius:var(--radius-pill);font-size:var(--text-small);font-weight:500;border:1px solid var(--color-orange);background:rgba(255,107,53,0.15);color:var(--color-orange);cursor:pointer;">All</button>
+        {% for av in avatar_options %}
+        <button onclick="filterDrafts('{{ av.id }}')" id="filter-{{ av.id }}" style="padding:4px 12px;border-radius:var(--radius-pill);font-size:var(--text-small);font-weight:500;border:1px solid var(--color-border);background:transparent;color:var(--color-muted);cursor:pointer;">{{ av.name }}</button>
+        {% endfor %}
+    </div>
+    <script>
+    function filterDrafts(avatarId) {
+        // Update button styles
+        document.querySelectorAll('[id^="filter-"]').forEach(btn => {
+            btn.style.borderColor = 'var(--color-border)';
+            btn.style.background = 'transparent';
+            btn.style.color = 'var(--color-muted)';
+        });
+        const activeBtn = avatarId ? document.getElementById('filter-' + avatarId) : document.getElementById('filter-all');
+        if (activeBtn) {
+            activeBtn.style.borderColor = 'var(--color-orange)';
+            activeBtn.style.background = 'rgba(255,107,53,0.15)';
+            activeBtn.style.color = 'var(--color-orange)';
+        }
+        // Reload drafts with filter
+        const url = '/clients/{{ client_id }}/partials/drafts' + (avatarId ? '?avatar_id=' + avatarId : '');
+        htmx.ajax('GET', url, {target: '#drafts-area', swap: 'innerHTML'});
+    }
+    </script>
+    {% endif %}
 
     <!-- Draft cards (lazy loaded) -->
     <div id="drafts-area"
@@ -17,12 +58,6 @@
          hx-swap="innerHTML"
          style="display:flex;flex-direction:column;gap:var(--space-2);">
         <!-- Skeleton cards -->
-        <div class="surface" style="padding:var(--space-3);">
-            <div class="skeleton" style="width:30%;height:14px;margin-bottom:12px;"></div>
-            <div class="skeleton" style="width:80%;height:16px;margin-bottom:8px;"></div>
-            <div class="skeleton" style="width:100%;height:60px;margin-bottom:12px;"></div>
-            <div class="skeleton" style="width:50%;height:36px;"></div>
-        </div>
         <div class="surface" style="padding:var(--space-3);">
             <div class="skeleton" style="width:30%;height:14px;margin-bottom:12px;"></div>
             <div class="skeleton" style="width:80%;height:16px;margin-bottom:8px;"></div>

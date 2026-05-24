@@ -28,7 +28,7 @@ def check_safety_blocks(
         if client.client_name and client.client_name.lower() != client.brand_name.lower():
             brand_terms.append(client.client_name.lower())
 
-        comment_lower = (draft.comment_text or "").lower()
+        comment_lower = (draft.edited_draft or draft.ai_draft or "").lower()
         for term in brand_terms:
             if term and term in comment_lower:
                 logger.info(
