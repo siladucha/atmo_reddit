@@ -526,18 +526,27 @@ def portal_keywords(
 def portal_strategy(
     request: Request,
     client_id: UUID,
+    avatar_id: str = "",
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Client portal current strategy page."""
     from app.models.strategy_document import StrategyDocument
 
-    # Get current approved strategies for all avatars of this client
-    avatars_with_strategy = (
+    # Get all avatars for filter selector
+    all_avatars = (
         db.query(Avatar)
         .filter(Avatar.client_ids.any(str(client_id)))
+        .order_by(Avatar.reddit_username.asc())
         .all()
     )
+    avatar_options = [{"id": str(a.id), "name": a.reddit_username} for a in all_avatars]
+
+    # Filter avatars if selector used
+    if avatar_id:
+        avatars_with_strategy = [a for a in all_avatars if str(a.id) == avatar_id]
+    else:
+        avatars_with_strategy = all_avatars
 
     strategies = []
     for avatar in avatars_with_strategy:
@@ -565,7 +574,11 @@ def portal_strategy(
         client_id,
         db,
         active_page="strategy",
-        extra_context={"strategies": strategies},
+        extra_context={
+            "strategies": strategies,
+            "avatar_options": avatar_options,
+            "selected_avatar_id": avatar_id,
+        },
     )
 
 
@@ -1208,10 +1221,29 @@ def portal_epg(
     for d in history_raw:
         day_key = d.created_at.strftime("%Y-%m-%d")
         draft_text = d.edited_draft or d.ai_draft or ""
+        # Resolve subreddit: from thread (professional) or hobby_post (hobby)
+        subreddit_name = ""
+        thread_title = ""
+        thread_url = ""
+        if d.thread:
+            subreddit_name = d.thread.subreddit or ""
+            thread_title = (d.thread.post_title or "")[:60]
+            thread_url = d.thread.url or ""
+        elif d.hobby_post_id:
+            from app.models.hobby import HobbySubreddit
+            hobby_post = db.query(HobbySubreddit).filter(HobbySubreddit.id == d.hobby_post_id).first()
+            if hobby_post:
+                subreddit_name = hobby_post.subreddit or ""
+                thread_title = (hobby_post.post_title or "")[:60]
+                if hobby_post.permalink:
+                    thread_url = f"https://www.reddit.com{hobby_post.permalink}" if not hobby_post.permalink.startswith("http") else hobby_post.permalink
+                elif hobby_post.url:
+                    thread_url = hobby_post.url
         history_by_day[day_key].append({
             "avatar": d.avatar.reddit_username if d.avatar else "?",
-            "subreddit": d.thread.subreddit if d.thread else "",
-            "thread_title": (d.thread.post_title[:60] if d.thread else ""),
+            "subreddit": subreddit_name,
+            "thread_title": thread_title,
+            "thread_url": thread_url,
             "text": draft_text[:100],
             "status": d.status,
             "reddit_score": d.reddit_score,

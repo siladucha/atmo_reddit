@@ -23,6 +23,7 @@ from app.dependencies.admin import require_superuser
 from app.models.avatar import Avatar
 from app.models.client import Client
 from app.models.comment_draft import CommentDraft
+from app.models.hobby import HobbySubreddit
 from app.models.thread import RedditThread
 from app.models.user import User
 from app.services import audit as audit_service
@@ -69,6 +70,12 @@ def _get_today_drafts(db: Session, avatar: Avatar):
 
     for draft in drafts:
         thread = draft.thread
+        # For hobby drafts, resolve subreddit info from HobbySubreddit
+        if thread is None and draft.hobby_post_id:
+            hobby_post = db.query(HobbySubreddit).filter(HobbySubreddit.id == draft.hobby_post_id).first()
+            if hobby_post:
+                # Create a thread-like object for the template
+                thread = _HobbyThreadProxy(hobby_post)
         item = {"draft": draft, "thread": thread}
         if draft.status == "pending":
             pending.append(item)
@@ -78,6 +85,21 @@ def _get_today_drafts(db: Session, avatar: Avatar):
             posted.append(item)
 
     return pending, approved, posted
+
+
+class _HobbyThreadProxy:
+    """Lightweight proxy that makes a HobbySubreddit look like a RedditThread for templates."""
+
+    def __init__(self, hobby_post: HobbySubreddit):
+        self.subreddit = hobby_post.subreddit or ""
+        self.post_title = hobby_post.post_title or ""
+        # Build a proper Reddit URL from permalink or url
+        if hobby_post.permalink:
+            self.url = f"https://www.reddit.com{hobby_post.permalink}" if not hobby_post.permalink.startswith("http") else hobby_post.permalink
+        elif hobby_post.url:
+            self.url = hobby_post.url
+        else:
+            self.url = f"https://www.reddit.com/r/{hobby_post.subreddit}/" if hobby_post.subreddit else ""
 
 
 # ---------------------------------------------------------------------------
@@ -342,14 +364,21 @@ def workflow_approve(
 
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     thread = draft.thread
+    # Resolve hobby post info if no thread
+    if thread is None and draft.hobby_post_id:
+        hobby_post = db.query(HobbySubreddit).filter(HobbySubreddit.id == draft.hobby_post_id).first()
+        if hobby_post:
+            thread = _HobbyThreadProxy(hobby_post)
     thread_url = thread.url if thread else ""
+    thread_subreddit = thread.subreddit if thread else "?"
+    thread_title = (thread.post_title[:60] if thread else "")
 
     # Return the approved card HTML
     return HTMLResponse(f'''
     <div id="wf-draft-{draft.id}" class="rounded-lg border border-green-700/30 bg-slate-800/40 p-3">
         <div class="flex items-center gap-2 mb-2">
-            <span class="text-[10px] text-indigo-400 font-medium">r/{thread.subreddit if thread else "?"}</span>
-            <span class="text-[10px] text-gray-500 truncate flex-1">{(thread.post_title[:60] if thread else "")}</span>
+            <span class="text-[10px] text-indigo-400 font-medium">r/{thread_subreddit}</span>
+            <span class="text-[10px] text-gray-500 truncate flex-1">{thread_title}</span>
             <span class="px-1.5 py-0.5 rounded text-[10px] bg-green-900/50 text-green-300 border border-green-700">approved</span>
         </div>
         <div class="relative group/copy mb-2">
