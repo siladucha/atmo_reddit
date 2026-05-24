@@ -2,12 +2,12 @@
     <!-- Status indicator -->
     <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
-            {% if backup_info.cron_active %}
+            {% if backup_info.count > 0 %}
             <span class="w-2 h-2 rounded-full bg-green-400"></span>
-            <span class="text-xs text-green-400">Cron active (every 12h)</span>
+            <span class="text-xs text-green-400">{{ backup_info.count }} backup{{ 's' if backup_info.count != 1 }}</span>
             {% else %}
             <span class="w-2 h-2 rounded-full bg-red-400 animate-pulse"></span>
-            <span class="text-xs text-red-400">Cron not configured</span>
+            <span class="text-xs text-red-400">No backups yet</span>
             {% endif %}
         </div>
         <span class="text-xs text-gray-500">Total: {{ backup_info.total_size_mb }} MB</span>
@@ -30,30 +30,14 @@
         <div class="text-xs text-gray-500 mt-1 font-mono truncate">{{ backup_info.last_backup.name }} ({{ backup_info.last_backup.size_kb }} KB)</div>
     </div>
     {% else %}
-    <div class="text-xs text-red-400">No backups found!</div>
+    <div class="text-xs text-gray-500">No backups found. Click below to create one.</div>
     {% endif %}
 
-    <!-- Backup counts by tier -->
-    <div class="grid grid-cols-3 gap-2 text-center">
-        <div class="bg-slate-800/30 rounded p-1.5">
-            <div class="text-sm font-mono text-white">{{ backup_info.hourly | length }}</div>
-            <div class="text-[10px] text-gray-500">Hourly</div>
-        </div>
-        <div class="bg-slate-800/30 rounded p-1.5">
-            <div class="text-sm font-mono text-white">{{ backup_info.daily | length }}</div>
-            <div class="text-[10px] text-gray-500">Daily</div>
-        </div>
-        <div class="bg-slate-800/30 rounded p-1.5">
-            <div class="text-sm font-mono text-white">{{ backup_info.weekly | length }}</div>
-            <div class="text-[10px] text-gray-500">Weekly</div>
-        </div>
-    </div>
-
     <!-- Recent backups list -->
-    {% if backup_info.hourly %}
+    {% if backup_info.files %}
     <div class="space-y-1">
         <span class="text-[10px] text-gray-500 uppercase tracking-wider">Recent</span>
-        {% for b in backup_info.hourly[:3] %}
+        {% for b in backup_info.files[:5] %}
         <div class="flex items-center justify-between text-xs">
             <span class="text-gray-400 font-mono truncate max-w-[140px]">{{ b.name }}</span>
             <span class="text-gray-500">{{ b.size_kb }} KB</span>

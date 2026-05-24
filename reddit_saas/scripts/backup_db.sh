@@ -14,7 +14,7 @@ set -euo pipefail
 CONTAINER_NAME="reddit_saas-db-1"
 DB_USER="reddit_saas_user"
 DB_NAME="reddit_saas"
-BACKUP_DIR="/Volumes/2SSD/Projects/Tzvi - transfer/reddit_saas/backups"
+BACKUP_DIR="/Volumes/2SSD/Projects/ReddirSaaS/reddit_saas/backups"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_FILE="reddit_saas_${TIMESTAMP}.sql.gz"
 

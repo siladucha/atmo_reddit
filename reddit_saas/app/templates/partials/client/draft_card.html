@@ -1,0 +1,59 @@
+<!-- Single draft card for review queue -->
+<div id="draft-{{ draft.id }}" class="surface" style="padding:var(--space-3);transition:all var(--transition-fast);">
+    <!-- Header row -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-1);">
+        <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-weight:600;color:var(--color-white);">{{ draft.avatar_name }}</span>
+            {% if draft.avatar_phase == 1 %}
+            <span class="badge-grey">Phase 1</span>
+            {% elif draft.avatar_phase == 2 %}
+            <span class="badge-orange">Phase 2</span>
+            {% elif draft.avatar_phase == 3 %}
+            <span class="badge-green">Phase 3</span>
+            {% endif %}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+            <span style="background:var(--color-surface-alt);padding:2px 10px;border-radius:var(--radius-pill);font-size:var(--text-small);color:var(--color-muted);">r/{{ draft.subreddit_name }}</span>
+            <span class="text-small">{{ draft.created_at_relative }}</span>
+        </div>
+    </div>
+
+    <!-- Thread context -->
+    <div style="margin-bottom:var(--space-2);">
+        <p style="font-weight:600;color:var(--color-white);margin-bottom:4px;">{{ draft.thread_title }}</p>
+        <p class="text-small">{{ draft.thread_body_excerpt }}</p>
+    </div>
+
+    <!-- Comment text -->
+    <div id="comment-block-{{ draft.id }}" class="surface-alt" style="padding:var(--space-2);margin-bottom:var(--space-2);">
+        <p style="color:var(--color-white);line-height:1.6;white-space:pre-wrap;">{{ draft.comment_text }}</p>
+    </div>
+
+    <!-- Safety block banner (if present) -->
+    {% if draft.safety_block %}
+    <div id="safety-banner-{{ draft.id }}" style="background:rgba(229,57,53,0.1);border:1px solid var(--color-red);border-radius:var(--radius-input);padding:var(--space-1) var(--space-2);margin-bottom:var(--space-2);">
+        <p style="color:var(--color-red);font-size:var(--text-small);font-weight:500;">⚠️ {{ draft.safety_block.message }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Action buttons -->
+    <div style="display:flex;gap:var(--space-1);">
+        <button class="btn btn-green"
+                hx-post="/clients/{{ client_id }}/drafts/{{ draft.id }}/approve"
+                hx-target="#draft-{{ draft.id }}"
+                hx-swap="outerHTML swap:150ms"
+                {% if draft.safety_block %}disabled{% endif %}>
+            ✓ Approve
+        </button>
+        <button class="btn btn-orange-outline"
+                onclick="startEdit('{{ draft.id }}')">
+            ✎ Edit
+        </button>
+        <button class="btn btn-ghost"
+                hx-post="/clients/{{ client_id }}/drafts/{{ draft.id }}/skip"
+                hx-target="#draft-{{ draft.id }}"
+                hx-swap="outerHTML swap:150ms">
+            Skip
+        </button>
+    </div>
+</div>

@@ -1,8 +1,8 @@
 <!-- Pipeline Controls partial — toggles for kill switches -->
 {% set controls = [
-    {"key": "pipeline_enabled", "label": "Pipeline (Master)", "desc": "All AI tasks (score, generate, hobby)"},
-    {"key": "generation_enabled", "label": "Generation", "desc": "Comment generation only"},
-    {"key": "scrape_enabled", "label": "Scraping", "desc": "Hobby subreddit scraping"},
+    {"key": "pipeline_enabled", "label": "Pipeline (Master)", "desc": "All AI tasks (score, generate, hobby). Disabling stops the entire automated pipeline."},
+    {"key": "generation_enabled", "label": "Generation", "desc": "Comment generation only. Scoring and scraping continue when disabled."},
+    {"key": "scrape_enabled", "label": "Scraping", "desc": "Hobby subreddit scraping. Professional subreddit scraping is always on."},
 ] %}
 
 <div class="divide-y divide-slate-700">

@@ -1,7 +1,7 @@
 <!-- Avatar Profile Completeness — loaded via HTMX -->
 <div id="profile-completeness-panel" class="bg-dark-steel rounded-lg border border-slate-700 p-5">
     <div class="flex items-center justify-between mb-3">
-        <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Profile Completeness</h3>
+        <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Profile Completeness{% set tooltip_text = "How many avatar profile fields are filled (voice, backstory, interests, etc.). Higher completeness = better AI-generated comments. Missing fields reduce generation quality and persona accuracy." %}{% include "partials/block_tooltip.html" %}</h3>
         <span class="text-[10px] text-gray-500">{{ filled }}/{{ total }} fields</span>
     </div>
 

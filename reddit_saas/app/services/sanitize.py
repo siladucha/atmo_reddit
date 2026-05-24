@@ -134,3 +134,20 @@ def clean_subreddit_list(items: list | None) -> list[str]:
                 result.append(cleaned)
 
     return result
+
+
+# Default hobby subreddits for Phase 1 avatars that have no hobby_subreddits configured.
+# Low-friction communities where new accounts can build karma naturally.
+DEFAULT_PHASE1_HOBBY_SUBREDDITS = ["NewToReddit", "AskReddit", "CasualConversation"]
+
+
+def get_avatar_hobby_subreddits(avatar) -> list[str]:
+    """Return hobby subreddits for an avatar, with Phase 1 fallback defaults.
+
+    If the avatar has no hobby_subreddits configured and is in Phase 1,
+    returns a default set of low-friction subreddits for initial karma building.
+    """
+    subs = clean_subreddit_list(avatar.hobby_subreddits)
+    if not subs and getattr(avatar, "warming_phase", None) == 1:
+        return list(DEFAULT_PHASE1_HOBBY_SUBREDDITS)
+    return subs

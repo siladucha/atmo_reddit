@@ -1,6 +1,6 @@
 <!-- Avatar Pattern Performance (What Works / What Fails) — loaded via HTMX -->
 <div id="pattern-performance-panel" class="bg-dark-steel rounded-lg border border-slate-700 p-5">
-    <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Approach Performance</h3>
+    <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Approach Performance{% set tooltip_text = "Shows which comment approaches (rhetorical techniques like reframe_drop, contrarian, cynical_deconstruction) perform best/worst for this avatar based on karma received and removal rates." %}{% include "partials/block_tooltip.html" %}</h3>
 
     {% if patterns.best or patterns.worst %}
 

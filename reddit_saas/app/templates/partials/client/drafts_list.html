@@ -1,0 +1,14 @@
+{% if drafts %}
+    {% for draft in drafts %}
+    {% include "partials/client/draft_card.html" %}
+    {% endfor %}
+{% else %}
+    <div class="surface" style="padding:var(--space-5);text-align:center;">
+        <p style="font-size:24px;margin-bottom:var(--space-2);">📭</p>
+        <p style="color:var(--color-white);font-weight:500;margin-bottom:8px;">Nothing to review right now</p>
+        <p class="text-small">Your avatars are active — new drafts appear here as opportunities are found.</p>
+        {% if last_draft_at %}
+        <p class="text-small" style="margin-top:var(--space-1);">Last draft appeared: {{ last_draft_at }}</p>
+        {% endif %}
+    </div>
+{% endif %}

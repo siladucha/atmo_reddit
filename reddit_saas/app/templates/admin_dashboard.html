@@ -27,7 +27,7 @@
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <a href="/admin/review"
            class="bg-dark-steel rounded-lg p-5 border {% if metrics.pending_reviews > 0 %}border-amber-600 hover:border-amber-500{% else %}border-slate-700 hover:border-slate-500{% endif %} transition-colors block">
-            <div class="text-sm text-gray-400 mb-1">Pending Reviews</div>
+            <div class="text-sm text-gray-400 mb-1" title="Comment drafts awaiting human review. Click to open review queue.">Pending Reviews</div>
             <div class="flex items-baseline gap-2">
                 <div class="text-3xl font-mono font-semibold {% if metrics.pending_reviews > 0 %}text-amber-400{% else %}text-white{% endif %}">{{ metrics.pending_reviews }}</div>
                 {% if metrics.pending_reviews > 0 %}
@@ -37,17 +37,17 @@
         </a>
         <a href="/admin/clients"
            class="bg-dark-steel rounded-lg p-5 border border-slate-700 hover:border-slate-500 transition-colors block">
-            <div class="text-sm text-gray-400 mb-1">Active Clients</div>
+            <div class="text-sm text-gray-400 mb-1" title="Number of clients with is_active=true. Inactive clients are excluded from all pipelines.">Active Clients</div>
             <div class="text-3xl font-mono font-semibold text-white">{{ metrics.total_clients }}</div>
         </a>
         <a href="/admin/avatars"
            class="bg-dark-steel rounded-lg p-5 border border-slate-700 hover:border-slate-500 transition-colors block">
-            <div class="text-sm text-gray-400 mb-1">Active Avatars</div>
+            <div class="text-sm text-gray-400 mb-1" title="Total avatars with active=true in the system. Includes all phases and health statuses.">Active Avatars</div>
             <div class="text-3xl font-mono font-semibold text-white">{{ metrics.total_avatars }}</div>
         </a>
         <a href="/admin/tasks"
            class="bg-dark-steel rounded-lg p-5 border border-slate-700 hover:border-slate-500 transition-colors block">
-            <div class="text-sm text-gray-400 mb-1">Next Scheduled Run</div>
+            <div class="text-sm text-gray-400 mb-1" title="Time until the next scheduled Celery Beat task fires (scoring, generation, health check, etc.)">Next Scheduled Run</div>
             {% if metrics.next_run_in %}
             <div class="text-2xl font-mono font-semibold text-white">in {{ metrics.next_run_in }}</div>
             <div class="text-xs text-gray-500 mt-0.5 truncate" title="{{ metrics.next_run_label }}">{{ metrics.next_run_label }}</div>
@@ -65,34 +65,34 @@
         <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
             <span class="text-xs text-gray-500 uppercase tracking-wider font-medium">Today{% set tooltip_text = "Pipeline throughput for today (UTC). Shows how many posts were scraped, scored, had comments generated, approved, and posted." %}{% include "partials/block_tooltip.html" %}</span>
             <div class="flex items-center gap-1">
-                <span class="text-xs text-gray-400">Scraped</span>
+                <span class="text-xs text-gray-400" title="Reddit threads fetched from subreddits today (via PRAW API scraping)">Scraped</span>
                 <span class="text-sm font-mono font-medium text-white">{{ metrics.today.threads }}</span>
             </div>
             <div class="flex items-center gap-1">
-                <span class="text-xs text-gray-400">Scored</span>
+                <span class="text-xs text-gray-400" title="Threads evaluated by AI (Gemini Flash) for relevance, quality, and strategic fit today">Scored</span>
                 <span class="text-sm font-mono font-medium text-white">{{ metrics.today.scored }}</span>
             </div>
             <div class="flex items-center gap-1">
-                <span class="text-xs text-gray-400">Generated</span>
+                <span class="text-xs text-gray-400" title="Comment drafts created by AI (Claude Sonnet) for 'engage' threads today">Generated</span>
                 <span class="text-sm font-mono font-medium text-white">{{ metrics.today.generated }}</span>
             </div>
             <div class="flex items-center gap-1">
-                <span class="text-xs text-gray-400">Approved</span>
+                <span class="text-xs text-gray-400" title="Drafts approved by human reviewer today (ready for posting)">Approved</span>
                 <span class="text-sm font-mono font-medium text-green-400">{{ metrics.today.approved }}</span>
             </div>
             <div class="flex items-center gap-1">
-                <span class="text-xs text-gray-400">Posted</span>
+                <span class="text-xs text-gray-400" title="Comments confirmed as posted on Reddit today by avatar owners">Posted</span>
                 <span class="text-sm font-mono font-medium text-indigo-400">{{ metrics.today.posted }}</span>
             </div>
             <span class="h-4 w-px bg-slate-700 mx-1"></span>
-            <div class="flex items-center gap-1.5">
+            <div class="flex items-center gap-1.5" title="Celery worker heartbeat status. Online = worker is processing tasks. Offline = tasks are queuing but not executing.">
                 <span class="w-2 h-2 rounded-full {% if metrics.worker_online %}bg-green-400{% else %}bg-red-400 animate-pulse{% endif %}"></span>
                 <span class="text-xs {% if metrics.worker_online %}text-green-400{% else %}text-red-400{% endif %}">
                     Worker {% if metrics.worker_online %}online{% else %}offline{% endif %}
                 </span>
             </div>
             <div class="flex items-center gap-1">
-                <span class="text-xs text-gray-500">Last activity:</span>
+                <span class="text-xs text-gray-500" title="Time since the last activity event was recorded in the system (any pipeline action)">Last activity:</span>
                 <span class="text-xs font-mono text-gray-400">{{ metrics.last_activity_since }}</span>
             </div>
         </div>

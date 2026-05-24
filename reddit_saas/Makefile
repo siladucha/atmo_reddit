@@ -96,3 +96,29 @@ help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 .DEFAULT_GOAL := help
+
+# --- Deployment (to DigitalOcean server) ---
+
+deploy:  ## Smart deploy — auto-detect changes, deploy only what's needed
+	./deploy.sh auto
+
+deploy-app:  ## Deploy main app only (app + celery + celery-beat)
+	./deploy.sh app
+
+deploy-mkt:  ## Deploy marketing site only
+	./deploy.sh marketing
+
+deploy-nginx:  ## Reload nginx config (zero downtime)
+	./deploy.sh nginx
+
+deploy-all:  ## Full rebuild and deploy everything
+	./deploy.sh all
+
+deploy-status:  ## Show container status on server
+	./deploy.sh status
+
+server-logs:  ## Tail production logs (all services)
+	ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f --tail=50"
+
+server-logs-app:  ## Tail production app logs only
+	ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f --tail=50 app"

@@ -729,6 +729,6 @@ def generate_avatar_report_md(db: Session, avatar_id: uuid.UUID) -> str | None:
         lines.append("")
 
     lines.append("---")
-    lines.append("*Report generated automatically by ThredOps Platform*")
+    lines.append("*Report generated automatically by RAMP Platform*")
 
     return "\n".join(lines)

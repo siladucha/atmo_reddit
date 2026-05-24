@@ -1,4 +1,18 @@
-"""Auth middleware — protects routes by checking JWT cookie."""
+"""Auth middleware — protects routes by checking JWT cookie.
+
+Two independent auth mechanisms:
+1. JWT cookie auth (form login at /login) — checks user in DB via authenticate_user().
+   User MUST exist in `users` table with correct role (owner/partner for admin access).
+2. HTTP Basic Auth — ONLY for /docs, /openapi.json, /redoc (Swagger UI protection).
+   Uses hardcoded _DOCS_CREDENTIALS dict below. NOT related to /login form at all.
+
+If /login says "Invalid credentials" — the user is missing from `users` table or
+password hash doesn't match. Check: SELECT email, role FROM users;
+
+If login succeeds but redirects back to /login?error=no_access — the user's `role`
+field is wrong (needs 'owner' or 'partner' for admin panel access). The /home route
+checks role.is_admin_level which only matches owner/partner.
+"""
 
 import logging
 import secrets
@@ -28,6 +42,9 @@ BASIC_AUTH_ROUTES = {
 }
 
 # Allowed credentials for docs access (username: password)
+# NOTE: This is ONLY for HTTP Basic Auth on /docs and /openapi.json (Swagger UI).
+# This has NOTHING to do with the /login form — that uses users table in DB.
+# If /login fails, check: SELECT email, role, is_superuser FROM users;
 _DOCS_CREDENTIALS = {
     "max@admin.reddit": "MethodB2024!",
     "jenny@admin.reddit": "qa.13.05.2026",

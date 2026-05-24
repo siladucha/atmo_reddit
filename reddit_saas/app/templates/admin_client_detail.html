@@ -30,6 +30,13 @@
                 Onboarding Wizard
             </a>
             {% if client.is_active %}
+            <form method="post" action="/admin/clients/{{ client.id }}/run-pipeline" class="inline">
+                <button type="submit"
+                        onclick="return confirm('Run scoring + generation for this client? (bypasses kill switch, respects all safety limits)')"
+                        class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                    ▶ Run Pipeline
+                </button>
+            </form>
             <form method="post" action="/admin/clients/{{ client.id }}/deactivate" class="inline">
                 <button type="submit"
                         onclick="return confirm('Deactivate this client?')"
@@ -130,17 +137,17 @@
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <a href="/admin/keywords/{{ client.id }}"
            class="bg-dark-steel rounded-lg border border-slate-700 p-4 hover:border-indigo-500 transition-colors">
-            <div class="text-sm text-gray-400">Keywords</div>
+            <div class="text-sm text-gray-400" title="Scoring keywords (high/medium/low priority) used to evaluate thread relevance for this client">Keywords</div>
             <div class="text-xl font-mono text-white mt-1">{{ keywords|length }}</div>
         </a>
         <a href="/admin/subreddits/{{ client.id }}"
            class="bg-dark-steel rounded-lg border border-slate-700 p-4 hover:border-indigo-500 transition-colors">
-            <div class="text-sm text-gray-400">Subreddits</div>
+            <div class="text-sm text-gray-400" title="Reddit communities monitored for this client. Scraped periodically for new threads to score and engage.">Subreddits</div>
             <div class="text-xl font-mono text-white mt-1">{{ subreddits|length }}</div>
         </a>
         <a href="/admin/avatars?client_id={{ client.id }}"
            class="bg-dark-steel rounded-lg border border-slate-700 p-4 hover:border-indigo-500 transition-colors">
-            <div class="text-sm text-gray-400">Avatars</div>
+            <div class="text-sm text-gray-400" title="Reddit accounts assigned to this client for posting comments. Each avatar has its own voice, persona, and warming phase.">Avatars</div>
             <div class="text-xl font-mono text-white mt-1">{{ avatars|length }}</div>
         </a>
     </div>

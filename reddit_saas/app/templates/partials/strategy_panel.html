@@ -12,7 +12,7 @@
     <!-- Header with Generate button -->
     <div class="flex items-center justify-between">
         <div>
-            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Strategy Document</h2>
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Strategy Document{% set tooltip_text = "AI-generated engagement strategy for this avatar. Defines tone, cadence, goals, and approach priorities. Injected into comment generation prompt. Can be edited and versioned." %}{% include "partials/block_tooltip.html" %}</h2>
             {% if current_strategy %}
             <p class="text-xs text-gray-500 mt-0.5">
                 v{{ current_strategy.version }} · Generated {{ current_strategy.generated_at.strftime('%b %d, %H:%M') }}

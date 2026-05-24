@@ -1,5 +1,6 @@
-{# Decision Center — Decision Queue partial #}
-{# Context: high_risk_items (list[DecisionItem]), normal_items (list[DecisionItem]), total_count (int) #}
+{# Decision Center — Unified Decision Queue partial
+   Everything on one card: thread context + comment text + copy + Reddit link + approve/reject/edit + mark posted
+   Context: high_risk_items (list[DecisionItem]), normal_items (list[DecisionItem]), total_count (int) #}
 
 <div class="space-y-3">
     {% if total_count == 0 %}
@@ -8,30 +9,22 @@
     </div>
     {% else %}
 
-    <!-- Prioritized Tasks indicator -->
+    <!-- Controls row -->
     <div class="flex items-center justify-between">
-        <div class="flex items-center gap-2">
-            <span class="text-xs text-gray-500">Prioritized queue grouped by Risk Level.</span>
-        </div>
+        <span class="text-xs text-gray-500">{{ total_count }} pending · grouped by risk</span>
         <div class="flex items-center gap-2">
             <select id="dc-queue-filter"
                     class="bg-slate-700 border border-slate-600 text-gray-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-indigo-500">
-                <option value="all">Prioritized Tasks</option>
+                <option value="all">All</option>
                 <option value="high">High Risk Only</option>
                 <option value="normal">Normal Only</option>
-            </select>
-            <select id="dc-keyboard-action"
-                    class="bg-slate-700 border border-slate-600 text-gray-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-indigo-500">
-                <option value="">Keyboard Action ▾</option>
-                <option value="approve-all-safe">Approve all safe (≥90%)</option>
-                <option value="reject-stale">Reject stale (>24h)</option>
             </select>
         </div>
     </div>
 
     <!-- HIGH RISK Group -->
     {% if high_risk_items %}
-    <div class="space-y-2">
+    <div class="space-y-3">
         <div class="flex items-center gap-2">
             <span class="px-2 py-0.5 rounded text-xs font-bold bg-red-900/50 text-red-400 border border-red-700 uppercase tracking-wider">High Risk</span>
             <span class="text-xs text-gray-500">{{ high_risk_items|length }} item{{ 's' if high_risk_items|length != 1 else '' }}</span>
@@ -40,75 +33,77 @@
         {% for item in high_risk_items %}
         <div data-dc-card data-draft-id="{{ item.draft_id }}"
              class="bg-dark-steel rounded-lg border border-red-800/60 overflow-hidden transition-all hover:border-red-700">
-            <!-- Risk alert banner -->
-            <div class="px-4 py-2 bg-red-900/20 border-b border-red-800/40 flex items-center justify-between">
+
+            <!-- Row 1: Risk banner -->
+            <div class="px-4 py-1.5 bg-red-900/20 border-b border-red-800/40 flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <span class="text-sm">⚠</span>
                     <span class="text-xs font-medium text-red-300">HIGH RISK</span>
                     {% if item.ban_probability %}
-                    <span class="text-xs text-red-400">BAN LIKELY ({{ item.ban_probability }}%) within 24h due to high frequency!</span>
+                    <span class="text-xs text-red-400/80">· ban {{ item.ban_probability }}%</span>
+                    {% endif %}
+                    {% if item.risk_explanation %}
+                    <span class="text-[11px] text-red-400/60 hidden md:inline">· {{ item.risk_explanation[:80] }}</span>
                     {% endif %}
                 </div>
-                <div class="flex items-center gap-2">
-                    <!-- Avatar badge -->
-                    <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-700 text-gray-300">u/{{ item.avatar_username }}</span>
-                </div>
+                <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-700 text-gray-300">u/{{ item.avatar_username }}</span>
             </div>
 
-            <!-- Content row -->
-            <div class="flex items-stretch">
-                <!-- Left: risk info -->
-                <div class="w-48 shrink-0 p-3 border-r border-slate-700/50 bg-slate-900/30">
-                    <div class="text-xs text-gray-500 mb-1">{{ item.avatar_username }}</div>
-                    {% if item.risk_explanation %}
-                    <p class="text-[11px] text-red-300 leading-relaxed">{{ item.risk_explanation }}</p>
-                    {% endif %}
-                    <div class="mt-2 flex items-center gap-1">
-                        <span class="text-[10px] text-gray-500">Shadowban:</span>
-                        <span class="text-[10px] text-green-400">No ✅</span>
-                    </div>
-                    <div class="flex items-center gap-1">
-                        <span class="text-[10px] text-gray-500">CQS:</span>
-                        <span class="text-[10px] text-green-400">HIGH</span>
-                    </div>
-                    <div class="flex items-center gap-1">
-                        <span class="text-[10px] text-gray-500">Active:</span>
-                        <span class="text-[10px] text-green-400">✅</span>
+            <!-- Row 2: Thread title + Reddit link -->
+            <div class="px-4 py-2.5 border-b border-slate-700/50 flex items-center justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                    <div class="text-sm font-medium text-white truncate">{{ item.thread_title }}</div>
+                    <div class="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                        <span>r/{{ item.subreddit }}</span>
+                        <span>·</span>
+                        <span>{{ item.engagement_mode or 'reply' }}</span>
+                        {% if item.comment_approach %}
+                        <span>·</span>
+                        <span class="text-indigo-400/70">{{ item.comment_approach }}</span>
+                        {% endif %}
                     </div>
                 </div>
+                {% if item.thread_url %}
+                <a href="{{ item.thread_url }}" target="_blank" rel="noopener"
+                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-900/50 text-indigo-300 border border-indigo-700/50 hover:bg-indigo-800/60 hover:text-indigo-200 transition-colors shrink-0">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                    Open on Reddit
+                </a>
+                {% endif %}
+            </div>
 
-                <!-- Center: comment text -->
-                <div class="flex-1 p-3">
-                    <div class="flex items-center gap-2 mb-1.5">
-                        <span class="text-xs text-gray-400">Comment</span>
-                        <span class="px-1.5 py-0.5 rounded text-[10px] bg-indigo-900/50 text-indigo-300 border border-indigo-700">
-                            {{ item.engagement_mode or 'professional' }} тон - эксперт
-                        </span>
+            <!-- Row 3: Comment text + confidence + actions -->
+            <div class="flex items-stretch">
+                <!-- Comment text (main area) -->
+                <div class="flex-1 p-4" data-copy-area>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-[10px] uppercase tracking-wider text-gray-500 font-medium">Comment to post</span>
+                        <button onclick="var t=this.closest('[data-copy-area]').querySelector('[data-copy-text]').innerText;navigator.clipboard.writeText(t).then(function(){this.textContent='\u2713 Copied';setTimeout(function(){this.textContent='\uD83D\uDCCB Copy'}.bind(this),1500)}.bind(this))"
+                                class="text-[11px] text-gray-500 hover:text-indigo-400 transition-colors px-2 py-0.5 rounded bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50">
+                            📋 Copy
+                        </button>
                     </div>
-                    <p class="text-sm text-gray-200 leading-relaxed line-clamp-3">{{ item.comment_text[:200] }}{% if item.comment_text|length > 200 %}…{% endif %}</p>
+                    <div data-copy-text class="text-sm text-gray-100 leading-relaxed whitespace-pre-wrap bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2.5 select-all">{{ item.comment_text }}</div>
 
-                    <!-- Logic Peek button -->
+                    <!-- Logic Peek -->
                     <details class="mt-2">
-                        <summary class="text-[11px] text-indigo-400 hover:text-indigo-300 cursor-pointer select-none">
-                            Logic Peek
-                        </summary>
-                        <div class="mt-1 p-2 bg-slate-900/60 rounded text-[11px] text-gray-400 space-y-1">
+                        <summary class="text-[11px] text-indigo-400 hover:text-indigo-300 cursor-pointer select-none">Logic Peek</summary>
+                        <div class="mt-1 p-2 bg-slate-900/60 rounded text-[11px] text-gray-400 space-y-0.5">
                             <div><span class="text-gray-500">Approach:</span> {{ item.comment_approach or 'auto' }}</div>
                             <div><span class="text-gray-500">Mode:</span> {{ item.engagement_mode or 'professional' }}</div>
-                            <div><span class="text-gray-500">Thread:</span> {{ item.thread_title[:60] }}{% if item.thread_title|length > 60 %}…{% endif %}</div>
                             <div><span class="text-gray-500">Subreddit:</span> r/{{ item.subreddit }}</div>
                             {% if item.learning_metadata %}
-                            <div><span class="text-gray-500">Learning:</span> {{ item.learning_metadata.get('correction_patterns', [])|length }} patterns applied</div>
+                            <div><span class="text-gray-500">Learning:</span> {{ item.learning_metadata.get('correction_patterns', [])|length }} patterns</div>
                             {% endif %}
                         </div>
                     </details>
                 </div>
 
-                <!-- Right: confidence + actions -->
-                <div class="w-44 shrink-0 p-3 border-l border-slate-700/50 flex flex-col items-center justify-between">
-                    <!-- Confidence Score -->
-                    <div class="text-center mb-2">
-                        <div class="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Confidence Score</div>
+                <!-- Right sidebar: confidence + action buttons -->
+                <div class="w-44 shrink-0 p-3 border-l border-slate-700/50 flex flex-col items-center justify-between gap-3">
+                    <!-- Confidence -->
+                    <div class="text-center">
+                        <div class="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Confidence</div>
                         <div class="inline-flex items-center justify-center w-12 h-12 rounded-full border-2
                             {% if item.confidence_score >= 85 %}border-green-500 text-green-400
                             {% elif item.confidence_score >= 70 %}border-amber-500 text-amber-400
@@ -117,40 +112,41 @@
                         </div>
                     </div>
 
-                    <!-- Action buttons -->
-                    <div class="flex items-center gap-1.5">
+                    <!-- Actions -->
+                    <div class="flex flex-col items-center gap-1.5 w-full">
                         <button data-action="approve"
                                 hx-post="/review/{{ item.draft_id }}/approve"
                                 hx-target="closest [data-dc-card]"
                                 hx-swap="outerHTML"
-                                class="px-2.5 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-xs font-medium transition-colors">
-                            Approve
+                                class="w-full px-2.5 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-xs font-medium transition-colors text-center">
+                            ✓ Approve
                         </button>
-                        <button data-action="reject"
-                                hx-post="/review/{{ item.draft_id }}/reject"
-                                hx-target="closest [data-dc-card]"
-                                hx-swap="outerHTML"
-                                class="px-2.5 py-1.5 bg-slate-700 hover:bg-red-700 text-gray-300 hover:text-white rounded text-xs font-medium transition-colors">
-                            Reject
-                        </button>
-                        <button data-action="edit"
-                                onclick="this.closest('[data-dc-card]').querySelector('[data-edit-drawer]').classList.toggle('hidden')"
-                                class="px-2.5 py-1.5 bg-slate-700 hover:bg-indigo-700 text-gray-300 hover:text-white rounded text-xs font-medium transition-colors">
-                            Edit
-                        </button>
+                        <div class="flex items-center gap-1 w-full">
+                            <button data-action="reject"
+                                    hx-post="/review/{{ item.draft_id }}/reject"
+                                    hx-target="closest [data-dc-card]"
+                                    hx-swap="outerHTML"
+                                    class="flex-1 px-2 py-1.5 bg-slate-700 hover:bg-red-700 text-gray-300 hover:text-white rounded text-xs font-medium transition-colors text-center">
+                                ✗ Reject
+                            </button>
+                            <button data-action="edit"
+                                    onclick="this.closest('[data-dc-card]').querySelector('[data-edit-drawer]').classList.toggle('hidden')"
+                                    class="flex-1 px-2 py-1.5 bg-slate-700 hover:bg-indigo-700 text-gray-300 hover:text-white rounded text-xs font-medium transition-colors text-center">
+                                ✎ Edit
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Edit drawer (hidden by default) -->
+            <!-- Edit drawer (hidden) -->
             <div data-edit-drawer class="hidden border-t border-slate-700 p-3 bg-slate-900/40">
                 <form hx-post="/review/{{ item.draft_id }}/edit"
                       hx-target="closest [data-dc-card]"
                       hx-swap="outerHTML"
                       class="flex gap-2 items-end">
                     <textarea name="edited_text" rows="3"
-                              class="flex-1 px-3 py-2 bg-slate-night border border-slate-600 text-gray-200 rounded text-sm resize-none focus:outline-none focus:border-indigo-500"
-                              >{{ item.comment_text }}</textarea>
+                              class="flex-1 px-3 py-2 bg-slate-night border border-slate-600 text-gray-200 rounded text-sm resize-none focus:outline-none focus:border-indigo-500">{{ item.comment_text }}</textarea>
                     <div class="flex flex-col gap-1">
                         <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded text-xs">Save & Approve</button>
                         <button type="button" onclick="this.closest('[data-edit-drawer]').classList.add('hidden')"
@@ -165,8 +161,8 @@
 
     <!-- NORMAL Group -->
     {% if normal_items %}
-    <div class="space-y-2">
-        <div class="flex items-center gap-2 {% if high_risk_items %}mt-4{% endif %}">
+    <div class="space-y-3 {% if high_risk_items %}mt-4{% endif %}">
+        <div class="flex items-center gap-2">
             <span class="px-2 py-0.5 rounded text-xs font-bold bg-slate-700 text-gray-300 uppercase tracking-wider">Normal</span>
             <span class="text-xs text-gray-500">{{ normal_items|length }} item{{ 's' if normal_items|length != 1 else '' }}</span>
         </div>
@@ -174,40 +170,61 @@
         {% for item in normal_items %}
         <div data-dc-card data-draft-id="{{ item.draft_id }}"
              class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden transition-all hover:border-slate-600">
-            <!-- Content row -->
-            <div class="flex items-stretch">
-                <!-- Left: risk info -->
-                <div class="w-40 shrink-0 p-3 border-r border-slate-700/50">
-                    <div class="text-xs text-gray-400 font-medium mb-1">{{ item.avatar_username }}</div>
-                    <div class="text-[10px] text-gray-500">r/{{ item.subreddit }}</div>
-                    <div class="text-[10px] text-gray-600 mt-1">{{ item.created_at.strftime('%H:%M') }} · {{ ((item.created_at|string)[:10]) }}</div>
-                </div>
 
-                <!-- Center: comment text -->
-                <div class="flex-1 p-3">
-                    <div class="flex items-center gap-2 mb-1">
-                        <span class="text-xs text-gray-400">Comment</span>
-                        <span class="px-1.5 py-0.5 rounded text-[10px] bg-slate-700 text-gray-400">
-                            {{ item.engagement_mode or 'professional' }} тон - эксперт
-                        </span>
+            <!-- Row 1: Thread title + Reddit link -->
+            <div class="px-4 py-2.5 border-b border-slate-700/50 flex items-center justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                    <div class="text-sm font-medium text-white truncate">{{ item.thread_title }}</div>
+                    <div class="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                        <span>r/{{ item.subreddit }}</span>
+                        <span>·</span>
+                        <span>u/{{ item.avatar_username }}</span>
+                        <span>·</span>
+                        <span>{{ item.created_at.strftime('%H:%M') }}</span>
+                        {% if item.comment_approach %}
+                        <span>·</span>
+                        <span class="text-indigo-400/70">{{ item.comment_approach }}</span>
+                        {% endif %}
                     </div>
-                    <p class="text-sm text-gray-200 leading-relaxed line-clamp-2">{{ item.comment_text[:180] }}{% if item.comment_text|length > 180 %}…{% endif %}</p>
+                </div>
+                {% if item.thread_url %}
+                <a href="{{ item.thread_url }}" target="_blank" rel="noopener"
+                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-900/50 text-indigo-300 border border-indigo-700/50 hover:bg-indigo-800/60 hover:text-indigo-200 transition-colors shrink-0">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                    Reddit
+                </a>
+                {% endif %}
+            </div>
 
-                    <details class="mt-1.5">
-                        <summary class="text-[11px] text-indigo-400 hover:text-indigo-300 cursor-pointer select-none">
-                            Logic Peek
-                        </summary>
+            <!-- Row 2: Comment text + confidence + actions -->
+            <div class="flex items-stretch">
+                <!-- Comment text -->
+                <div class="flex-1 p-4" data-copy-area>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-[10px] uppercase tracking-wider text-gray-500 font-medium">Comment to post</span>
+                        <button onclick="var t=this.closest('[data-copy-area]').querySelector('[data-copy-text]').innerText;navigator.clipboard.writeText(t).then(function(){this.textContent='\u2713 Copied';setTimeout(function(){this.textContent='\uD83D\uDCCB Copy'}.bind(this),1500)}.bind(this))"
+                                class="text-[11px] text-gray-500 hover:text-indigo-400 transition-colors px-2 py-0.5 rounded bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50">
+                            �� Copy
+                        </button>
+                    </div>
+                    <div data-copy-text class="text-sm text-gray-100 leading-relaxed whitespace-pre-wrap bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2.5 select-all">{{ item.comment_text }}</div>
+
+                    <details class="mt-2">
+                        <summary class="text-[11px] text-indigo-400 hover:text-indigo-300 cursor-pointer select-none">Logic Peek</summary>
                         <div class="mt-1 p-2 bg-slate-900/60 rounded text-[11px] text-gray-400 space-y-0.5">
                             <div><span class="text-gray-500">Approach:</span> {{ item.comment_approach or 'auto' }}</div>
-                            <div><span class="text-gray-500">Thread:</span> {{ item.thread_title[:50] }}{% if item.thread_title|length > 50 %}…{% endif %}</div>
+                            <div><span class="text-gray-500">Mode:</span> {{ item.engagement_mode or 'professional' }}</div>
+                            {% if item.learning_metadata %}
+                            <div><span class="text-gray-500">Learning:</span> {{ item.learning_metadata.get('correction_patterns', [])|length }} patterns</div>
+                            {% endif %}
                         </div>
                     </details>
                 </div>
 
                 <!-- Right: confidence + actions -->
-                <div class="w-40 shrink-0 p-3 border-l border-slate-700/50 flex flex-col items-center justify-between">
+                <div class="w-40 shrink-0 p-3 border-l border-slate-700/50 flex flex-col items-center justify-between gap-3">
                     <div class="text-center">
-                        <div class="text-[10px] text-gray-500 mb-0.5">Confidence Score</div>
+                        <div class="text-[10px] text-gray-500 mb-0.5">Confidence</div>
                         <div class="inline-flex items-center justify-center w-10 h-10 rounded-full border-2
                             {% if item.confidence_score >= 85 %}border-green-500 text-green-400
                             {% elif item.confidence_score >= 70 %}border-amber-500 text-amber-400
@@ -215,26 +232,28 @@
                             <span class="text-xs font-bold">{{ item.confidence_score }}%</span>
                         </div>
                     </div>
-                    <div class="flex items-center gap-1">
+                    <div class="flex flex-col items-center gap-1 w-full">
                         <button data-action="approve"
                                 hx-post="/review/{{ item.draft_id }}/approve"
                                 hx-target="closest [data-dc-card]"
                                 hx-swap="outerHTML"
-                                class="px-2 py-1 bg-green-600 hover:bg-green-500 text-white rounded text-xs font-medium">
-                            Approve
+                                class="w-full px-2 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-xs font-medium text-center">
+                            ✓ Approve
                         </button>
-                        <button data-action="reject"
-                                hx-post="/review/{{ item.draft_id }}/reject"
-                                hx-target="closest [data-dc-card]"
-                                hx-swap="outerHTML"
-                                class="px-2 py-1 bg-slate-700 hover:bg-red-700 text-gray-300 hover:text-white rounded text-xs">
-                            Reject
-                        </button>
-                        <button data-action="edit"
-                                onclick="this.closest('[data-dc-card]').querySelector('[data-edit-drawer]').classList.toggle('hidden')"
-                                class="px-2 py-1 bg-slate-700 hover:bg-indigo-700 text-gray-300 hover:text-white rounded text-xs">
-                            Edit
-                        </button>
+                        <div class="flex items-center gap-1 w-full">
+                            <button data-action="reject"
+                                    hx-post="/review/{{ item.draft_id }}/reject"
+                                    hx-target="closest [data-dc-card]"
+                                    hx-swap="outerHTML"
+                                    class="flex-1 px-2 py-1 bg-slate-700 hover:bg-red-700 text-gray-300 hover:text-white rounded text-xs text-center">
+                                ✗
+                            </button>
+                            <button data-action="edit"
+                                    onclick="this.closest('[data-dc-card]').querySelector('[data-edit-drawer]').classList.toggle('hidden')"
+                                    class="flex-1 px-2 py-1 bg-slate-700 hover:bg-indigo-700 text-gray-300 hover:text-white rounded text-xs text-center">
+                                ✎
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -246,8 +265,7 @@
                       hx-swap="outerHTML"
                       class="flex gap-2 items-end">
                     <textarea name="edited_text" rows="2"
-                              class="flex-1 px-3 py-2 bg-slate-night border border-slate-600 text-gray-200 rounded text-sm resize-none focus:outline-none focus:border-indigo-500"
-                              >{{ item.comment_text }}</textarea>
+                              class="flex-1 px-3 py-2 bg-slate-night border border-slate-600 text-gray-200 rounded text-sm resize-none focus:outline-none focus:border-indigo-500">{{ item.comment_text }}</textarea>
                     <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded text-xs">Save</button>
                 </form>
             </div>

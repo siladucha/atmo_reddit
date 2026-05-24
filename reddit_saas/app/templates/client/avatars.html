@@ -1,0 +1,49 @@
+{% extends "client_base.html" %}
+
+{% block title %}Avatars — {{ client_name }}{% endblock %}
+
+{% block content %}
+<div id="portal-content">
+    <div style="margin-bottom:var(--space-4);">
+        <h1 class="text-h1">Avatars</h1>
+        <p class="text-small" style="margin-top:4px;">Your brand personas active on Reddit.</p>
+    </div>
+
+    {% if avatars %}
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-3);">
+        {% for avatar in avatars %}
+        <div class="surface" style="padding:var(--space-3);position:relative;">
+            {% if avatar.is_shadowbanned %}
+            <div style="background:var(--color-red);color:#fff;font-size:var(--text-micro);font-weight:600;text-align:center;padding:4px;border-radius:var(--radius-card) var(--radius-card) 0 0;margin:-24px -24px 16px -24px;">
+                PAUSED
+            </div>
+            {% endif %}
+            <p style="font-weight:600;color:var(--color-white);margin-bottom:4px;">{{ avatar.name }}</p>
+            <p class="text-small" style="margin-bottom:8px;">{{ avatar.bio[:80] }}{% if avatar.bio|length > 80 %}...{% endif %}</p>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                {% if avatar.warming_phase == 1 %}
+                <span class="badge-grey">Phase 1</span>
+                {% elif avatar.warming_phase == 2 %}
+                <span class="badge-orange">Phase 2</span>
+                {% elif avatar.warming_phase == 3 %}
+                <span class="badge-green">Phase 3</span>
+                {% elif avatar.warming_phase == 0 %}
+                <span style="background:#7c3aed;color:#fff;font-size:var(--text-micro);font-weight:600;padding:2px 8px;border-radius:var(--radius-pill);">Mentor</span>
+                {% endif %}
+                <span class="text-small">{{ avatar.karma_tier }}</span>
+            </div>
+            {% if avatar.last_active_at %}
+            <p class="text-small">Last active: {{ avatar.last_active_at }}</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="surface" style="padding:var(--space-5);text-align:center;">
+        <p style="font-size:24px;margin-bottom:var(--space-2);">👥</p>
+        <p style="color:var(--color-white);font-weight:500;margin-bottom:8px;">Your avatars are being configured</p>
+        <p class="text-small">Check back in 24–48 hours.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

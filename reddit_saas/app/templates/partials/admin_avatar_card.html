@@ -37,11 +37,11 @@
 
     <div class="mt-3 grid grid-cols-2 gap-2 text-[11px] text-gray-400">
         <div>
-            <div class="text-gray-500">Karma</div>
+            <div class="text-gray-500" title="Total Reddit karma (comment + post) from the avatar's Reddit profile">Karma</div>
             <div class="font-mono text-gray-200">{{ (a.reddit_karma_comment or 0) + (a.reddit_karma_post or 0) }}</div>
         </div>
         <div>
-            <div class="text-gray-500">Profile</div>
+            <div class="text-gray-500" title="Profile completeness — percentage of voice/persona fields filled. Higher = better AI generation quality.">Profile</div>
             <div>
                 {% if a.profile_pct is defined %}
                 <span class="px-1.5 py-0.5 rounded text-[10px] font-medium
@@ -54,7 +54,7 @@
             </div>
         </div>
         <div>
-            <div class="text-gray-500">Health</div>
+            <div class="text-gray-500" title="Reddit account health status. Checked twice daily (07:30, 13:30). Shadowbanned/suspended avatars are auto-frozen.">Health</div>
             <div id="health-badge-{{ a.id }}">
                 {% if a.health_status == 'active' %}
                 <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-900/50 text-green-400 border border-green-800">ACTIVE</span>
@@ -71,7 +71,7 @@
             </div>
         </div>
         <div>
-            <div class="text-gray-500">CQS</div>
+            <div class="text-gray-500" title="Contributor Quality Score — Reddit's internal metric. Checked daily. 'Lowest' triggers auto-freeze for Phase 2+ avatars.">CQS</div>
             <div>
                 {% if a.cqs_level %}
                     {% if a.cqs_level in ['highest', 'high'] %}

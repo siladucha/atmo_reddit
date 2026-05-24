@@ -1,7 +1,7 @@
-"""Decision Center routes — unified operations workspace with prescriptive analytics.
+"""Decision Center routes — HTMX partials for per-avatar Content tab.
 
 Provides:
-- GET /admin/decision-center — main Decision Center page
+- GET /admin/decision-center — redirects to /admin/avatars
 - GET /admin/decision-center/live-pulse/{avatar_id} — HTMX partial: live pulse panel
 - GET /admin/decision-center/queue — HTMX partial: decision queue
 - GET /admin/decision-center/insights/{avatar_id} — HTMX partial: AI insights panel
@@ -14,7 +14,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -39,7 +39,7 @@ templates = Jinja2Templates(directory="app/templates")
 templates.env.cache = {}
 
 
-@router.get("", response_class=HTMLResponse)
+@router.get("")
 def decision_center_page(
     request: Request,
     avatar_id: str | None = None,
@@ -47,55 +47,13 @@ def decision_center_page(
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
-    """Main Decision Center page — shell with HTMX lazy-loaded panels."""
-    # Get list of avatars for selector
-    avatars = (
-        db.query(Avatar)
-        .filter(Avatar.active.is_(True))
-        .order_by(Avatar.reddit_username)
-        .all()
-    )
-
-    # Get list of clients for filter
-    clients = (
-        db.query(Client)
-        .filter(Client.is_active.is_(True))
-        .order_by(Client.client_name)
-        .all()
-    )
-
-    # Default to first avatar if none selected
-    selected_avatar = None
+    """Redirect — global Decision Center removed, use per-avatar Content tab."""
+    from fastapi.responses import RedirectResponse
     if avatar_id:
-        try:
-            selected_avatar = db.query(Avatar).filter(Avatar.id == uuid.UUID(avatar_id)).first()
-        except ValueError:
-            pass
-
-    if not selected_avatar and avatars:
-        # Pick the avatar with highest risk (or first active)
-        selected_avatar = avatars[0]
-
-    # Pending count for badge
-    pending_count = (
-        db.query(func.count(CommentDraft.id))
-        .filter(CommentDraft.status == "pending")
-        .scalar()
-    ) or 0
-
-    return templates.TemplateResponse(
-        name="admin_decision_center.html",
-        context={
-            "request": request,
-            "active_nav": "decision-center",
-            "avatars": avatars,
-            "clients": clients,
-            "selected_avatar": selected_avatar,
-            "selected_client_id": client_id,
-            "pending_count": pending_count,
-        },
-        request=request,
-    )
+        return RedirectResponse(
+            url=f"/admin/avatars/{avatar_id}#tab=content", status_code=302
+        )
+    return RedirectResponse(url="/admin/avatars", status_code=302)
 
 
 @router.get("/live-pulse/{avatar_id}", response_class=HTMLResponse)

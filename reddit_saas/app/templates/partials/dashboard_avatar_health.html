@@ -3,27 +3,27 @@
 <div class="space-y-3 fade-in">
     <div class="grid grid-cols-2 gap-2 text-xs">
         <a href="/admin/avatars?status=active"
-           class="bg-slate-night rounded px-3 py-2 border border-slate-700 hover:border-slate-500 block">
+           class="bg-slate-night rounded px-3 py-2 border border-slate-700 hover:border-slate-500 block" title="Avatars with confirmed active Reddit accounts (not shadowbanned or suspended)">
             <div class="text-gray-500">Active</div>
             <div class="font-mono text-lg text-emerald-400">{{ summary.status_counts.active }}</div>
         </a>
         <a href="/admin/avatars?status=unknown"
-           class="bg-slate-night rounded px-3 py-2 border border-slate-700 hover:border-slate-500 block">
+           class="bg-slate-night rounded px-3 py-2 border border-slate-700 hover:border-slate-500 block" title="Avatars whose Reddit status has not been checked yet">
             <div class="text-gray-500">Unknown</div>
             <div class="font-mono text-lg text-gray-300">{{ summary.status_counts.unknown }}</div>
         </a>
         <a href="/admin/avatars?status=limited"
-           class="rounded px-3 py-2 border block {% if summary.status_counts.limited > 0 %}bg-yellow-900/20 border-yellow-700 hover:border-yellow-500{% else %}bg-slate-night border-slate-700 hover:border-slate-500{% endif %}">
+           class="rounded px-3 py-2 border block {% if summary.status_counts.limited > 0 %}bg-yellow-900/20 border-yellow-700 hover:border-yellow-500{% else %}bg-slate-night border-slate-700 hover:border-slate-500{% endif %}" title="Avatars with rate-limited or restricted Reddit accounts — can still post but with reduced visibility">
             <div class="text-gray-500">Limited</div>
             <div class="font-mono text-lg {% if summary.status_counts.limited > 0 %}text-yellow-400{% else %}text-gray-300{% endif %}">{{ summary.status_counts.limited }}</div>
         </a>
         <a href="/admin/avatars?status=shadowbanned"
-           class="rounded px-3 py-2 border block {% if summary.status_counts.shadowbanned > 0 %}bg-red-900/20 border-red-700 hover:border-red-500{% else %}bg-slate-night border-slate-700 hover:border-slate-500{% endif %}">
+           class="rounded px-3 py-2 border block {% if summary.status_counts.shadowbanned > 0 %}bg-red-900/20 border-red-700 hover:border-red-500{% else %}bg-slate-night border-slate-700 hover:border-slate-500{% endif %}" title="Avatars whose posts are invisible to others. Auto-frozen and excluded from all pipelines.">
             <div class="text-gray-500">Shadowbanned</div>
             <div class="font-mono text-lg {% if summary.status_counts.shadowbanned > 0 %}text-red-400{% else %}text-gray-300{% endif %}">{{ summary.status_counts.shadowbanned }}</div>
         </a>
         <a href="/admin/avatars?status=suspended"
-           class="rounded px-3 py-2 border block {% if summary.status_counts.suspended > 0 %}bg-red-900/20 border-red-700 hover:border-red-500{% else %}bg-slate-night border-slate-700 hover:border-slate-500{% endif %}">
+           class="rounded px-3 py-2 border block {% if summary.status_counts.suspended > 0 %}bg-red-900/20 border-red-700 hover:border-red-500{% else %}bg-slate-night border-slate-700 hover:border-slate-500{% endif %}" title="Avatars with Reddit-suspended accounts. Cannot post at all. Auto-frozen.">
             <div class="text-gray-500">Suspended</div>
             <div class="font-mono text-lg {% if summary.status_counts.suspended > 0 %}text-red-400{% else %}text-gray-300{% endif %}">{{ summary.status_counts.suspended }}</div>
         </a>
@@ -37,7 +37,7 @@
     </div>
 
     <div class="text-xs space-y-1">
-        <div class="text-gray-500 mb-1">Warming Phases</div>
+        <div class="text-gray-500 mb-1" title="Avatar warming phases: Phase 1 = credibility building (no brand mentions), Phase 2 = content seeding (external citations), Phase 3 = brand integration (direct mentions allowed)">Warming Phases</div>
         <div class="flex items-center justify-between">
             <span class="text-gray-400">Phase 1</span>
             <span class="font-mono text-white">{{ summary.phase_counts.phase_1 }}</span>
@@ -62,7 +62,7 @@
 
     {% if summary.karma_diversity %}
     <div class="border-t border-slate-700 pt-3 text-xs space-y-1">
-        <div class="text-gray-500 mb-1">Karma Diversity</div>
+        <div class="text-gray-500 mb-1" title="Number of unique subreddits where each avatar has earned karma. Low diversity (≤1 sub) = detectable pattern, higher ban risk.">Karma Diversity</div>
         <div class="flex items-center justify-between">
             <span class="text-gray-400">Avg subs per avatar</span>
             <span class="font-mono text-white">{{ summary.karma_diversity.avg_subreddits_per_avatar }}</span>
@@ -81,7 +81,7 @@
 
     {% if summary.cqs %}
     <div class="border-t border-slate-700 pt-3 text-xs space-y-1">
-        <div class="text-gray-500 mb-1">CQS (Contributor Quality Score)</div>
+        <div class="text-gray-500 mb-1" title="Contributor Quality Score — Reddit's internal metric. Checked daily at 06:30. Avatars with 'lowest' CQS are auto-frozen (Phase 2+). Low CQS = reduced visibility.">CQS (Contributor Quality Score)</div>
         <div class="grid grid-cols-3 gap-1">
             <div class="flex items-center justify-between">
                 <span class="text-green-400">High+</span>

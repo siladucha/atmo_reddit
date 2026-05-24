@@ -85,17 +85,11 @@ def _get_avatar_subreddits(db: Session, avatar: Avatar, client: Client | None) -
                         "last_scraped_at": sub.last_scraped_at,
                     })
 
-    # Hobby subreddits (from avatar directly) — only add if not already present
-    hobby_subs_raw = avatar.hobby_subreddits or []
-    if isinstance(hobby_subs_raw, str):
-        hobby_subs_raw = [s.strip() for s in hobby_subs_raw.split(",")]
-    for item in hobby_subs_raw:
-        if isinstance(item, dict):
-            name = item.get("subreddit") or item.get("name") or item.get("display_name") or ""
-        else:
-            name = str(item)
-        name = name.strip().replace("r/", "")
-        if name and name.lower() not in seen:
+    # Hobby subreddits (from avatar directly, with Phase 1 fallback) — only add if not already present
+    from app.services.sanitize import get_avatar_hobby_subreddits
+    hobby_sub_names = get_avatar_hobby_subreddits(avatar)
+    for name in hobby_sub_names:
+        if name.lower() not in seen:
             seen.add(name.lower())
             subreddits.append({"name": name, "type": "hobby"})
 
@@ -531,19 +525,9 @@ def pipeline_threads(
 
     phase = avatar.warming_phase
 
-    # Get hobby subreddit names for this avatar
-    hobby_subs = []
-    hobby_raw = avatar.hobby_subreddits or []
-    if isinstance(hobby_raw, str):
-        hobby_raw = [s.strip() for s in hobby_raw.split(",")]
-    for item in hobby_raw:
-        if isinstance(item, dict):
-            name = item.get("subreddit") or item.get("name") or ""
-        else:
-            name = str(item)
-        name = name.strip().replace("r/", "")
-        if name:
-            hobby_subs.append(name.lower())
+    # Get hobby subreddit names for this avatar (with Phase 1 fallback)
+    from app.services.sanitize import get_avatar_hobby_subreddits
+    hobby_subs = [s.lower() for s in get_avatar_hobby_subreddits(avatar)]
 
     if not client:
         # No client — farm mode: show fresh threads from hobby + business subreddits
@@ -620,6 +604,36 @@ def pipeline_threads(
 
     # --- Client mode: use scored threads ---
 
+    # Phase 1 avatars have no business in the professional pipeline.
+    # Their only job is karma-building via hobby comments. Block early
+    # so we don't waste scoring/selection resources.
+    if phase == 1:
+        if hobby_subs:
+            msg = (
+                '<div class="p-4 bg-indigo-900/30 border border-indigo-700 rounded-lg">'
+                '<p class="text-indigo-300 font-medium mb-1">'
+                '\U0001f331 Phase 1 \u2014 Karma Building Only</p>'
+                '<p class="text-indigo-200/70 text-sm">'
+                'This avatar is in Phase 1 (credibility building). Professional client '
+                'threads are not available \u2014 use the <strong>hobby pipeline</strong> '
+                'to generate karma-building comments. Promotion to Phase 2 requires '
+                'karma \u2265100, activity \u226520, account age \u226560 days.</p></div>'
+            )
+        else:
+            msg = (
+                '<div class="p-4 bg-red-900/30 border border-red-700 rounded-lg">'
+                '<p class="text-red-300 font-medium mb-1">'
+                '\u26a0\ufe0f Phase 1 \u2014 No Hobby Subreddits Configured</p>'
+                '<p class="text-red-200/70 text-sm">'
+                'This avatar is in Phase 1 but has no hobby subreddits assigned. '
+                'It cannot build karma without them. '
+                f'<a href="/admin/avatars/{avatar_id}#tab=profile-safety" '
+                'class="underline text-red-300 hover:text-red-100">'
+                'Configure hobby subreddits</a> in the Profile tab to unblock '
+                'the pipeline.</p></div>'
+            )
+        return HTMLResponse(msg, status_code=200)
+
     # Get all engage threads for this client
     # Join with RedditThread to get subreddit info
     query = (
@@ -632,16 +646,8 @@ def pipeline_threads(
         )
     )
 
-    # Phase filtering: which subreddits can this avatar post in?
-    if phase == 1:
-        # Phase 1: only hobby subreddits
-        if hobby_subs:
-            query = query.filter(sa_func.lower(RedditThread.subreddit).in_(hobby_subs))
-        else:
-            # No hobby subs configured — nothing available
-            query = query.filter(RedditThread.id == None)  # noqa: E711
-
-    elif phase == 2:
+    # Phase 2: restrict to hobby + business subreddits
+    if phase == 2:
         # Phase 2: hobby + business subreddits
         allowed_subs = set(hobby_subs)
 

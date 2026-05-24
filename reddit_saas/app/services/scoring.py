@@ -179,7 +179,7 @@ def score_thread_for_client(
             messages=messages,
             model=get_config("llm_scoring_model"),
             temperature=0.2,
-            max_tokens=256,
+            max_tokens=2048,
             schema=ScoringOutput,
         )
     except Exception as e:
@@ -444,7 +444,7 @@ Comments: {(thread.comments_json or '(no comments)')[:1500]}
             messages=messages,
             model=get_config("llm_scoring_model"),
             temperature=0.2,
-            max_tokens=256 * len(threads),  # Scale output tokens with batch size
+            max_tokens=2048 * len(threads),  # Scale output tokens with batch size (includes thinking tokens for Gemini 2.5)
             schema=BatchScoringOutput,
         )
     except Exception as e:

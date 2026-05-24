@@ -2,7 +2,7 @@
 <div id="learned-patterns-panel" class="bg-dark-steel rounded-lg border border-slate-700 p-5">
     <div class="flex items-center justify-between mb-3">
         <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide flex items-center gap-2">
-            <span>🧠</span> Learned Patterns
+            <span>🧠</span> Learned Patterns{% set tooltip_text = "Correction patterns extracted from human edits during review. These are injected as few-shot examples into future comment generation to improve quality. Patterns auto-extract after 5+ edited reviews." %}{% include "partials/block_tooltip.html" %}
         </h3>
         {% if patterns %}
         <span class="text-[10px] text-gray-500">{{ patterns|length }} active</span>

@@ -15,6 +15,7 @@ services:
 
   app:
     build: .
+    image: reddit-saas-app:latest
     expose:
       - "8000"
     env_file:
@@ -29,7 +30,7 @@ services:
     restart: unless-stopped
 
   celery:
-    build: .
+    image: reddit-saas-app:latest
     command: >
       sh -c "
         until getent hosts db && getent hosts redis; do echo 'waiting for docker dns...'; sleep 2; done;
@@ -42,6 +43,8 @@ services:
     environment:
       - TZ=Asia/Jerusalem
     depends_on:
+      app:
+        condition: service_started
       db:
         condition: service_healthy
       redis:
@@ -49,7 +52,7 @@ services:
     restart: unless-stopped
 
   celery-beat:
-    build: .
+    image: reddit-saas-app:latest
     command: >
       sh -c "
         until getent hosts db && getent hosts redis; do echo 'waiting for docker dns...'; sleep 2; done;
@@ -62,6 +65,8 @@ services:
     environment:
       - TZ=Asia/Jerusalem
     depends_on:
+      app:
+        condition: service_started
       db:
         condition: service_healthy
       redis:
@@ -72,6 +77,7 @@ services:
     build:
       context: ../marketing_site
       dockerfile: Dockerfile
+    image: reddit-saas-marketing:latest
     expose:
       - "8000"
     environment:

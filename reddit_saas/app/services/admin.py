@@ -1726,8 +1726,19 @@ def trigger_pipeline(
     if celery_app is None:
         raise ValueError("Celery app is not available")
 
+    if pipeline_type == "full":
+        # Chain: score → generate comments → generate posts for a specific client.
+        # Uses triggered_by="manual" to bypass pipeline_enabled kill switch
+        # while preserving all safety checks (rate limits, phase policy, budgets).
+        from celery import chain
+        result = chain(
+            celery_app.signature("score_threads", args=[entity_id], kwargs={"triggered_by": "manual"}, immutable=True),
+            celery_app.signature("generate_comments", args=[entity_id], kwargs={"triggered_by": "manual"}, immutable=True),
+            celery_app.signature("generate_posts", args=[entity_id], kwargs={"triggered_by": "manual"}, immutable=True),
+        ).apply_async()
+        return str(result.id)
+
     task_map = {
-        "full": "run_full_pipeline_all_clients",
         "hobby": "run_hobby_pipeline_all_avatars",
         "health": "check_all_avatars_health",
     }

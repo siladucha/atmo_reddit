@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en" class="client-portal">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}RAMP{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="/static/css/client-tokens.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script src="/static/js/toast.js" defer></script>
+    <style>
+        body {
+            background: var(--color-bg);
+            color: var(--color-white);
+            font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+            font-size: var(--text-body);
+            font-weight: var(--weight-body);
+        }
+        /* Sidebar layout */
+        .portal-layout {
+            display: flex;
+            min-height: 100vh;
+        }
+        .portal-sidebar {
+            width: 240px;
+            min-height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            background: var(--color-surface);
+            border-right: 1px solid var(--color-border);
+            display: flex;
+            flex-direction: column;
+            z-index: 40;
+        }
+        .portal-main {
+            margin-left: 240px;
+            flex: 1;
+            min-height: 100vh;
+            padding: var(--space-4) var(--space-5);
+        }
+        /* Typography helpers */
+        .text-display { font-size: var(--text-display); font-weight: var(--weight-display); color: var(--color-white); }
+        .text-h1 { font-size: var(--text-h1); font-weight: var(--weight-h1); color: var(--color-white); }
+        .text-h2 { font-size: var(--text-h2); font-weight: var(--weight-h2); color: var(--color-white); }
+        .text-h3 { font-size: var(--text-h3); font-weight: var(--weight-h3); color: var(--color-white); }
+        .text-body { font-size: var(--text-body); font-weight: var(--weight-body); color: var(--color-white); }
+        .text-small { font-size: var(--text-small); font-weight: var(--weight-small); color: var(--color-muted); }
+        .text-micro { font-size: var(--text-micro); font-weight: var(--weight-micro); text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted); }
+        /* Surface helpers */
+        .surface { background: var(--color-surface); border-radius: var(--radius-card); box-shadow: var(--shadow-card); }
+        .surface-alt { background: var(--color-surface-alt); border-radius: var(--radius-card); }
+        /* Badge helpers */
+        .badge-orange { background: var(--color-orange); color: #fff; font-size: var(--text-micro); font-weight: 600; padding: 2px 8px; border-radius: var(--radius-pill); }
+        .badge-red { background: var(--color-red); color: #fff; font-size: var(--text-micro); font-weight: 600; padding: 2px 8px; border-radius: var(--radius-pill); }
+        .badge-green { background: var(--color-green); color: #fff; font-size: var(--text-micro); font-weight: 600; padding: 2px 8px; border-radius: var(--radius-pill); }
+        .badge-grey { background: var(--color-phase1); color: #fff; font-size: var(--text-micro); font-weight: 600; padding: 2px 8px; border-radius: var(--radius-pill); }
+        /* Button base */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-height: 44px;
+            padding: 10px 20px;
+            border-radius: var(--radius-input);
+            font-size: var(--text-body);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            border: none;
+        }
+        .btn-green { background: var(--color-green); color: #fff; }
+        .btn-green:hover { background: #1da34e; }
+        .btn-orange-outline { background: transparent; color: var(--color-orange); border: 2px solid var(--color-orange); }
+        .btn-orange-outline:hover { background: rgba(255, 107, 53, 0.1); }
+        .btn-ghost { background: transparent; color: var(--color-muted); border: 1px solid var(--color-border); }
+        .btn-ghost:hover { color: var(--color-white); border-color: var(--color-muted); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <div class="portal-layout">
+        <!-- Sidebar -->
+        {% include "partials/client/sidebar.html" %}
+
+        <!-- Main content -->
+        <main class="portal-main">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Toast container injected by toast.js -->
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

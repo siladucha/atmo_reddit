@@ -212,6 +212,15 @@ def scrape_hobby_subreddits(avatar_id: str):
             if name:
                 hobby_sub_names.append(name)
 
+        # Fallback: Phase 1 avatars with no hobby subs get default starter subs
+        if not hobby_sub_names and avatar.warming_phase == 1:
+            from app.services.sanitize import DEFAULT_PHASE1_HOBBY_SUBREDDITS
+            hobby_sub_names = list(DEFAULT_PHASE1_HOBBY_SUBREDDITS)
+            logger.info(
+                f"scrape_hobby_subreddits: avatar {avatar.reddit_username} has no hobby subs, "
+                f"using Phase 1 defaults: {hobby_sub_names}"
+            )
+
         total_new = 0
         for sub_name in hobby_sub_names:
             if not sub_name:

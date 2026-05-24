@@ -1,0 +1,81 @@
+<!-- EPG — Daily Publishing Program for Avatar -->
+<div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
+    <div class="flex justify-between items-center mb-3">
+        <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+            📺 Today's EPG
+            <span class="text-xs font-normal text-gray-400">(Publishing Program)</span>
+        </h3>
+        <div class="flex items-center gap-2">
+            {% if epg.status == "ok" and epg.total_slots > 0 %}
+            <span class="px-2 py-0.5 rounded text-xs font-medium bg-emerald-900/50 text-emerald-400">
+                {{ epg.total_slots }} slots
+            </span>
+            {% elif epg.status == "budget_exhausted" %}
+            <span class="px-2 py-0.5 rounded text-xs font-medium bg-amber-900/50 text-amber-400">
+                Budget full
+            </span>
+            {% elif epg.status == "no_content" %}
+            <span class="px-2 py-0.5 rounded text-xs font-medium bg-gray-700 text-gray-400">
+                No content
+            </span>
+            {% else %}
+            <span class="px-2 py-0.5 rounded text-xs font-medium bg-red-900/50 text-red-400">
+                {{ epg.status }}
+            </span>
+            {% endif %}
+            <form method="post" action="/admin/avatars/{{ avatar.id }}/build-epg" class="inline">
+                <button type="submit" class="text-xs bg-amber-600 hover:bg-amber-700 text-white px-2 py-1 rounded transition-colors">
+                    ▶ Build
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Budget bar -->
+    <div class="mb-3">
+        <div class="flex justify-between text-xs text-gray-400 mb-1">
+            <span>Budget: {{ epg.used_today }}/{{ epg.daily_budget }} used</span>
+            <span>{{ epg.remaining }} remaining</span>
+        </div>
+        {% set pct = ((epg.used_today / epg.daily_budget) * 100) if epg.daily_budget > 0 else 0 %}
+        <div class="w-full bg-gray-700 rounded-full h-1.5">
+            <div class="h-1.5 rounded-full {% if pct >= 100 %}bg-red-500{% elif pct >= 70 %}bg-amber-500{% else %}bg-emerald-500{% endif %}"
+                 style="width: {{ pct | int }}%"></div>
+        </div>
+    </div>
+
+    {% if epg.status == "ok" and epg.total_slots > 0 %}
+    <!-- EPG Timeline -->
+    <div class="space-y-2">
+        {% for slot in epg.hobby_slots %}
+        <div class="flex items-center gap-3 p-2 rounded bg-gray-800/50 border border-gray-700/50">
+            <div class="text-xs text-gray-500 w-12 shrink-0">
+                {% if slot.scheduled_at %}{{ slot.scheduled_at[11:16] }}{% else %}--:--{% endif %}
+            </div>
+            <div class="w-2 h-2 rounded-full bg-green-400 shrink-0" title="Hobby"></div>
+            <div class="flex-1 min-w-0">
+                <div class="text-xs text-gray-300 truncate">{{ slot.title }}</div>
+                <div class="text-xs text-gray-500">r/{{ slot.subreddit }} · {{ slot.ups }}↑</div>
+            </div>
+            <span class="text-xs px-1.5 py-0.5 rounded bg-green-900/30 text-green-400">hobby</span>
+        </div>
+        {% endfor %}
+
+        {% for slot in epg.business_slots %}
+        <div class="flex items-center gap-3 p-2 rounded bg-gray-800/50 border border-gray-700/50">
+            <div class="text-xs text-gray-500 w-12 shrink-0">
+                {% if slot.scheduled_at %}{{ slot.scheduled_at[11:16] }}{% else %}--:--{% endif %}
+            </div>
+            <div class="w-2 h-2 rounded-full bg-blue-400 shrink-0" title="Professional"></div>
+            <div class="flex-1 min-w-0">
+                <div class="text-xs text-gray-300 truncate">{{ slot.title }}</div>
+                <div class="text-xs text-gray-500">r/{{ slot.subreddit }} · {{ slot.ups }}↑</div>
+            </div>
+            <span class="text-xs px-1.5 py-0.5 rounded bg-blue-900/30 text-blue-400">pro</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% elif epg.message %}
+    <p class="text-xs text-gray-500 italic">{{ epg.message }}</p>
+    {% endif %}
+</div>

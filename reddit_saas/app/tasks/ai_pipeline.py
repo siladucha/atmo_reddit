@@ -35,7 +35,7 @@ def score_threads(self, client_id: str, triggered_by: str = "scheduler"):
     db = SessionLocal()
     try:
         from app.services.settings import is_pipeline_enabled
-        if not is_pipeline_enabled(db):
+        if triggered_by != "manual" and not is_pipeline_enabled(db):
             logger.info("score_threads: pipeline_enabled=false, skipping")
             return 0
 
@@ -168,10 +168,10 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
     db = SessionLocal()
     try:
         from app.services.settings import is_pipeline_enabled, is_generation_enabled
-        if not is_pipeline_enabled(db):
+        if triggered_by != "manual" and not is_pipeline_enabled(db):
             logger.info("generate_comments: pipeline_enabled=false, skipping")
             return 0
-        if not is_generation_enabled(db):
+        if triggered_by != "manual" and not is_generation_enabled(db):
             logger.info("generate_comments: generation_enabled=false, skipping")
             return 0
 
@@ -488,10 +488,10 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
     db = SessionLocal()
     try:
         from app.services.settings import is_pipeline_enabled, is_generation_enabled
-        if not is_pipeline_enabled(db):
+        if triggered_by != "manual" and not is_pipeline_enabled(db):
             logger.info("generate_hobby_comments: pipeline_enabled=false, skipping")
             return 0
-        if not is_generation_enabled(db):
+        if triggered_by != "manual" and not is_generation_enabled(db):
             logger.info("generate_hobby_comments: generation_enabled=false, skipping")
             return 0
 
@@ -691,10 +691,10 @@ def generate_posts(self, client_id: str, max_posts: int = 3, triggered_by: str =
         from app.models.post_draft import PostDraft
         from app.models.subreddit import ClientSubreddit
 
-        if not is_pipeline_enabled(db):
+        if triggered_by != "manual" and not is_pipeline_enabled(db):
             logger.info("generate_posts: pipeline_enabled=false, skipping")
             return 0
-        if not is_generation_enabled(db):
+        if triggered_by != "manual" and not is_generation_enabled(db):
             logger.info("generate_posts: generation_enabled=false, skipping")
             return 0
 

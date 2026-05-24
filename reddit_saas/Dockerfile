@@ -8,7 +8,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc libpq-dev curl netcat-openbsd && \
+    gcc libpq-dev curl netcat-openbsd postgresql-client && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
@@ -20,6 +20,7 @@ COPY . .
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash appuser && \
+    mkdir -p /app/backups && \
     chown -R appuser:appuser /app
 USER appuser
 

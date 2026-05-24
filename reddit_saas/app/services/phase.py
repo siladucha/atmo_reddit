@@ -30,7 +30,7 @@ from app.services.phase_types import (
     PolicyStatus,
     RampUpStage,
 )
-from app.services.sanitize import clean_subreddit_list
+from app.services.sanitize import clean_subreddit_list, get_avatar_hobby_subreddits
 
 logger = logging.getLogger(__name__)
 
@@ -271,8 +271,9 @@ class PhasePolicy:
         # Rule: Only subreddits in avatar.hobby_subreddits allowed.
         # hobby_subreddits is JSONB and may contain either bare strings or
         # dicts of the form {"subreddit": "name"} / {"name": "name"} (legacy
-        # Ori format). Normalize via clean_subreddit_list so both shapes work.
-        hobby_subs = {s.lower() for s in clean_subreddit_list(avatar.hobby_subreddits)}
+        # Ori format). Normalize via get_avatar_hobby_subreddits which also
+        # provides Phase 1 fallback defaults (NewToReddit, AskReddit, etc.)
+        hobby_subs = {s.lower() for s in get_avatar_hobby_subreddits(avatar)}
         if (target_subreddit or "").lower() not in hobby_subs:
             return PolicyResult(
                 status=PolicyStatus.blocked,

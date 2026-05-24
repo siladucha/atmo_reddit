@@ -50,7 +50,17 @@
                     {{ sort_header("Active", "active") }}
                     {{ sort_header("Subreddits", "subreddits") }}
                     {{ sort_header("Avatars", "avatars") }}
-                    {{ sort_header("AI Cost (month)", "cost") }}
+                    <th class="px-4 py-3">
+                        <a href="/admin/clients?sort=cost&order={{ 'asc' if (sort == 'cost' and order == 'desc') else 'desc' }}&page={{ pagination.page }}"
+                           class="flex items-center gap-1 text-xs uppercase font-medium
+                                  {% if sort == 'cost' %}text-indigo-400{% else %}text-gray-400 hover:text-gray-200{% endif %}"
+                           title="LLM API cost this month (scoring + generation + persona + editing). Sourced from ai_usage_logs.">
+                            AI Cost (month)
+                            {% if sort == 'cost' %}
+                                {% if order == 'asc' %}↑{% else %}↓{% endif %}
+                            {% endif %}
+                        </a>
+                    </th>
                     {{ sort_header("Created", "created") }}
                     <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Actions</th>
                 </tr>

@@ -306,39 +306,28 @@ def dashboard_backups(
     import os
     from pathlib import Path
 
-    backup_dir = Path("/Volumes/2SSD/Projects/Tzvi - transfer/reddit_saas/backups")
-    backup_info = {"hourly": [], "daily": [], "weekly": [], "total_size_mb": 0, "cron_active": False}
+    backup_dir = Path("/app/backups")
+    backup_info = {"files": [], "total_size_mb": 0, "count": 0}
 
-    # Check cron
-    try:
-        import subprocess
-        result = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=5)
-        backup_info["cron_active"] = "backup_db.sh" in result.stdout
-    except Exception:
-        pass
-
-    # Scan backup directories
+    # Scan backup directory
     total_size = 0
-    for tier in ["hourly", "daily", "weekly"]:
-        tier_dir = backup_dir / tier
-        if tier_dir.exists():
-            files = sorted(tier_dir.glob("*.sql.gz"), key=lambda f: f.stat().st_mtime, reverse=True)
-            for f in files[:5]:  # Show last 5 per tier
-                stat = f.stat()
-                total_size += stat.st_size
-                backup_info[tier].append({
-                    "name": f.name,
-                    "size_kb": round(stat.st_size / 1024, 1),
-                    "created": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc),
-                })
-            # Count total for size
-            for f in files[5:]:
-                total_size += f.stat().st_size
+    if backup_dir.exists():
+        files = sorted(backup_dir.glob("*.sql.gz"), key=lambda f: f.stat().st_mtime, reverse=True)
+        backup_info["count"] = len(files)
+        for f in files[:10]:  # Show last 10
+            stat = f.stat()
+            total_size += stat.st_size
+            backup_info["files"].append({
+                "name": f.name,
+                "size_kb": round(stat.st_size / 1024, 1),
+                "created": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc),
+            })
+        # Count total size for remaining files
+        for f in files[10:]:
+            total_size += f.stat().st_size
 
     backup_info["total_size_mb"] = round(total_size / (1024 * 1024), 1)
-    backup_info["last_backup"] = None
-    if backup_info["hourly"]:
-        backup_info["last_backup"] = backup_info["hourly"][0]
+    backup_info["last_backup"] = backup_info["files"][0] if backup_info["files"] else None
 
     return templates.TemplateResponse(
         name="partials/dashboard_backups.html",
@@ -351,25 +340,75 @@ def dashboard_backups(
 def dashboard_backup_now(
     request: Request,
     current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
 ):
-    """Trigger an immediate backup."""
+    """Trigger an immediate database backup via pg_dump (works in Docker on local and server)."""
     import subprocess
+    import os
+    from urllib.parse import urlparse
 
-    script = "/Volumes/2SSD/Projects/Tzvi - transfer/reddit_saas/scripts/backup_db.sh"
-    try:
-        result = subprocess.run(
-            [script], capture_output=True, text=True, timeout=30
+    backup_dir = "/app/backups"
+    os.makedirs(backup_dir, exist_ok=True)
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    backup_file = f"reddit_saas_{timestamp}.sql.gz"
+    backup_path = os.path.join(backup_dir, backup_file)
+
+    # Parse DATABASE_URL to extract connection params
+    database_url = os.environ.get("DATABASE_URL", "")
+    if not database_url:
+        return HTMLResponse(
+            '<div class="p-2 bg-red-900/30 border border-red-700 rounded text-red-300 text-xs">'
+            '✗ DATABASE_URL not set</div>'
         )
-        if result.returncode == 0:
-            return HTMLResponse(
-                '<div class="p-2 bg-green-900/30 border border-green-700 rounded text-green-300 text-xs">'
-                '✓ Backup completed successfully</div>'
-            )
-        else:
+
+    parsed = urlparse(database_url)
+    db_host = parsed.hostname or "db"
+    db_port = str(parsed.port or 5432)
+    db_user = parsed.username or "reddit_saas_user"
+    db_name = parsed.path.lstrip("/") or "reddit_saas"
+    db_password = parsed.password or ""
+
+    try:
+        cmd = f'pg_dump -h {db_host} -p {db_port} -U {db_user} -d {db_name} --no-owner --no-acl | gzip > {backup_path}'
+        env = {**os.environ, "PGPASSWORD": db_password}
+        result = subprocess.run(
+            ["sh", "-c", cmd],
+            capture_output=True, text=True, timeout=60, env=env,
+        )
+        if result.returncode != 0:
             return HTMLResponse(
                 f'<div class="p-2 bg-red-900/30 border border-red-700 rounded text-red-300 text-xs">'
-                f'✗ Backup failed: {result.stderr[:200]}</div>'
+                f'✗ pg_dump failed: {result.stderr[:200]}</div>'
             )
+
+        # Verify file size
+        size = os.path.getsize(backup_path)
+        if size < 1024:
+            os.remove(backup_path)
+            return HTMLResponse(
+                '<div class="p-2 bg-red-900/30 border border-red-700 rounded text-red-300 text-xs">'
+                '✗ Backup file too small — likely empty database or connection error</div>'
+            )
+
+        size_kb = round(size / 1024, 1)
+        audit_service.log_action(
+            db=db,
+            user_id=current_user.id,
+            action="backup_created",
+            entity_type="database",
+            details={"file": backup_file, "size_kb": size_kb},
+        )
+
+        return HTMLResponse(
+            f'<div class="p-2 bg-green-900/30 border border-green-700 rounded text-green-300 text-xs">'
+            f'✓ Backup saved: {backup_file} ({size_kb} KB)</div>'
+        )
+    except subprocess.TimeoutExpired:
+        return HTMLResponse(
+            '<div class="p-2 bg-red-900/30 border border-red-700 rounded text-red-300 text-xs">'
+            '✗ Backup timed out (>60s)</div>'
+        )
     except Exception as e:
         return HTMLResponse(
             f'<div class="p-2 bg-red-900/30 border border-red-700 rounded text-red-300 text-xs">'
@@ -1326,6 +1365,38 @@ def admin_client_activate(
         admin_service.activate_client(db, client_id, current_user.id)
     except ValueError:
         pass
+    return RedirectResponse(url=f"/admin/clients/{client_id}", status_code=303)
+
+
+@router.post("/clients/{client_id}/run-pipeline", response_class=HTMLResponse)
+def admin_client_run_pipeline(
+    request: Request,
+    client_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
+    db: Session = Depends(get_db),
+):
+    """Manually trigger score -> generate pipeline for a specific client.
+
+    Bypasses pipeline_enabled kill switch but uses the same Celery queues
+    and respects all safety checks (rate limits, phase policy, budgets).
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    from app.tasks.worker import celery_app
+    try:
+        task_id = admin_service.trigger_pipeline(celery_app, "full", str(client_id))
+        audit_service.log_action(
+            db=db,
+            user_id=current_user.id,
+            action="trigger_pipeline",
+            entity_type="client",
+            entity_id=client_id,
+            details={"pipeline_type": "full", "triggered_by": "manual", "task_id": task_id},
+        )
+    except Exception as e:
+        logger.error(f"Failed to trigger pipeline for client {client_id}: {e}")
     return RedirectResponse(url=f"/admin/clients/{client_id}", status_code=303)
 
 
@@ -2682,6 +2753,13 @@ def admin_avatar_detail(
 
     today = compute_today_recommendation(db, avatar, health, pro_pending=pro_pending)
 
+    # EPG — daily publishing program
+    from app.services.epg import build_daily_epg
+    epg_client = None
+    if avatar.client_ids:
+        epg_client = db.query(Client).filter(Client.id == uuid.UUID(avatar.client_ids[0])).first()
+    epg = build_daily_epg(db, avatar, epg_client)
+
     return templates.TemplateResponse(
         name="admin_avatar_detail.html",
         context={
@@ -2706,8 +2784,92 @@ def admin_avatar_detail(
             "karma_history": karma_history,
             "shadowban_status": shadowban_status,
             "today": today,
+            "epg": epg,
             "now_utc": datetime.now(timezone.utc),
         },
+        request=request,
+    )
+
+
+@router.get("/avatars/{avatar_id}/epg", response_class=HTMLResponse)
+def admin_avatar_epg_partial(
+    request: Request,
+    avatar_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """HTMX partial: show today's EPG for an avatar."""
+    from app.services.epg import build_daily_epg
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        return HTMLResponse("<div class='text-red-400 text-xs'>Avatar not found</div>", status_code=404)
+
+    # Get client for keyword matching (Phase 2-3)
+    client = None
+    if avatar.client_ids:
+        client = db.query(Client).filter(Client.id == avatar.client_ids[0]).first()
+
+    epg = build_daily_epg(db, avatar, client)
+
+    return templates.TemplateResponse(
+        name="partials/avatar_epg.html",
+        context={"request": request, "avatar": avatar, "epg": epg},
+        request=request,
+    )
+
+
+@router.post("/avatars/{avatar_id}/build-epg", response_class=HTMLResponse)
+def admin_avatar_build_epg(
+    request: Request,
+    avatar_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Build EPG and generate comments for an avatar (manual trigger)."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    from app.services.epg import build_daily_epg
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        return HTMLResponse("<div class='text-red-400 text-xs'>Avatar not found</div>", status_code=404)
+
+    client = None
+    if avatar.client_ids:
+        client = db.query(Client).filter(Client.id == avatar.client_ids[0]).first()
+
+    epg = build_daily_epg(db, avatar, client)
+
+    # Generate hobby comments for EPG slots
+    if epg.hobby_slots:
+        from app.tasks.ai_pipeline import generate_hobby_comments
+        try:
+            generate_hobby_comments.delay(str(avatar.id), max_comments=len(epg.hobby_slots), triggered_by="manual")
+        except Exception as e:
+            logger.error(f"Failed to dispatch hobby generation for {avatar.reddit_username}: {e}")
+
+    # Generate professional comments for business slots (Phase 2-3)
+    if epg.business_slots and client:
+        from app.tasks.ai_pipeline import generate_comments
+        try:
+            generate_comments.delay(str(client.id), max_comments=len(epg.business_slots), triggered_by="manual")
+        except Exception as e:
+            logger.error(f"Failed to dispatch pro generation for {avatar.reddit_username}: {e}")
+
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="build_epg",
+        entity_type="avatar",
+        entity_id=avatar_id,
+        details={"status": epg.status, "hobby_slots": len(epg.hobby_slots), "business_slots": len(epg.business_slots)},
+    )
+
+    return templates.TemplateResponse(
+        name="partials/avatar_epg.html",
+        context={"request": request, "avatar": avatar, "epg": epg},
         request=request,
     )
 
@@ -3080,9 +3242,13 @@ def admin_avatar_strategy_generate(
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
-    """Kick off async strategy generation. Returns a polling indicator."""
+    """Kick off async strategy generation. Returns a polling indicator with ETA."""
     try:
         from app.tasks.strategy import generate_strategy_async
+        from app.models.ai_usage import AIUsageLog
+        from sqlalchemy import func as sa_func
+        import redis as redis_lib
+        from app.config import get_settings
 
         avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
         if not avatar:
@@ -3096,6 +3262,44 @@ def admin_avatar_strategy_generate(
         if avatar.client_ids:
             client_id = avatar.client_ids[0]
 
+        # --- Audit log: task requested (BEFORE dispatch) ---
+        audit_service.log_action(
+            db=db,
+            user_id=current_user.id,
+            action="strategy_generation_requested",
+            entity_type="avatar",
+            entity_id=avatar_id,
+            client_id=uuid.UUID(client_id) if client_id else None,
+            details={
+                "avatar_username": avatar.reddit_username,
+                "triggered_by": "manual",
+            },
+        )
+
+        # --- Get average duration for strategy_generation from ai_usage_log ---
+        avg_duration_ms = (
+            db.query(sa_func.avg(AIUsageLog.duration_ms))
+            .filter(
+                AIUsageLog.operation == "strategy_generation",
+                AIUsageLog.duration_ms > 0,
+            )
+            .scalar()
+        )
+        avg_seconds = int((avg_duration_ms or 25000) / 1000)
+
+        # --- Get queue depth ---
+        queue_depth = 0
+        try:
+            settings = get_settings()
+            r = redis_lib.Redis.from_url(settings.redis_url, decode_responses=True, socket_timeout=2)
+            queue_depth = r.llen("celery") or 0
+            r.close()
+        except Exception:
+            pass
+
+        # Estimate wait: queue tasks ahead × avg + own generation time
+        estimated_wait = avg_seconds + (queue_depth * 10)
+
         # Dispatch Celery task
         task = generate_strategy_async.delay(
             str(avatar_id),
@@ -3103,11 +3307,18 @@ def admin_avatar_strategy_generate(
             user_id=str(current_user.id),
         )
 
-        # Return polling UI — checks every 5 seconds until strategy appears
+        # --- Build informative UI ---
+        queue_info = ""
+        if queue_depth > 0:
+            queue_info = (
+                f'<p class="text-xs text-amber-400 mt-1">'
+                f'\u23f3 Queue: {queue_depth} task{"s" if queue_depth != 1 else ""} ahead</p>'
+            )
+
         return HTMLResponse(
             f"""<div class="bg-slate-800 rounded-lg border border-slate-700 p-6 text-center"
                  hx-get="/admin/avatars/{avatar_id}/strategy-panel"
-                 hx-trigger="every 5s"
+                 hx-trigger="every 2s"
                  hx-target="#strategy-panel-content"
                  hx-swap="innerHTML"
                  id="strategy-generating">
@@ -3116,10 +3327,17 @@ def admin_avatar_strategy_generate(
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                     </svg>
-                    Generating strategy in background...
+                    Generating strategy...
                 </div>
-                <p class="text-xs text-gray-500 mt-2">You can navigate away — the result will be saved automatically.</p>
-                <p class="text-xs text-gray-600 mt-1">Task ID: {task.id[:8]}</p>
+                <div class="mt-3">
+                    <div class="w-48 mx-auto bg-slate-700 rounded-full h-1.5 overflow-hidden">
+                        <div class="bg-indigo-500 h-1.5 rounded-full animate-pulse" style="width: 60%"></div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2">\u2248{estimated_wait}s estimated (avg LLM call: {avg_seconds}s)</p>
+                    {queue_info}
+                    <p class="text-xs text-gray-500 mt-1">You can navigate away \u2014 result saves automatically.</p>
+                </div>
+                <p class="text-xs text-gray-600 mt-2">Task: {task.id[:8]}</p>
             </div>""",
             status_code=200,
         )

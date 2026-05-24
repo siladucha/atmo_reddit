@@ -265,3 +265,95 @@ def check_reddit_status_all_api(
     for r in results:
         summary["by_status"][r["status"]] = summary["by_status"].get(r["status"], 0) + 1
     return {"summary": summary, "results": results}
+
+
+# --- EPG (Daily Publishing Program) ---
+
+@router.get("/{avatar_id}/epg")
+def get_avatar_epg(
+    avatar_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superuser),
+):
+    """Get today's EPG (publishing program) for an avatar.
+
+    Returns the daily schedule: which threads to comment on,
+    when, and what type (hobby/professional).
+    """
+    from app.models.client import Client
+    from app.services.epg import build_daily_epg
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+
+    client = None
+    if avatar.client_ids:
+        client = db.query(Client).filter(Client.id == avatar.client_ids[0]).first()
+
+    epg = build_daily_epg(db, avatar, client)
+    return {
+        "avatar_id": str(avatar.id),
+        "avatar_username": avatar.reddit_username,
+        "phase": avatar.warming_phase,
+        "daily_budget": epg.daily_budget,
+        "used_today": epg.used_today,
+        "remaining": epg.remaining,
+        "status": epg.status,
+        "message": epg.message,
+        "total_slots": epg.total_slots,
+        "hobby_slots": epg.hobby_slots,
+        "business_slots": epg.business_slots,
+    }
+
+
+@router.post("/{avatar_id}/epg/build")
+def build_avatar_epg(
+    avatar_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superuser),
+):
+    """Build EPG and trigger comment generation for an avatar.
+
+    Dispatches Celery tasks to generate comments for the EPG slots.
+    Bypasses pipeline_enabled kill switch (manual trigger).
+    """
+    from app.models.client import Client
+    from app.services.epg import build_daily_epg
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+
+    client = None
+    if avatar.client_ids:
+        client = db.query(Client).filter(Client.id == avatar.client_ids[0]).first()
+
+    epg = build_daily_epg(db, avatar, client)
+
+    tasks_dispatched = []
+
+    if epg.hobby_slots:
+        from app.tasks.ai_pipeline import generate_hobby_comments
+        try:
+            result = generate_hobby_comments.delay(
+                str(avatar.id), max_comments=len(epg.hobby_slots), triggered_by="manual"
+            )
+            tasks_dispatched.append({"type": "hobby", "task_id": str(result.id), "slots": len(epg.hobby_slots)})
+        except Exception as e:
+            tasks_dispatched.append({"type": "hobby", "error": str(e)})
+
+    if epg.business_slots and client:
+        from app.tasks.ai_pipeline import generate_comments
+        try:
+            result = generate_comments.delay(
+                str(client.id), max_comments=len(epg.business_slots), triggered_by="manual"
+            )
+            tasks_dispatched.append({"type": "professional", "task_id": str(result.id), "slots": len(epg.business_slots)})
+        except Exception as e:
+            tasks_dispatched.append({"type": "professional", "error": str(e)})
+
+    return {
+        "epg": epg.to_dict(),
+        "tasks_dispatched": tasks_dispatched,
+    }

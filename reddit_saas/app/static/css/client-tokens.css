@@ -1,0 +1,116 @@
+/* RAMP Client Portal — Design Token System
+ * Based on UX Developer Spec v3
+ * All UI values as CSS custom properties — no hardcoded hex in templates.
+ */
+
+:root {
+  /* Colors */
+  --color-bg: #0D0D1A;
+  --color-surface: #1A1A2E;
+  --color-surface-alt: #1E1E32;
+  --color-border: #2E2E4A;
+  --color-orange: #FF6B35;
+  --color-orange-light: #FF8C5A;
+  --color-white: #FFFFFF;
+  --color-muted: #AAAAAA;
+  --color-red: #E53935;
+  --color-amber: #F59E0B;
+  --color-green: #22C55E;
+  --color-phase1: #6B7280;
+  --color-phase2: #FF6B35;
+  --color-phase3: #22C55E;
+
+  /* Typography */
+  --text-display: 48px;
+  --text-h1: 28px;
+  --text-h2: 20px;
+  --text-h3: 16px;
+  --text-body: 14px;
+  --text-small: 12px;
+  --text-micro: 10px;
+
+  /* Font weights */
+  --weight-display: 700;
+  --weight-h1: 700;
+  --weight-h2: 600;
+  --weight-h3: 600;
+  --weight-body: 400;
+  --weight-small: 400;
+  --weight-micro: 500;
+
+  /* Spacing (8px base) */
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-5: 40px;
+  --space-6: 48px;
+
+  /* Radius */
+  --radius-card: 8px;
+  --radius-input: 4px;
+  --radius-pill: 999px;
+
+  /* Shadows */
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.4);
+
+  /* Transitions */
+  --transition-fast: 150ms ease-out;
+
+  /* Focus */
+  --focus-ring: 2px solid var(--color-orange);
+  --focus-offset: 2px;
+}
+
+/* Skeleton loading animation */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+
+.skeleton {
+  animation: skeleton-pulse 1.2s ease-in-out infinite;
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-card);
+}
+
+/* Focus ring (WCAG 2.1 AA) */
+.client-portal *:focus-visible {
+  outline: 2px solid var(--color-orange);
+  outline-offset: 2px;
+}
+
+/* Toast animations */
+@keyframes toast-slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes toast-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.toast-enter {
+  animation: toast-slide-in var(--transition-fast);
+}
+
+.toast-exit {
+  animation: toast-fade-out var(--transition-fast) forwards;
+}
+
+/* Card fade-out for optimistic updates */
+@keyframes card-fade-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.98); }
+}
+
+.card-removing {
+  animation: card-fade-out 150ms ease-out forwards;
+}

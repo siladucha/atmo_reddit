@@ -190,7 +190,7 @@ def _tab_avatars(client_id: UUID, db: Session, is_admin: bool) -> dict:
 
     # Enrich each avatar through the canonical path
     all_avatars = [build_avatar_view(a, get_avatar_health(db, a), client_by_id) for a in raw_avatars]
-    client_avatars = [v for v in all_avatars if v.get("active_flag", True)]
+    client_avatars = all_avatars  # Show ALL avatars (active + inactive/frozen) to client
 
     unassigned_avatars: list = []
     if is_admin:

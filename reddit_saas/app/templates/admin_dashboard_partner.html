@@ -22,7 +22,7 @@
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <a href="/admin/review"
            class="bg-dark-steel rounded-lg p-5 border {% if metrics.pending_reviews > 0 %}border-amber-600 hover:border-amber-500{% else %}border-slate-700 hover:border-slate-500{% endif %} transition-colors block">
-            <div class="text-sm text-gray-400 mb-1">Pending Reviews</div>
+            <div class="text-sm text-gray-400 mb-1" title="Comment drafts awaiting human review. Click to open review queue.">Pending Reviews</div>
             <div class="flex items-baseline gap-2">
                 <div class="text-3xl font-mono font-semibold {% if metrics.pending_reviews > 0 %}text-amber-400{% else %}text-white{% endif %}">{{ metrics.pending_reviews }}</div>
                 {% if metrics.pending_reviews > 0 %}
@@ -32,16 +32,16 @@
         </a>
         <a href="/admin/clients"
            class="bg-dark-steel rounded-lg p-5 border border-slate-700 hover:border-slate-500 transition-colors block">
-            <div class="text-sm text-gray-400 mb-1">Active Clients</div>
+            <div class="text-sm text-gray-400 mb-1" title="Number of clients with active campaigns.">Active Clients</div>
             <div class="text-3xl font-mono font-semibold text-white">{{ metrics.total_clients }}</div>
         </a>
         <a href="/admin/avatars"
            class="bg-dark-steel rounded-lg p-5 border border-slate-700 hover:border-slate-500 transition-colors block">
-            <div class="text-sm text-gray-400 mb-1">Active Avatars</div>
+            <div class="text-sm text-gray-400 mb-1" title="Total Reddit accounts active in the system across all clients.">Active Avatars</div>
             <div class="text-3xl font-mono font-semibold text-white">{{ metrics.total_avatars }}</div>
         </a>
         <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
-            <div class="text-sm text-gray-400 mb-1">Today Posted</div>
+            <div class="text-sm text-gray-400 mb-1" title="Comments confirmed as posted on Reddit today by avatar owners.">Today Posted</div>
             <div class="text-3xl font-mono font-semibold text-indigo-400">{{ metrics.today.posted }}</div>
         </div>
     </div>
@@ -49,7 +49,7 @@
     <!-- Today's Pipeline Summary -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 px-4 py-3 mb-6">
         <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
-            <span class="text-xs text-gray-500 uppercase tracking-wider font-medium">Today</span>
+            <span class="text-xs text-gray-500 uppercase tracking-wider font-medium">Today{% set tooltip_text = "Pipeline throughput for today (UTC). Shows how many posts were scraped, scored, had comments generated, approved, and posted across all clients." %}{% include "partials/block_tooltip.html" %}</span>
             <div class="flex items-center gap-1">
                 <span class="text-xs text-gray-400">Scraped</span>
                 <span class="text-sm font-mono font-medium text-white">{{ metrics.today.threads }}</span>
@@ -86,7 +86,7 @@
     <!-- Run All Bulk Controls -->
     <div class="bg-dark-steel rounded-lg p-4 border border-slate-700 mb-6">
         <div class="flex flex-wrap items-center gap-3">
-            <span class="text-sm text-gray-400 mr-2">Run All (every active client):</span>
+            <span class="text-sm text-gray-400 mr-2">Run All (every active client):{% set tooltip_text = "Trigger pipeline stages for all active clients at once. Scrape fetches new posts, Score evaluates them, Generate creates comment drafts, Full Pipeline runs all three in sequence." %}{% include "partials/block_tooltip.html" %}</span>
             <button hx-post="/admin/dashboard/run-all/scrape"
                     hx-target="#dashboard-toast" hx-swap="innerHTML"
                     hx-indicator="#run-all-spinner"
@@ -121,7 +121,7 @@
         <!-- Client cards (wider) -->
         <div class="lg:col-span-2 space-y-4">
             <div class="flex items-center justify-between">
-                <h2 class="text-lg font-medium text-gray-300">Clients</h2>
+                <h2 class="text-lg font-medium text-gray-300">Clients{% set tooltip_text = "Per-client pipeline status cards. Shows today's threads scraped, scored, generated, and pending review for each active client." %}{% include "partials/block_tooltip.html" %}</h2>
                 <span class="text-xs text-gray-500">auto-refresh every 60s</span>
             </div>
             <div id="client-cards"
@@ -139,7 +139,7 @@
             <!-- AI Costs Summary -->
             <section class="bg-dark-steel rounded-lg border border-slate-700">
                 <header class="flex items-center justify-between px-4 py-3 border-b border-slate-700">
-                    <h3 class="text-sm font-semibold text-gray-200">💰 AI Costs (this month)</h3>
+                    <h3 class="text-sm font-semibold text-gray-200">💰 AI Costs (this month){% set tooltip_text = "Total LLM API spend this month (Claude Sonnet for generation, Gemini Flash for scoring). Broken down by operation type." %}{% include "partials/block_tooltip.html" %}</h3>
                     <a href="/admin/ai-costs" class="text-xs text-indigo-400 hover:text-indigo-300">View details →</a>
                 </header>
                 <div id="ai-costs-summary"
@@ -154,7 +154,7 @@
             <!-- Avatar Health -->
             <section class="bg-dark-steel rounded-lg border border-slate-700">
                 <header class="flex items-center justify-between px-4 py-3 border-b border-slate-700">
-                    <h3 class="text-sm font-semibold text-gray-200">Avatar Health</h3>
+                    <h3 class="text-sm font-semibold text-gray-200">Avatar Health{% set tooltip_text = "Overview of avatar warming phases and health status. Flags frozen, shadowbanned, or at-risk avatars across all clients." %}{% include "partials/block_tooltip.html" %}</h3>
                     <button class="text-xs text-gray-400 hover:text-white"
                             hx-get="/admin/dashboard/avatar-health"
                             hx-target="#avatar-health-panel"
@@ -172,7 +172,7 @@
             <!-- Schedule -->
             <section class="bg-dark-steel rounded-lg border border-slate-700">
                 <header class="flex items-center justify-between px-4 py-3 border-b border-slate-700">
-                    <h3 class="text-sm font-semibold text-gray-200">Schedule</h3>
+                    <h3 class="text-sm font-semibold text-gray-200">Schedule{% set tooltip_text = "Upcoming automated pipeline runs. Shows time until next execution for each scheduled task (scoring, generation, health checks)." %}{% include "partials/block_tooltip.html" %}</h3>
                 </header>
                 <div id="schedule-panel"
                      hx-get="/admin/dashboard/schedule"
@@ -188,7 +188,7 @@
     <!-- Run History (full width below) -->
     <section class="mt-8 bg-dark-steel rounded-lg border border-slate-700">
         <header class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-slate-700">
-            <h3 class="text-sm font-semibold text-gray-200">Run History</h3>
+            <h3 class="text-sm font-semibold text-gray-200">Run History{% set tooltip_text = "Chronological log of recent pipeline executions — scrapes, scoring, and generation runs with results and timing." %}{% include "partials/block_tooltip.html" %}</h3>
             <div class="flex items-center gap-2">
                 <select name="client_id"
                         hx-get="/admin/dashboard/run-history"

@@ -11,7 +11,7 @@ from app.logging_config import setup_logging
 from app.middleware.auth import AuthMiddleware
 from app.middleware.errors import ErrorMiddleware
 from app.middleware.security import SecurityHeadersMiddleware, RateLimitMiddleware
-from app.routes import admin, auth, dashboard, review, pipeline, avatars, avatar_analysis, avatar_pipeline, clients, pages, dry_run, export, decision_center
+from app.routes import admin, auth, dashboard, review, pipeline, avatars, avatar_analysis, avatar_pipeline, avatar_workflow, clients, pages, dry_run, export, decision_center, portal
 from app.services.metrics_collector import (
     get_metrics_collector,
     install_metrics_logging_handler,
@@ -29,7 +29,7 @@ metrics_collector = get_metrics_collector(window_minutes=60)
 install_metrics_logging_handler(metrics_collector)
 
 app = FastAPI(
-    title="Reddit Marketing SaaS",
+    title="RAMP",
     version="0.1.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -49,7 +49,7 @@ ACCESS_DENIED_HTML = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Access Denied — Reddit SaaS</title>
+    <title>Access Denied — RAMP</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
@@ -124,7 +124,9 @@ app.include_router(pipeline.router, prefix="/pipeline", tags=["pipeline"])
 app.include_router(admin.router, tags=["admin-panel"])
 app.include_router(decision_center.router, tags=["decision-center"])
 app.include_router(avatar_pipeline.router, tags=["avatar-pipeline"])
+app.include_router(avatar_workflow.router, tags=["avatar-workflow"])
 app.include_router(dry_run.router, tags=["dry-run"])
+app.include_router(portal.router, tags=["client-portal"])
 app.include_router(pages.router, tags=["pages"])
 app.include_router(export.router, tags=["export"])
 
@@ -173,7 +175,7 @@ def health_check():
 
 @app.on_event("startup")
 def on_startup():
-    logger.info("Reddit SaaS started — env=%s", app_env)
+    logger.info("RAMP started — env=%s", app_env)
 
     # Ensure all settings exist in DB and seed values from .env
     from app.database import SessionLocal

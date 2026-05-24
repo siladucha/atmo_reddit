@@ -33,36 +33,68 @@ def seed():
     db = SessionLocal()
 
     try:
-        # 1. Ensure admin user exists and is superuser
+        # 1. Ensure admin user exists and is superuser + owner role.
+        # IMPORTANT: Admin user MUST have role='owner' to access /admin panel.
+        # The /home route checks role.is_admin_level (owner/partner only).
+        # If role is wrong (e.g. client_viewer default), login succeeds but
+        # /home redirects to /login?error=no_access — looks like auth failure.
+        #
+        # On fresh-start, system_settings table is empty when seed runs.
+        # get_config() would return empty/None. So we read ADMIN_EMAIL/ADMIN_PASSWORD
+        # from env vars directly as fallback (they're always in .env).
+        import os
         from app.config import get_config
 
-        admin_email = get_config("admin_email")
+        # Try DB first (system_settings), fall back to env vars
+        try:
+            admin_email = get_config("admin_email")
+        except Exception:
+            admin_email = None
+        if not admin_email:
+            admin_email = os.environ.get("ADMIN_EMAIL", "admin@reddit-saas.com")
+
         admin = db.query(User).filter(User.email == admin_email).first()
 
         if admin:
-            # Ensure existing admin is superuser
+            # Ensure existing admin is superuser + owner role
+            changed = False
             if not admin.is_superuser:
                 admin.is_superuser = True
+                changed = True
+            if admin.role != "owner":
+                admin.role = "owner"
+                changed = True
+            if changed:
                 db.commit()
-                print(f"Promoted existing user to superuser: {admin.email}")
+                print(f"Promoted existing user to superuser/owner: {admin.email}")
             else:
                 print(f"Admin user already exists: {admin.email}")
         else:
-            # Create admin user
-            admin_password = get_config("admin_password")
+            # Create admin user — try DB config, then env var, then hardcoded default
+            try:
+                admin_password = get_config("admin_password")
+            except Exception:
+                admin_password = None
+            if not admin_password:
+                admin_password = os.environ.get("ADMIN_PASSWORD")
+
+            admin_name = os.environ.get("ADMIN_NAME", "Admin")
+
             if admin_password:
                 admin = create_user(
                     db,
                     email=admin_email,
                     password=admin_password,
-                    full_name=get_config("admin_name"),
+                    full_name=admin_name,
                 )
                 admin.is_superuser = True
+                admin.role = "owner"
                 db.commit()
                 print(f"Created admin user: {admin.email}")
             else:
                 admin = create_user(db, email="admin@reddit-saas.com", password="admin123", full_name="Admin")
                 admin.is_superuser = True
+                admin.role = "owner"
                 db.commit()
                 print(f"Created default admin user: {admin.email} (change password!)")
 

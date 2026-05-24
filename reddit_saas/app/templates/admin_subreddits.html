@@ -25,27 +25,27 @@
 
     <div class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
         <div class="bg-dark-steel rounded-lg border border-slate-700 p-3">
-            <div class="text-[10px] uppercase tracking-wider text-gray-500">Assigned</div>
+            <div class="text-[10px] uppercase tracking-wider text-gray-500" title="Total subreddits assigned to this client (active + paused)">Assigned</div>
             <div class="mt-1 text-lg font-mono text-white">{{ subreddit_counts.total }}</div>
         </div>
         <div class="bg-dark-steel rounded-lg border border-slate-700 p-3">
-            <div class="text-[10px] uppercase tracking-wider text-gray-500">Active</div>
+            <div class="text-[10px] uppercase tracking-wider text-gray-500" title="Subreddits actively being scraped and scored for this client">Active</div>
             <div class="mt-1 text-lg font-mono text-green-400">{{ subreddit_counts.active }}</div>
         </div>
         <div class="bg-dark-steel rounded-lg border border-slate-700 p-3">
-            <div class="text-[10px] uppercase tracking-wider text-gray-500">Paused</div>
+            <div class="text-[10px] uppercase tracking-wider text-gray-500" title="Subreddits temporarily paused — not scraped or scored until reactivated">Paused</div>
             <div class="mt-1 text-lg font-mono text-amber-400">{{ subreddit_counts.paused }}</div>
         </div>
         <div class="bg-dark-steel rounded-lg border border-slate-700 p-3">
-            <div class="text-[10px] uppercase tracking-wider text-gray-500">Scraped</div>
+            <div class="text-[10px] uppercase tracking-wider text-gray-500" title="Subreddits that have been scraped at least once (have fresh data)">Scraped</div>
             <div class="mt-1 text-lg font-mono text-indigo-300">{{ subreddit_counts.scraped }}</div>
         </div>
         <div class="bg-dark-steel rounded-lg border border-slate-700 p-3">
-            <div class="text-[10px] uppercase tracking-wider text-gray-500">Never</div>
+            <div class="text-[10px] uppercase tracking-wider text-gray-500" title="Subreddits that have never been scraped — no data available yet">Never</div>
             <div class="mt-1 text-lg font-mono text-red-400">{{ subreddit_counts.never_scraped }}</div>
         </div>
         <div class="bg-dark-steel rounded-lg border border-slate-700 p-3">
-            <div class="text-[10px] uppercase tracking-wider text-gray-500">Shared</div>
+            <div class="text-[10px] uppercase tracking-wider text-gray-500" title="Subreddits shared across multiple clients — scraped once, data reused">Shared</div>
             <div class="mt-1 text-lg font-mono text-purple-300">{{ subreddit_counts.shared }}</div>
         </div>
     </div>
@@ -58,7 +58,7 @@
     {% if ai_costs_by_op %}
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-6">
         <div class="flex items-center justify-between mb-3">
-            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wider">AI Costs — {{ client.client_name }}</h2>
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wider">AI Costs — {{ client.client_name }}{% set tooltip_text = "LLM API costs for this client. Includes scoring (Gemini Flash), generation (Claude Sonnet), persona selection, and editing. Sourced from ai_usage_logs table." %}{% include "partials/block_tooltip.html" %}</h2>
             <span class="text-sm font-mono text-white">${{ "%.4f"|format(ai_total_cost) }} · {{ ai_total_calls }} calls</span>
         </div>
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">

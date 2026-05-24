@@ -35,24 +35,24 @@
     <!-- Top Metrics -->
     <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
-            <div class="text-xs text-gray-400 mb-1">Subreddits</div>
+            <div class="text-xs text-gray-400 mb-1" title="Reddit communities monitored for this client. New posts are scraped and scored automatically.">Subreddits</div>
             <div class="text-2xl font-mono font-semibold text-white">{{ metrics.subreddits_count }}</div>
         </div>
         <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
-            <div class="text-xs text-gray-400 mb-1">Avatars</div>
+            <div class="text-xs text-gray-400 mb-1" title="Reddit accounts assigned to this client for posting. Each has a unique persona and warming phase.">Avatars</div>
             <div class="text-2xl font-mono font-semibold text-white">{{ metrics.avatars_count }}</div>
         </div>
         <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
-            <div class="text-xs text-gray-400 mb-1">Threads Found</div>
+            <div class="text-xs text-gray-400 mb-1" title="Total Reddit threads found in monitored subreddits for this client.">Threads Found</div>
             <div class="text-2xl font-mono font-semibold text-white">{{ metrics.threads_count }}</div>
         </div>
         <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
-            <div class="text-xs text-gray-400 mb-1">Engage</div>
+            <div class="text-xs text-gray-400 mb-1" title="Threads scored as 'engage' — high relevance to the brand. Comments are generated for these.">Engage</div>
             <div class="text-2xl font-mono font-semibold text-emerald-400">{{ metrics.engage_count }}</div>
         </div>
         <a href="/admin/review?client_id={{ client.id }}"
            class="bg-dark-steel rounded-lg p-4 border {% if metrics.pending_comments > 0 %}border-amber-600 hover:border-amber-500{% else %}border-slate-700 hover:border-slate-500{% endif %} transition-colors block">
-            <div class="text-xs text-gray-400 mb-1">Pending Review</div>
+            <div class="text-xs text-gray-400 mb-1" title="AI-generated comment drafts waiting for human review before posting.">Pending Review</div>
             <div class="flex items-baseline gap-2">
                 <div class="text-2xl font-mono font-semibold {% if metrics.pending_comments > 0 %}text-amber-400{% else %}text-white{% endif %}">{{ metrics.pending_comments }}</div>
                 {% if metrics.pending_comments > 0 %}
@@ -65,7 +65,7 @@
     <!-- Today's Activity -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 px-4 py-3 mb-6">
         <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
-            <span class="text-xs text-gray-500 uppercase tracking-wider font-medium">Today</span>
+            <span class="text-xs text-gray-500 uppercase tracking-wider font-medium">Today{% set tooltip_text = "Pipeline throughput for today (UTC). Shows how many posts were scraped, scored, had comments generated, approved, and posted for your brand." %}{% include "partials/block_tooltip.html" %}</span>
             <div class="flex items-center gap-1">
                 <span class="text-xs text-gray-400">Scraped</span>
                 <span class="text-sm font-mono font-medium text-white">{{ metrics.today_threads }}</span>
@@ -96,7 +96,7 @@
             <!-- Recent Drafts -->
             <section class="bg-dark-steel rounded-lg border border-slate-700">
                 <header class="flex items-center justify-between px-4 py-3 border-b border-slate-700">
-                    <h3 class="text-sm font-semibold text-gray-200">Recent Drafts</h3>
+                    <h3 class="text-sm font-semibold text-gray-200">Recent Drafts{% set tooltip_text = "Latest AI-generated comment drafts for your brand. Shows status (pending/approved/rejected), target subreddit, and assigned avatar." %}{% include "partials/block_tooltip.html" %}</h3>
                     <a href="/admin/review?client_id={{ client.id }}" class="text-xs text-indigo-400 hover:text-indigo-300">View all →</a>
                 </header>
                 <div id="recent-drafts-panel"
@@ -111,7 +111,7 @@
             <!-- Activity Feed -->
             <section class="bg-dark-steel rounded-lg border border-slate-700">
                 <header class="flex items-center justify-between px-4 py-3 border-b border-slate-700">
-                    <h3 class="text-sm font-semibold text-gray-200">Recent Activity</h3>
+                    <h3 class="text-sm font-semibold text-gray-200">Recent Activity{% set tooltip_text = "Timeline of pipeline events for your brand — scraping, scoring, generation, approvals, and posts." %}{% include "partials/block_tooltip.html" %}</h3>
                     <button class="text-xs text-gray-400 hover:text-white"
                             hx-get="/admin/dashboard/client-activity?client_id={{ client.id }}"
                             hx-target="#client-activity-panel"
@@ -132,7 +132,7 @@
             <!-- Avatars Overview -->
             <section class="bg-dark-steel rounded-lg border border-slate-700">
                 <header class="px-4 py-3 border-b border-slate-700">
-                    <h3 class="text-sm font-semibold text-gray-200">Avatars</h3>
+                    <h3 class="text-sm font-semibold text-gray-200">Avatars{% set tooltip_text = "Reddit accounts assigned to your brand. Each avatar has a unique persona, warming phase, and karma history." %}{% include "partials/block_tooltip.html" %}</h3>
                 </header>
                 <div id="client-avatars-panel"
                      hx-get="/admin/dashboard/client-avatars?client_id={{ client.id }}"
@@ -146,7 +146,7 @@
             <!-- Subreddits -->
             <section class="bg-dark-steel rounded-lg border border-slate-700">
                 <header class="px-4 py-3 border-b border-slate-700">
-                    <h3 class="text-sm font-semibold text-gray-200">Subreddits</h3>
+                    <h3 class="text-sm font-semibold text-gray-200">Subreddits{% set tooltip_text = "Reddit communities being monitored for your brand. Posts from these subreddits are scraped and scored for engagement opportunities." %}{% include "partials/block_tooltip.html" %}</h3>
                 </header>
                 <div id="client-subreddits-panel"
                      hx-get="/admin/dashboard/client-subreddits?client_id={{ client.id }}"
@@ -160,23 +160,23 @@
             <!-- Weekly Stats -->
             <section class="bg-dark-steel rounded-lg border border-slate-700">
                 <header class="px-4 py-3 border-b border-slate-700">
-                    <h3 class="text-sm font-semibold text-gray-200">This Week</h3>
+                    <h3 class="text-sm font-semibold text-gray-200">This Week{% set tooltip_text = "Weekly performance summary — comments generated, approved, posted, and your approval rate (higher = better AI quality)." %}{% include "partials/block_tooltip.html" %}</h3>
                 </header>
                 <div class="p-4 space-y-3">
                     <div class="flex items-center justify-between">
-                        <span class="text-xs text-gray-400">Comments Generated</span>
+                        <span class="text-xs text-gray-400" title="Total AI-generated comments for this client this week.">Comments Generated</span>
                         <span class="text-sm font-mono text-white">{{ metrics.week_generated }}</span>
                     </div>
                     <div class="flex items-center justify-between">
-                        <span class="text-xs text-gray-400">Comments Approved</span>
+                        <span class="text-xs text-gray-400" title="Comments approved by reviewer this week (ready for posting).">Comments Approved</span>
                         <span class="text-sm font-mono text-green-400">{{ metrics.week_approved }}</span>
                     </div>
                     <div class="flex items-center justify-between">
-                        <span class="text-xs text-gray-400">Comments Posted</span>
+                        <span class="text-xs text-gray-400" title="Comments confirmed as posted on Reddit this week.">Comments Posted</span>
                         <span class="text-sm font-mono text-indigo-400">{{ metrics.week_posted }}</span>
                     </div>
                     <div class="flex items-center justify-between">
-                        <span class="text-xs text-gray-400">Approval Rate</span>
+                        <span class="text-xs text-gray-400" title="Percentage of generated comments that were approved (not rejected). Higher = better AI quality.">Approval Rate</span>
                         <span class="text-sm font-mono {% if metrics.week_approval_rate >= 70 %}text-green-400{% elif metrics.week_approval_rate >= 40 %}text-amber-400{% else %}text-red-400{% endif %}">{{ metrics.week_approval_rate }}%</span>
                     </div>
                 </div>

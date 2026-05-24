@@ -73,17 +73,17 @@
 <!-- Presence table -->
 <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
     <h3 class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3">
-        Subreddit Presence ({{ presence_records|length }} subreddits)
+        Subreddit Presence{% set tooltip_text = "Map of subreddits where this avatar has posted comments. Sourced from Reddit comment history scan. Shows comment count, karma earned, and recency. Green dot = active (<3d), Yellow = aging (3-7d), Red = stale (>7d)." %}{% include "partials/block_tooltip.html" %} ({{ presence_records|length }} subreddits)
     </h3>
     <div class="overflow-x-auto">
         <table class="w-full text-sm">
             <thead>
                 <tr class="text-left text-gray-500 border-b border-slate-700">
                     <th class="pb-2 text-[10px] uppercase tracking-wider font-medium">Subreddit</th>
-                    <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">Comments</th>
-                    <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">Avg Karma</th>
-                    <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center">Total Karma</th>
-                    <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-right">Last Activity</th>
+                    <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center" title="Total comments posted by this avatar in this subreddit (from Reddit history scan)">Comments</th>
+                    <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center" title="Average karma per comment in this subreddit. Higher = better community reception.">Avg Karma</th>
+                    <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-center" title="Sum of all karma earned in this subreddit">Total Karma</th>
+                    <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-right" title="When the avatar last posted in this subreddit. Green <3d, Yellow 3-7d, Red >7d.">Last Activity</th>
                     <th class="pb-2 text-[10px] uppercase tracking-wider font-medium text-right">Link</th>
                 </tr>
             </thead>

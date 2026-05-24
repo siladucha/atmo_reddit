@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Admin{% endblock %} — Reddit SaaS</title>
+    <title>{% block title %}Admin{% endblock %} — RAMP</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
@@ -167,7 +167,7 @@
         <div class="px-5 py-4 border-b border-slate-700">
             <div class="flex items-center gap-2">
                 <span class="text-xl">📡</span>
-                <span class="sidebar-app-name text-white font-semibold text-lg">ThreddOps</span>
+                <span class="sidebar-app-name text-white font-semibold text-lg">RAMP</span>
             </div>
 
             {# User card — hidden on collapsed tablet sidebar via sidebar-admin-badge #}
@@ -244,15 +244,6 @@
             {% endif %}
 
             {% if is_platform_admin or is_qa or role in ('client_admin', 'client_manager') %}
-            <a href="/admin/decision-center"
-               class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
-                      {% if active_nav == 'decision-center' %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">
-                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5"/>
-                </svg>
-                <span class="sidebar-label">Decision Center</span>
-            </a>
-
             <a href="/admin/review"
                class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
                       {% if active_nav == 'review' %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">

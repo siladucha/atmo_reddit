@@ -76,6 +76,7 @@
             <button type="button"
                     data-avatar-jump="overview"
                     data-avatar-anchor="phase-details"
+                    title="Warming phase: Mentor (excluded from pipelines), P1 (credibility, no brand), P2 (content seeding), P3 (brand integration). Evaluated daily at 06:00."
                     class="inline-flex items-center gap-2 px-2.5 py-1 rounded text-xs font-medium border {{ badge_classes[today.phase_badge.color] }} hover:brightness-110">
                 <span>{{ today.phase_badge.phase_label }}</span>
                 {% if today.phase_badge.status_suffix %}
@@ -87,6 +88,7 @@
             <button type="button"
                     data-avatar-jump="profile-safety"
                     data-avatar-anchor="shadowban-section"
+                    title="Shadowban detection — checked twice daily (07:30, 13:30). Shadowbanned = posts invisible to others, auto-frozen."
                     class="inline-flex items-center gap-2 px-2.5 py-1 rounded text-xs font-medium border
                            {% if shadowban_status.is_shadowbanned %}{{ badge_classes['red'] }}
                            {% else %}{{ badge_classes['green'] }}{% endif %} hover:brightness-110">
@@ -98,6 +100,7 @@
             <button type="button"
                     data-avatar-jump="profile-safety"
                     data-avatar-anchor="freeze-section"
+                    title="Freeze status — frozen avatars are excluded from all automated pipelines (scoring, generation, posting). Can be manual or auto-triggered."
                     class="inline-flex items-center gap-2 px-2.5 py-1 rounded text-xs font-medium border
                            {% if avatar.is_frozen %}{{ badge_classes['red'] }}
                            {% else %}{{ badge_classes['green'] }}{% endif %} hover:brightness-110">
@@ -109,6 +112,7 @@
             <button type="button"
                     data-avatar-jump="profile-safety"
                     data-avatar-anchor="cqs-section"
+                    title="Contributor Quality Score — Reddit's internal metric. Checked daily at 06:30. Lowest = auto-freeze (Phase 2+). Low = reduced visibility."
                     class="inline-flex items-center gap-2 px-2.5 py-1 rounded text-xs font-medium border
                            {% if avatar.cqs_level == 'lowest' or avatar.cqs_level == 'low' %}{{ badge_classes['red'] }}
                            {% elif avatar.cqs_level in ('moderate', 'high', 'highest') %}{{ badge_classes['green'] }}
@@ -120,9 +124,9 @@
 
         <!-- Tabs -->
         <div class="flex gap-1 rounded-lg border border-slate-700 bg-dark-steel p-1 overflow-x-auto whitespace-nowrap" role="tablist">
-            <button type="button" data-avatar-detail-tab="decision-center"
+            <button type="button" data-avatar-detail-tab="workflow"
                     class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium bg-indigo-600 text-white flex-shrink-0">
-                Decision Center
+                Workflow
             </button>
             <button type="button" data-avatar-detail-tab="overview"
                     class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white flex-shrink-0">
@@ -155,94 +159,20 @@
         </div>
     </div>
 
-    {# ============================================================ DECISION CENTER #}
-    <div data-avatar-detail-panel="decision-center" class="avatar-detail-panel space-y-6">
-
-        <!-- Live Pulse (loaded via HTMX) -->
-        <div id="dc-avatar-live-pulse"
-             hx-get="/admin/decision-center/live-pulse/{{ avatar.id }}"
+    {# ============================================================ WORKFLOW (default tab) #}
+    <div data-avatar-detail-panel="workflow" class="avatar-detail-panel space-y-6">
+        <div id="workflow-container"
+             hx-get="/admin/avatars/{{ avatar.id }}/workflow"
              hx-trigger="load"
              hx-swap="innerHTML">
-            <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
-                <div class="h-4 bg-gray-700 rounded w-48 mb-3"></div>
-                <div class="h-12 bg-gray-700 rounded w-full mb-3"></div>
-                <div class="h-4 bg-gray-700 rounded w-3/4"></div>
+            <div class="flex items-center gap-2 text-sm text-gray-400 p-6">
+                <svg class="animate-spin h-4 w-4 text-indigo-400" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                Loading workflow...
             </div>
         </div>
-
-        <!-- Decision Queue for this avatar (loaded via HTMX) -->
-        <div class="bg-dark-steel rounded-lg border border-slate-700 p-5">
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Decision Queue</h2>
-                <a href="/admin/decision-center?avatar_id={{ avatar.id }}"
-                   class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
-                    Open full Decision Center →
-                </a>
-            </div>
-            <div id="dc-avatar-queue"
-                 hx-get="/admin/decision-center/queue?avatar_id={{ avatar.id }}"
-                 hx-trigger="load"
-                 hx-swap="innerHTML">
-                <div class="animate-pulse space-y-2">
-                    <div class="h-16 bg-gray-700 rounded w-full"></div>
-                    <div class="h-16 bg-gray-700 rounded w-full"></div>
-                    <div class="h-16 bg-gray-700 rounded w-full"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- AI Insights (loaded via HTMX) -->
-        <div id="dc-avatar-insights"
-             hx-get="/admin/decision-center/insights/{{ avatar.id }}"
-             hx-trigger="load"
-             hx-swap="innerHTML">
-            <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
-                <div class="h-4 bg-gray-700 rounded w-40 mb-3"></div>
-                <div class="h-24 bg-gray-700 rounded w-full mb-3"></div>
-                <div class="h-4 bg-gray-700 rounded w-2/3"></div>
-            </div>
-        </div>
-
-        <!-- Quick Actions -->
-        <div class="bg-dark-steel rounded-lg border border-slate-700 p-5">
-            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Quick Actions</h2>
-            <div class="flex flex-wrap gap-2">
-                <form hx-post="/admin/decision-center/execute-action/{{ avatar.id }}"
-                      hx-target="#dc-avatar-action-result"
-                      hx-swap="innerHTML"
-                      class="inline">
-                    <input type="hidden" name="action_type" value="freeze">
-                    <button type="submit" {% if avatar.is_frozen %}disabled{% endif %}
-                            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
-                                   {% if avatar.is_frozen %}bg-slate-700 text-gray-500 cursor-not-allowed
-                                   {% else %}bg-red-700 hover:bg-red-600 text-white{% endif %}">
-                        ❄ Freeze Avatar
-                    </button>
-                </form>
-                <form hx-post="/admin/decision-center/execute-action/{{ avatar.id }}"
-                      hx-target="#dc-avatar-action-result"
-                      hx-swap="innerHTML"
-                      class="inline">
-                    <input type="hidden" name="action_type" value="reduce_frequency">
-                    <button type="submit"
-                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-700 hover:bg-amber-600 text-white transition-colors">
-                        ⚡ Reduce Frequency
-                    </button>
-                </form>
-                <form hx-post="/admin/decision-center/execute-action/{{ avatar.id }}"
-                      hx-target="#dc-avatar-action-result"
-                      hx-swap="innerHTML"
-                      class="inline">
-                    <input type="hidden" name="action_type" value="switch_subreddits">
-                    <button type="submit"
-                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-600 hover:bg-slate-500 text-white transition-colors">
-                        🔀 Diversify Subreddits
-                    </button>
-                </form>
-            </div>
-            <div id="dc-avatar-action-result" class="mt-3"></div>
-        </div>
-
     </div>
 
     {# ============================================================ OVERVIEW #}
@@ -252,7 +182,7 @@
         <div class="bg-dark-steel rounded-lg border border-indigo-700/60 p-5">
             <div class="flex items-start justify-between gap-4 flex-wrap">
                 <div class="min-w-0 flex-1">
-                    <div class="text-xs uppercase tracking-wide text-indigo-300 mb-1">Today's Action</div>
+                    <div class="text-xs uppercase tracking-wide text-indigo-300 mb-1" title="What this avatar should focus on today based on its current warming phase and quota limits">Today's Action</div>
                     <p class="text-base text-white font-medium">{{ today.imperative }}</p>
                 </div>
                 <a href="#phase-details" data-avatar-anchor-link
@@ -288,9 +218,12 @@
             {% endif %}
         </div>
 
+        <!-- EPG — Daily Publishing Program -->
+        {% include "partials/avatar_epg.html" %}
+
         <!-- Client Assignment -->
         <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Client Assignment</h2>
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Client Assignment{% set tooltip_text = "Which clients this avatar is assigned to. An avatar can serve multiple clients. Assignment determines which subreddits and keywords the avatar engages with." %}{% include "partials/block_tooltip.html" %}</h2>
             {% if assigned_clients %}
             <div class="space-y-2 mb-4">
                 {% for c in assigned_clients %}
@@ -387,7 +320,7 @@
 
             <!-- Current Warming Phase (large badge) -->
             <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Current Warming Phase</h2>
+                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Current Warming Phase{% set tooltip_text = "Avatar warming phases control what content is allowed. Mentor = excluded from pipelines. P1 = no brand mentions. P2 = external citations only. P3 = direct brand mentions allowed. Evaluated daily at 06:00." %}{% include "partials/block_tooltip.html" %}</h2>
                 <div class="flex items-center gap-4 flex-wrap">
                     {% if avatar.warming_phase == 0 %}
                     <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-purple-900/40 text-purple-300 border border-purple-700">
@@ -477,7 +410,7 @@
             {% if health.phase_progress and avatar.warming_phase > 0 %}
             <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
                 <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">
-                    Phase Progress — Requirements for Phase {{ avatar.warming_phase + 1 }}
+                    Phase Progress — Requirements for Phase {{ avatar.warming_phase + 1 }}{% set tooltip_text = "Metrics that must be met before this avatar can be promoted to the next phase. Evaluated automatically daily at 06:00 UTC. All bars must be green for promotion." %}{% include "partials/block_tooltip.html" %}
                 </h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {% if health.phase_progress.karma is defined %}
@@ -580,14 +513,14 @@
             </div>
             {% elif avatar.warming_phase == 3 %}
             <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Phase Progress</h2>
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Phase Progress</h2>
                 <p class="text-gray-400 text-sm">This avatar is at the maximum phase (Phase 3 — Brand Integration). No further promotion available.</p>
             </div>
             {% endif %}
 
             <!-- Phase Transition History -->
             <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Phase Transition History</h2>
+                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Phase Transition History{% set tooltip_text = "Log of all phase changes for this avatar — promotions, demotions, and manual overrides. Shows who triggered the change and why." %}{% include "partials/block_tooltip.html" %}</h2>
                 {% if phase_history %}
                 <div class="space-y-3">
                     {% for event in phase_history %}
@@ -657,7 +590,7 @@
         <div id="presence-details" class="scroll-mt-32">
             <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
                 <div class="flex items-center justify-between mb-2">
-                    <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Subreddit Coverage</h2>
+                    <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Subreddit Coverage{% set tooltip_text = "Compares planned subreddits (assigned via clients) vs actual activity (where this avatar has posted). Target = professional subs, Hobby = karma-building subs, Extra = organic activity outside assignments." %}{% include "partials/block_tooltip.html" %}</h2>
                     <div id="presence-scan-btn"
                          hx-get="/admin/avatars/{{ avatar.id }}/presence-scan-button"
                          hx-trigger="load"
@@ -698,7 +631,7 @@
         <div id="shadowban-section" class="bg-dark-steel rounded-lg border border-slate-700 p-6 scroll-mt-32">
             <div class="flex items-start justify-between gap-4 mb-4 flex-wrap">
                 <div>
-                    <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-2">Shadowban Status</h2>
+                    <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-2">Shadowban Status{% set tooltip_text = "Whether Reddit has shadowbanned this account (posts invisible to others). Checked automatically twice daily (07:30, 13:30). Shadowbanned avatars are auto-frozen." %}{% include "partials/block_tooltip.html" %}</h2>
                     <div class="flex items-center gap-3 flex-wrap">
                         {% if shadowban_status.is_shadowbanned %}
                         <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-red-900/40 text-red-300 border border-red-700">
@@ -787,7 +720,7 @@
         <div id="cqs-section" class="bg-dark-steel rounded-lg border border-slate-700 p-6 scroll-mt-32">
             <div class="flex items-start justify-between gap-4 mb-4 flex-wrap">
                 <div>
-                    <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-2">Contributor Quality Score (CQS)</h2>
+                    <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-2">Contributor Quality Score (CQS){% set tooltip_text = "Reddit's internal content quality metric. Checked daily at 06:30 via automated batch. Lowest CQS + Phase 2+ = auto-freeze. Check manually via r/WhatIsMyCQS subreddit." %}{% include "partials/block_tooltip.html" %}</h2>
                     <div id="cqs-badge" class="flex items-center gap-3 flex-wrap">
                         {% if avatar.cqs_level %}
                             {% set cqs = avatar.cqs_level %}
@@ -869,7 +802,7 @@
 
         <!-- Freeze Status -->
         <div id="freeze-section" class="bg-dark-steel rounded-lg border border-slate-700 p-6 scroll-mt-32">
-            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Freeze Status</h2>
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Freeze Status{% set tooltip_text = "Frozen avatars are completely excluded from all automated pipelines (scoring, generation, posting). Freeze can be triggered manually or automatically by shadowban/CQS detection." %}{% include "partials/block_tooltip.html" %}</h2>
             <div class="flex items-center gap-4 mb-4">
                 {% if avatar.is_frozen %}
                 <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-base font-semibold bg-red-900/40 text-red-300 border border-red-700">
@@ -955,7 +888,7 @@
         <!-- Pipeline Stats -->
         {% if stats %}
         <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Pipeline Stats</h2>
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Pipeline Stats{% set tooltip_text = "Counts of drafts at each pipeline stage for this avatar. Hobby = karma-building comments. Pro = client-related professional comments. Posted = confirmed on Reddit." %}{% include "partials/block_tooltip.html" %}</h2>
             <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50 text-center">
                     <div class="text-2xl font-bold text-white">{{ stats.hobby_total }}</div>
@@ -985,7 +918,7 @@
         {% if karma_history and (karma_history.total_comments > 0 or karma_history.total_posts > 0 or karma_history.snapshot_count > 0 or karma_history.reddit_total_karma > 0) %}
         <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
             <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Karma — Last 30 Days</h2>
+                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Karma — Last 30 Days{% set tooltip_text = "Karma earned from posted comments in the last 30 days. Sourced from Reddit API karma tracking (runs every 4h). Trend shows if the avatar is gaining or losing community trust." %}{% include "partials/block_tooltip.html" %}</h2>
                 <div class="flex items-center gap-3 flex-wrap">
                     <div class="inline-flex rounded-md border border-slate-600 overflow-hidden text-xs" role="group" aria-label="Karma granularity">
                         <button type="button" data-karma-granularity="weekly"
@@ -1129,7 +1062,7 @@
         <!-- Reddit Profile Analytics (from old analytics tab) -->
         <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
             <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Reddit Profile Analytics</h2>
+                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Reddit Profile Analytics{% set tooltip_text = "Data fetched directly from Reddit API — account age, total karma, recent activity. Click 'Refresh from Reddit' to fetch fresh data (takes 3-8 seconds)." %}{% include "partials/block_tooltip.html" %}</h2>
                 <button type="button"
                         hx-get="/admin/avatars/{{ avatar.id }}/profile-analytics?refresh=1"
                         hx-target="#profile-analytics-content"
@@ -1171,7 +1104,7 @@
     <div data-avatar-detail-panel="billing" class="avatar-detail-panel hidden space-y-6">
 
         <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">AI Billing</h2>
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">AI Billing{% set tooltip_text = "LLM API costs attributed to this avatar. Includes scoring (Gemini Flash), generation (Claude Sonnet), persona selection, and editing. Sourced from ai_usage_logs table." %}{% include "partials/block_tooltip.html" %}</h2>
 
             {% if ai_billing and ai_billing.total_calls > 0 %}
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -1252,7 +1185,7 @@
 
         {% if ai_billing and ai_billing.recent_calls %}
         <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Recent AI Calls (last 30)</h2>
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Recent AI Calls (last 30){% set tooltip_text = "Last 30 LLM API calls for this avatar with timestamps, models used, token counts, and costs. Shows which pipeline node triggered each call (scoring/generation/persona/editing)." %}{% include "partials/block_tooltip.html" %}</h2>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm text-left">
                     <thead>
@@ -1315,8 +1248,104 @@
 
     </div>
 
-    {# ============================================================ CONTENT (drafts + pipeline) #}
+    {# ============================================================ CONTENT (drafts + decisions + pipeline) #}
     <div data-avatar-detail-panel="content" class="avatar-detail-panel hidden space-y-6">
+
+        <!-- Live Pulse & Risk (loaded via HTMX) -->
+        <div id="dc-avatar-live-pulse"
+             hx-get="/admin/decision-center/live-pulse/{{ avatar.id }}"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
+                <div class="h-4 bg-gray-700 rounded w-48 mb-3"></div>
+                <div class="h-12 bg-gray-700 rounded w-full mb-3"></div>
+                <div class="h-4 bg-gray-700 rounded w-3/4"></div>
+            </div>
+        </div>
+
+        <!-- Decision Queue for this avatar (loaded via HTMX) -->
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-5">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Decision Queue{% set tooltip_text = "Pending comment drafts for this avatar, prioritized by risk level. High-risk items appear first. Each card has a direct Reddit link, copy button, and approve/reject/edit actions." %}{% include "partials/block_tooltip.html" %}</h2>
+                <!-- Bulk approve button -->
+                <button hx-post="/admin/decision-center/bulk-approve"
+                        hx-target="#dc-toast"
+                        hx-swap="innerHTML"
+                        hx-vals='{"min_confidence": 90}'
+                        hx-confirm="Approve all drafts with AI confidence ≥ 90%?"
+                        class="px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white rounded text-xs font-medium transition-colors">
+                    ✓ Bulk Approve (≥90%)
+                </button>
+            </div>
+            <div id="dc-toast" class="mb-2"></div>
+            <div id="dc-avatar-queue"
+                 hx-get="/admin/decision-center/queue?avatar_id={{ avatar.id }}"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                <div class="animate-pulse space-y-2">
+                    <div class="h-16 bg-gray-700 rounded w-full"></div>
+                    <div class="h-16 bg-gray-700 rounded w-full"></div>
+                    <div class="h-16 bg-gray-700 rounded w-full"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-5">
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Quick Actions{% set tooltip_text = "Emergency actions for this avatar. Freeze = stop all pipelines immediately. Reduce Frequency = lower posting rate. Diversify = spread activity across more subreddits." %}{% include "partials/block_tooltip.html" %}</h2>
+            <div class="flex flex-wrap gap-2">
+                <form hx-post="/admin/decision-center/execute-action/{{ avatar.id }}"
+                      hx-target="#dc-avatar-action-result"
+                      hx-swap="innerHTML"
+                      class="inline">
+                    <input type="hidden" name="action_type" value="freeze">
+                    <button type="submit" {% if avatar.is_frozen %}disabled{% endif %}
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                                   {% if avatar.is_frozen %}bg-slate-700 text-gray-500 cursor-not-allowed
+                                   {% else %}bg-red-700 hover:bg-red-600 text-white{% endif %}">
+                        ❄ Freeze Avatar
+                    </button>
+                </form>
+                <form hx-post="/admin/decision-center/execute-action/{{ avatar.id }}"
+                      hx-target="#dc-avatar-action-result"
+                      hx-swap="innerHTML"
+                      class="inline">
+                    <input type="hidden" name="action_type" value="reduce_frequency">
+                    <button type="submit"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-700 hover:bg-amber-600 text-white transition-colors">
+                        ⚡ Reduce Frequency
+                    </button>
+                </form>
+                <form hx-post="/admin/decision-center/execute-action/{{ avatar.id }}"
+                      hx-target="#dc-avatar-action-result"
+                      hx-swap="innerHTML"
+                      class="inline">
+                    <input type="hidden" name="action_type" value="switch_subreddits">
+                    <button type="submit"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-600 hover:bg-slate-500 text-white transition-colors">
+                        🔀 Diversify Subreddits
+                    </button>
+                </form>
+            </div>
+            <div id="dc-avatar-action-result" class="mt-3"></div>
+        </div>
+
+        <!-- AI Insights (collapsible) -->
+        <details class="group">
+            <summary class="cursor-pointer text-sm text-indigo-400 hover:text-indigo-300 py-2 select-none">
+                AI Insights & Health Scorecard
+            </summary>
+            <div id="dc-avatar-insights" class="mt-2"
+                 hx-get="/admin/decision-center/insights/{{ avatar.id }}"
+                 hx-trigger="revealed once"
+                 hx-swap="innerHTML">
+                <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
+                    <div class="h-4 bg-gray-700 rounded w-40 mb-3"></div>
+                    <div class="h-24 bg-gray-700 rounded w-full mb-3"></div>
+                    <div class="h-4 bg-gray-700 rounded w-2/3"></div>
+                </div>
+            </div>
+        </details>
 
         <!-- Professional Comments -->
         {% if pro_drafts %}
@@ -1489,7 +1518,7 @@
 
         <!-- Export & Reports -->
         <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Export &amp; Reports</h2>
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Export &amp; Reports{% set tooltip_text = "Download avatar data in different formats. Client Report = formatted markdown for client delivery. Full Data = complete JSON with all fields. Raw JSON = API-style export." %}{% include "partials/block_tooltip.html" %}</h2>
             <p class="text-xs text-gray-500 mb-4">Download avatar data for client delivery or internal use.</p>
             <div class="flex flex-wrap gap-3">
                 <a href="/export/avatars/{{ avatar.id }}/report.md"
@@ -1518,7 +1547,7 @@
 
         <!-- Phase Override -->
         <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Phase Override</h2>
+            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Phase Override{% set tooltip_text = "Manually set the avatar's warming phase. Use for pre-warmed accounts that should skip phases, or to set Mentor status for high-karma accounts not used in pipelines. Logged in audit trail." %}{% include "partials/block_tooltip.html" %}</h2>
             <form method="post" action="/admin/avatars/{{ avatar.id }}/phase-override"
                   hx-post="/admin/avatars/{{ avatar.id }}/phase-override"
                   hx-swap="none"
@@ -1562,10 +1591,11 @@
         "presence":  { tab: "overview",       anchor: "presence-details" },
         "drafts":    { tab: "content",        anchor: null },
         "pipeline":  { tab: "content",        anchor: null },
+        "decision-center": { tab: "content", anchor: null },
         "analytics": { tab: "performance",    anchor: null },
     };
     const VALID_TABS = new Set([
-        "decision-center", "overview", "profile-safety", "performance", "billing",
+        "workflow", "overview", "profile-safety", "performance", "billing",
         "content", "strategy", "actions"
     ]);
 
@@ -1582,7 +1612,7 @@
     }
 
     function resolveTabRequest(requestedTab, requestedAnchor) {
-        if (!requestedTab) return { tab: "decision-center", anchor: null };
+        if (!requestedTab) return { tab: "workflow", anchor: null };
         if (LEGACY_TAB_MAP[requestedTab]) {
             const m = LEGACY_TAB_MAP[requestedTab];
             return { tab: m.tab, anchor: requestedAnchor || m.anchor };
@@ -1590,7 +1620,7 @@
         if (VALID_TABS.has(requestedTab)) {
             return { tab: requestedTab, anchor: requestedAnchor || null };
         }
-        return { tab: "decision-center", anchor: null };
+        return { tab: "workflow", anchor: null };
     }
 
     document.addEventListener("DOMContentLoaded", () => {

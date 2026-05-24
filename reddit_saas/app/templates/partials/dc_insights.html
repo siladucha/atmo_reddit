@@ -5,7 +5,7 @@
 
     <!-- Health Scorecard -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
-        <h3 class="text-xs text-gray-500 uppercase tracking-wider font-medium mb-3">Health Scorecard</h3>
+        <h3 class="text-xs text-gray-500 uppercase tracking-wider font-medium mb-3" title="Composite health score (100 = perfect). Combines shadowban risk, CQS level, removal rate, karma diversity, and posting frequency.">Health Scorecard</h3>
 
         <div class="flex items-center gap-4">
             <!-- Big score number -->
@@ -76,7 +76,7 @@
 
     <!-- Subreddit Presence Visualization -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
-        <h3 class="text-xs text-gray-500 uppercase tracking-wider font-medium mb-3">Subreddit Presence Visualization</h3>
+        <h3 class="text-xs text-gray-500 uppercase tracking-wider font-medium mb-3" title="Visual map of karma earned per subreddit. Green bars = positive karma (community likes the content). Red bars = negative karma (content being downvoted).">Subreddit Presence Visualization</h3>
         <p class="text-[10px] text-gray-600 mb-2">Where we are <span class="text-green-400">loved (Green)</span> vs. <span class="text-red-400">Reported (Red)</span></p>
 
         {% if presence_records %}
@@ -110,7 +110,7 @@
 
     <!-- Learning Loop Edges (30d) -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
-        <h3 class="text-xs text-gray-500 uppercase tracking-wider font-medium mb-3">Learning Loop edges (30d)</h3>
+        <h3 class="text-xs text-gray-500 uppercase tracking-wider font-medium mb-3" title="AI accuracy = % of drafts approved without edits in last 30 days. Higher = AI is learning the avatar's voice well. Human edits feed back into the learning loop.">Learning Loop edges (30d)</h3>
 
         <div class="grid grid-cols-2 gap-3 mb-3">
             <div class="text-center p-2 bg-slate-800/50 rounded">
@@ -153,7 +153,7 @@
 
     <!-- Self-Learning Patterns -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
-        <h3 class="text-xs text-gray-500 uppercase tracking-wider font-medium mb-3">Self-Learning patterns</h3>
+        <h3 class="text-xs text-gray-500 uppercase tracking-wider font-medium mb-3" title="Active correction patterns extracted from human edits. These rules are injected into the AI prompt to prevent repeated mistakes. Max 3 active patterns per avatar.">Self-Learning patterns</h3>
 
         {% if patterns %}
         <div class="bg-slate-900/60 rounded-lg p-3 font-mono text-[11px] text-gray-300 overflow-x-auto max-h-48 overflow-y-auto">
