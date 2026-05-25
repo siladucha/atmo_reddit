@@ -4,18 +4,20 @@ Generates a daily schedule of comment drafts for an avatar.
 Like TV EPG shows what airs and when, avatar EPG shows what to post, where, and when.
 
 Key principles:
+- Persistent: plan is saved to epg_slots table (single source of truth)
 - Deduplication: never assign a thread where avatar already has a draft/posted comment
 - Phase-aware: Phase 1 = hobby only (no LLM scoring), Phase 2-3 = hobby + business
 - Subreddit rotation: round-robin across available subs, not all from one
 - Timing slots: randomized intervals throughout the day
 - Cost-efficient: hobby threads skip LLM scoring entirely
+- Scored-first: professional slots prefer threads already scored as "engage"
 """
 
 import logging
 import random
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 from typing import Optional
 
 from sqlalchemy import func as sa_func
@@ -24,6 +26,7 @@ from sqlalchemy.orm import Session
 from app.models.avatar import Avatar
 from app.models.client import Client
 from app.models.comment_draft import CommentDraft
+from app.models.epg_slot import EPGSlot
 from app.models.hobby import HobbySubreddit
 from app.models.thread import RedditThread
 from app.models.thread_score import ThreadScore
@@ -165,14 +168,21 @@ def _select_hobby_threads(
 
     Picks from different subreddits round-robin style,
     sorted by ups within each subreddit.
+
+    NOTE: Image-only posts (empty post_body) are excluded because
+    the LLM cannot see images and will generate nonsensical comments.
+    This will be revisited when multimodal LLM support is added.
     """
     # Get available hobby posts grouped by subreddit
+    # Exclude image-only posts: post_body must have meaningful text (>20 chars)
     posts = (
         db.query(HobbySubreddit)
         .filter(
             HobbySubreddit.avatar_username == avatar.reddit_username,
             HobbySubreddit.status == "new",
             HobbySubreddit.ai_comment.is_(None),
+            HobbySubreddit.post_body.isnot(None),
+            sa_func.length(HobbySubreddit.post_body) > 20,
             ~HobbySubreddit.post_id.in_(used_hobby_ids) if used_hobby_ids else True,
         )
         .order_by(HobbySubreddit.post_ups.desc().nullslast())
@@ -212,11 +222,46 @@ def _select_business_threads(
     count: int,
     used_thread_ids: set[uuid.UUID],
 ) -> list[RedditThread]:
-    """Select business/client threads with keyword matching.
+    """Select business/client threads — scored "engage" first, keyword fallback.
 
-    For Phase 2-3: picks threads from business/client subreddits
-    that match client keywords, sorted by keyword priority × ups.
+    Priority order:
+    1. Threads scored as "engage" for this client (already validated by LLM)
+    2. If not enough engage threads: fallback to keyword matching (unscored)
+
+    This fixes the disconnect where EPG showed threads that generation
+    couldn't find (because they weren't scored as "engage").
     """
+    # --- Priority 1: Scored "engage" threads ---
+    engage_query = (
+        db.query(RedditThread)
+        .join(ThreadScore, ThreadScore.thread_id == RedditThread.id)
+        .filter(
+            ThreadScore.client_id == client.id,
+            ThreadScore.tag == "engage",
+            RedditThread.is_locked.is_(False),
+        )
+    )
+    if used_thread_ids:
+        engage_query = engage_query.filter(~RedditThread.id.in_(used_thread_ids))
+
+    engage_threads = (
+        engage_query
+        .order_by(
+            ThreadScore.alert.desc(),
+            ThreadScore.composite.desc(),
+            RedditThread.ups.desc(),
+        )
+        .limit(count)
+        .all()
+    )
+
+    if len(engage_threads) >= count:
+        return engage_threads[:count]
+
+    # --- Priority 2: Keyword fallback for remaining slots ---
+    already_selected = {t.id for t in engage_threads}
+    remaining_count = count - len(engage_threads)
+
     # Get available subreddits for this phase
     business_subs = []
     raw_biz = avatar.business_subreddits or []
@@ -246,7 +291,7 @@ def _select_business_threads(
 
     all_business_subs = list(set(business_subs + client_subs))
     if not all_business_subs:
-        return []
+        return engage_threads
 
     # Get subreddit IDs
     sub_ids = (
@@ -256,24 +301,29 @@ def _select_business_threads(
     )
     sub_id_list = [r[0] for r in sub_ids]
     if not sub_id_list:
-        return []
+        return engage_threads
 
-    # Query threads: not locked, not already used by this avatar
+    # Query threads: not locked, not already used, not already selected
+    # NOTE: Image-only posts (empty post_body) are excluded — LLM cannot
+    # see images and would generate nonsensical comments.
+    excluded_ids = used_thread_ids | already_selected
     query = (
         db.query(RedditThread)
         .filter(
             RedditThread.subreddit_id.in_(sub_id_list),
             RedditThread.is_locked.is_(False),
             RedditThread.ups >= 3,
+            RedditThread.post_body.isnot(None),
+            sa_func.length(RedditThread.post_body) > 20,
         )
     )
-    if used_thread_ids:
-        query = query.filter(~RedditThread.id.in_(used_thread_ids))
+    if excluded_ids:
+        query = query.filter(~RedditThread.id.in_(excluded_ids))
 
-    threads = query.order_by(RedditThread.ups.desc()).limit(count * 3).all()
+    threads = query.order_by(RedditThread.ups.desc()).limit(remaining_count * 3).all()
 
     if not threads:
-        return []
+        return engage_threads
 
     # Keyword scoring
     keywords = client.keywords or {}
@@ -295,20 +345,15 @@ def _select_business_threads(
                 score += 1.0
         return score
 
-    # Score and sort: keyword_score * log(ups+1) for balanced ranking
+    # Score and sort
     import math
     scored = [(t, _keyword_score(t) * math.log(t.ups + 1, 10)) for t in threads]
     scored.sort(key=lambda x: x[1], reverse=True)
 
-    # Filter: at least some keyword relevance for Phase 2-3
-    relevant = [t for t, s in scored if s > 0]
+    # Take top keyword-matched threads
+    fallback = [t for t, s in scored[:remaining_count]]
 
-    # If not enough keyword matches, fill with top-ups threads
-    if len(relevant) < count:
-        remaining = [t for t, s in scored if s == 0]
-        relevant.extend(remaining[:count - len(relevant)])
-
-    return relevant[:count]
+    return engage_threads + fallback
 
 
 # --- EPG Builder ---
@@ -357,11 +402,13 @@ def build_daily_epg(
 
     This is the main entry point. It:
     1. Checks budget (daily limit - already used today)
-    2. Selects threads based on phase (hobby / business)
-    3. Assigns time slots with jitter
-    4. Returns the EPG ready for generation
+    2. Reads existing slots for today (preserves generated/approved/posted)
+    3. Selects threads based on phase (hobby / business) for remaining budget
+    4. Assigns time slots with jitter
+    5. Persists new planned slots to epg_slots table
+    6. Returns the EPG ready for generation
 
-    Does NOT call LLM. That's done separately by generate_epg_comments().
+    Does NOT call LLM. That's done separately by generate_epg_slot().
 
     Args:
         db: Database session
@@ -372,6 +419,7 @@ def build_daily_epg(
         EPGResult with selected threads and time slots
     """
     result = EPGResult(avatar)
+    today = date.today()
 
     # --- Guards ---
     if avatar.is_frozen:
@@ -394,19 +442,72 @@ def build_daily_epg(
         result.message = "Avatar is deactivated"
         return result
 
-    # --- Budget ---
+    # --- Budget (from EPG slots) ---
+    from app.services.epg_executor import get_budget_used_today
+
     result.daily_budget = _get_daily_budget(avatar)
-    result.used_today = _get_used_today(db, avatar)
+    result.used_today = get_budget_used_today(db, avatar.id, today)
     result.remaining = max(0, result.daily_budget - result.used_today)
+
+    # --- Load existing slots for today (generated/approved/posted stay) ---
+    existing_slots = (
+        db.query(EPGSlot)
+        .filter(
+            EPGSlot.avatar_id == avatar.id,
+            EPGSlot.plan_date == today,
+        )
+        .order_by(EPGSlot.scheduled_at.asc().nullslast())
+        .all()
+    )
+
+    # Populate result from existing non-planned slots
+    for slot in existing_slots:
+        if slot.status in ("generated", "approved", "posted", "skipped"):
+            slot_dict = {
+                "slot_id": str(slot.id),
+                "subreddit": slot.subreddit,
+                "title": slot.thread_title,
+                "ups": slot.thread_ups or 0,
+                "scheduled_at": slot.scheduled_at.isoformat() if slot.scheduled_at else None,
+                "status": slot.status,
+                "draft_id": str(slot.draft_id) if slot.draft_id else None,
+            }
+            if slot.slot_type == "hobby":
+                slot_dict["hobby_post_id"] = str(slot.hobby_post_id) if slot.hobby_post_id else None
+                slot_dict["post_id"] = None
+                slot_dict["comment_type"] = "hobby"
+                result.hobby_slots.append(slot_dict)
+            else:
+                slot_dict["thread_id"] = str(slot.thread_id) if slot.thread_id else None
+                slot_dict["comment_type"] = "professional"
+                result.business_slots.append(slot_dict)
+
+    # --- Delete old "planned" slots (rebuild replaces them) ---
+    (
+        db.query(EPGSlot)
+        .filter(
+            EPGSlot.avatar_id == avatar.id,
+            EPGSlot.plan_date == today,
+            EPGSlot.status == "planned",
+        )
+        .delete(synchronize_session="fetch")
+    )
 
     if result.remaining <= 0:
         result.status = "budget_exhausted"
         result.message = f"Daily budget exhausted ({result.used_today}/{result.daily_budget})"
+        db.commit()
         return result
 
     # --- Deduplication sets ---
     used_thread_ids = _get_avatar_used_thread_ids(db, avatar)
     used_hobby_ids = _get_avatar_used_hobby_post_ids(db, avatar)
+
+    # Also exclude threads already in today's non-planned slots
+    for slot in existing_slots:
+        if slot.status != "planned":
+            if slot.thread_id:
+                used_thread_ids.add(slot.thread_id)
 
     # --- Phase-based selection ---
     phase = avatar.warming_phase
@@ -425,14 +526,32 @@ def build_daily_epg(
         hobby_count = max(1, result.remaining * 3 // 10)
         business_count = result.remaining - hobby_count
 
-    # --- Select hobby threads ---
+    # --- Select and persist hobby slots ---
     if hobby_count > 0:
         hobby_posts = _select_hobby_threads(db, avatar, hobby_count, used_hobby_ids)
         time_slots = _generate_time_slots(len(hobby_posts))
 
         for i, post in enumerate(hobby_posts):
             slot_time = time_slots[i] if i < len(time_slots) else None
+
+            # Persist to DB
+            epg_slot = EPGSlot(
+                id=uuid.uuid4(),
+                avatar_id=avatar.id,
+                client_id=uuid.UUID(avatar.client_ids[0]) if avatar.client_ids else None,
+                plan_date=today,
+                slot_type="hobby",
+                scheduled_at=slot_time,
+                status="planned",
+                hobby_post_id=post.id,
+                subreddit=post.subreddit,
+                thread_title=post.post_title,
+                thread_ups=post.post_ups or 0,
+            )
+            db.add(epg_slot)
+
             result.hobby_slots.append({
+                "slot_id": str(epg_slot.id),
                 "hobby_post_id": str(post.id),
                 "post_id": post.post_id,
                 "subreddit": post.subreddit,
@@ -440,26 +559,49 @@ def build_daily_epg(
                 "ups": post.post_ups or 0,
                 "scheduled_at": slot_time.isoformat() if slot_time else None,
                 "comment_type": "hobby",
+                "status": "planned",
+                "draft_id": None,
             })
 
-    # --- Select business threads (Phase 2-3 only) ---
+    # --- Select and persist business slots (Phase 2-3 only) ---
     if business_count > 0 and client:
         business_threads = _select_business_threads(
             db, avatar, client, business_count, used_thread_ids
         )
-        # Offset time slots for business (interleave with hobby)
         biz_slots = _generate_time_slots(len(business_threads))
 
         for i, thread in enumerate(business_threads):
             slot_time = biz_slots[i] if i < len(biz_slots) else None
+
+            # Persist to DB
+            epg_slot = EPGSlot(
+                id=uuid.uuid4(),
+                avatar_id=avatar.id,
+                client_id=client.id,
+                plan_date=today,
+                slot_type="professional",
+                scheduled_at=slot_time,
+                status="planned",
+                thread_id=thread.id,
+                subreddit=thread.subreddit,
+                thread_title=thread.post_title,
+                thread_ups=thread.ups,
+            )
+            db.add(epg_slot)
+
             result.business_slots.append({
+                "slot_id": str(epg_slot.id),
                 "thread_id": str(thread.id),
                 "subreddit": thread.subreddit,
                 "title": thread.post_title,
                 "ups": thread.ups,
                 "scheduled_at": slot_time.isoformat() if slot_time else None,
                 "comment_type": "professional",
+                "status": "planned",
+                "draft_id": None,
             })
+
+    db.commit()
 
     if result.total_slots == 0:
         result.status = "no_content"

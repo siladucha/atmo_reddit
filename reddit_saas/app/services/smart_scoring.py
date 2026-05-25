@@ -234,6 +234,9 @@ def get_candidate_threads(
     )
 
     # Pull candidates
+    # NOTE: Image-only posts (empty post_body) are excluded — LLM cannot
+    # see images and would score/generate nonsensical content. Revisit when
+    # multimodal LLM support is added.
     threads = (
         db.query(RedditThread)
         .filter(
@@ -242,6 +245,8 @@ def get_candidate_threads(
             RedditThread.scraped_at >= freshness_cutoff,
             RedditThread.ups >= MIN_UPS_THRESHOLD,
             ~RedditThread.id.in_(scored_thread_ids),
+            RedditThread.post_body.isnot(None),
+            sa_func.length(RedditThread.post_body) > 20,
         )
         .order_by(RedditThread.ups.desc())
         .limit(limit)

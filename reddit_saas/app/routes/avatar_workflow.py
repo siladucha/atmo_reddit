@@ -1,9 +1,10 @@
 """Avatar Workflow routes — unified EPG → Generate → Post flow.
 
 Provides the Workflow tab on the avatar detail page:
-- GET  /admin/avatars/{id}/workflow          — load workflow panel (HTMX partial)
-- POST /admin/avatars/{id}/workflow/rebuild-epg — rebuild EPG and reload
-- POST /admin/avatars/{id}/workflow/generate-hobby — generate one hobby comment
+- GET  /admin/avatars/{id}/workflow              — load workflow panel (HTMX partial)
+- POST /admin/avatars/{id}/workflow/rebuild-epg  — rebuild EPG and reload
+- POST /admin/avatars/{id}/workflow/generate-slot/{slot_id} — generate one slot
+- POST /admin/avatars/{id}/workflow/generate-all — generate all planned slots
 - POST /admin/avatars/{id}/workflow/drafts/{id}/approve — approve inline
 - POST /admin/avatars/{id}/workflow/drafts/{id}/reject  — reject inline
 """
@@ -227,6 +228,10 @@ def workflow_generate_hobby(
     if hobby_post.ai_comment:
         return HTMLResponse('<span class="text-green-400 text-xs">✓ Already generated</span>')
 
+    # Skip image-only posts — LLM cannot see images
+    if not hobby_post.post_body or len(hobby_post.post_body.strip()) < 20:
+        return HTMLResponse('<span class="text-amber-400 text-xs">⊘ Image-only post (skipped)</span>')
+
     # Get previous comments for diversity
     previous = (
         db.query(CommentDraft.ai_draft)
@@ -321,6 +326,103 @@ Upvotes: {hobby_post.post_ups or 0}"""
 
 
 # ---------------------------------------------------------------------------
+# Generate EPG slot (one at a time — replaces generate-hobby for new flow)
+# ---------------------------------------------------------------------------
+
+
+@router.post("/generate-slot/{slot_id}", response_class=HTMLResponse)
+def workflow_generate_slot(
+    request: Request,
+    avatar_id: uuid.UUID,
+    slot_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Generate a comment for a specific EPG slot.
+
+    Works for both hobby and professional slots.
+    Returns inline result (success badge or error).
+    """
+    from app.services.epg_executor import generate_epg_slot
+    from app.models.epg_slot import EPGSlot
+
+    slot = db.query(EPGSlot).filter(EPGSlot.id == slot_id).first()
+    if not slot:
+        return HTMLResponse('<span class="text-red-400 text-xs">Slot not found</span>')
+
+    if slot.status != "planned":
+        status_label = slot.status
+        if slot.status == "generated":
+            return HTMLResponse('<span class="text-green-400 text-xs font-medium">✓ Already generated</span>')
+        return HTMLResponse(f'<span class="text-gray-400 text-xs">Status: {status_label}</span>')
+
+    draft = generate_epg_slot(db, slot_id)
+
+    if draft:
+        audit_service.log_action(
+            db=db,
+            user_id=current_user.id,
+            action="generate_epg_slot",
+            entity_type="epg_slot",
+            entity_id=slot_id,
+            details={"slot_type": slot.slot_type, "subreddit": slot.subreddit, "draft_id": str(draft.id)},
+        )
+        return HTMLResponse('<span class="text-green-400 text-xs font-medium">✓ Done</span>')
+    else:
+        # Reload slot to get skip reason
+        db.refresh(slot)
+        reason = slot.skip_reason or "unknown error"
+        return HTMLResponse(f'<span class="text-red-400 text-xs">Skipped: {reason[:60]}</span>')
+
+
+@router.post("/generate-all", response_class=HTMLResponse)
+def workflow_generate_all(
+    request: Request,
+    avatar_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Generate all planned EPG slots for this avatar today.
+
+    Returns the full workflow panel (refreshed).
+    """
+    from app.services.epg import build_daily_epg
+    from app.services.epg_executor import generate_all_planned_slots
+
+    avatar, client = _get_avatar_and_client(db, avatar_id)
+    if not avatar:
+        return HTMLResponse("<div class='text-red-400 text-sm p-4'>Avatar not found</div>", status_code=404)
+
+    generated = generate_all_planned_slots(db, avatar_id)
+
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="generate_all_epg_slots",
+        entity_type="avatar",
+        entity_id=avatar_id,
+        details={"generated": generated},
+    )
+
+    # Reload EPG and drafts for display
+    epg = build_daily_epg(db, avatar, client)
+    pending_drafts, approved_drafts, posted_drafts = _get_today_drafts(db, avatar)
+
+    return templates.TemplateResponse(
+        name="partials/avatar_workflow.html",
+        context={
+            "request": request,
+            "avatar": avatar,
+            "epg": epg,
+            "pending_drafts": pending_drafts,
+            "approved_drafts": approved_drafts,
+            "posted_drafts": posted_drafts,
+        },
+        request=request,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Approve / Reject (inline, returns updated card)
 # ---------------------------------------------------------------------------
 
@@ -340,6 +442,14 @@ def workflow_approve(
 
     draft.status = "approved"
     db.commit()
+
+    # Sync EPG slot status
+    try:
+        from app.services.epg_executor import sync_slot_status
+        sync_slot_status(db, draft.id, "approved")
+        db.commit()
+    except Exception:
+        logger.warning("Failed to sync EPG slot for draft %s", draft_id, exc_info=True)
 
     audit_service.log_action(
         db=db,
@@ -421,6 +531,14 @@ def workflow_reject(
 
     draft.status = "rejected"
     db.commit()
+
+    # Sync EPG slot status (frees budget)
+    try:
+        from app.services.epg_executor import sync_slot_status
+        sync_slot_status(db, draft.id, "rejected")
+        db.commit()
+    except Exception:
+        logger.warning("Failed to sync EPG slot for draft %s", draft_id, exc_info=True)
 
     audit_service.log_action(
         db=db,

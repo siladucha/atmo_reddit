@@ -22,6 +22,7 @@ from app.models.correction_pattern import CorrectionPattern
 from app.models.avatar_rental import AvatarRental
 from app.models.user_client_assignment import UserClientAssignment
 from app.models.strategy_document import StrategyDocument
+from app.models.epg_slot import EPGSlot
 
 __all__ = [
     "User",
@@ -50,4 +51,5 @@ __all__ = [
     "AvatarRental",
     "UserClientAssignment",
     "StrategyDocument",
+    "EPGSlot",
 ]

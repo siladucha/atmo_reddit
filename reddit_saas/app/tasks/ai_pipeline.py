@@ -249,6 +249,8 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
             )
 
             # Query threads via ThreadScore for this client with tag='engage'
+            # NOTE: Image-only posts (empty post_body) are excluded — LLM cannot
+            # see images and would generate nonsensical comments.
             engage_threads = (
                 db.query(RedditThread)
                 .join(ThreadScore, ThreadScore.thread_id == RedditThread.id)
@@ -257,6 +259,8 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
                     ThreadScore.tag == "engage",
                     RedditThread.subreddit_id.in_(active_subreddit_ids),
                     RedditThread.is_locked.is_(False),
+                    RedditThread.post_body.isnot(None),
+                    func.length(RedditThread.post_body) > 20,
                     ~RedditThread.id.in_(db.query(threads_with_drafts.c.thread_id)),
                 )
                 .order_by(
@@ -519,12 +523,18 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
 
         try:
             # Get hobby posts without comments
+            # NOTE: Image-only posts (empty post_body) are excluded — LLM cannot
+            # see images and would generate nonsensical comments. Revisit when
+            # multimodal LLM support is added.
+            from sqlalchemy import func as sa_func
             posts = (
                 db.query(HobbySubreddit)
                 .filter(
                     HobbySubreddit.avatar_username == avatar.reddit_username,
                     HobbySubreddit.ai_comment.is_(None),
                     HobbySubreddit.status == "new",
+                    HobbySubreddit.post_body.isnot(None),
+                    sa_func.length(HobbySubreddit.post_body) > 20,
                 )
                 .limit(max_comments)
                 .all()
