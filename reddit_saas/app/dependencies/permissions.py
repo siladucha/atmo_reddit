@@ -239,3 +239,17 @@ async def verify_client_access_from_path(
         raise HTTPException(status_code=403, detail="Access Denied")
 
     return user
+
+
+async def require_avatar_manager_or_above(
+    user: User = Depends(get_current_user),
+) -> User:
+    """Owner, partner, or avatar_manager roles. Raises 403 otherwise.
+
+    Use for avatar inventory routes (list unassigned, create new).
+    avatar_manager sees only unassigned avatars; owner/partner see all.
+    """
+    if user.user_role not in (UserRole.owner, UserRole.partner, UserRole.avatar_manager):
+        if not user.is_superuser:
+            raise HTTPException(status_code=403, detail="Access Denied")
+    return user

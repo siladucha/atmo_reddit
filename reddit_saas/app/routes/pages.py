@@ -441,6 +441,11 @@ def root_redirect(request: Request, db: Session = Depends(get_db)):
 
     role = current_user.user_role
 
+    # Avatar manager goes directly to avatars section
+    from app.models.user_role import UserRole
+    if role == UserRole.avatar_manager:
+        return RedirectResponse(url="/admin/avatars", status_code=303)
+
     # Admin-level roles go to admin panel
     if role.is_admin_level:
         return RedirectResponse(url="/admin/", status_code=303)
@@ -450,7 +455,6 @@ def root_redirect(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url="/admin/", status_code=303)
 
     # Client admin/manager go to their Client Hub (not admin panel)
-    from app.models.user_role import UserRole
     if role in (UserRole.client_admin, UserRole.client_manager) and current_user.client_id:
         return RedirectResponse(url=f"/clients/{current_user.client_id}", status_code=303)
 
@@ -472,12 +476,16 @@ def home_redirect(request: Request, db: Session = Depends(get_db)):
 
     role = current_user.user_role
 
+    # Avatar manager goes directly to avatars section
+    from app.models.user_role import UserRole as _UR
+    if role == _UR.avatar_manager:
+        return RedirectResponse(url="/admin/avatars", status_code=303)
+
     if role.is_admin_level or role.is_internal:
         return RedirectResponse(url="/admin/", status_code=303)
 
     # Client admin/manager go to their Client Hub
-    from app.models.user_role import UserRole
-    if role in (UserRole.client_admin, UserRole.client_manager) and current_user.client_id:
+    if role in (_UR.client_admin, _UR.client_manager) and current_user.client_id:
         return RedirectResponse(url=f"/clients/{current_user.client_id}", status_code=303)
 
     if current_user.client_id:

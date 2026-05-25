@@ -56,6 +56,7 @@
                 </div>
             </div>
         </div>
+        {% if not is_avatar_manager %}
         <div class="flex items-center gap-2">
             <a href="/admin/avatars/{{ avatar.id }}/refresh?force=1"
                class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-indigo-700 hover:bg-indigo-600 text-white border border-indigo-600">
@@ -66,10 +67,12 @@
                 <span class="hidden sm:inline">Refresh</span>
             </a>
         </div>
+        {% endif %}
     </div>
 
     <!-- Critical Signal badges + tab nav (sticky) -->
     <div class="sticky top-0 z-10 -mx-1 bg-slate-night/95 py-2 backdrop-blur space-y-2">
+        {% if not is_avatar_manager %}
         <!-- Signal badges row -->
         <div class="flex flex-wrap gap-2" aria-label="Critical signals">
             {# Phase badge — clickable, jumps to Overview (phase-details anchor) #}
@@ -121,9 +124,11 @@
                 <span class="opacity-80">· {{ (avatar.cqs_level or 'not checked')|upper }}</span>
             </button>
         </div>
+        {% endif %}{# end signal badges hide for avatar_manager #}
 
         <!-- Tabs -->
         <div class="flex gap-1 rounded-lg border border-slate-700 bg-dark-steel p-1 overflow-x-auto whitespace-nowrap" role="tablist">
+            {% if not is_avatar_manager %}
             <button type="button" data-avatar-detail-tab="workflow"
                     class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium bg-indigo-600 text-white flex-shrink-0">
                 Workflow
@@ -132,10 +137,12 @@
                     class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white flex-shrink-0">
                 Overview
             </button>
+            {% endif %}
             <button type="button" data-avatar-detail-tab="profile-safety"
-                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white flex-shrink-0">
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium {% if is_avatar_manager %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white{% endif %} flex-shrink-0">
                 Profile &amp; Safety
             </button>
+            {% if not is_avatar_manager %}
             <button type="button" data-avatar-detail-tab="performance"
                     class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white flex-shrink-0">
                 Performance
@@ -156,10 +163,12 @@
                     class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white flex-shrink-0">
                 Actions
             </button>
+            {% endif %}
         </div>
     </div>
 
     {# ============================================================ WORKFLOW (default tab) #}
+    {% if not is_avatar_manager %}
     <div data-avatar-detail-panel="workflow" class="avatar-detail-panel space-y-6">
         <div id="workflow-container"
              hx-get="/admin/avatars/{{ avatar.id }}/workflow"
@@ -613,7 +622,8 @@
     </div>
 
     {# ============================================================ PROFILE & SAFETY #}
-    <div data-avatar-detail-panel="profile-safety" class="avatar-detail-panel hidden space-y-6">
+    {% endif %}{# end if not is_avatar_manager — hides workflow + overview #}
+    <div data-avatar-detail-panel="profile-safety" class="avatar-detail-panel {% if is_avatar_manager %}space-y-6{% else %}hidden space-y-6{% endif %}">
 
         <!-- Avatar Profile Management (lazy-loaded via HTMX) -->
         <div id="avatar-profile-panel"
@@ -628,6 +638,7 @@
         </div>
 
         <!-- Shadowban Status -->
+        {% if not is_avatar_manager %}
         <div id="shadowban-section" class="bg-dark-steel rounded-lg border border-slate-700 p-6 scroll-mt-32">
             <div class="flex items-start justify-between gap-4 mb-4 flex-wrap">
                 <div>
@@ -856,10 +867,12 @@
             </form>
             {% endif %}
         </div>
+        {% endif %}{# end hide shadowban/cqs/freeze for avatar_manager #}
 
     </div>
 
     {# ============================================================ PERFORMANCE (perf + analytics) #}
+    {% if not is_avatar_manager %}
     <div data-avatar-detail-panel="performance" class="avatar-detail-panel hidden space-y-6">
 
         <!-- Removal Rate Analytics (loaded via HTMX) -->
@@ -1576,12 +1589,15 @@
         </div>
 
     </div>
+    {% endif %}{# end if not is_avatar_manager — hides performance/billing/content/strategy/actions #}
 
 </div>
 
 <script>
 (function() {
     "use strict";
+
+    const DEFAULT_TAB = "{{ 'profile-safety' if is_avatar_manager else 'workflow' }}";
 
     // Legacy tab ids → consolidated ids (+ optional anchor)
     const LEGACY_TAB_MAP = {
@@ -1612,7 +1628,7 @@
     }
 
     function resolveTabRequest(requestedTab, requestedAnchor) {
-        if (!requestedTab) return { tab: "workflow", anchor: null };
+        if (!requestedTab) return { tab: DEFAULT_TAB, anchor: null };
         if (LEGACY_TAB_MAP[requestedTab]) {
             const m = LEGACY_TAB_MAP[requestedTab];
             return { tab: m.tab, anchor: requestedAnchor || m.anchor };
@@ -1620,7 +1636,7 @@
         if (VALID_TABS.has(requestedTab)) {
             return { tab: requestedTab, anchor: requestedAnchor || null };
         }
-        return { tab: "workflow", anchor: null };
+        return { tab: DEFAULT_TAB, anchor: null };
     }
 
     document.addEventListener("DOMContentLoaded", () => {

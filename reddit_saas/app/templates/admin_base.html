@@ -216,8 +216,23 @@
         {% set is_owner = role == 'owner' %}
         {% set is_partner = role == 'partner' %}
         {% set is_qa = role == 'qa' %}
+        {% set is_avatar_mgr = role == 'avatar_manager' %}
         {% set is_platform_admin = is_owner or is_partner %}
         <nav class="flex-1 overflow-y-auto sidebar-nav py-3 px-3 space-y-0.5">
+            {# ---------- AVATAR MANAGER (only Avatars link) ---------- #}
+            {% if is_avatar_mgr %}
+            <div class="sidebar-group-label px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Avatars</div>
+
+            <a href="/admin/avatars"
+               class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
+                      {% if active_nav == 'avatars' %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span class="sidebar-label">Avatars</span>
+            </a>
+            {% endif %}
+
             {# ---------- OPERATIONS (owner only, except Review/Activity/Users for partner) ---------- #}
             {% if is_owner or is_partner %}
             <div class="sidebar-group-label px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Operations</div>

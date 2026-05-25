@@ -195,6 +195,19 @@ class QueryScope:
         if self.user.user_role in (UserRole.owner, UserRole.partner):
             return query  # Full access
 
+        # Avatar manager: special scoping — only unassigned avatars
+        if self.user.user_role == UserRole.avatar_manager:
+            from app.models.avatar import Avatar
+            if model is Avatar:
+                return self._scope_avatar_query_unassigned(query)
+            # Avatar manager cannot access other models
+            logger.warning(
+                "SECURITY: avatar_manager user %s attempted query on %s — returning empty",
+                self.user.id,
+                model.__tablename__,
+            )
+            return query.filter(False)
+
         # Client-scoped user
         client_id = self.user.client_id
         if client_id is None:
@@ -240,6 +253,22 @@ class QueryScope:
             model.__tablename__,
         )
         return query.filter(False)
+
+    def _scope_avatar_query_unassigned(self, query):
+        """Filter avatars to only those NOT assigned to any client.
+
+        Used by avatar_manager role — they can only see/manage avatars
+        that have no client_ids (empty array or NULL).
+        """
+        from app.models.avatar import Avatar
+
+        return query.filter(
+            or_(
+                Avatar.client_ids == None,  # noqa: E711
+                Avatar.client_ids == [],
+                Avatar.client_ids == "{}",
+            )
+        )
 
     def _scope_avatar_query(self, query, client_id: uuid.UUID):
         """Filter avatars to owned + actively rented by the client.

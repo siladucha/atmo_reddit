@@ -9,6 +9,9 @@ class UserRole(str, Enum):
     owner          — Full system access (Max). Infrastructure, kill switches, all settings.
     partner        — Business admin (Tzvi). All clients, onboarding, reports, user management.
                      Cannot modify system settings or kill switches.
+    avatar_manager — Avatar inventory manager. Can view ONLY unassigned avatars (not belonging
+                     to any client) and create new avatars. Cannot see client data, drafts,
+                     or pipeline. Access to admin panel (avatar section only).
     qa             — Cross-client reviewer (Jenny). Can review/approve/reject all clients.
                      Read-only access to client data. Can warm own avatars.
     client_admin   — B2B company administrator. Scoped to own client. Can manage team
@@ -23,6 +26,7 @@ class UserRole(str, Enum):
 
     owner = "owner"
     partner = "partner"
+    avatar_manager = "avatar_manager"
     qa = "qa"
     client_admin = "client_admin"
     client_manager = "client_manager"
@@ -31,13 +35,13 @@ class UserRole(str, Enum):
 
     @property
     def is_internal(self) -> bool:
-        """Returns True for internal team roles (owner, partner, qa)."""
-        return self in (UserRole.owner, UserRole.partner, UserRole.qa)
+        """Returns True for internal team roles (owner, partner, avatar_manager, qa)."""
+        return self in (UserRole.owner, UserRole.partner, UserRole.avatar_manager, UserRole.qa)
 
     @property
     def is_admin_level(self) -> bool:
         """Returns True for roles that can access the admin panel."""
-        return self in (UserRole.owner, UserRole.partner)
+        return self in (UserRole.owner, UserRole.partner, UserRole.avatar_manager)
 
     @property
     def can_review(self) -> bool:
@@ -60,8 +64,9 @@ class UserRole(str, Enum):
         """Returns True for roles that can assign/freeze/configure avatars.
 
         For client_admin this is scoped to their own company's avatars.
+        For avatar_manager this is scoped to unassigned avatars only.
         """
-        return self in (UserRole.owner, UserRole.partner, UserRole.client_admin)
+        return self in (UserRole.owner, UserRole.partner, UserRole.avatar_manager, UserRole.client_admin)
 
     @property
     def can_manage_system(self) -> bool:
@@ -84,9 +89,17 @@ class UserRole(str, Enum):
         return self in (UserRole.owner, UserRole.partner, UserRole.qa)
 
     @property
+    def can_manage_unassigned_avatars(self) -> bool:
+        """Returns True for roles limited to unassigned (no-client) avatars only.
+
+        avatar_manager can only see/create avatars that have no client_ids assigned.
+        """
+        return self == UserRole.avatar_manager
+
+    @property
     def can_warm_avatars(self) -> bool:
         """Returns True for roles that can own/warm personal avatars (farm)."""
-        return self in (UserRole.owner, UserRole.partner, UserRole.qa)
+        return self in (UserRole.owner, UserRole.partner, UserRole.avatar_manager, UserRole.qa)
 
     @property
     def can_manage_team(self) -> bool:

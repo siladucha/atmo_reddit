@@ -30,7 +30,7 @@
             </p>
         </div>
         <div class="flex gap-2">
-            {% if f.client_id %}
+            {% if f.client_id and not is_avatar_manager %}
             <button type="button"
                     id="assign-avatar-btn"
                     hx-get="/admin/avatars/available-for-client/{{ f.client_id }}"
@@ -43,14 +43,14 @@
                 + Assign Existing Avatar
             </button>
             {% endif %}
-            <a href="/admin/avatars/new{% if f.client_id %}?client_id={{ f.client_id }}{% endif %}"
+            <a href="/admin/avatars/new{% if f.client_id and not is_avatar_manager %}?client_id={{ f.client_id }}{% endif %}"
                class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
                 + New Avatar
             </a>
         </div>
     </div>
 
-    {% if f.client_id %}
+    {% if f.client_id and not is_avatar_manager %}
     <!-- Assign Avatar Modal -->
     <div id="assign-avatar-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60"
          onclick="if(event.target===this) this.classList.add('hidden')">
@@ -90,12 +90,14 @@
                    class="w-full pl-7 pr-3 py-1.5 text-sm bg-slate-night border border-slate-600 text-gray-200 rounded focus:outline-none focus:border-indigo-500">
         </label>
 
+        {% if not is_avatar_manager %}
         <select name="client_id" class="text-sm bg-slate-night border border-slate-600 text-gray-200 rounded px-2 py-1.5">
             <option value="">All clients</option>
             {% for c in page_obj.available_clients %}
             <option value="{{ c.id }}" {% if f.client_id == (c.id|string) %}selected{% endif %}>{{ c.client_name }}</option>
             {% endfor %}
         </select>
+        {% endif %}
 
         <select name="status" class="text-sm bg-slate-night border border-slate-600 text-gray-200 rounded px-2 py-1.5">
             {% for value, label in status_options %}
@@ -109,6 +111,7 @@
             {% endfor %}
         </select>
 
+        {% if not is_avatar_manager %}
         <div class="inline-flex rounded border border-slate-600 overflow-hidden text-sm">
             {% for value, label in group_options %}
             <label class="cursor-pointer">
@@ -117,6 +120,7 @@
             </label>
             {% endfor %}
         </div>
+        {% endif %}
 
         <div class="inline-flex rounded border border-slate-600 overflow-hidden text-sm">
             {% for value, label in view_options %}
@@ -135,6 +139,7 @@
         <a href="/admin/avatars" class="text-xs text-gray-400 hover:text-white px-2 py-1">Reset</a>
         {% endif %}
 
+        {% if not is_avatar_manager %}
         <button type="button"
                 class="ml-auto text-sm bg-slate-700 hover:bg-slate-600 text-gray-200 border border-slate-600 px-3 py-1.5 rounded"
                 hx-post="/admin/avatars/check-visible"
@@ -145,6 +150,7 @@
             <span id="check-spinner" class="htmx-indicator">⏳</span>
             Check visible
         </button>
+        {% endif %}
     </form>
 
     <div id="admin-avatars-results">

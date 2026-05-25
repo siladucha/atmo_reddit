@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.database import get_db
-from app.dependencies.admin import require_superuser
+from app.dependencies.admin import require_superuser, require_avatar_admin
 from app.models.avatar import Avatar
 from app.models.user import User
 from app.models.user_role import UserRole
@@ -56,7 +56,7 @@ def list_avatars(
     active_only: bool = True,
     client_id: UUID | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
 ):
     """List all avatars with health status."""
     query = db.query(Avatar)
@@ -64,8 +64,11 @@ def list_avatars(
         query = query.filter(Avatar.active.is_(True))
     avatars = query.all()
 
-    # Filter by client if specified
-    if client_id:
+    # Avatar manager can only see unassigned avatars
+    if current_user.user_role == UserRole.avatar_manager:
+        avatars = [a for a in avatars if not a.client_ids or a.client_ids == []]
+    elif client_id:
+        # Filter by client if specified (not applicable for avatar_manager)
         cid = str(client_id)
         avatars = [a for a in avatars if a.client_ids and cid in a.client_ids]
 
@@ -76,12 +79,18 @@ def list_avatars(
 def get_avatar(
     avatar_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
 ):
     """Get full avatar details."""
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
         raise HTTPException(status_code=404, detail="Avatar not found")
+
+    # Avatar manager can only view unassigned avatars
+    if current_user.user_role == UserRole.avatar_manager:
+        if avatar.client_ids and avatar.client_ids != []:
+            raise HTTPException(status_code=403, detail="Access Denied")
+
     return {
         "avatar": avatar,
         "health": get_avatar_health(db, avatar),
@@ -92,9 +101,13 @@ def get_avatar(
 def create_avatar(
     data: AvatarCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
 ):
     """Create a new avatar."""
+    # Avatar manager cannot assign to clients on creation
+    if current_user.user_role == UserRole.avatar_manager and data.client_ids:
+        raise HTTPException(status_code=403, detail="Avatar manager cannot assign avatars to clients")
+
     # Check username uniqueness
     existing = db.query(Avatar).filter(Avatar.reddit_username == data.reddit_username).first()
     if existing:

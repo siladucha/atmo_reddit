@@ -30,6 +30,24 @@ async def require_superuser(
     return user
 
 
+async def require_avatar_admin(
+    user: User = Depends(get_current_user),
+) -> User:
+    """Dependency for avatar management endpoints in admin panel.
+
+    Allows:
+    - owner/partner (platform admins) — full avatar access
+    - avatar_manager — can view unassigned avatars and create new ones
+
+    Raises 403 for all other roles.
+    """
+    if user.user_role in (UserRole.owner, UserRole.partner, UserRole.avatar_manager):
+        return user
+    if user.is_superuser:
+        return user
+    raise HTTPException(status_code=403, detail="Access Denied")
+
+
 async def require_user_management_access(
     user: User = Depends(get_current_user),
 ) -> User:
