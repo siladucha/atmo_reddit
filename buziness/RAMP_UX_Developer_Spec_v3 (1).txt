@@ -1,0 +1,1035 @@
+﻿RAMP
+CLIENT-FACING UX · DEVELOPER SPECIFICATION
+v3 · May 2026 · Confidential
+
+
+This document is the single source of truth for RAMP's client-facing product.
+It extends the v2 UX brief with full component-level specs, interaction states,
+data contracts, and edge-case handling. Every screen, every state,
+every micro-copy string is defined here.
+
+
+	________________
+
+
+TABLE OF CONTENTS
+01
+	Design System & Tokens
+	3
+	02
+	Global Navigation
+	4
+	03
+	Onboarding Wizard — Full Spec
+	5
+	04
+	Home / Overview Screen
+	9
+	05
+	Review Queue Screen
+	11
+	06
+	Avatars Screen
+	13
+	07
+	Insights Screen
+	14
+	08
+	Settings Screen
+	16
+	09
+	Upsell System — Full Placement Map
+	17
+	10
+	Safety States — Visual & Interaction Spec
+	18
+	11
+	Empty States — Full Copy Spec
+	19
+	12
+	Mobile Layout Spec
+	20
+	13
+	Developer Implementation Notes
+	21
+	________________
+
+
+01 · DESIGN SYSTEM & TOKENS
+All token names below map directly to CSS custom properties on :root. The developer should never use raw hex values in component code — always reference a token.
+
+
+Color Tokens
+Token
+	Hex Value
+	Usage
+	--color-bg
+	#0D0D1A
+	Page / app background
+	--color-surface
+	#1A1A2E
+	Card backgrounds, nav, sidebar
+	--color-surface-alt
+	#1E1E32
+	Review queue card, alternate rows
+	--color-border
+	#2E2E4A
+	All dividers, card outlines
+	--color-orange
+	#FF6B35
+	Primary CTA, phase 3 accent, active nav item
+	--color-orange-light
+	#FF8C5A
+	Hover states on orange elements
+	--color-white
+	#FFFFFF
+	Primary text on dark backgrounds
+	--color-muted
+	#AAAAAA
+	Secondary text, labels, timestamps
+	--color-red
+	#E53935
+	Safety blocks, shadowban badge, error states
+	--color-amber
+	#F59E0B
+	Upsell nudges, soft warnings, budget warnings
+	--color-green
+	#22C55E
+	Phase 3 indicator, success states, approved badge
+	--color-phase1
+	#6B7280
+	Phase 1 indicator — neutral grey
+	--color-phase2
+	#FF6B35
+	Phase 2 indicator — orange (active)
+	--color-phase3
+	#22C55E
+	Phase 3 indicator — green (brand eligible)
+	
+
+Typography Scale
+Token
+	Size / Weight
+	Usage
+	--text-display
+	48px / 700
+	Hero numbers on dashboard (upvotes, actions, etc.)
+	--text-h1
+	28px / 700
+	Screen titles
+	--text-h2
+	20px / 600
+	Section headings within screens
+	--text-h3
+	16px / 600
+	Card headings, sub-labels
+	--text-body
+	14px / 400
+	Body copy, card content, table cells
+	--text-small
+	12px / 400
+	Timestamps, metadata, helper text
+	--text-micro
+	10px / 500 CAPS
+	Badges, status chips, category labels
+	
+
+Spacing, Grid & Layout
+Property
+	Value
+	Rule
+	Base unit
+	8px
+	All spacing must be a multiple of 8px. Never use odd values.
+	Grid
+	12-column
+	Content max-width 1280px. Sidebar 240px fixed. Content area 1040px fluid.
+	Border radius — cards
+	8px
+	All card containers, modals, panels
+	Border radius — inputs/chips
+	4px
+	Text inputs, dropdowns, small chips
+	Border radius — pills/badges
+	999px
+	Status badges, plan tier pills, count badges
+	Card shadow
+	0 2px 12px rgba(0,0,0,0.4)
+	Applied to all card elements. No shadow on flat/inline elements.
+	
+
+Interaction Standards
+Interaction
+	Spec
+	Notes
+	Hover transition
+	150ms ease-out
+	Background, border, opacity only. Never transition layout properties (width, height, position).
+	Focus ring
+	2px solid --color-orange, 2px offset
+	Never remove. Required for accessibility (WCAG 2.1 AA).
+	Loading state
+	Skeleton screen — no spinner
+	Skeleton opacity pulses 0.4 to 0.7 at 1.2s interval using CSS animation.
+	Toast position
+	Bottom-right, max 3 stacked
+	Auto-dismiss after 4s. Success=green, Warning=amber, Error=red.
+	Form errors
+	Inline, below field, 12px red text
+	Never toast-only for form errors. Field border turns red.
+	Optimistic updates
+	Update UI immediately, revert on server error
+	Required for all approve/skip actions in the Review Queue.
+	________________
+
+
+02 · GLOBAL NAVIGATION
+Desktop Sidebar — Structure
+Fixed left sidebar, 240px wide, full height. Background: --color-surface. Never collapses on desktop. Content area begins at 240px left offset.
+
+
+Nav Item
+	Icon
+	Badge Behaviour
+	Active State
+	Home / Overview
+	BarChart2
+	None
+	Left border: 3px solid --color-orange. Background: --color-surface-alt.
+	Review Queue
+	Inbox
+	Orange pill badge with pending draft count. Turns red if count exceeds 10.
+	Left orange border + --color-surface-alt bg.
+	Avatars
+	Users
+	Red dot badge if any avatar is shadowbanned.
+	Left orange border + --color-surface-alt bg.
+	Insights
+	TrendingUp
+	None
+	Left orange border + --color-surface-alt bg.
+	Settings
+	Settings
+	None
+	Left orange border + --color-surface-alt bg.
+	
+
+Sidebar Footer
+Bottom-pinned within sidebar. Contains:
+* Client company name (truncated to 20 chars with ellipsis if longer)
+* Client logo if uploaded during onboarding — 24px height, auto width
+* Current plan tier badge: pill shape, Seed=amber, Starter=grey, Growth=orange, Scale=white/dark text
+* "Upgrade Plan" text link — opens Settings > Plan & Billing. Hidden if already on Scale.
+
+
+Global Time-Frame Selector
+Pill-tab bar. Present on: Home, Avatars, Insights screens. Position: top-right of content area, below screen title. Options: "Last 30d" · "Last 60d" · "Last 90d" · "All time". Default: Last 30d on first load. State persists in localStorage keyed to user ID. On change: re-fetches all data on the current screen without full page reload. Do not reset to default on navigation — state is sticky per session.
+
+
+Mobile Navigation
+Replaces sidebar with a fixed bottom tab bar. 5 tabs: Home · Queue (with count badge) · Avatars · Insights · Settings. No sidebar on mobile. Content area: full width. iOS safe area insets applied to bottom bar. Minimum touch target per tab: 44×44px.
+________________
+
+
+03 · ONBOARDING WIZARD — FULL SPEC
+Shell & Progress Bar
+Full-screen takeover on first login. No sidebar visible. Background: --color-bg. Center-column layout, max-width 720px, horizontally centered. Progress bar: top of screen, full width, 4px height, orange fill, animated on step change. Step label shown below bar: "Step 2 of 6 — Define Your Buyer". Estimated time shown below step label: "~3 min". Back button: top-left, text only, grey, disabled on Step 1. No skip option — all steps required.
+DESIGN PRINCIPLE: This should feel like a smart intake conversation with a senior strategist, not a form. Conversational, AI-assisted, adaptive. The quality of the client's answers directly determines the quality of avatar output — make them feel this investment is worthwhile.
+
+
+Step 1 · Company Intelligence (3 min)
+Entry State
+Single large URL input field (48px height, full width). Label: "Your company URL". Placeholder: "https://yourcompany.com". Below: optional LinkedIn URL field, greyed label "LinkedIn company page (optional)". Primary CTA: "Build My Profile" — orange, full-width, 52px height. On submit: button disables, label changes to "Scanning your website…", a small animated ellipsis appears.
+Auto-Build Sequence — Live Progress
+While scraping, show a vertical checklist. Each item appears sequentially with a 200ms delay after the previous completes:
+* ⟳  Scanning website… (pulsing, until complete)
+* ✓  Website scanned (green, fades in)
+* ✓  About page analysed
+* ✓  Product pages detected (3 found)
+* ✓  LinkedIn profile matched
+* ✓  G2 reviews ingested (47 reviews)
+* ⟳  Building your profile… (pulsing until AI synthesis complete)
+This animated sequence is the first "wow moment." Never skip or rush it. The client must feel that the system already knows them before they have typed a single answer.
+Output: Editable Profile Card
+After synthesis, a card appears. All fields are inline-editable: click to activate, field border highlights orange, text input appears in place. No separate edit mode. Fields:
+Field
+	Source Logic
+	Company Name
+	Scraped from website title + LinkedIn company name. Editable.
+	Product / Service Name
+	Extracted from h1 / hero section. Editable.
+	One-line Description
+	AI-synthesised. 120 char max. Editable. Character counter visible.
+	Value Proposition (3 bullets)
+	AI-extracted from product page + G2. Each bullet editable. Add/remove up to 5.
+	Industry
+	Dropdown pre-selected by AI. Editable.
+	Company Size
+	From LinkedIn if available. Dropdown: 1–50 / 51–200 / 201–1K / 1K+.
+	Founded
+	From LinkedIn. Editable text field.
+	Multiple products detected: If AI detects more than one distinct product/service, a drag-to-rank list appears below the card. Label: "Rank your products by importance for this campaign." Max 3 items.
+FALLBACK: If scrape returns fewer than 3 fields (blocked, paywalled, etc.), switch to a manual entry form with the same field structure. Never block or show an error — gracefully degrade to manual. Show a subtle note: "We couldn't fully scan your site — fill in the fields below."
+
+
+Step 2 · The Problem You Solve (3 min)
+Three conversational text areas. Not labelled as "Question 1/2/3" — just flowing prompts. Each is full-width, 4-line height minimum, 400 char max with live counter. AI processes each field on blur — a small green "✓ Got it" chip appears beside the field label when processed.
+* "What does your best customer say their life was like before using you?"
+* "What can you do that your top 2–3 competitors cannot?"
+* "Name your 2–3 main competitors." — autocomplete from known B2B SaaS list + free text fallback.
+After all 3 are filled: an AI summary card appears below. Shows extracted pain language, positioning claims, competitor names as chips. Inline-editable. Client must click "Looks right — continue" to proceed (explicit confirmation, not auto-advance).
+
+
+Step 3 · ICP Definition (4 min)
+B2B / B2C Toggle
+Prominent large toggle at top of step — 48px height, full labels: "B2B (Business Customers)" and "B2C (Individual Consumers)". Default: B2B. Toggle change animates field set in/out. B2C mode hides: company size, vertical, job title. Shows: demographic profile (age range, interests, location).
+Primary ICP (Required)
+Field
+	Component
+	Validation
+	Job Title(s)
+	Tag input with autocomplete. Free text allowed. Max 5 tags.
+	At least 1 required.
+	Seniority Level
+	Checkbox group: IC / Manager / Director / VP / C-Suite / All
+	At least 1 required.
+	Day-to-day frustration
+	Free text area, 300 char max, live counter.
+	Required.
+	"What do they search for before finding you?"
+	Free text, single line. Feeds keyword seed in Step 5.
+	Required.
+	Industry / Vertical
+	Multi-select dropdown. Max 3. B2B only.
+	Optional.
+	Company Size
+	Checkbox: SMB / Mid-market / Enterprise / All. B2B only.
+	Optional.
+	Adjacent ICP (Optional)
+Collapsed by default. "Add secondary ICP +" expand link in orange. Same field structure as primary. Labelled "Secondary ICP — optional." Hard limit: 2 ICPs total. Attempting to add a third shows a tooltip: "Two ICPs maximum. More creates an unfocused avatar strategy."
+ICP data seeds the avatar persona generation and keyword map in Step 5. After both ICPs are filled, show a preview sentence: "Your avatars will engage with [job title] in [industry] who are frustrated by [frustration]." Makes the connection concrete.
+
+
+Step 4 · Voice, Tone & Guardrails (5 min)
+Document Upload Zone
+Drag-and-drop zone, dashed border, 120px height. Accepts: PDF, DOCX, TXT, MD. Max 5 files, 10MB each. Upload progress: per-file progress bar. After upload: AI processing indicator (3–8 seconds). Files listed with ✓ and × remove button. Helper text: "Optional but strongly recommended — clients who upload a tone guide produce 40% higher-quality avatar output."
+Guardrail Questions (All Required)
+* What 3 things should your brand NEVER be associated with on Reddit? — Tag input, freeform. Minimum 1 tag required.
+* Any claims you legally cannot make? — Free text, optional. If cybersecurity / fintech / healthcare detected: pre-populate with "Review with your legal team before submitting."
+* A brand or publication whose communication style you admire? — Free text, optional. Used as style reference prompt.
+Tone Calibration Loop (Critical Quality Gate)
+After uploads and guardrail answers are saved, AI generates 5 sample sentences formatted as realistic Reddit comments in the client's brand voice. Each displayed as a card with the comment text and a 1–5 star rating widget (large tap targets, min 48px).
+Outcome
+	What Happens
+	3+ sentences rated 4 or 5 stars
+	Quality bar met. "Continue" CTA unlocks. Sentences rated 4–5 become few-shot anchors in the AI generation model.
+	Fewer than 3 rated 4 or 5
+	"Regenerate" button appears. Text field: "What was off?" (placeholder: "e.g. too formal, missed the technical depth"). This note feeds the next generation prompt. Loop repeats.
+	3 failed loops (still under threshold)
+	A premium CTA card appears: "Book a 30-minute onboarding call with our team — we will calibrate the voice together." Styled as an upgrade, not a failure. Client can still try again manually.
+	CRITICAL: The regenerate note field dramatically improves next-generation quality. Pre-hint it with examples. This gate cannot be skipped. The system cannot activate avatars until the tone bar is met.
+
+
+Step 5 · Keywords & Subreddit Map (4 min)
+Keyword Phase
+Prompt: "What topics do you want your brand to appear in when your buyers discuss them?" AI pre-suggests keywords as chips based on Steps 2–3. Client taps to confirm (chip turns green) or reject (chip turns grey with strikethrough). Client can add custom keywords via tag input with Reddit keyword database autocomplete. Each keyword chip shows estimated monthly Reddit thread volume as a small grey label.
+Subreddit Suggestion Cards
+System generates ranked subreddit cards. Each card contains:
+Card Element
+	Content & Spec
+	Subreddit name
+	r/subredditname — clickable, opens Reddit in new tab.
+	Audience size
+	"2.3M members" — from Reddit data.
+	Audience match score
+	Rendered as a 4-step bar: Weak / Medium / Strong / Excellent.
+	Moderation strictness
+	"Low / Medium / High" label with icon. Affects avatar posting strategy.
+	Competitor presence
+	"CrowdStrike mentions detected" — orange flag icon if competitor present.
+	AI rationale
+	One sentence: "Your ICP of CISOs is highly active here discussing attack surface tools."
+	Actions
+	"Add to my list" (green) and "Skip" (grey). Added subs move to a "Selected" list at top.
+	Subreddit slot counter: persistent bar at top of this section. "5 of 8 subreddit slots used." At plan limit: inline amber tooltip appears on next "Add" click. Non-blocking — client can dismiss and continue with current selection.
+UPSELL TRIGGER (non-blocking): "You've reached your subreddit limit. Add 5 more slots for $99/month — unlock more coverage as your avatars grow." Amber tooltip, dismissable. Never a blocking modal.
+
+
+Step 6 · Review & Quality Gate (3 min)
+Summary screen. Five accordion sections collapsed by default: Company Profile · ICP(s) · Voice Profile · Keyword Map · Subreddit Map. Each section has an "Edit" button that navigates back to the relevant step with all fields pre-filled. Quality gate runs silently — no score number shown to client.
+Quality Gate States
+State
+	Client Sees
+	System Action
+	PASS
+	"Start Building Your Presence" CTA (orange, large, 56px height). Sub-label: "Your avatars will be active in 24–48 hours."
+	Triggers avatar allocation pipeline.
+	PARTIAL — Fixable
+	Incomplete fields highlighted in red within each accordion. CTA disabled. Scroll-to-first-error on CTA tap. Specific field names listed.
+	Blocks activation until resolved.
+	FAIL — Thin Brief
+	"Your brief needs more detail before we can activate avatars." Same red highlighting with specific field list.
+	Blocks activation.
+	ESCALATION (3+ tone loops failed)
+	"Book a 30-minute onboarding call." Premium-framed card in orange. Fix option still available.
+	Logs escalation. Notifies admin via Slack.
+	Post-Activation Confirmation Screen
+"Your setup is complete. We are now configuring your avatars." Avatar silhouette illustration in activation state. Timeline message: "Check back in 24–48 hours — your avatars will be ready and active." Automated email confirmation sent. First login after activation: guided overlay tour pointing to Review Queue and Avatars screen (dismissable, not shown again after dismissed).
+The 24–48 hour gap is real — avatar assignment, proxy allocation, browser profile setup, and initial strategy generation all take time. Set this expectation clearly. Never let clients log in to an empty system and think something is broken.
+________________
+
+
+04 · HOME / OVERVIEW SCREEN
+Layout
+Single-column content area within the sidebar layout. Time-frame selector: top-right, always visible. Screen title: "Overview" (--text-h1). No sub-navigation. Scrollable.
+
+
+Headline Numbers Row (3 Metric Cards)
+Horizontal row of 3 equal-width cards. Desktop: side by side. Mobile: stacked. Card structure: large number (--text-display, white), label below (--text-small, --color-muted), trend row below label (arrow icon + delta + "vs previous period" grey label).
+Metric
+	Label Text
+	Trend Logic
+	Comments Posted
+	Comments in selected period
+	Delta vs same-length previous period. Green arrow up / Red arrow down / Grey dash.
+	Total Upvotes Earned
+	Upvotes earned in selected period
+	Delta vs previous period.
+	Subreddits Active In
+	Active subreddits
+	Count change vs previous period (no arrow — just "+2" or "-1" delta label).
+	
+
+Generate Report Button
+Position: top-right of content area, adjacent to time-frame selector. Style: orange solid button, "Download Report (PDF)". Always visible regardless of plan tier. On click: button shows inline loading spinner, label: "Generating…". On success: browser triggers download. Filename: "RAMP-Report-[ClientName]-[Period].pdf". On timeout (>30s): "Your report will be emailed to you." Report content varies by plan tier — handled server-side. Button appearance is identical on all tiers.
+
+
+Avatar Activity Strip
+Horizontally scrollable row of avatar cards below the metric row. Each card:
+Element
+	Spec
+	Avatar illustration
+	40px circle. Unique illustrated persona. Never a real photo or stock image.
+	Name
+	First name only on card. Full name in hover tooltip.
+	Karma tier chip
+	Pill: Newcomer (grey) / Building (amber) / Established (blue) / Authority (orange).
+	Last active
+	"2 hours ago" / "Yesterday" / "3 days ago". If >7 days: amber text colour.
+	Upvote velocity
+	Upvotes earned in selected period. Green number + upward arrow.
+	Shadowban state
+	If shadowbanned: red "PAUSED" badge overlaid on card. Tap/click shows tooltip explaining status.
+	Click behaviour
+	Navigates to Avatars screen with that avatar's detail expanded.
+	
+
+Momentum Events Feed
+Scrollable feed. Right column on desktop (when viewport > 1280px) or below avatar strip on narrower screens and mobile. Most important section on the home screen. Feed items sorted by recency.
+Event Type
+	Icon
+	Copy Format
+	Action
+	Breakout comment
+	🔥
+	"[Avatar] earned 47 upvotes in r/netsec"
+	"View thread" → opens Reddit in new tab
+	Phase acceleration
+	⚡
+	"[Avatar] advanced to Phase 2 — brand content eligible"
+	"View avatar" → Avatars screen
+	Competitor alert
+	👁
+	"[Competitor] was mentioned 12× in r/cybersecurity this week"
+	"View threads" → Insights screen
+	Content recommendation
+	💡
+	"18 threads with no authoritative answer on [topic]"
+	"Download brief" → generates PDF
+	Shadowban alert
+	🚨
+	"[Avatar] has been paused — we are investigating"
+	"View avatar" → Avatars screen
+	New subreddit suggestion
+	📍
+	"New sub found where your ICP is active: r/[sub]"
+	"Review" → Settings > Subreddits
+	
+
+Share of Voice Widget
+Simple bar chart or large percentage number. "Your brand: X% share of tracked conversations this period." Trend arrow. Competitor comparison: up to 3 competitors as stacked bars or a mini-table. Available on Growth+ plans only.
+UPSELL STATE (Seed/Starter): Widget is a greyed-out card with a lock icon overlay. Text: "See how you compare to competitors. Available on Growth plan." Link: "Upgrade →". Clicking anywhere on the card opens Settings > Plan. Non-blocking.
+
+
+Pending Approvals CTA
+Visual weight scales with queue depth. Always present:
+* 0 items: small grey pill "Queue empty" — low visual weight
+* 1–4 items: amber pill "4 drafts waiting for your review"
+* 5+ items: orange banner across top of content area — "X drafts waiting. Unapproved content delays your progress. Review now →"
+
+
+System Banners
+Full-width banners at the very top of the content area (above metric cards). One banner shown at a time, prioritised by severity (red > amber).
+Condition
+	Banner Copy
+	Colour
+	Dismissable
+	Shadowban detected
+	"[Avatar] has been paused. We are investigating — no action needed from you."
+	Red
+	No — until resolved
+	No client approvals in 7+ days
+	"Your drafts are waiting. Unapproved content delays avatar progress."
+	Amber
+	Yes, 24h snooze
+	80% action budget used
+	"You have used 80% of your monthly action allowance."
+	Amber
+	Yes
+	100% action budget hit
+	"Monthly limit reached. Non-critical actions paused until next cycle."
+	Red
+	No
+	________________
+
+
+05 · REVIEW QUEUE SCREEN
+Page Header
+Screen title: "Review Queue". Subtitle directly below: "[N] drafts waiting for your approval." Filter bar directly below subtitle. No time-frame selector on this screen — queue shows all pending drafts regardless of period.
+
+
+Filter Bar
+Inline chip row (not a dropdown panel). Chips are multi-select. Active filters shown as removable chips (×). "Clear all" text link at right end of bar. Filter state persisted in URL params.
+* Avatar: one chip per avatar, showing avatar name
+* Subreddit: top 5 most common in queue as chips + "More +" dropdown for the rest
+* Phase: "Phase 1" / "Phase 2" / "Phase 3" chips
+* Date: "Today" / "Last 7 days" / "All" (default: All)
+
+
+Draft Card — Full Anatomy
+Element
+	Spec
+	Card header row
+	LEFT: Avatar illustration (32px circle) + avatar name + karma tier chip. RIGHT: subreddit pill (r/name) + phase chip (Phase 1/2/3 with colour) + relative timestamp ("2 hours ago").
+	Thread excerpt
+	Original post title in bold. First 120 chars of post body in grey below. "Read full thread →" link opens Reddit in new tab.
+	Comment draft block
+	Full comment text. Visually distinct background (slightly lighter than card). Editable on click — contenteditable div activates.
+	Strategic rationale
+	Collapsed accordion: "Why this thread, why now ▾". Expands on click with 200ms animation. Shows: subreddit relevance, keyword match, phase eligibility reasoning.
+	Action row
+	4 buttons in fixed order: Approve (green fill) · Edit then Approve (orange outline) · Regenerate (grey outline) · Skip (ghost). Mobile: 2×2 grid. Min 44px height each.
+	CRITICAL: Every client edit is a training signal. The diff between the original draft and the edited version is stored and fed back into the generation model. This is how the system learns. Make editing fast and rewarding.
+
+
+Inline Editing Flow
+1. Client clicks the comment draft block → it becomes a contenteditable div, border highlights orange, cursor appears. No modal, no separate page. 2. "Save & Approve" button appears below the field (green, full-width within card). "Cancel" link appears to its right. 3. On "Save & Approve": edit diff captured as training signal, toast appears: "Got it — we'll remember this for future drafts." (green, 3s). 4. Card disappears from queue with a smooth fade (optimistic update). 5. If server rejects: card reappears, error toast shown, edit preserved in field.
+
+
+Regenerate Flow
+1. Client clicks "Regenerate". A compact panel expands below the action row (200ms animation). 2. Text field: "What was wrong with this draft?" Placeholder: "e.g. too formal, missed the technical depth, wrong tone." Strongly prompted but not required. 3. "Generate new draft →" button (orange). 4. Previous draft archived. If generation takes >3s: skeleton replaces card content with "Regenerating…" label. 5. New draft appears in same card position. 6. Client sees a "Regenerated" chip on the card header (grey, small) so they know this is a second attempt.
+
+
+Batch Approve
+Checkboxes: appear on card hover on desktop, always visible on mobile. When 3 or more cards are checked: "Approve selected (X)" button appears sticky at bottom of viewport. On batch approve click: safety check runs first. If any selected draft would trigger a safety block: warning shown — "[N] drafts cannot be approved due to restricted content. Approve the remaining [M]?" Yes / Cancel.
+
+
+Safety Block States — Per Card
+Block Type
+	Trigger
+	Client Sees
+	System Does
+	Phase brand mention block
+	Avatar Phase 1 or 2, comment contains brand name
+	Red banner on card top: "Brand mention blocked — [Avatar] is still building credibility in r/[sub]. Brand mentions unlock at Phase 3. Edit to remove the mention."
+	Blocks approve. Draft flagged. Returned to queue.
+	Competitor attack block
+	Negative/comparative competitor language, low-karma avatar
+	Red banner: "Competitor mention blocked — [Avatar] doesn't yet have standing to criticise [Competitor]. A neutralised version is below."
+	Blocks. Rewrites to neutral language. Client approves neutral version or edits further.
+	Phase guardrail (soft warning)
+	Content atypical for current phase but not a hard rule
+	Orange warning badge on card: "Atypical for Phase [N] — approve with caution." Requires second deliberate click: "I understand — approve anyway."
+	Allows with warning acknowledged. Logs event.
+	
+
+Empty State
+"Nothing to review right now. Your avatars are active — new drafts appear here as opportunities are found." Below: avatar activity strip (same as home screen). Timestamp: "Last draft appeared: [X hours/days] ago." If no drafts in 48h: "No new opportunities found in the last 48 hours. This is normal during the early karma-building phase. Check back tomorrow."
+________________
+
+
+06 · AVATARS SCREEN
+Layout
+Card grid layout. 3 columns on desktop, 2 on tablet, 1 on mobile. Time-frame selector inherited (top-right). "Request New Avatar" button top-right adjacent to selector. Screen title: "Avatars."
+
+
+Avatar Card — Full Anatomy
+Element
+	Spec
+	Illustration
+	80px circle. Unique illustrated persona style per avatar. Never a real photo. Never stock imagery. Never two avatars sharing the same illustration.
+	Name + bio
+	Full name (first + last). One-sentence professional bio below: "Senior security engineer, 8 years in enterprise SaaS."
+	Karma tier chip
+	Pill: Newcomer (grey) / Building (amber) / Established (blue) / Authority (orange). Tooltip on hover explains what the tier means and what triggers advancement.
+	Phase indicator
+	Three-segment progress bar or step indicator. Current phase highlighted: Phase 1 (grey) / Phase 2 (orange) / Phase 3 (green). Progress bar fill within current phase. "X days to next phase" label beneath.
+	Upvote velocity
+	Upvotes earned in selected time period. Trend arrow vs previous period.
+	Active subreddits
+	Top 3 subreddits (selected period) as pills. "+N more" if applicable. Each pill clickable → Insights > Subreddit filtered to that sub.
+	Last active
+	"2 hours ago." If >7 days: amber text + warning icon. If paused: red "Paused" label.
+	Shadowban badge
+	If shadowbanned: full-width red banner at top of card — "PAUSED." Tooltip on hover: "This avatar has been flagged by Reddit. We have automatically paused it and are investigating. No action needed from you." "Learn more" link.
+	
+
+What Is Never Shown to Clients
+The following fields exist in the database and must be filtered at the API response layer. Never expose in any client-facing endpoint, even in dev/staging:
+* Reddit username or password
+* Raw karma score (show tier label only)
+* Proxy IP, browser profile ID, or session details
+* AI generation cost per avatar
+* Internal confidence score or survival rate
+* Phase eligibility calculation details or thresholds
+DEVELOPER NOTE: Server-side filtering is mandatory. Do not rely on the frontend to hide sensitive fields — any client-facing API response must never include these fields. Apply a response schema allowlist, not a denylist.
+
+
+Avatar Detail View
+Click any avatar card → slide-in panel from right on desktop (content area dims, panel is 480px wide). Full screen on mobile. Panel has 3 tabs:
+* Activity: chronological list of all comments + posts in selected period. Each item: subreddit, post title excerpt, comment excerpt, upvotes earned, date, link to live Reddit thread.
+* Subreddits: all subreddits this avatar is active in, with phase per subreddit and activity volume.
+* Voice Profile: AI-generated voice summary for this avatar. Read-only. Shows: writing style, vocabulary, tone principles, topics this avatar engages in.
+
+
+"Request New Avatar" Flow
+Button opens a slide-in panel. Client describes desired avatar characteristics: job title, expertise areas, writing style, optional additional notes. Submit triggers a request to the RAMP team (not self-serve in V1). Confirmation: "Avatar request received. We will configure and activate your new avatar within 48 hours." If client is at their plan avatar limit: clicking the button opens an upsell flow instead of the request form.
+
+
+Empty State (Pre-Activation)
+"Your avatars are being configured. Check back in 24–48 hours." Animated silhouette illustrations in "activating" state. Progress message if known: "Avatar configuration is in progress."
+________________
+
+
+07 · INSIGHTS SCREEN
+Layout
+Left sub-nav (sticky, 200px): 5 anchor links — Share of Voice · Top Content · High-Intent Appearances · Content Recommendations · Subreddit Performance. Right content area scrolls while sub-nav sticks. Time-frame selector at top-right of content area.
+
+
+Share of Voice
+Line chart. X-axis: dates within selected period. Y-axis: % share of tracked conversations in target subreddits. Lines: client brand (orange) + up to 3 competitors (grey variants). Baseline: Day 1 is always 0% for the client. Hover tooltip: exact % per brand for that date. Callout above chart: "You started at 0%. You are now at X% of tracked conversations." Delta vs start of period always visible. Growth and Scale plans only.
+UPSELL (Seed/Starter): Entire section rendered as a blurred placeholder card with overlay: "See how your brand compares to competitors. Available on Growth plan. Upgrade →" Clicking anywhere opens Settings > Plan. Non-blocking.
+
+
+Top Performing Content
+Available on all plan tiers. This is core proof of work. List of avatar comments with highest upvotes in selected period. Each list item:
+* Subreddit pill + post title (truncated at 80 chars)
+* Comment excerpt (120 chars)
+* Upvote count — large, orange — and date
+* "View on Reddit →" link opens in new tab
+Sorted by upvotes descending. Max 20 items per period.
+
+
+High-Intent Thread Appearances
+Available from Phase 2 onwards. Threads where avatars appeared in buying-signal, comparison, or recommendation discussions. System tags threads containing intent signals: "best X for Y", "X vs Y", "looking for a tool that does X". Header callout: "Your avatar appeared in [N] threads this month where buyers were comparing tools like yours." List format identical to Top Content.
+Empty state before Phase 2: "High-intent appearances become visible once your avatars reach Phase 2. They are actively building credibility now."
+
+
+Content Recommendations
+Data-driven content brief cards. Each card:
+Card Element
+	Spec
+	Topic headline
+	"Attack surface management — 18 active threads this month, no authoritative answer"
+	Thread volume
+	"18 active threads this month" — pulled from keyword scrape data
+	Suggested angle
+	"A practical guide to AS management for teams without a dedicated AppSec function"
+	Estimated impact
+	"High — keyword relevance 94%, ICP match: CISO / Security Director"
+	"Download brief" CTA
+	Orange outline button. Generates and downloads a 1-page PDF content brief. Available all tiers.
+	Content production upsell
+	Amber text below download button: "Want us to write this for you? Add Content Production from $599/month." One upsell per card. Never a popup.
+	
+
+Subreddit Performance
+Table view. Sortable columns.
+Column
+	Content
+	Notes
+	Subreddit
+	r/name — clickable to Reddit
+	Sorted by activity by default
+	Avatar Activity
+	Comments + posts count in period
+	Sortable
+	Upvote Rate
+	Upvotes ÷ comments ratio, shown as %
+	Sortable
+	Active Phase
+	Phase chip(s) for avatars active in this sub
+	Multiple avatars shown as stacked chips
+	Trend
+	Arrow + delta vs previous period
+	Sortable
+	If client is at subreddit limit and system has surfaced new subreddit suggestions: an inline upsell row appears at the bottom of the table.
+UPSELL (at subreddit limit): "We found 3 more subreddits where your ICP is active. Add 5 slots for $99/month to unlock them." Or: "Upgrade to Growth to remove the subreddit limit." Non-blocking table row, dismissable.
+
+
+Monthly Report Download
+Prominent card at bottom of screen. Shows current plan report tier. "Download Report" CTA (orange button). Also shows last 3 reports as downloadable links with dates.
+Plan
+	Frequency
+	Report Content
+	Seed / Starter
+	Monthly
+	Executive summary + 3 headline metrics + top 10 comments
+	Growth
+	Bi-weekly
+	Above + share of voice + client logo branding
+	Scale
+	Weekly
+	Full white-label + competitor digest + custom sections on request
+	Report design principle: opens with progress, not process. "This month, your brand appeared in X high-intent discussions. Your avatars earned Y upvotes. Competitor share of voice moved from A% to B%." Designed to be forwarded to a CMO unchanged — max 2 pages.
+________________
+
+
+08 · SETTINGS SCREEN
+Layout
+Left settings sub-nav (sticky, 200px). Right content area. Sections: Keywords · Subreddits · Brand Guardrails · Voice Feedback · Notifications · Team · Plan & Billing.
+
+
+Keywords
+Active keywords listed as chips. Each chip shows keyword text + "×" remove button. "Which subreddits" tooltip on hover shows which subreddits this keyword is monitored in. "Add keyword" tag input with Reddit autocomplete. Changes save on blur — no explicit Save button needed. Confirmation toast: "Keyword added — your avatars will now monitor this topic."
+
+
+Subreddits
+"Active subreddits" list. Each row: subreddit name + avatar assigned + current phase. "Request to add subreddit" button. If at plan limit: button opens inline upsell amber tooltip. If not at limit: button opens subreddit search input. Remove subreddit: each row has a "Remove" link (with confirmation: "Remove r/[sub]? This will pause your avatar's activity there.").
+
+
+Brand Guardrails
+Three fields matching onboarding Step 4 (pre-filled with onboarding answers):
+* Never-associate topics — tag input, freeform.
+* Restricted claims — free text area.
+* Style inspiration — free text.
+Changes save inline. Confirmation toast: "Guardrails updated — we'll apply these to all future drafts."
+
+
+Voice Feedback
+Label: "Our recent comments didn't feel right — here's what to change." Large textarea, 500 char max. "Submit feedback" button (orange). Confirmation: "Got it — we'll apply this to future generations." Recent feedback history below: last 5 entries, read-only with dates.
+
+
+Notifications
+Setting
+	Component / Logic
+	Email digest frequency
+	Radio group: Daily / Weekly / Off. Default: Weekly.
+	Slack webhook
+	Text input + "Test" button. Growth+ only. Greyed with upsell tooltip on lower tiers: "Real-time Slack alerts available on Growth plan."
+	Shadowban alerts
+	Always on. Checkbox greyed out + lock icon. Tooltip: "This alert cannot be disabled — shadowban detection is critical."
+	
+
+Team
+"Invite teammate" section. Email input + "Send invite" button. Role: Read-only viewer (no editorial access for team members in V1). Active team list: name + email + "Remove" link. Removed members lose access immediately.
+
+
+Plan & Billing
+Current plan card: tier name, billing cycle, renewal date, "Manage billing →" link to payment portal (Stripe or equivalent). Usage meters:
+* Monthly actions: X / Y with progress bar (amber at 80%, red at 95%)
+* Active avatars: X / Y
+* Active subreddits: X / Y
+Upgrade CTA: always contextual based on nearest limit. Examples:
+* Avatars at limit: "You have X active avatars. Upgrade to Growth for 3× more."
+* Actions at 80%: "You are at 80% of your monthly action limit. Upgrade to Growth for 2.5× more actions."
+* No limit pressure: "Upgrade to Growth for competitor tracking, bi-weekly reports, and Slack alerts."
+Never show a generic "Upgrade now" button. The CTA must always reference a specific limit or benefit the client is currently missing or approaching.
+________________
+
+
+09 · UPSELL SYSTEM — FULL PLACEMENT MAP
+RULE: Never show more than one upsell on a screen at the same time. If multiple upsell triggers are active simultaneously, show only the one most directly related to what the client is currently doing. Upsell states are managed server-side and returned in page context.
+
+
+Upsell
+	Trigger Condition
+	Placement
+	Tone / Copy
+	Extra subreddit slots ($99/mo)
+	Client hits subreddit limit in onboarding or Settings
+	Inline amber tooltip on "Add" button. Non-blocking.
+	"We found more subs for you — add 5 more slots for $99/month."
+	Competitor monitoring / Share of Voice
+	Seed/Starter viewing locked widget or Insights section
+	Greyed card with lock icon on Home + blurred section on Insights
+	"See how you compare to competitors. Upgrade to Growth."
+	Avatar expansion ($199/mo)
+	All avatars at plan limit + high subreddit volume
+	Card at end of avatar grid on Avatars screen
+	"Your fleet is at capacity across X subs. More avatars = more coverage."
+	Pre-warmed avatar — Silver ($199) / Gold ($499)
+	New avatar being allocated (onboarding or request)
+	Avatar allocation confirmation screen + Avatars screen card
+	"Start with credibility already built. Silver: 500+ karma. Gold: 1,000+ karma."
+	Content production ($599+/mo)
+	Client views content recommendation card
+	Subtle amber text below each recommendation card
+	"Want us to write this for you? Add Content Production."
+	Plan upgrade (contextual)
+	Approaching any plan limit at 80%+
+	Settings > Plan & Billing contextual callout
+	Data-driven: "You are at X% of your [metric] limit."
+	Managed service
+	First login after activation + Settings > Plan
+	Welcome email + subtle card in Settings
+	"Let our team handle everything. Talk to us."
+	Slack alerts
+	Seed/Starter viewing Notifications settings
+	Greyed Slack webhook field with tooltip
+	"Real-time Slack alerts available on Growth plan."
+	AEO / Competitor Pulseboard
+	Growth+ client on Insights screen
+	Card below Subreddit Performance section
+	"See how your brand appears in AI search results. Add AEO monitoring."
+	________________
+
+
+10 · SAFETY STATES — VISUAL & INTERACTION SPEC
+Design Principle
+Safety states are the system working correctly — not errors. Copy must be specific, informative, and actionable. The client must understand exactly what triggered the block, why it exists, and what they should do (if anything). Safety blocks are technically enforced: the UI prevents the action. There is no override path for hard blocks.
+
+
+State
+	Colour
+	Dismissable
+	Client Action
+	Developer Implementation
+	Brand mention block (Phase 1/2)
+	Red
+	No
+	Edit comment to remove brand mention. Re-submit.
+	Block fires on "Approve" click. Approve button disabled. Red banner on card. Server returns 422 with structured error: { rule: "brand_mention_phase_block", avatar_phase: 1, brand_detected: "XM Cyber" }. No client-side override path.
+	Competitor attack block
+	Red
+	No
+	Approve neutralised version, or edit further.
+	System rewrites competitor reference to neutral language. Returns neutralised draft to card. Original archived. Client approves neutral version. Direct attacks never post regardless of karma.
+	Shadowban detected
+	Red
+	No (until resolved)
+	None — system handles it.
+	Immediately pause all activity for avatar. Red badge on Avatars card. Red banner on Home. Email client. Notify admin via Slack webhook. Log event with timestamp.
+	Budget 80% warning
+	Amber
+	Yes (24h snooze)
+	None — informational.
+	Amber banner on Home. Snooze button. Re-shows after 24h if still applicable.
+	Budget 100% cap hit
+	Red
+	No
+	None, or upgrade plan.
+	Pause generation + posting. Health checks + monitoring continue. Upsell CTA in banner. New action requests return 402 from API.
+	Thin brief block
+	Red
+	No (until fixed)
+	Fill highlighted required fields.
+	Block avatar activation CTA in onboarding Step 6. Scroll-to-first-error behaviour. Red ring on incomplete fields. List of incomplete fields shown above CTA.
+	7-day inactivity
+	Amber
+	Yes (24h)
+	Review queue.
+	Amber banner on Home. Direct link to Review Queue. Log inactivity event.
+	Phase guardrail (soft)
+	Amber
+	Confirm required
+	Click "I understand — approve anyway" (second deliberate click).
+	Orange badge on draft card. First click shows warning. Second click approves. Event logged. Not a hard block.
+	Posting rate protection
+	None (internal)
+	N/A
+	None.
+	Invisible to client. Throttle posting queue server-side based on account age and activity rate. No client-facing message.
+	________________
+
+
+11 · EMPTY STATES — FULL COPY SPEC
+Rule: Every empty state is specific to the screen and the client's current phase. Never use generic "No data" text or generic empty-state illustrations.
+
+
+Screen / Context
+	Copy (exact)
+	Home — post-onboarding, avatars being configured
+	"Your setup is complete. We are now configuring your avatars. Check back in 24–48 hours — your avatars will be ready and active."
+	Home — activated, 0 comments posted yet
+	"Your avatars are active and warming up. First comments will appear here within 24 hours."
+	Home — Momentum Feed, no events yet
+	"No momentum events in this period. This is normal in the early phase. Events like breakout comments and phase accelerations will appear here as your avatars build activity."
+	Review Queue — nothing pending
+	"Nothing to review right now. Your avatars are active — new drafts appear here as opportunities are found."
+	Review Queue — no drafts in 48h (Phase 1)
+	"No new opportunities found in the last 48 hours. This is normal during the early karma-building phase — your avatars are warming up. Check back tomorrow."
+	Avatars — pre-activation (24–48h window)
+	"Your avatars are being configured. Check back in 24–48 hours."
+	Insights: Share of Voice — pre-Phase 2
+	"Share of voice tracking begins once your avatars reach Phase 2. They are actively building credibility now."
+	Insights: High-Intent — Phase 1
+	"High-intent thread appearances become visible at Phase 2. Your avatars are building the credibility needed to appear in these discussions."
+	Insights: Content Recommendations — no data
+	"No content recommendations this period. This typically means your keyword map needs expanding — check your Settings > Keywords."
+	Insights: Subreddit Performance — no activity
+	"No subreddit activity in this period. If your avatars were recently activated, activity will appear within 24 hours."
+	________________
+
+
+12 · MOBILE LAYOUT SPEC
+Priority
+Mobile is not a secondary experience. Clients approve content between meetings, check overnight results on their phone, and download reports before presentations. Review Queue and Home must work flawlessly on mobile. Other screens are functional but secondary priority.
+
+
+Review Queue — Mobile Spec
+Element
+	Mobile Spec
+	Card layout
+	Full-width cards stacked vertically. No horizontal scroll. Card width = 100% of viewport minus 16px padding each side.
+	Action buttons
+	2×2 grid below each card. Approve (full-width green, spans 2 columns, 52px height). Edit then Approve (orange). Regenerate. Skip. All minimum 44px touch target.
+	Inline editing
+	Full-screen textarea overlay on edit action — feels native. "Save & Approve" sticky button at bottom (above iOS home indicator). "Cancel" button top-right.
+	Strategic rationale
+	Collapsed by default: "Why this? ▾" tap to expand.
+	Filter bar
+	Horizontal scrollable single row of chips. "Filters" button opens a bottom sheet with all filter options (full bottom sheet, 80% screen height, drag to dismiss).
+	Batch approve
+	Sticky bar at bottom of viewport when items checked. "Approve 3 drafts" full-width button, 56px height. Above iOS home indicator.
+	
+
+Home — Mobile Element Order
+Single-column, top to bottom:
+* 1. System banners (if active) — full width
+* 2. Time-frame selector — pill tabs, horizontal scroll if needed
+* 3. Headline numbers — 3 cards stacked vertically (not side-by-side)
+* 4. Pending approvals CTA — full width
+* 5. Avatar activity strip — horizontal scroll
+* 6. Momentum events feed — full width, scrollable
+* 7. Share of voice widget — full width (locked card or data)
+"Download Report" button: accessible via ⋮ overflow menu icon at top-right (alongside time-frame selector). Tap ⋮ → "Download Report" option appears.
+
+
+Touch Target Standards
+* All interactive elements: minimum 44×44px touch target
+* Text inputs: minimum 48px height
+* Adjacent tappable elements: minimum 8px gap between targets
+* Swipe-to-dismiss on draft cards (swipe left = Skip, swipe right = Approve) — optional enhancement, implement after core interactions are stable
+
+
+Responsive Breakpoints
+Breakpoint
+	Layout
+	Notes
+	< 768px (Mobile)
+	Bottom tab bar. No sidebar. Single-column content. 2×2 action grid.
+	Primary mobile experience.
+	768px–1024px (Tablet)
+	Sidebar collapses to icon-only (48px wide). 2-column card grid for Avatars.
+	Optional — verify in testing.
+	> 1024px (Desktop)
+	Full sidebar 240px. 3-column avatar grid. Two-column home layout (content + feed).
+	Primary desktop experience.
+	________________
+
+
+13 · DEVELOPER IMPLEMENTATION NOTES
+API Security — Field Allowlist
+All client-facing API responses must be filtered server-side using a response schema allowlist — not a denylist. The following fields must never appear in any client-facing API response, even in dev/staging environments:
+* reddit_username, reddit_password, email_address, email_password
+* proxy_config, proxy_ip, browser_profile_id, session_token
+* raw_karma_score (show tier label only — never the integer)
+* ai_generation_cost, cost_per_action
+* confidence_score, survival_rate, health_score_raw
+* phase_eligibility_detail, phase_threshold_values
+
+
+State Management
+State
+	Storage Method
+	Notes
+	Time-frame selector
+	localStorage (keyed to user ID)
+	Persists across sessions. Never resets on navigation.
+	Review Queue filters
+	URL params
+	Enables shareability and back-button behaviour.
+	Onboarding wizard state
+	Server-side (per step)
+	Persist to server on each step completion. Browser refresh resumes from last completed step. Critical — never lose onboarding data.
+	All other UI state
+	In-component state
+	No global store for ephemeral UI interactions.
+	
+
+Real-Time Data
+* Momentum Events feed: poll every 60 seconds. WebSocket preferred if infrastructure supports it.
+* Shadowban status: poll every 60 seconds. Must update avatar card badge and home banner without page reload.
+* Pending approval count (sidebar badge): update optimistically on approve/skip. Revert on server error.
+* Avatar activity strip on Home: lazy-load after page content is visible — not a blocking load.
+
+
+Safety Block API Contract
+Safety checks must run server-side on every approve action. Client-side checks are UI hints only — never the enforcement layer. Server returns:
+Response Code
+	Meaning
+	Client Action
+	200 OK
+	Draft approved and queued for posting.
+	Remove card from queue (optimistic update confirmed).
+	422 Unprocessable
+	Safety rule triggered. Body includes: { rule, avatar_phase, detected_content }.
+	Show specific red banner on card using rule type. Re-enable approve button after edit.
+	402 Payment Required
+	Monthly action limit reached.
+	Show red budget cap banner. Disable all approve actions.
+	429 Too Many Requests
+	Posting rate protection active (internal throttle).
+	Queue the approve locally, retry after 60s. Never show an error to client.
+	
+
+Report Generation
+Asynchronous. On button click: POST /reports/generate returns a job ID. Poll GET /reports/status/{jobId} every 1 second. On completion: trigger browser download using the returned signed URL. Timeout: 30 seconds. If timeout: show message "Report generation is taking longer than expected. We will email it to you when ready." Do not show a generic error.
+
+
+Upsell Logic
+Upsell trigger evaluation is done server-side. Each page context payload includes at most one upsell_trigger object: { type, placement, copy }. Frontend renders the upsell using this object — never determines upsell visibility itself. If upsell_trigger is null, no upsell is shown on that screen.
+
+
+Performance Targets
+Metric
+	Target
+	Notes
+	First Contentful Paint
+	< 1.5s desktop / < 2.5s mobile (4G)
+	Measure with Lighthouse in CI.
+	Time to Interactive
+	< 3s desktop / < 5s mobile
+	Review Queue must be interactive within this window.
+	Skeleton screen appearance
+	Within 100ms of navigation
+	Never a blank white screen during data fetch.
+	Approve / Skip response
+	UI update within 200ms
+	Optimistic update — do not wait for server confirmation to update UI.
+	Report generation
+	< 30s or email fallback
+	Button shows inline spinner during generation.
+	
+
+Accessibility
+* WCAG 2.1 AA minimum across all screens.
+* All interactive elements keyboard-navigable (Tab, Enter, Space, Arrow keys).
+* All icon-only buttons have aria-label.
+* Colour is never the only means of conveying status — always pair with text or icon.
+* Dark theme is the only theme in V1. No light mode toggle required.
+* Screen reader announcements for all dynamic content changes (queue count, toast messages, banner appearances).
+
+
+CLOSING PRINCIPLE: The client should never feel like they are operating a tool. They should feel like they are reviewing and approving the work of a highly capable team. Every micro-interaction, every copy string, and every empty state is an opportunity to reinforce this. If in doubt about any design decision — ask: does this make the client feel in control of a system that is working hard on their behalf?

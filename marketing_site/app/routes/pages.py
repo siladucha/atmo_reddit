@@ -53,6 +53,12 @@ async def proxy_page(request: Request) -> HTMLResponse:
     )
 
 
+@router.get("/roadmap", response_class=HTMLResponse)
+async def roadmap_page(request: Request) -> HTMLResponse:
+    """Render the product roadmap page."""
+    return templates.TemplateResponse(request=request, name="marketing_roadmap.html")
+
+
 @router.get("/thank-you", response_class=HTMLResponse)
 async def thank_you_page(request: Request) -> HTMLResponse:
     """Render the thank-you confirmation page."""

@@ -1348,44 +1348,71 @@ def get_db_statistics(db: Session) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def get_ai_cost_summary(db: Session) -> dict:
+def _ai_cost_cutoff(days: int | None):
+    """Return a datetime cutoff for filtering AI usage logs by period."""
+    if not days:
+        return None
+    from datetime import timedelta, timezone, datetime as dt
+    return dt.now(timezone.utc) - timedelta(days=days)
+
+
+def get_ai_cost_summary(db: Session, days: int | None = None) -> dict:
     """Return aggregate AI usage statistics.
 
     Args:
         db: SQLAlchemy database session.
+        days: Optional period filter (7, 30, 90, or None for all-time).
 
     Returns:
         A dict with ``total_cost``, ``total_calls``, ``total_input_tokens``,
-        ``total_output_tokens``.
+        ``total_output_tokens``, ``days_with_data``, ``daily_avg``, ``monthly_projection``.
     """
-    row = (
-        db.query(
-            func.coalesce(func.sum(AIUsageLog.cost_usd), 0).label("total_cost"),
-            func.count(AIUsageLog.id).label("total_calls"),
-            func.coalesce(func.sum(AIUsageLog.input_tokens), 0).label("total_input_tokens"),
-            func.coalesce(func.sum(AIUsageLog.output_tokens), 0).label("total_output_tokens"),
-        )
-        .one()
+    query = db.query(
+        func.coalesce(func.sum(AIUsageLog.cost_usd), 0).label("total_cost"),
+        func.count(AIUsageLog.id).label("total_calls"),
+        func.coalesce(func.sum(AIUsageLog.input_tokens), 0).label("total_input_tokens"),
+        func.coalesce(func.sum(AIUsageLog.output_tokens), 0).label("total_output_tokens"),
     )
+    cutoff = _ai_cost_cutoff(days)
+    if cutoff:
+        query = query.filter(AIUsageLog.created_at >= cutoff)
+    row = query.one()
+
+    total_cost = float(row.total_cost)
+
+    # Calculate daily average and monthly projection
+    if days:
+        daily_avg = total_cost / days if days > 0 else 0
+    else:
+        # Count distinct days with data
+        days_q = db.query(func.count(func.distinct(func.date_trunc("day", AIUsageLog.created_at))))
+        days_with_data = days_q.scalar() or 1
+        daily_avg = total_cost / days_with_data if days_with_data > 0 else 0
+
+    monthly_projection = daily_avg * 30
+
     return {
-        "total_cost": float(row.total_cost),
+        "total_cost": total_cost,
         "total_calls": row.total_calls,
         "total_input_tokens": row.total_input_tokens,
         "total_output_tokens": row.total_output_tokens,
+        "daily_avg": daily_avg,
+        "monthly_projection": monthly_projection,
     }
 
 
-def get_ai_costs_by_client(db: Session) -> list[dict]:
+def get_ai_costs_by_client(db: Session, days: int | None = None) -> list[dict]:
     """Return AI costs grouped by client.
 
     Args:
         db: SQLAlchemy database session.
+        days: Optional period filter.
 
     Returns:
         A list of dicts with ``client_name``, ``calls``, ``cost``,
-        ``input_tokens``, ``output_tokens``.
+        ``input_tokens``, ``output_tokens``, ``cost_per_day``.
     """
-    rows = (
+    query = (
         db.query(
             Client.client_name,
             func.count(AIUsageLog.id).label("calls"),
@@ -1394,32 +1421,128 @@ def get_ai_costs_by_client(db: Session) -> list[dict]:
             func.coalesce(func.sum(AIUsageLog.output_tokens), 0).label("output_tokens"),
         )
         .join(Client, AIUsageLog.client_id == Client.id)
-        .group_by(Client.client_name)
-        .all()
     )
-    return [
-        {
+    cutoff = _ai_cost_cutoff(days)
+    if cutoff:
+        query = query.filter(AIUsageLog.created_at >= cutoff)
+    rows = query.group_by(Client.client_name).all()
+
+    period_days = days or 30  # default assumption for cost_per_day
+    result = []
+    for row in rows:
+        cost = float(row.cost)
+        result.append({
             "client_name": row.client_name,
             "calls": row.calls,
-            "cost": float(row.cost),
+            "cost": cost,
             "input_tokens": row.input_tokens,
             "output_tokens": row.output_tokens,
-        }
-        for row in rows
-    ]
+            "cost_per_day": cost / period_days if period_days > 0 else 0,
+        })
+    # Sort by cost descending
+    result.sort(key=lambda x: x["cost"], reverse=True)
+
+    # Per-client per-operation breakdown
+    op_query = (
+        db.query(
+            Client.client_name,
+            AIUsageLog.operation,
+            func.coalesce(func.sum(AIUsageLog.cost_usd), 0).label("cost"),
+        )
+        .join(Client, AIUsageLog.client_id == Client.id)
+    )
+    if cutoff:
+        op_query = op_query.filter(AIUsageLog.created_at >= cutoff)
+    op_rows = op_query.group_by(Client.client_name, AIUsageLog.operation).all()
+
+    # Build lookup: client_name -> {operation: cost}
+    client_ops: dict = {}
+    for r in op_rows:
+        if r.client_name not in client_ops:
+            client_ops[r.client_name] = {}
+        client_ops[r.client_name][r.operation] = float(r.cost)
+
+    # Attach to results
+    for item in result:
+        ops = client_ops.get(item["client_name"], {})
+        item["scoring"] = ops.get("scoring", 0) + ops.get("scoring_batch", 0)
+        item["generation"] = ops.get("generation", 0) + ops.get("editing", 0) + ops.get("persona_select", 0)
+        item["hobby"] = ops.get("hobby_comment", 0)
+        item["strategy"] = ops.get("strategy_generation", 0)
+
+    return result
 
 
-def get_ai_costs_by_operation(db: Session) -> list[dict]:
+def get_ai_costs_by_avatar(db: Session, days: int | None = None) -> list[dict]:
+    """Return AI costs grouped by avatar with cost/day calculation.
+
+    Shows how much each avatar costs to operate per day.
+    """
+    from app.models.avatar import Avatar
+
+    query = (
+        db.query(
+            Avatar.reddit_username,
+            Client.client_name,
+            AIUsageLog.operation,
+            func.count(AIUsageLog.id).label("calls"),
+            func.coalesce(func.sum(AIUsageLog.cost_usd), 0).label("cost"),
+        )
+        .join(Avatar, AIUsageLog.avatar_id == Avatar.id)
+        .outerjoin(Client, AIUsageLog.client_id == Client.id)
+    )
+    cutoff = _ai_cost_cutoff(days)
+    if cutoff:
+        query = query.filter(AIUsageLog.created_at >= cutoff)
+    rows = query.group_by(Avatar.reddit_username, Client.client_name, AIUsageLog.operation).all()
+
+    # Aggregate per avatar
+    avatars: dict = {}
+    for r in rows:
+        name = r.reddit_username or "unknown"
+        if name not in avatars:
+            avatars[name] = {
+                "avatar_name": name,
+                "client_name": r.client_name or "—",
+                "calls": 0,
+                "cost": 0.0,
+                "scoring": 0.0,
+                "generation": 0.0,
+                "hobby": 0.0,
+                "strategy": 0.0,
+            }
+        cost = float(r.cost)
+        avatars[name]["calls"] += r.calls
+        avatars[name]["cost"] += cost
+        if r.operation in ("scoring", "scoring_batch"):
+            avatars[name]["scoring"] += cost
+        elif r.operation in ("generation", "editing", "persona_select"):
+            avatars[name]["generation"] += cost
+        elif r.operation == "hobby_comment":
+            avatars[name]["hobby"] += cost
+        elif r.operation == "strategy_generation":
+            avatars[name]["strategy"] += cost
+
+    period_days = days or 30
+    result = list(avatars.values())
+    for item in result:
+        item["cost_per_day"] = item["cost"] / period_days if period_days > 0 else 0
+    result.sort(key=lambda x: x["cost"], reverse=True)
+    return result
+
+
+def get_ai_costs_by_operation(db: Session, days: int | None = None) -> list[dict]:
     """Return AI costs grouped by operation type.
 
     Args:
         db: SQLAlchemy database session.
+        days: Optional period filter.
 
     Returns:
         A list of dicts with ``operation``, ``calls``, ``cost``,
-        ``input_tokens``, ``output_tokens``.
+        ``input_tokens``, ``output_tokens``, ``pct``, ``stage``.
     """
-    rows = (
+    query = (
         db.query(
             AIUsageLog.operation,
             func.count(AIUsageLog.id).label("calls"),
@@ -1427,32 +1550,81 @@ def get_ai_costs_by_operation(db: Session) -> list[dict]:
             func.coalesce(func.sum(AIUsageLog.input_tokens), 0).label("input_tokens"),
             func.coalesce(func.sum(AIUsageLog.output_tokens), 0).label("output_tokens"),
         )
-        .group_by(AIUsageLog.operation)
-        .all()
     )
-    return [
-        {
+    cutoff = _ai_cost_cutoff(days)
+    if cutoff:
+        query = query.filter(AIUsageLog.created_at >= cutoff)
+    rows = query.group_by(AIUsageLog.operation).all()
+
+    # Map operations to pipeline stages
+    stage_map = {
+        "scoring": "Discovery",
+        "generation": "Content",
+        "persona_select": "Content",
+        "editing": "Content",
+        "hobby_comment": "Hobby",
+        "post_topic": "Posts",
+        "post_brief": "Posts",
+        "post_generation": "Posts",
+    }
+
+    total_cost = sum(float(r.cost) for r in rows) or 1.0
+    result = []
+    for row in rows:
+        cost = float(row.cost)
+        result.append({
             "operation": row.operation,
             "calls": row.calls,
-            "cost": float(row.cost),
+            "cost": cost,
             "input_tokens": row.input_tokens,
             "output_tokens": row.output_tokens,
-        }
-        for row in rows
-    ]
+            "pct": (cost / total_cost * 100) if total_cost > 0 else 0,
+            "stage": stage_map.get(row.operation, "Other"),
+        })
+    # Sort by cost descending
+    result.sort(key=lambda x: x["cost"], reverse=True)
+    return result
 
 
-def get_ai_costs_by_model(db: Session) -> list[dict]:
+def get_ai_costs_by_stage(db: Session, days: int | None = None) -> list[dict]:
+    """Return AI costs grouped by pipeline stage (higher-level grouping).
+
+    Stages: Discovery (scoring), Content (generation+persona+editing),
+    Hobby (hobby_comment), Posts (post_*).
+    """
+    by_op = get_ai_costs_by_operation(db, days=days)
+
+    stages: dict = {}
+    for op in by_op:
+        stage = op["stage"]
+        if stage not in stages:
+            stages[stage] = {"stage": stage, "calls": 0, "cost": 0.0, "input_tokens": 0, "output_tokens": 0}
+        stages[stage]["calls"] += op["calls"]
+        stages[stage]["cost"] += op["cost"]
+        stages[stage]["input_tokens"] += op["input_tokens"]
+        stages[stage]["output_tokens"] += op["output_tokens"]
+
+    total_cost = sum(s["cost"] for s in stages.values()) or 1.0
+    result = []
+    for s in stages.values():
+        s["pct"] = (s["cost"] / total_cost * 100) if total_cost > 0 else 0
+        result.append(s)
+    result.sort(key=lambda x: x["cost"], reverse=True)
+    return result
+
+
+def get_ai_costs_by_model(db: Session, days: int | None = None) -> list[dict]:
     """Return AI costs grouped by model.
 
     Args:
         db: SQLAlchemy database session.
+        days: Optional period filter.
 
     Returns:
         A list of dicts with ``model``, ``calls``, ``cost``,
-        ``input_tokens``, ``output_tokens``.
+        ``input_tokens``, ``output_tokens``, ``pct``.
     """
-    rows = (
+    query = (
         db.query(
             AIUsageLog.model,
             func.count(AIUsageLog.id).label("calls"),
@@ -1460,19 +1632,26 @@ def get_ai_costs_by_model(db: Session) -> list[dict]:
             func.coalesce(func.sum(AIUsageLog.input_tokens), 0).label("input_tokens"),
             func.coalesce(func.sum(AIUsageLog.output_tokens), 0).label("output_tokens"),
         )
-        .group_by(AIUsageLog.model)
-        .all()
     )
-    return [
-        {
+    cutoff = _ai_cost_cutoff(days)
+    if cutoff:
+        query = query.filter(AIUsageLog.created_at >= cutoff)
+    rows = query.group_by(AIUsageLog.model).all()
+
+    total_cost = sum(float(r.cost) for r in rows) or 1.0
+    result = []
+    for row in rows:
+        cost = float(row.cost)
+        result.append({
             "model": row.model,
             "calls": row.calls,
-            "cost": float(row.cost),
+            "cost": cost,
             "input_tokens": row.input_tokens,
             "output_tokens": row.output_tokens,
-        }
-        for row in rows
-    ]
+            "pct": (cost / total_cost * 100) if total_cost > 0 else 0,
+        })
+    result.sort(key=lambda x: x["cost"], reverse=True)
+    return result
 
 
 def get_ai_costs_daily_timeline(db: Session, days: int = 14) -> list[dict]:
@@ -1589,7 +1768,7 @@ def get_ai_costs_recent_calls(db: Session, limit: int = 30, client_id: str | Non
     ]
 
 
-def get_ai_cost_efficiency(db: Session) -> dict:
+def get_ai_cost_efficiency(db: Session, days: int | None = None) -> dict:
     """Calculate cost efficiency metrics.
 
     Returns cost-per-comment-posted, cost-per-thread-scored, etc.
@@ -1597,28 +1776,38 @@ def get_ai_cost_efficiency(db: Session) -> dict:
     from datetime import timedelta, timezone, datetime as dt
     from app.models.comment_draft import CommentDraft
 
+    cutoff = _ai_cost_cutoff(days)
+
     # Total costs by operation
-    total_scoring_cost = float(
-        db.query(func.coalesce(func.sum(AIUsageLog.cost_usd), 0))
-        .filter(AIUsageLog.operation == "scoring")
-        .scalar()
-    )
-    total_generation_cost = float(
-        db.query(func.coalesce(func.sum(AIUsageLog.cost_usd), 0))
-        .filter(AIUsageLog.operation.in_(["generation", "persona_select", "editing"]))
-        .scalar()
-    )
-    total_hobby_cost = float(
-        db.query(func.coalesce(func.sum(AIUsageLog.cost_usd), 0))
-        .filter(AIUsageLog.operation == "hobby_comment")
-        .scalar()
-    )
+    scoring_q = db.query(func.coalesce(func.sum(AIUsageLog.cost_usd), 0)).filter(AIUsageLog.operation == "scoring")
+    gen_q = db.query(func.coalesce(func.sum(AIUsageLog.cost_usd), 0)).filter(AIUsageLog.operation.in_(["generation", "persona_select", "editing"]))
+    hobby_q = db.query(func.coalesce(func.sum(AIUsageLog.cost_usd), 0)).filter(AIUsageLog.operation == "hobby_comment")
+
+    if cutoff:
+        scoring_q = scoring_q.filter(AIUsageLog.created_at >= cutoff)
+        gen_q = gen_q.filter(AIUsageLog.created_at >= cutoff)
+        hobby_q = hobby_q.filter(AIUsageLog.created_at >= cutoff)
+
+    total_scoring_cost = float(scoring_q.scalar())
+    total_generation_cost = float(gen_q.scalar())
+    total_hobby_cost = float(hobby_q.scalar())
 
     # Counts
-    threads_scored = db.query(func.count(AIUsageLog.id)).filter(AIUsageLog.operation == "scoring").scalar() or 0
-    comments_generated = db.query(func.count(AIUsageLog.id)).filter(AIUsageLog.operation == "generation").scalar() or 0
-    comments_posted = db.query(func.count(CommentDraft.id)).filter(CommentDraft.status == "posted").scalar() or 0
-    hobby_generated = db.query(func.count(AIUsageLog.id)).filter(AIUsageLog.operation == "hobby_comment").scalar() or 0
+    scored_q = db.query(func.count(AIUsageLog.id)).filter(AIUsageLog.operation == "scoring")
+    generated_q = db.query(func.count(AIUsageLog.id)).filter(AIUsageLog.operation == "generation")
+    hobby_gen_q = db.query(func.count(AIUsageLog.id)).filter(AIUsageLog.operation == "hobby_comment")
+    posted_q = db.query(func.count(CommentDraft.id)).filter(CommentDraft.status == "posted")
+
+    if cutoff:
+        scored_q = scored_q.filter(AIUsageLog.created_at >= cutoff)
+        generated_q = generated_q.filter(AIUsageLog.created_at >= cutoff)
+        hobby_gen_q = hobby_gen_q.filter(AIUsageLog.created_at >= cutoff)
+        posted_q = posted_q.filter(CommentDraft.created_at >= cutoff)
+
+    threads_scored = scored_q.scalar() or 0
+    comments_generated = generated_q.scalar() or 0
+    comments_posted = posted_q.scalar() or 0
+    hobby_generated = hobby_gen_q.scalar() or 0
 
     # Efficiency ratios
     cost_per_scored = total_scoring_cost / threads_scored if threads_scored > 0 else 0

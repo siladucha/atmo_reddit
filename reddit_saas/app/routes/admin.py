@@ -4056,20 +4056,38 @@ def admin_ai_costs(
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
     client_id: str | None = None,
+    period: str | None = None,
+    sort: str | None = None,
 ):
-    summary = admin_service.get_ai_cost_summary(db)
-    by_client = admin_service.get_ai_costs_by_client(db)
-    by_operation = admin_service.get_ai_costs_by_operation(db)
-    by_model = admin_service.get_ai_costs_by_model(db)
+    # Period filter: 7d, 30d, 90d, or all
+    period_map = {"7d": 7, "30d": 30, "90d": 90}
+    days = period_map.get(period) if period else None
+    active_period = period or "all"
+
+    summary = admin_service.get_ai_cost_summary(db, days=days)
+    by_client = admin_service.get_ai_costs_by_client(db, days=days)
+    by_operation = admin_service.get_ai_costs_by_operation(db, days=days)
+    by_stage = admin_service.get_ai_costs_by_stage(db, days=days)
+    by_model = admin_service.get_ai_costs_by_model(db, days=days)
+    by_avatar = admin_service.get_ai_costs_by_avatar(db, days=days)
     timeline = admin_service.get_ai_costs_daily_timeline(db, days=14)
     recent_calls = admin_service.get_ai_costs_recent_calls(db, limit=30, client_id=client_id)
-    efficiency = admin_service.get_ai_cost_efficiency(db)
+    efficiency = admin_service.get_ai_cost_efficiency(db, days=days)
+
+    # Sort tables if requested
+    if sort:
+        sort_field = sort.lstrip("-")
+        sort_reverse = sort.startswith("-")
+        if sort_field in ("cost", "calls"):
+            by_client.sort(key=lambda x: x.get(sort_field, 0), reverse=sort_reverse)
+            by_operation.sort(key=lambda x: x.get(sort_field, 0), reverse=sort_reverse)
+            by_model.sort(key=lambda x: x.get(sort_field, 0), reverse=sort_reverse)
 
     # Budget from settings or default
     from app.services.settings import get_setting
     budget_str = get_setting(db, "monthly_budget_usd")
     budget = float(budget_str) if budget_str else 100.0
-    budget_pct = (summary["total_cost"] / budget * 100) if budget > 0 else 0
+    budget_pct = (summary["monthly_projection"] / budget * 100) if budget > 0 else 0
 
     # Clients for filter dropdown (include inactive — they have cost history)
     clients = db.query(Client).order_by(Client.client_name).all()
@@ -4082,7 +4100,9 @@ def admin_ai_costs(
             "summary": summary,
             "by_client": by_client,
             "by_operation": by_operation,
+            "by_stage": by_stage,
             "by_model": by_model,
+            "by_avatar": by_avatar,
             "timeline": timeline,
             "recent_calls": recent_calls,
             "efficiency": efficiency,
@@ -4090,6 +4110,7 @@ def admin_ai_costs(
             "budget_pct": budget_pct,
             "clients": clients,
             "filter_client_id": client_id or "",
+            "active_period": active_period,
         },
         request=request,
     )

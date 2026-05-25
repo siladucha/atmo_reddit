@@ -10,340 +10,410 @@
 {% include "partials/export_button.html" %}
 {% endblock %}
 {% block content %}
-<div class="max-w-7xl mx-auto space-y-8">
-    <h1 class="text-2xl font-semibold text-white">AI Cost Tracking</h1>
+<style>
+    details.cost-section > summary { cursor: pointer; list-style: none; }
+    details.cost-section > summary::-webkit-details-marker { display: none; }
+    details.cost-section > summary .chevron { transition: transform 0.2s; }
+    details.cost-section[open] > summary .chevron { transform: rotate(90deg); }
+    .op-tip { position: relative; }
+    .op-tip .op-tip-text { visibility: hidden; opacity: 0; position: absolute; bottom: calc(100% + 6px); left: 0; transform: none; width: 240px; padding: 6px 10px; border-radius: 6px; background: #0f172a; border: 1px solid #475569; color: #cbd5e1; font-size: 11px; line-height: 1.4; z-index: 50; pointer-events: none; transition: opacity 0.15s; white-space: normal; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+    .op-tip:hover .op-tip-text { visibility: visible; opacity: 1; }
+</style>
+<div class="max-w-7xl mx-auto space-y-6">
 
-    <!-- Budget Warning -->
+    <!-- Header + Period Filter -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h1 class="text-2xl font-semibold text-white">AI Cost Tracking</h1>
+        <div class="flex items-center gap-1 bg-slate-800 rounded-lg p-1">
+            {% for p_key, p_label in [("7d", "7d"), ("30d", "30d"), ("90d", "90d"), ("all", "All")] %}
+            <a href="/admin/ai-costs?period={{ p_key }}{% if filter_client_id %}&client_id={{ filter_client_id }}{% endif %}"
+               class="px-3 py-1.5 rounded-md text-xs font-medium transition-colors
+                      {% if active_period == p_key %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">
+                {{ p_label }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
     {% if budget_pct >= 80 %}
     <div class="p-3 bg-amber-900/50 border border-amber-700 rounded-lg text-amber-300 text-sm">
-        ⚠️ AI spending is at {{ "%.1f"|format(budget_pct) }}% of the monthly budget (${{ "%.2f"|format(budget) }}).
+        ⚠️ Projected monthly spend: {{ "%.0f"|format(budget_pct) }}% of budget (${{ "%.0f"|format(budget) }}/mo).
     </div>
     {% endif %}
 
     <!-- Summary Cards -->
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
-            <div class="text-xs text-gray-500 uppercase tracking-wider">Total Cost</div>
-            <div class="text-2xl font-mono font-semibold text-white mt-1">${{ "%.2f"|format(summary.total_cost) }}</div>
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
+            <div class="text-[10px] text-gray-500 uppercase">Period Cost</div>
+            <div class="text-xl font-mono font-semibold text-white mt-1">${{ "%.2f"|format(summary.total_cost) }}</div>
         </div>
-        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
-            <div class="text-xs text-gray-500 uppercase tracking-wider">API Calls</div>
-            <div class="text-2xl font-mono font-semibold text-white mt-1">{{ summary.total_calls }}</div>
+        <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
+            <div class="text-[10px] text-gray-500 uppercase">Daily Avg</div>
+            <div class="text-xl font-mono font-semibold text-blue-400 mt-1">${{ "%.2f"|format(summary.daily_avg) }}</div>
         </div>
-        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
-            <div class="text-xs text-gray-500 uppercase tracking-wider">Input Tokens</div>
-            <div class="text-2xl font-mono font-semibold text-white mt-1">{{ "{:,}".format(summary.total_input_tokens) }}</div>
+        <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
+            <div class="text-[10px] text-gray-500 uppercase">Monthly →</div>
+            <div class="text-xl font-mono font-semibold {% if summary.monthly_projection > budget %}text-red-400{% else %}text-green-400{% endif %} mt-1">${{ "%.2f"|format(summary.monthly_projection) }}</div>
+            <div class="text-[10px] text-gray-600">of ${{ "%.0f"|format(budget) }} budget</div>
         </div>
-        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
-            <div class="text-xs text-gray-500 uppercase tracking-wider">Output Tokens</div>
-            <div class="text-2xl font-mono font-semibold text-white mt-1">{{ "{:,}".format(summary.total_output_tokens) }}</div>
+        <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
+            <div class="text-[10px] text-gray-500 uppercase">API Calls</div>
+            <div class="text-xl font-mono font-semibold text-white mt-1">{{ "{:,}".format(summary.total_calls) }}</div>
         </div>
-    </div>
-
-    <!-- Efficiency Metrics -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5">
-        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">Cost Efficiency</h2>
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div>
-                <div class="text-xs text-gray-500">Cost / Scored Thread</div>
-                <div class="text-lg font-mono text-white">${{ "%.4f"|format(efficiency.cost_per_scored_thread) }}</div>
-                <div class="text-xs text-gray-600">{{ efficiency.threads_scored }} threads</div>
-            </div>
-            <div>
-                <div class="text-xs text-gray-500">Cost / Generated Comment</div>
-                <div class="text-lg font-mono text-white">${{ "%.4f"|format(efficiency.cost_per_generated_comment) }}</div>
-                <div class="text-xs text-gray-600">{{ efficiency.comments_generated }} comments</div>
-            </div>
-            <div>
-                <div class="text-xs text-gray-500">Cost / Posted Comment</div>
-                <div class="text-lg font-mono text-{% if efficiency.cost_per_posted_comment > 0.5 %}amber-400{% else %}white{% endif %}">${{ "%.4f"|format(efficiency.cost_per_posted_comment) }}</div>
-                <div class="text-xs text-gray-600">{{ efficiency.comments_posted }} posted</div>
-            </div>
-            <div>
-                <div class="text-xs text-gray-500">Cost / Hobby Comment</div>
-                <div class="text-lg font-mono text-white">${{ "%.4f"|format(efficiency.cost_per_hobby_comment) }}</div>
-                <div class="text-xs text-gray-600">{{ efficiency.hobby_generated }} hobby</div>
-            </div>
+        <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
+            <div class="text-[10px] text-gray-500 uppercase">Tokens</div>
+            <div class="text-xl font-mono font-semibold text-white mt-1">{{ "{:,}".format(summary.total_input_tokens + summary.total_output_tokens) }}</div>
         </div>
     </div>
 
-    <!-- Daily Timeline (14 days) -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5">
-        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">Daily Spend (14 days)</h2>
-        <div class="flex items-center gap-4 mb-3 text-xs text-gray-500">
-            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-blue-600"></span> Scoring</span>
-            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-purple-600"></span> Generation</span>
-            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-indigo-600"></span> Persona</span>
-            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-cyan-600"></span> Editing</span>
-            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-amber-600"></span> Hobby</span>
+    <!-- Pipeline Stages (always visible — key overview) -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
+        {% set stage_icons = {"Discovery": "🔍", "Content": "✍️", "Hobby": "🌿", "Posts": "📝", "Other": "⚙️"} %}
+        {% set stage_colors = {"Discovery": "bg-blue-600", "Content": "bg-purple-600", "Hobby": "bg-amber-600", "Posts": "bg-rose-600", "Other": "bg-gray-600"} %}
+        {% set total_stage_cost = by_stage | sum(attribute='cost') or 1 %}
+        <div class="flex h-7 rounded-lg overflow-hidden mb-3">
+            {% for s in by_stage %}{% if s.cost > 0 %}
+            <div class="{{ stage_colors.get(s.stage, 'bg-gray-600') }} h-full flex items-center justify-center text-xs font-medium text-white"
+                 style="width: {{ (s.cost / total_stage_cost * 100)|round(1) }}%"
+                 title="{{ s.stage }}: ${{ '%.2f'|format(s.cost) }}">
+                {% if s.pct > 8 %}{{ stage_icons.get(s.stage, '') }} {{ "%.0f"|format(s.pct) }}%{% endif %}
+            </div>
+            {% endif %}{% endfor %}
         </div>
-        {% set max_daily = namespace(val=0.01) %}
-        {% for day in timeline %}
-            {% if day.total > max_daily.val %}{% set max_daily.val = day.total %}{% endif %}
-        {% endfor %}
-        <div class="space-y-1">
-            {% for day in timeline %}
-            <div class="flex items-center gap-2 group">
-                <span class="text-xs text-gray-600 font-mono w-12 shrink-0">{{ day.date.strftime('%m/%d') }}</span>
-                <div class="flex-1 flex h-5 rounded overflow-hidden bg-slate-800" title="${{ '%.4f'|format(day.total) }} · {{ day.calls }} calls">
-                    {% if day.scoring > 0 %}
-                    <div class="bg-blue-600 h-full" style="width: {{ (day.scoring / max_daily.val * 100)|round(1) }}%"></div>
-                    {% endif %}
-                    {% if day.generation > 0 %}
-                    <div class="bg-purple-600 h-full" style="width: {{ (day.generation / max_daily.val * 100)|round(1) }}%"></div>
-                    {% endif %}
-                    {% if day.persona_select > 0 %}
-                    <div class="bg-indigo-600 h-full" style="width: {{ (day.persona_select / max_daily.val * 100)|round(1) }}%"></div>
-                    {% endif %}
-                    {% if day.editing > 0 %}
-                    <div class="bg-cyan-600 h-full" style="width: {{ (day.editing / max_daily.val * 100)|round(1) }}%"></div>
-                    {% endif %}
-                    {% if day.hobby_comment > 0 %}
-                    <div class="bg-amber-600 h-full" style="width: {{ (day.hobby_comment / max_daily.val * 100)|round(1) }}%"></div>
-                    {% endif %}
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {% for s in by_stage %}
+            <div class="flex items-center gap-2 p-2 rounded bg-slate-800/50">
+                <span class="text-lg">{{ stage_icons.get(s.stage, '⚙️') }}</span>
+                <div>
+                    <div class="text-xs font-medium text-white">{{ s.stage }} <span class="text-gray-500">{{ "%.0f"|format(s.pct) }}%</span></div>
+                    <div class="text-sm font-mono text-white">${{ "%.2f"|format(s.cost) }} <span class="text-gray-600 text-xs">· {{ s.calls }}c</span></div>
                 </div>
-                <span class="text-xs font-mono text-gray-400 w-16 text-right">${{ "%.3f"|format(day.total) }}</span>
-                <span class="text-xs text-gray-600 w-10 text-right">{{ day.calls }}c</span>
             </div>
             {% endfor %}
         </div>
     </div>
 
-    <!-- Two-column: By Client + By Operation -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-        <!-- By Client -->
-        <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
-            <div class="px-4 py-3 border-b border-slate-700">
-                <h2 class="text-sm font-medium text-white">Cost by Client</h2>
-            </div>
-            <table class="w-full text-sm text-left">
-                <thead>
-                    <tr class="border-b border-slate-700">
-                        <th class="px-4 py-2 text-gray-500 uppercase text-xs">Client</th>
-                        <th class="px-4 py-2 text-gray-500 uppercase text-xs">Calls</th>
-                        <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">Cost</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in by_client %}
-                    <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
-                        <td class="px-4 py-2 text-gray-300">{{ row.client_name }}</td>
-                        <td class="px-4 py-2 text-gray-400 font-mono text-xs">{{ row.calls }}</td>
-                        <td class="px-4 py-2 text-white font-mono text-xs text-right">${{ "%.4f"|format(row.cost) }}</td>
-                    </tr>
-                    {% endfor %}
-                    {% if not by_client %}
-                    <tr><td colspan="3" class="px-4 py-6 text-center text-gray-500">No data</td></tr>
-                    {% endif %}
-                </tbody>
-            </table>
+    <!-- Unit Economics (always visible — compact) -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-dark-steel rounded-lg p-3 border border-slate-700">
+            <div class="text-[10px] text-gray-500 uppercase">$/scored thread</div>
+            <div class="text-base font-mono text-white">${{ "%.4f"|format(efficiency.cost_per_scored_thread) }}</div>
+            <div class="text-[10px] text-gray-600">{{ efficiency.threads_scored }} scored</div>
         </div>
-
-        <!-- By Operation -->
-        <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
-            <div class="px-4 py-3 border-b border-slate-700">
-                <h2 class="text-sm font-medium text-white">Cost by Operation</h2>
-            </div>
-            <table class="w-full text-sm text-left">
-                <thead>
-                    <tr class="border-b border-slate-700">
-                        <th class="px-4 py-2 text-gray-500 uppercase text-xs">Operation</th>
-                        <th class="px-4 py-2 text-gray-500 uppercase text-xs">Calls</th>
-                        <th class="px-4 py-2 text-gray-500 uppercase text-xs">Tokens</th>
-                        <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">Cost</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in by_operation %}
-                    <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
-                        <td class="px-4 py-2 text-gray-300">{{ row.operation }}</td>
-                        <td class="px-4 py-2 text-gray-400 font-mono text-xs">{{ row.calls }}</td>
-                        <td class="px-4 py-2 text-gray-400 font-mono text-xs">{{ "{:,}".format(row.input_tokens + row.output_tokens) }}</td>
-                        <td class="px-4 py-2 text-white font-mono text-xs text-right">${{ "%.4f"|format(row.cost) }}</td>
-                    </tr>
-                    {% endfor %}
-                    {% if not by_operation %}
-                    <tr><td colspan="4" class="px-4 py-6 text-center text-gray-500">No data</td></tr>
-                    {% endif %}
-                </tbody>
-            </table>
+        <div class="bg-dark-steel rounded-lg p-3 border border-slate-700">
+            <div class="text-[10px] text-gray-500 uppercase">$/generated</div>
+            <div class="text-base font-mono text-white">${{ "%.3f"|format(efficiency.cost_per_generated_comment) }}</div>
+            <div class="text-[10px] text-gray-600">{{ efficiency.comments_generated }} gen</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg p-3 border border-slate-700">
+            <div class="text-[10px] text-gray-500 uppercase">$/posted</div>
+            <div class="text-base font-mono {% if efficiency.cost_per_posted_comment > 0.5 %}text-amber-400{% else %}text-white{% endif %}">${{ "%.3f"|format(efficiency.cost_per_posted_comment) }}</div>
+            <div class="text-[10px] text-gray-600">{{ efficiency.comments_posted }} posted</div>
+        </div>
+        <div class="bg-dark-steel rounded-lg p-3 border border-slate-700">
+            <div class="text-[10px] text-gray-500 uppercase">$/hobby</div>
+            <div class="text-base font-mono text-white">${{ "%.4f"|format(efficiency.cost_per_hobby_comment) }}</div>
+            <div class="text-[10px] text-gray-600">{{ efficiency.hobby_generated }} hobby</div>
         </div>
     </div>
 
-    <!-- By Model -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
-        <div class="px-4 py-3 border-b border-slate-700">
-            <h2 class="text-sm font-medium text-white">Cost by Model</h2>
-        </div>
+    <!-- ═══ COLLAPSIBLE SECTIONS ═══ -->
+
+    <!-- Cost by Client -->
+    <details class="cost-section bg-dark-steel rounded-lg border border-slate-700 overflow-hidden" open>
+        <summary class="px-4 py-3 border-b border-slate-700 flex items-center justify-between hover:bg-slate-700/30">
+            <h2 class="text-sm font-medium text-white">Cost by Client</h2>
+            <svg class="chevron w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </summary>
         <table class="w-full text-sm text-left">
             <thead>
                 <tr class="border-b border-slate-700">
-                    <th class="px-4 py-2 text-gray-500 uppercase text-xs">Model</th>
-                    <th class="px-4 py-2 text-gray-500 uppercase text-xs">Calls</th>
-                    <th class="px-4 py-2 text-gray-500 uppercase text-xs">Input Tokens</th>
-                    <th class="px-4 py-2 text-gray-500 uppercase text-xs">Output Tokens</th>
-                    <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">Cost</th>
+                    <th class="px-4 py-2 text-gray-500 uppercase text-xs">Client</th>
+                    <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">Calls</th>
+                    <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">Total</th>
+                    <th class="px-4 py-2 text-blue-500 uppercase text-xs text-right">Scoring</th>
+                    <th class="px-4 py-2 text-purple-500 uppercase text-xs text-right">Content</th>
+                    <th class="px-4 py-2 text-amber-500 uppercase text-xs text-right">Hobby</th>
+                    <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">$/day</th>
+                    <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">$/mo</th>
                 </tr>
             </thead>
             <tbody>
-                {% for row in by_model %}
+                {% for row in by_client %}
                 <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
-                    <td class="px-4 py-2 text-gray-300 font-mono text-xs">{{ row.model }}</td>
-                    <td class="px-4 py-2 text-gray-400 font-mono text-xs">{{ row.calls }}</td>
-                    <td class="px-4 py-2 text-gray-400 font-mono text-xs">{{ "{:,}".format(row.input_tokens) }}</td>
-                    <td class="px-4 py-2 text-gray-400 font-mono text-xs">{{ "{:,}".format(row.output_tokens) }}</td>
-                    <td class="px-4 py-2 text-white font-mono text-xs text-right">${{ "%.4f"|format(row.cost) }}</td>
+                    <td class="px-4 py-1.5 text-gray-300 font-medium text-xs">{{ row.client_name }}</td>
+                    <td class="px-4 py-1.5 text-gray-400 font-mono text-xs text-right">{{ row.calls }}</td>
+                    <td class="px-4 py-1.5 text-white font-mono text-xs text-right font-semibold">${{ "%.2f"|format(row.cost) }}</td>
+                    <td class="px-4 py-1.5 text-blue-400 font-mono text-xs text-right">${{ "%.2f"|format(row.scoring) }}</td>
+                    <td class="px-4 py-1.5 text-purple-400 font-mono text-xs text-right">${{ "%.2f"|format(row.generation) }}</td>
+                    <td class="px-4 py-1.5 text-amber-400 font-mono text-xs text-right">${{ "%.3f"|format(row.hobby) }}</td>
+                    <td class="px-4 py-1.5 text-blue-300 font-mono text-xs text-right">${{ "%.2f"|format(row.cost_per_day) }}</td>
+                    <td class="px-4 py-1.5 text-amber-300 font-mono text-xs text-right">${{ "%.1f"|format(row.cost_per_day * 30) }}</td>
                 </tr>
                 {% endfor %}
-                {% if not by_model %}
-                <tr><td colspan="5" class="px-4 py-6 text-center text-gray-500">No data</td></tr>
-                {% endif %}
+                {% if not by_client %}<tr><td colspan="8" class="px-4 py-4 text-center text-gray-500 text-xs">No data</td></tr>{% endif %}
+            </tbody>
+            {% if by_client|length > 1 %}
+            <tfoot><tr class="border-t border-slate-600 bg-slate-800/50">
+                <td class="px-4 py-1.5 text-gray-300 font-semibold text-xs">Total</td>
+                <td class="px-4 py-1.5 text-gray-300 font-mono text-xs text-right">{{ by_client|sum(attribute='calls') }}</td>
+                <td class="px-4 py-1.5 text-white font-mono text-xs text-right font-semibold">${{ "%.2f"|format(by_client|sum(attribute='cost')) }}</td>
+                <td class="px-4 py-1.5 text-blue-400 font-mono text-xs text-right">${{ "%.2f"|format(by_client|sum(attribute='scoring')) }}</td>
+                <td class="px-4 py-1.5 text-purple-400 font-mono text-xs text-right">${{ "%.2f"|format(by_client|sum(attribute='generation')) }}</td>
+                <td class="px-4 py-1.5 text-amber-400 font-mono text-xs text-right">${{ "%.3f"|format(by_client|sum(attribute='hobby')) }}</td>
+                <td class="px-4 py-1.5 text-blue-300 font-mono text-xs text-right">${{ "%.2f"|format(by_client|sum(attribute='cost_per_day')) }}</td>
+                <td class="px-4 py-1.5 text-amber-300 font-mono text-xs text-right">${{ "%.1f"|format(by_client|sum(attribute='cost_per_day') * 30) }}</td>
+            </tr></tfoot>
+            {% endif %}
+        </table>
+    </details>
+
+    <!-- Cost per Avatar -->
+    {% if by_avatar %}
+    <details class="cost-section bg-dark-steel rounded-lg border border-slate-700 overflow-hidden" open>
+        <summary class="px-4 py-3 border-b border-slate-700 flex items-center justify-between hover:bg-slate-700/30">
+            <h2 class="text-sm font-medium text-white">Cost per Avatar ($/day)</h2>
+            <svg class="chevron w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </summary>
+        <table class="w-full text-sm text-left">
+            <thead><tr class="border-b border-slate-700">
+                <th class="px-4 py-2 text-gray-500 uppercase text-xs">Avatar</th>
+                <th class="px-4 py-2 text-gray-500 uppercase text-xs">Client</th>
+                <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">Calls</th>
+                <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">Total</th>
+                <th class="px-4 py-2 text-blue-500 uppercase text-xs text-right">Scoring</th>
+                <th class="px-4 py-2 text-purple-500 uppercase text-xs text-right">Content</th>
+                <th class="px-4 py-2 text-amber-500 uppercase text-xs text-right">Hobby</th>
+                <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right font-semibold">$/day</th>
+            </tr></thead>
+            <tbody>
+                {% for row in by_avatar %}
+                <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
+                    <td class="px-4 py-1.5 text-green-400 font-mono text-xs">@{{ row.avatar_name }}</td>
+                    <td class="px-4 py-1.5 text-gray-400 text-xs">{{ row.client_name }}</td>
+                    <td class="px-4 py-1.5 text-gray-400 font-mono text-xs text-right">{{ row.calls }}</td>
+                    <td class="px-4 py-1.5 text-white font-mono text-xs text-right">${{ "%.2f"|format(row.cost) }}</td>
+                    <td class="px-4 py-1.5 text-blue-400 font-mono text-xs text-right">${{ "%.2f"|format(row.scoring) }}</td>
+                    <td class="px-4 py-1.5 text-purple-400 font-mono text-xs text-right">${{ "%.3f"|format(row.generation) }}</td>
+                    <td class="px-4 py-1.5 text-amber-400 font-mono text-xs text-right">${{ "%.3f"|format(row.hobby) }}</td>
+                    <td class="px-4 py-1.5 font-mono text-xs text-right font-semibold {% if row.cost_per_day > 0.50 %}text-red-400{% elif row.cost_per_day > 0.20 %}text-amber-300{% else %}text-green-400{% endif %}">${{ "%.2f"|format(row.cost_per_day) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% if by_avatar|length > 1 %}
+            <tfoot><tr class="border-t border-slate-600 bg-slate-800/50">
+                <td class="px-4 py-1.5 text-gray-300 font-semibold text-xs" colspan="2">{{ by_avatar|length }} avatars</td>
+                <td class="px-4 py-1.5 text-gray-300 font-mono text-xs text-right">{{ by_avatar|sum(attribute='calls') }}</td>
+                <td class="px-4 py-1.5 text-white font-mono text-xs text-right font-semibold">${{ "%.2f"|format(by_avatar|sum(attribute='cost')) }}</td>
+                <td class="px-4 py-1.5 text-blue-400 font-mono text-xs text-right">${{ "%.2f"|format(by_avatar|sum(attribute='scoring')) }}</td>
+                <td class="px-4 py-1.5 text-purple-400 font-mono text-xs text-right">${{ "%.3f"|format(by_avatar|sum(attribute='generation')) }}</td>
+                <td class="px-4 py-1.5 text-amber-400 font-mono text-xs text-right">${{ "%.3f"|format(by_avatar|sum(attribute='hobby')) }}</td>
+                <td class="px-4 py-1.5 font-mono text-xs text-right font-semibold text-white">${{ "%.2f"|format(by_avatar|sum(attribute='cost_per_day')) }}</td>
+            </tr></tfoot>
+            {% endif %}
+        </table>
+    </details>
+    {% endif %}
+
+    <!-- Cost by Operation (with tooltips) -->
+    {% set op_descriptions = {
+        "scoring": "Evaluates each post: relevant to client? Sets engage/monitor/skip.",
+        "persona_select": "Picks which avatar replies. Compares voice/karma/subreddit fit.",
+        "generation": "Writes the comment from the selected avatar's voice.",
+        "editing": "Polishes the generated comment (removes AI-ness).",
+        "hobby_comment": "Generates hobby comments for karma warming (no brand).",
+        "strategy_generation": "Creates strategic document for avatar (tone, goals, approach).",
+        "scoring_batch": "Batch scoring — multiple posts in one prompt (experimental)."
+    } %}
+    <details class="cost-section bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+        <summary class="px-4 py-3 border-b border-slate-700 flex items-center justify-between hover:bg-slate-700/30">
+            <h2 class="text-sm font-medium text-white">Cost by Operation</h2>
+            <svg class="chevron w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </summary>
+        <table class="w-full text-sm text-left">
+            <thead><tr class="border-b border-slate-700">
+                <th class="px-4 py-2 text-gray-500 uppercase text-xs">Operation</th>
+                <th class="px-4 py-2 text-gray-500 uppercase text-xs">Stage</th>
+                <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">Calls</th>
+                <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">Cost</th>
+                <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">$/call</th>
+                <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">%</th>
+            </tr></thead>
+            <tbody>
+                {% for row in by_operation %}
+                <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
+                    <td class="px-4 py-1.5">
+                        <span class="op-tip inline-flex items-center gap-1">
+                            <span class="px-1.5 py-0.5 rounded text-xs font-medium
+                                {% if row.operation == 'scoring' %}bg-blue-900/50 text-blue-400
+                                {% elif row.operation == 'generation' %}bg-purple-900/50 text-purple-400
+                                {% elif row.operation == 'persona_select' %}bg-indigo-900/50 text-indigo-400
+                                {% elif row.operation == 'editing' %}bg-cyan-900/50 text-cyan-400
+                                {% elif row.operation == 'hobby_comment' %}bg-amber-900/50 text-amber-400
+                                {% else %}bg-slate-700 text-gray-400{% endif %}">{{ row.operation }}</span>
+                            <span class="text-gray-600 text-xs cursor-help">ⓘ</span>
+                            <span class="op-tip-text">{{ op_descriptions.get(row.operation, row.operation) }}</span>
+                        </span>
+                    </td>
+                    <td class="px-4 py-1.5 text-xs text-gray-500">{{ row.stage }}</td>
+                    <td class="px-4 py-1.5 text-gray-400 font-mono text-xs text-right">{{ row.calls }}</td>
+                    <td class="px-4 py-1.5 text-white font-mono text-xs text-right">${{ "%.3f"|format(row.cost) }}</td>
+                    <td class="px-4 py-1.5 font-mono text-xs text-right {% if row.calls > 0 and (row.cost / row.calls) > 0.02 %}text-amber-300{% else %}text-gray-400{% endif %}">
+                        {% if row.calls > 0 %}${{ "%.4f"|format(row.cost / row.calls) }}{% else %}—{% endif %}
+                    </td>
+                    <td class="px-4 py-1.5 text-right">
+                        <div class="flex items-center justify-end gap-1">
+                            <div class="w-12 h-1.5 bg-slate-800 rounded overflow-hidden">
+                                <div class="h-full bg-indigo-500 rounded" style="width: {{ row.pct|round(0) }}%"></div>
+                            </div>
+                            <span class="text-[10px] font-mono text-gray-500 w-7">{{ "%.0f"|format(row.pct) }}%</span>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
             </tbody>
         </table>
-    </div>
+    </details>
 
-    <!-- Recent Calls (Full Audit Log) -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
-        <div class="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
-            <h2 class="text-sm font-medium text-white">AI Call Audit Log</h2>
-            <!-- Client filter -->
-            <div class="flex items-center gap-2">
-                <span class="text-xs text-gray-500">Filter:</span>
-                <a href="/admin/ai-costs"
-                   class="px-2 py-1 rounded text-xs font-medium transition-colors
-                          {% if not filter_client_id %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
-                    All
-                </a>
-                {% for c in clients %}
-                <a href="/admin/ai-costs?client_id={{ c.id }}"
-                   class="px-2 py-1 rounded text-xs font-medium transition-colors
-                          {% if filter_client_id == (c.id|string) %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
-                    {{ c.client_name }}
-                </a>
+    <!-- Cost by Model -->
+    <details class="cost-section bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+        <summary class="px-4 py-3 border-b border-slate-700 flex items-center justify-between hover:bg-slate-700/30">
+            <h2 class="text-sm font-medium text-white">Cost by Model</h2>
+            <svg class="chevron w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </summary>
+        <table class="w-full text-sm text-left">
+            <thead><tr class="border-b border-slate-700">
+                <th class="px-4 py-2 text-gray-500 uppercase text-xs">Model</th>
+                <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">Calls</th>
+                <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">Tokens (in/out)</th>
+                <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">Cost</th>
+                <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">%</th>
+            </tr></thead>
+            <tbody>
+                {% for row in by_model %}
+                <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
+                    <td class="px-4 py-1.5 font-mono text-xs">
+                        {% if 'claude' in row.model %}<span class="text-orange-300">{{ row.model.split('/')[-1] }}</span>
+                        {% elif 'gemini' in row.model %}<span class="text-blue-300">{{ row.model.split('/')[-1] }}</span>
+                        {% else %}<span class="text-gray-400">{{ row.model.split('/')[-1] }}</span>{% endif %}
+                    </td>
+                    <td class="px-4 py-1.5 text-gray-400 font-mono text-xs text-right">{{ "{:,}".format(row.calls) }}</td>
+                    <td class="px-4 py-1.5 text-gray-400 font-mono text-xs text-right">{{ "{:,}".format(row.input_tokens) }} / {{ "{:,}".format(row.output_tokens) }}</td>
+                    <td class="px-4 py-1.5 text-white font-mono text-xs text-right">${{ "%.3f"|format(row.cost) }}</td>
+                    <td class="px-4 py-1.5 text-right">
+                        <div class="flex items-center justify-end gap-1">
+                            <div class="w-12 h-1.5 bg-slate-800 rounded overflow-hidden">
+                                <div class="h-full bg-indigo-500 rounded" style="width: {{ row.pct|round(0) }}%"></div>
+                            </div>
+                            <span class="text-[10px] font-mono text-gray-500 w-7">{{ "%.0f"|format(row.pct) }}%</span>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </details>
+
+    <!-- Daily Timeline -->
+    <details class="cost-section bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+        <summary class="px-4 py-3 border-b border-slate-700 flex items-center justify-between hover:bg-slate-700/30">
+            <h2 class="text-sm font-medium text-white">Daily Spend (14 days)</h2>
+            <svg class="chevron w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </summary>
+        <div class="p-4">
+            <div class="flex items-center gap-3 mb-2 text-[10px] text-gray-500">
+                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-blue-600"></span>Score</span>
+                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-purple-600"></span>Gen</span>
+                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-indigo-600"></span>Persona</span>
+                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-cyan-600"></span>Edit</span>
+                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-amber-600"></span>Hobby</span>
+            </div>
+            {% set max_daily = namespace(val=0.01) %}
+            {% for day in timeline %}{% if day.total > max_daily.val %}{% set max_daily.val = day.total %}{% endif %}{% endfor %}
+            <div class="space-y-0.5">
+                {% for day in timeline %}
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] text-gray-600 font-mono w-10 shrink-0">{{ day.date.strftime('%m/%d') }}</span>
+                    <div class="flex-1 flex h-4 rounded overflow-hidden bg-slate-800">
+                        {% if day.scoring > 0 %}<div class="bg-blue-600 h-full" style="width:{{ (day.scoring / max_daily.val * 100)|round(1) }}%"></div>{% endif %}
+                        {% if day.generation > 0 %}<div class="bg-purple-600 h-full" style="width:{{ (day.generation / max_daily.val * 100)|round(1) }}%"></div>{% endif %}
+                        {% if day.persona_select > 0 %}<div class="bg-indigo-600 h-full" style="width:{{ (day.persona_select / max_daily.val * 100)|round(1) }}%"></div>{% endif %}
+                        {% if day.editing > 0 %}<div class="bg-cyan-600 h-full" style="width:{{ (day.editing / max_daily.val * 100)|round(1) }}%"></div>{% endif %}
+                        {% if day.hobby_comment > 0 %}<div class="bg-amber-600 h-full" style="width:{{ (day.hobby_comment / max_daily.val * 100)|round(1) }}%"></div>{% endif %}
+                    </div>
+                    <span class="text-[10px] font-mono text-gray-500 w-12 text-right">${{ "%.3f"|format(day.total) }}</span>
+                </div>
                 {% endfor %}
             </div>
         </div>
-        <!-- Legend -->
-        <div class="px-4 py-2 border-b border-slate-700/50 flex flex-wrap gap-3 text-xs text-gray-500">
-            <span>Trigger:</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span> scheduler</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-yellow-500"></span> manual</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-500"></span> orchestrator</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-500"></span> wizard/test</span>
-            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-600"></span> unknown</span>
-        </div>
+    </details>
+
+    <!-- Audit Log (collapsed by default — it's long) -->
+    <details class="cost-section bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+        <summary class="px-4 py-3 border-b border-slate-700 flex items-center justify-between hover:bg-slate-700/30">
+            <h2 class="text-sm font-medium text-white">Audit Log <span class="text-gray-500 font-normal">(last {{ recent_calls|length }} calls)</span></h2>
+            <div class="flex items-center gap-2">
+                <!-- Client filter pills -->
+                <a href="/admin/ai-costs?period={{ active_period }}" class="px-2 py-0.5 rounded text-[10px] font-medium {% if not filter_client_id %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-400 hover:bg-slate-600{% endif %}">All</a>
+                {% for c in clients %}
+                <a href="/admin/ai-costs?period={{ active_period }}&client_id={{ c.id }}" class="px-2 py-0.5 rounded text-[10px] font-medium {% if filter_client_id == (c.id|string) %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-400 hover:bg-slate-600{% endif %}">{{ c.client_name }}</a>
+                {% endfor %}
+                <svg class="chevron w-4 h-4 text-gray-500 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </div>
+        </summary>
         <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left">
-                <thead>
-                    <tr class="border-b border-slate-700">
-                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">When</th>
-                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">Trigger</th>
-                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">Client</th>
-                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">Operation</th>
-                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">Target</th>
-                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">AI Model</th>
-                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">Tokens (in→out)</th>
-                        <th class="px-3 py-2 text-gray-500 uppercase text-xs">Time</th>
-                        <th class="px-3 py-2 text-gray-500 uppercase text-xs text-right">Cost</th>
-                    </tr>
-                </thead>
+            <table class="w-full text-xs text-left">
+                <thead><tr class="border-b border-slate-700">
+                    <th class="px-3 py-1.5 text-gray-500 uppercase text-[10px]">When</th>
+                    <th class="px-3 py-1.5 text-gray-500 uppercase text-[10px]">Trig</th>
+                    <th class="px-3 py-1.5 text-gray-500 uppercase text-[10px]">Client</th>
+                    <th class="px-3 py-1.5 text-gray-500 uppercase text-[10px]">Op</th>
+                    <th class="px-3 py-1.5 text-gray-500 uppercase text-[10px]">Target</th>
+                    <th class="px-3 py-1.5 text-gray-500 uppercase text-[10px]">Model</th>
+                    <th class="px-3 py-1.5 text-gray-500 uppercase text-[10px]">Tokens</th>
+                    <th class="px-3 py-1.5 text-gray-500 uppercase text-[10px]">Time</th>
+                    <th class="px-3 py-1.5 text-gray-500 uppercase text-[10px] text-right">Cost</th>
+                </tr></thead>
                 <tbody>
                     {% for call in recent_calls %}
                     <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
-                        <!-- WHEN -->
-                        <td class="px-3 py-2 text-gray-500 font-mono text-xs whitespace-nowrap">{{ call.created_at.strftime('%m/%d %H:%M:%S') }}</td>
-                        <!-- TRIGGER (на каком основании) -->
-                        <td class="px-3 py-2 text-xs">
-                            {% if call.triggered_by == 'scheduler' %}
-                            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span><span class="text-green-400">scheduler</span></span>
-                            {% elif call.triggered_by == 'manual' %}
-                            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-yellow-500"></span><span class="text-yellow-400">manual</span></span>
-                            {% elif call.triggered_by == 'orchestrator' %}
-                            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-500"></span><span class="text-blue-400">orchestrator</span></span>
-                            {% elif call.triggered_by in ('wizard', 'test_run') %}
-                            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-500"></span><span class="text-purple-400">{{ call.triggered_by }}</span></span>
-                            {% else %}
-                            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-600"></span><span class="text-gray-600">{{ call.triggered_by or '—' }}</span></span>
-                            {% endif %}
+                        <td class="px-3 py-1 text-gray-500 font-mono whitespace-nowrap">{{ call.created_at.strftime('%m/%d %H:%M') }}</td>
+                        <td class="px-3 py-1">
+                            {% if call.triggered_by == 'scheduler' %}<span class="text-green-400">⏰</span>
+                            {% elif call.triggered_by == 'manual' %}<span class="text-yellow-400">👆</span>
+                            {% elif call.triggered_by == 'orchestrator' %}<span class="text-blue-400">🔄</span>
+                            {% else %}<span class="text-gray-600">·</span>{% endif %}
                         </td>
-                        <!-- CLIENT (кто) -->
-                        <td class="px-3 py-2 text-xs">
-                            {% if call.client_name == 'system' %}
-                            <span class="text-gray-600 italic">system</span>
-                            {% else %}
-                            <span class="text-gray-300 font-medium">{{ call.client_name }}</span>
-                            {% endif %}
-                        </td>
-                        <!-- OPERATION (зачем) -->
-                        <td class="px-3 py-2">
-                            <span class="px-1.5 py-0.5 rounded text-xs font-medium
+                        <td class="px-3 py-1 {% if call.client_name == 'system' %}text-gray-600 italic{% else %}text-gray-300{% endif %}">{{ call.client_name }}</td>
+                        <td class="px-3 py-1">
+                            <span class="px-1 py-0.5 rounded text-[10px] font-medium
                                 {% if call.operation == 'scoring' %}bg-blue-900/50 text-blue-400
                                 {% elif call.operation == 'generation' %}bg-purple-900/50 text-purple-400
                                 {% elif call.operation == 'persona_select' %}bg-indigo-900/50 text-indigo-400
                                 {% elif call.operation == 'editing' %}bg-cyan-900/50 text-cyan-400
                                 {% elif call.operation == 'hobby_comment' %}bg-amber-900/50 text-amber-400
-                                {% elif call.operation == 'post_topic' %}bg-rose-900/50 text-rose-400
-                                {% elif call.operation == 'post_brief' %}bg-rose-900/50 text-rose-400
-                                {% elif call.operation == 'post_generation' %}bg-rose-900/50 text-rose-400
-                                {% else %}bg-slate-700 text-gray-400{% endif %}">
-                                {{ call.operation }}
-                            </span>
+                                {% else %}bg-slate-700 text-gray-400{% endif %}">{{ call.operation }}</span>
                         </td>
-                        <!-- TARGET (что именно обрабатывалось) -->
-                        <td class="px-3 py-2 text-xs max-w-[280px]">
-                            <div class="flex flex-col gap-0.5">
-                                {% if call.subreddit_name %}
-                                <span class="text-orange-400 font-mono">r/{{ call.subreddit_name }}</span>
-                                {% endif %}
-                                {% if call.avatar_name %}
-                                <span class="text-green-400">↳ @{{ call.avatar_name }}</span>
-                                {% endif %}
-                                {% if call.thread_title %}
-                                <span class="text-gray-500 truncate block" title="{{ call.thread_title }}">↳ {{ call.thread_title[:50] }}{% if call.thread_title|length > 50 %}…{% endif %}</span>
-                                {% endif %}
-                                {% if not call.subreddit_name and not call.avatar_name and not call.thread_title %}
-                                <span class="text-gray-700">—</span>
-                                {% endif %}
-                            </div>
+                        <td class="px-3 py-1 max-w-[180px]">
+                            {% if call.subreddit_name %}<span class="text-orange-400 font-mono">r/{{ call.subreddit_name }}</span>{% endif %}
+                            {% if call.avatar_name %} <span class="text-green-400">@{{ call.avatar_name }}</span>{% endif %}
+                            {% if call.thread_title %}<span class="text-gray-500 truncate block" title="{{ call.thread_title }}">{{ call.thread_title[:30] }}{% if call.thread_title|length > 30 %}…{% endif %}</span>{% endif %}
                         </td>
-                        <!-- AI MODEL (в какой AI) -->
-                        <td class="px-3 py-2 font-mono text-xs">
-                            {% set model_short = call.model.split('/')[-1][:25] %}
-                            {% if 'claude' in call.model %}
-                            <span class="text-orange-300">{{ model_short }}</span>
-                            {% elif 'gemini' in call.model %}
-                            <span class="text-blue-300">{{ model_short }}</span>
-                            {% else %}
-                            <span class="text-gray-400">{{ model_short }}</span>
-                            {% endif %}
+                        <td class="px-3 py-1 font-mono">
+                            {% if 'claude' in call.model %}<span class="text-orange-300">{{ call.model.split('/')[-1][:18] }}</span>
+                            {% elif 'gemini' in call.model %}<span class="text-blue-300">{{ call.model.split('/')[-1][:18] }}</span>
+                            {% else %}<span class="text-gray-400">{{ call.model.split('/')[-1][:18] }}</span>{% endif %}
                         </td>
-                        <!-- TOKENS -->
-                        <td class="px-3 py-2 text-gray-400 font-mono text-xs whitespace-nowrap">{{ "{:,}".format(call.input_tokens) }} → {{ "{:,}".format(call.output_tokens) }}</td>
-                        <!-- DURATION -->
-                        <td class="px-3 py-2 font-mono text-xs whitespace-nowrap
-                            {% if call.duration_ms > 10000 %}text-red-400
-                            {% elif call.duration_ms > 5000 %}text-amber-400
-                            {% else %}text-gray-500{% endif %}">{{ "%.1f"|format(call.duration_ms / 1000) }}s</td>
-                        <!-- COST -->
-                        <td class="px-3 py-2 font-mono text-xs text-right
-                            {% if call.cost_usd > 0.05 %}text-amber-300 font-semibold
-                            {% elif call.cost_usd > 0.01 %}text-white
-                            {% else %}text-gray-400{% endif %}">${{ "%.4f"|format(call.cost_usd) }}</td>
+                        <td class="px-3 py-1 text-gray-400 font-mono whitespace-nowrap">{{ "{:,}".format(call.input_tokens) }}→{{ "{:,}".format(call.output_tokens) }}</td>
+                        <td class="px-3 py-1 font-mono whitespace-nowrap {% if call.duration_ms > 10000 %}text-red-400{% elif call.duration_ms > 5000 %}text-amber-400{% else %}text-gray-500{% endif %}">{{ "%.1f"|format(call.duration_ms / 1000) }}s</td>
+                        <td class="px-3 py-1 font-mono text-right {% if call.cost_usd > 0.05 %}text-amber-300 font-semibold{% elif call.cost_usd > 0.01 %}text-white{% else %}text-gray-400{% endif %}">${{ "%.4f"|format(call.cost_usd) }}</td>
                     </tr>
                     {% endfor %}
-                    {% if not recent_calls %}
-                    <tr><td colspan="9" class="px-4 py-8 text-center text-gray-500">No AI calls recorded yet</td></tr>
-                    {% endif %}
+                    {% if not recent_calls %}<tr><td colspan="9" class="px-4 py-6 text-center text-gray-500">No AI calls recorded yet</td></tr>{% endif %}
                 </tbody>
             </table>
         </div>
-        {% if recent_calls %}
-        <div class="px-4 py-2 border-t border-slate-700/50 text-xs text-gray-600">
-            Showing last {{ recent_calls|length }} calls. Each row answers: When? Who triggered? For which client? What operation? On what target? Which AI model? How much did it cost?
-        </div>
-        {% endif %}
-    </div>
+    </details>
 
 </div>
 {% endblock %}

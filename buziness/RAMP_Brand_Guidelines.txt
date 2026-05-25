@@ -1,0 +1,718 @@
+﻿RAMP  —  Brand Guidelines
+
+
+
+
+RAMP
+Brand Guidelines
+————————————
+Earned presence in the communities
+where your buyers actually talk.
+Positioning  ·  Tone of Voice  ·  Color System  ·  Typography  ·  Logo
+
+
+	
+
+________________
+
+
+01 — BRAND FOUNDATION
+
+
+Who RAMP is
+
+
+RAMP is a presence platform built for growth and marketing teams that understand Reddit is no longer optional. It deploys credible, community-native voices into the conversations where buyers research, compare, and form opinions — long before a sales motion ever starts.
+
+
+The brand reflects the product: precise, confident, and honest about what it delivers. RAMP does not shout. It does not promise outcomes it cannot control. It draws a clean line between what it builds and what that enables — and earns trust by holding that line.
+
+
+Brand character
+
+
+Trait
+	What it means
+	What it sounds like
+	Precise
+	Specific about what is built. Never vague about deliverables.
+	"Consistent presence in the communities where your ICP researches."
+	Quietly confident
+	Doesn't justify or over-explain. The work speaks.
+	Statements land without hedging. No exclamation marks.
+	Operator-brained
+	Thinks in systems, phases, leverage points.
+	"Phase-disciplined deployment before brand proximity."
+	Dry wit
+	Occasional, earned. Never performed.
+	"Reddit is where opinions form. Yours should already be there."
+	Honest
+	Draws the line between what is delivered and what is downstream.
+	"We build presence. What you do with it is yours."
+	
+
+Brand personality — if RAMP were a person
+
+
+A senior growth operator who has worked at three unicorns, has seen every GTM playbook, and got tired of vanity metrics.
+They don’t over-explain. They don’t do fluff. They talk in outcomes, move fast, and have earned the kind of quiet confidence that doesn’t need to shout. Not a growth-bro. Not a hacker. A builder who respects both craft and results.
+They are the person in the room who already knows what you’re about to ask.
+	
+
+________________
+
+
+02 — POSITIONING
+
+
+Core positioning
+
+
+“Earned presence in the communities where your buyers actually talk.”
+
+
+This is the load-bearing line. Every other brand claim should be consistent with it. “Earned” signals genuine value creation — not manipulation. “Communities” implies Reddit without locking the brand to it permanently. “Where your buyers actually talk” is the outcome frame. No mechanics described. No promises made. No channel dependency baked in.
+
+
+The three-layer moat
+
+
+RAMP’s differentiation is structural, not cosmetic. Three things competitors cannot replicate quickly:
+
+
+Pillar
+	What it means
+	Brand expression
+	Community depth—not account access
+	Industry-specific presence with genuine community history, consistent voice, and phase-gated engagement. Not a username — a reputation.
+	"Generic activity gets ignored. Credible community voices get trusted. RAMP builds the latter."
+	Execution abstraction
+	Clients approve strategy and content. RAMP handles the rest. Their brand is never directly exposed to execution risk.
+	"You control the strategy. We handle the presence. Your brand is never at risk."
+	Compounding presence
+	The longer RAMP runs, the deeper the credibility foundation. Community trust and category authority appreciate over time.
+	"The longer RAMP runs, the harder it is to replicate what you’ve built."
+	
+
+The honest promise ladder
+
+
+RAMP draws a clear line between what it delivers, what it enables, and what it never promises. This is both a legal discipline and a brand one.
+
+
+Delivers
+	Enables
+	Never promises
+	Consistent brand presence in the right communities
+	Buyer trust formation before the first sales touchpoint
+	Pipeline, revenue, or direct attribution
+	Narrative positioning in your category
+	Category authority over time
+	Guaranteed engagement outcomes
+	AEO surface area — mentions LLMs index and cite
+	Earned brand credibility that compounds
+	Viral reach or guaranteed community response
+	Presence that appreciates with time
+	—
+	—
+	
+
+Reddit and channel positioning
+
+
+Layer
+	How Reddit appears
+	Why
+	Brand identity
+	“Communities where your buyers talk” — implied, not named
+	Flexible for future expansion. Brand is never caged by a single platform.
+	Website copy
+	Named in subheadline and throughout. Context given: why Reddit, why now.
+	Specific enough to hook. Clear enough to be credible.
+	Sales decks
+	Unapologetically Reddit-first. Subreddit maps, keyword data, community intelligence.
+	Channel specificity closes deals.
+	ToF assets
+	Reddit is the hook. The opening line that earns the click.
+	Awareness content can be channel-explicit without constraining the brand.
+	Investor / partner
+	“Starting with Reddit — where signal density is highest — with infrastructure built to expand.”
+	Channel focus framed as a beachhead, not a ceiling.
+	
+
+________________
+
+
+03 — TONE OF VOICE
+
+
+The core principle
+
+
+“Sounds like the operator who has already run this play — precise about what’s delivered, honest about what it enables, silent about what it can’t control.”
+
+
+Not a growth-hacker. Not a SaaS vendor. A disciplined growth infrastructure builder who knows the difference between what can be engineered and what can’t — and earns trust by drawing that line clearly.
+
+
+Tone dimensions
+
+
+Dimension
+	High
+	Low
+	Precision
+	Specific about deliverables. Named outcomes. Concrete language.
+	✓✓✓✓✓
+	Confidence
+	Doesn’t justify or over-explain. Statements land without hedging.
+	✓✓✓✓○
+	Honesty
+	Draws the line between delivered and downstream. Always.
+	✓✓✓✓✓
+	Dry wit
+	Occasional, earned. Never performed or self-aware.
+	✓✓○○○
+	Warmth
+	Treats the buyer as a peer. Not a prospect.
+	✓✓✓○○
+	
+
+Copy bank — approved brand lines
+
+
+These lines are cleared: legally clean, competitively differentiated, channel-balanced.
+
+
+Context
+	Line
+	Why it works
+	Homepage hero
+	Earned presence in the communities where your buyers actually talk.
+	The north star. Presence-layer. No outcome claim.
+	Homepage sub
+	Reddit is where your buyers form opinions before they talk to sales. RAMP makes sure your brand is already in that conversation.
+	First explicit Reddit mention. Specific hook, not brand identity.
+	Differentiation
+	Every other approach puts your brand reputation on the line. RAMP keeps it off the table entirely.
+	Protection story. Execution abstraction as safety outcome. No mechanics described.
+	Depth story
+	Generic activity gets ignored. Credible community voices get trusted. RAMP builds the latter.
+	Captures community depth without avatar or persona language.
+	Compounding moat
+	The longer RAMP runs, the harder it is to replicate what you’ve built. That’s not a side effect — it’s the architecture.
+	Moat story. No mechanics. “Architecture” implies depth without describing it.
+	AEO angle
+	When someone asks an AI about your category, the answer is built from community conversations. We make sure yours are in there.
+	Specific, honest, forward-looking. Fresh for any CMO thinking about LLM search.
+	Sales one-liner
+	You control the strategy. We handle the presence. Your brand is never at risk.
+	Three beats. Differentiating. Legally clean.
+	ToF / paid
+	Reddit ranks in almost every B2B search. Your brand should be part of those conversations — not watching from the outside.
+	Factual, grounded in trend buyers already recognise.
+	
+
+Vocabulary discipline
+
+
+
+
+SAY THIS
+	Earned presence
+	Community voice / credibility
+	Presence that compounds
+	Narrative positioning
+	AEO / LLM surface area
+	Brand safety / reputation protection
+	Phase-disciplined (internal use only)
+	Credibility foundation
+	
+
+	
+
+	
+
+NEVER SAY THIS
+	Persona / avatar / account / bot
+	Undetectable / stealth / invisible
+	Fake / sockpuppet / manufactured
+	Guarantee / prove / drive ROI
+	Supercharge / 10x / growth hack
+	Execution layer / posting layer
+	Engineered credibility
+	Competitor names in any brand copy
+	
+
+	
+
+Legal alignment note
+The “never say this” list is a hard compliance boundary, not a style preference. One word from that list appearing in a published asset is a liability. The brand copy operates at the outcome layer — presence, positioning, community credibility, AEO coverage — and never describes the mechanics that deliver it. The contract and ToS language carry the disclaimer layer. The brand carries the confidence layer. These two do not conflict.
+	
+
+________________
+
+
+04 — VISUAL IDENTITY
+
+
+Design principles
+
+
+Principle
+	In practice
+	Never
+	Dark-first
+	Dark surfaces (#0F0F1A) are the default. Light surfaces are the exception, not the base.
+	Light background as the primary brand surface.
+	Single accent
+	Signal blue is the only chromatic color. Every appearance carries weight.
+	Multiple accent colors. Blue is the only signal.
+	Flat and precise
+	No gradients, no shadows, no blur, no glow. Clean solid fills only.
+	Decorative effects, mesh backgrounds, noise textures.
+	Thin strokes
+	0.5px borders throughout. Refined, not heavy.
+	1px or heavier borders on containers.
+	Controlled whitespace
+	Generous spacing makes the system feel premium.
+	Cramped layouts or over-decorated surfaces.
+	
+
+Design reference anchors
+
+
+The visual register RAMP belongs in. Not to copy — to calibrate the buyer’s expectation when they first encounter the brand.
+
+
+Brand
+	Why it’s a reference
+	What to take from it
+	Linear
+	Dark surfaces, precision UI, operator-grade aesthetic.
+	The density and restraint of the information layer.
+	Vercel
+	Black / white / single accent. Zero decoration.
+	The confidence of going near-monochrome with one signal color.
+	Palantir
+	Intelligence-grade gravity. Nothing fun, everything serious.
+	The implied sophistication without a single word about it.
+	Segment
+	Data infrastructure positioned as growth infrastructure.
+	The credibility of being taken seriously by technical buyers.
+	Amplitude
+	Analytics tool that speaks to growth teams, not developers.
+	The register of a serious product marketed to non-technical buyers.
+	
+
+________________
+
+
+05 — COLOR SYSTEM
+
+
+Primary palette
+
+
+Dark surfaces
+
+
+The foundation. Everything sits on these.
+
+
+Night
+#0F0F1A
+	Deep
+#1C1C2E
+	Slate
+#252540
+	Lift
+#2E2E52
+	
+
+Night #0F0F1A — primary background, hero sections, full-bleed headers. Deep #1C1C2E — card surfaces on dark backgrounds. Slate #252540 — elevated surfaces, nav, modals. Lift #2E2E52 — hover states on dark cards.
+
+
+Signal blue — the only accent
+
+
+Used sparingly. Every appearance carries weight. CTAs, active states, the ramp line, activated dots, links.
+
+
+Tint
+#E6F1FB
+	Light
+#B5D4F4
+	Electric
+#4E8EF5
+	Signal
+#2563C4
+	Deep
+#185FA5
+	Dark
+#0C447C
+	Night
+#042C53
+	
+
+Signal #2563C4 — primary CTAs and buttons. Electric #4E8EF5 — links, active indicators, logo crossbar. Tint #E6F1FB — phase badges and info labels on light surfaces.
+
+
+Light surfaces
+
+
+Used for light-mode contexts, cards on light backgrounds, and print.
+
+
+Fog
+#F4F4F6
+	Surface
+#E8E8EE
+	Border
+#D0D0D8
+	Muted
+#888780
+	
+
+Never use pure white #FFFFFF. Fog #F4F4F6 has a faint warm undertone that prevents clinical coldness. The off-white distinction is intentional and should be maintained.
+
+
+Color roles
+
+
+Color
+	Role
+	Never use for
+	#0F0F1A Night
+	Primary background, hero sections
+	Text, icons, interactive elements
+	#2563C4 Signal
+	Primary CTAs, active states, the logo A crossbar
+	Backgrounds, decorative fills, secondary actions
+	#4E8EF5 Electric
+	Links, hover states, icons on dark
+	Primary CTAs (too light)
+	#F4F4F6 Fog
+	Light mode background, print surfaces
+	Dark mode backgrounds
+	#E6F1FB Blue tint
+	Phase badges, info labels (light mode)
+	Large fills, backgrounds
+	#E1F5EE Teal tint
+	Active / success state badges only
+	Decorative use, brand color
+	#FAECE7 Coral tint
+	Warning / restricted state badges only
+	Decorative use, brand color
+	
+
+Do / don’t — color
+
+
+
+
+SAY THIS
+	Use #0F0F1A as the default background
+	Signal blue for one element per visual unit
+	Off-white #F4F4F6 — never pure #FFFFFF
+	Thin 0.5px borders on all containers
+	Semantic tints (teal, coral) for UI status only
+	
+
+	
+
+	
+
+NEVER SAY THIS
+	Gradients, glows, shadows, blur — ever
+	Multiple accent colors in one composition
+	Orange — too close to Reddit’s brand identity
+	Font weights above 500 (no bold, no 700)
+	Rounded pill shapes except for status badges
+	
+
+	
+
+________________
+
+
+06 — TYPOGRAPHY
+
+
+Type system
+
+
+RAMP uses a single typeface family throughout: a clean, geometric sans-serif (Inter or equivalent). No serif except for rare editorial blockquote moments. Two weights only: 400 regular and 500 medium. Never 600, never 700.
+
+
+Type scale
+
+
+Role
+	Size / Weight
+	Usage
+	Display
+	48px / 500
+	Hero headlines, cover titles, major section openers
+	Heading 1
+	32px / 500
+	Section titles within a page or document
+	Heading 2
+	24px / 500
+	Subsection titles, feature names, card headers
+	Heading 3
+	18px / 500
+	In-card headings, table headers, callout titles
+	Body
+	16px / 400
+	Primary copy, descriptions, explanations
+	Body small
+	14px / 400
+	Secondary copy, table body, card body
+	Label
+	11px / 500 — tracked +0.1em
+	Status badges, section markers, metadata
+	Mono
+	12px / 400
+	Code, metrics, data values, system output
+	
+
+Type on dark surfaces
+
+
+Role
+	Color
+	Usage
+	Primary
+	#F4F4F6 — 100%
+	Headlines, key information, primary copy
+	Secondary
+	#F4F4F6 — 60% opacity
+	Body copy, descriptions, supporting text
+	Tertiary
+	#F4F4F6 — 30% opacity
+	Labels, metadata, captions, timestamps
+	Ghost
+	#F4F4F6 — 15% opacity
+	Decorative text, watermarks, background type
+	
+
+Type rules
+
+
+* Sentence case always. Never all caps in copy. Labels and badges may use spaced uppercase at 11px.
+* No mid-sentence bolding. Bold is for headings and labels only.
+* Line height 1.6–1.7 for body copy. 1.1–1.2 for display and headlines.
+* Letter spacing −0.02em on display sizes. +0.1em on uppercase labels only.
+* Maximum measure (line length): 65–70 characters for body copy.
+
+
+________________
+
+
+07 — LOGO
+
+
+The RAMP wordmark
+
+
+The logo is a wordmark — RAMP in spaced capitals. The A is the only character with a custom treatment: its crossbar is replaced by an upward-angled ramp line in Signal blue (or Electric blue on dark). This is the brand’s signature: a single chromatic element in the entire wordmark, embedded precisely where the product metaphor lives.
+
+
+Logo construction — the A
+
+
+The A is drawn as an open triangle with no conventional crossbar. In its place, a rising diagonal line runs from the lower-left leg to the right leg at approximately two-thirds height — the angle of the ramp motif. The line is Signal blue (#2563C4) on light backgrounds and Electric blue (#4E8EF5) on dark.
+
+
+Version
+	Background
+	Wordmark color / crossbar
+	Primary dark
+	#0F0F1A Night
+	#F4F4F6 wordmark / #4E8EF5 Electric crossbar
+	Primary light
+	#F4F4F6 Fog
+	#0F0F1A Night wordmark / #2563C4 Signal crossbar
+	Signal fill
+	#2563C4 Signal
+	#F4F4F6 wordmark / #0F0F1A dark crossbar
+	Reversed mono
+	Any dark surface
+	#F4F4F6 wordmark / #F4F4F6 crossbar (print / emboss only)
+	
+
+Logo rules
+
+
+* Minimum size: 80px wide for screen, 25mm for print.
+* Clear space: equal to the height of the R on all four sides.
+* Never stretch, distort, rotate, or apply effects to the wordmark.
+* Never apply the logo over a busy image without a solid background field.
+* Never use orange, red, or green as a crossbar color — Signal and Electric blue only.
+* The wordmark-only (no icon) is the primary mark. A standalone icon mark does not exist yet.
+
+
+The two brand motifs
+
+
+These recurring visual elements support the wordmark across all brand touchpoints.
+
+
+The presence grid
+
+
+A field of small dots, some active (Signal blue), some dimmed, most inactive. Represents distributed community presence — individual voices activating across a network. Never uniform, never fully random. The pattern is intentional.
+
+
+Usage: hero backgrounds, feature section dividers, loading states, data density illustrations.
+	
+
+	The ramp line
+
+
+A single upward-trending line with a sharp angle — not a smooth organic curve. Represents earned momentum: deliberate acceleration, not manufactured growth. A filled area beneath the line in Signal blue at low opacity reinforces the compounding story.
+
+
+Usage: charts, progress indicators, phase timeline illustrations, any “compounding over time” message.
+	
+
+________________
+
+
+08 — BRAND IN USE
+
+
+Spacing system
+
+
+Token
+	Value
+	Usage
+	xs
+	4px
+	Icon gaps, tight inline spacing
+	sm
+	8px
+	Component internal gaps
+	md
+	12px
+	Between related elements
+	base
+	16px
+	Card internal padding
+	lg
+	24px
+	Between components in a section
+	xl
+	40px
+	Between sections
+	2xl
+	80px
+	Major page section separators
+	
+
+Component rules
+
+
+* Border radius: 8px for components, 12px for cards, 4px for badges.
+* Borders: always 0.5px. Never 1px or heavier on containers.
+* Cards on dark: #1C1C2E Deep with #252540 hover state.
+* Cards on light: #FFFFFF with 0.5px #E2E2E8 border.
+* Badges and status pills: 11px spaced uppercase, appropriate semantic tint.
+* No shadows. No gradients. No blur. Flat solid fills only.
+
+
+Brand voice in UI microcopy
+
+
+Moment
+	Avoid
+	Say instead
+	Empty state
+	No data available yet.
+	Nothing here yet — your presence is still building.
+	Loading
+	Loading...
+	Scanning communities...
+	Success
+	Done!
+	Phase 1 complete. Credibility building.
+	Error
+	Something went wrong.
+	That didn’t land. Try again.
+	Onboarding
+	Complete your profile to get started.
+	Tell us who you’re trying to reach. We’ll handle the rest.
+	Phase gate
+	Requirements not met.
+	A few more signals needed before we move forward.
+	
+
+What RAMP never does
+
+
+Brand-level commitments that cannot be broken:
+* Never describes the mechanics behind the service in brand or marketing copy.
+* Never claims to guarantee business outcomes: pipeline, revenue, or direct attribution.
+* Never uses orange, even as a secondary or seasonal color.
+* Never uses competitor names in any published brand asset.
+* Never applies the logo over gradients, photos, or complex backgrounds without a clean field.
+* Never uses font weights above 500 in any brand context.
+* Never puts more than one Signal blue element in a single visual unit.
+* Never uses the words: undetectable, stealth, invisible, fake, bot, sockpuppet, or engineered credibility.
+	
+
+________________
+
+
+09 — QUICK REFERENCE
+
+
+Brand at a glance
+
+
+North star phrase
+“Earned presence in the communities where your buyers actually talk.”
+One-liner
+“You control the strategy. We handle the presence. Your brand is never at risk.”
+Depth differentiator
+“Generic activity gets ignored. Credible community voices get trusted. RAMP builds the latter.”
+	
+
+Key numbers
+
+
+Element
+	Specification
+	Notes
+	Primary bg
+	#0F0F1A
+	Night. The foundation.
+	Accent color
+	#2563C4 / #4E8EF5
+	Signal / Electric. One accent only.
+	Off-white
+	#F4F4F6
+	Never pure #FFFFFF.
+	Border width
+	0.5px
+	Always. Never 1px on containers.
+	Border radius
+	8px / 12px / 4px
+	Components / cards / badges.
+	Font weight
+	400 / 500 only
+	Never 600 or 700.
+	Label tracking
+	+0.1em
+	Uppercase labels at 11px only.
+	Logo clear space
+	Height of the R
+	On all four sides.
+	
+
+This document is confidential and for internal and partner use only. It is not a legal opinion. Consult qualified counsel on any regulatory, compliance, or contractual matter.
+	
+
+Confidential  —  Do not distribute

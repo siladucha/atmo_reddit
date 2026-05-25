@@ -1,0 +1,9 @@
+cd /Volumes/2SSD/Projects/ReddirSaaS/reddit_saas
+
+rsync -avz --exclude='.venv/' --exclude='__pycache__/' --exclude='.hypothesis/' \
+  --exclude='.git/' --exclude='*.pyc' --exclude='.DS_Store' --exclude='logs/' \
+  --exclude='.env' --exclude='.claude/' --exclude='.kiro/' --exclude='.vscode/' \
+  --exclude='tests/' --delete \
+  ./ root@161.35.27.165:/app/
+
+ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache app && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d app"

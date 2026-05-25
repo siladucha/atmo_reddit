@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAMP — Product Roadmap</title>
+<style>
+  :root {
+    --bg: #0a0b10;
+    --surface: #12141d;
+    --surface2: #1a1d2a;
+    --surface3: #222638;
+    --border: #2a2e42;
+    --text: #e8ebf4;
+    --text-muted: #7c839e;
+    --text-dim: #555b75;
+    --accent: #6366f1;
+    --accent-light: #818cf8;
+    --green: #22c55e;
+    --green-dim: #16a34a;
+    --yellow: #eab308;
+    --blue: #3b82f6;
+    --purple: #a855f7;
+    --orange: #f97316;
+    --nav-height: 60px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: calc(var(--nav-height) + 1rem); }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: var(--nav-height);
+    background: rgba(10,11,16,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    padding: 0 2rem;
+  }
+  .nav-brand {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--accent-light);
+    margin-right: 2.5rem;
+    white-space: nowrap;
+  }
+  .nav-links {
+    display: flex;
+    gap: 0.25rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .nav-links a {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.82rem;
+    font-weight: 500;
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .nav-links a:hover { color: var(--text); background: var(--surface2); }
+  .nav-links a.active { color: var(--accent-light); background: rgba(99,102,241,0.1); }
+
+  /* MAIN */
+  main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: calc(var(--nav-height) + 2.5rem) 1.5rem 4rem;
+  }
+
+  /* HERO */
+  .hero { margin-bottom: 3rem; }
+  .hero h1 {
+    font-size: 2.4rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+  }
+  .hero p { color: var(--text-muted); font-size: 1.05rem; max-width: 600px; }
+
+  /* STATS */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 3rem;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem 1rem;
+    text-align: center;
+  }
+  .stat-card .value { font-size: 1.8rem; font-weight: 700; color: var(--accent-light); }
+  .stat-card .label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 0.2rem; }
+
+  /* ACCORDION */
+  .phase { margin-bottom: 1rem; }
+  .phase-toggle {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem 1.5rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: all 0.15s;
+    text-align: left;
+    color: var(--text);
+    font-family: inherit;
+  }
+  .phase-toggle:hover { background: var(--surface2); border-color: var(--surface3); }
+  .phase-toggle[aria-expanded="true"] {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-bottom-color: transparent;
+  }
+  .phase-indicator {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .ind-done { background: var(--green); box-shadow: 0 0 8px rgba(34,197,94,0.4); }
+  .ind-current { background: var(--yellow); box-shadow: 0 0 8px rgba(234,179,8,0.4); animation: pulse 2s infinite; }
+  .ind-next { background: var(--blue); }
+  .ind-future { background: var(--purple); opacity: 0.7; }
+  .ind-far { background: var(--orange); opacity: 0.5; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+
+  .phase-info { flex: 1; min-width: 0; }
+  .phase-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.15rem;
+  }
+  .lbl-done { color: var(--green); }
+  .lbl-current { color: var(--yellow); }
+  .lbl-next { color: var(--blue); }
+  .lbl-future { color: var(--purple); }
+  .lbl-far { color: var(--orange); }
+
+  .phase-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.15rem; }
+  .phase-subtitle { font-size: 0.82rem; color: var(--text-muted); }
+  .phase-timeline {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .phase-chevron {
+    width: 20px; height: 20px;
+    flex-shrink: 0;
+    transition: transform 0.2s;
+    color: var(--text-muted);
+  }
+  .phase-toggle[aria-expanded="true"] .phase-chevron { transform: rotate(180deg); }
+
+  .phase-content {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    padding: 0 1.5rem;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s ease, padding 0.35s ease;
+  }
+  .phase-content.open {
+    max-height: 2000px;
+    padding: 1rem 1.5rem 1.5rem;
+  }
+
+  .task-list { list-style: none; }
+  .task-list li {
+    padding: 0.55rem 0;
+    border-bottom: 1px solid rgba(42,46,66,0.5);
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    font-size: 0.88rem;
+  }
+  .task-list li:last-child { border-bottom: none; }
+  .task-icon { flex-shrink: 0; font-size: 0.85rem; width: 22px; text-align: center; }
+  .task-text { flex: 1; }
+  .task-tag {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    background: var(--surface3);
+    color: var(--text-dim);
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  /* SECTION */
+  .section-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin: 3rem 0 1.5rem;
+    padding-top: 1rem;
+  }
+
+  /* TABLE */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .data-table th {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+  .data-table td {
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid rgba(42,46,66,0.4);
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .data-table .highlight { color: var(--green); font-weight: 600; }
+
+  /* FOOTER */
+  footer {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    padding: 2rem 1rem;
+    border-top: 1px solid var(--border);
+    margin-top: 3rem;
+  }
+
+  /* RESPONSIVE */
+  @media (max-width: 640px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .hero h1 { font-size: 1.8rem; }
+    nav { padding: 0 1rem; }
+    main { padding-left: 1rem; padding-right: 1rem; }
+    .phase-toggle { padding: 1rem; }
+    .phase-timeline { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">RAMP</div>
+  <div class="nav-links">
+    <a href="#phase-0">Done</a>
+    <a href="#phase-1" class="active">Current</a>
+    <a href="#phase-1-5">AI Assistant</a>
+    <a href="#phase-2">Intelligence</a>
+    <a href="#phase-3">Agency</a>
+    <a href="#phase-4">Growth</a>
+    <a href="#phase-5">Enterprise</a>
+    <a href="#economics">Economics</a>
+  </div>
+</nav>
+
+<main>
+  <div class="hero">
+    <h1>Product Roadmap</h1>
+    <p>Reddit Avatar Marketing Platform — from MVP to enterprise scale. All core systems built. Shipping last-mile delivery and first paid pilots.</p>
+  </div>
+
+  <div class="stats">
+    <div class="stat-card"><div class="value">98%</div><div class="label">MVP Complete</div></div>
+    <div class="stat-card"><div class="value">6</div><div class="label">Phases</div></div>
+    <div class="stat-card"><div class="value">92%</div><div class="label">Gross Margin</div></div>
+    <div class="stat-card"><div class="value">$35</div><div class="label">Cost / Client / Mo</div></div>
+  </div>
+
+  <!-- PHASE 0 -->
+  <div class="phase" id="phase-0">
+    <button class="phase-toggle" aria-expanded="false" onclick="toggle(this)">
+      <span class="phase-indicator ind-done"></span>
+      <div class="phase-info">
+        <div class="phase-label lbl-done">Phase 0 — Complete</div>
+        <div class="phase-title">Core Platform & Pipeline</div>
+        <div class="phase-subtitle">Full AI pipeline, RBAC, safety layer, admin panel — production-ready MVP</div>
+      </div>
+      <span class="phase-timeline">Feb — May 2026</span>
+      <svg class="phase-chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"/></svg>
+    </button>
+    <div class="phase-content">
+      <ul class="task-list">
+        <li><span class="task-icon">✅</span><span class="task-text">FastAPI + SQLAlchemy + PostgreSQL + Celery + Redis</span><span class="task-tag">infra</span></li>
+        <li><span class="task-icon">✅</span><span class="task-text">Docker Compose deployment (DigitalOcean droplet)</span><span class="task-tag">infra</span></li>
+        <li><span class="task-icon">✅</span><span class="task-text">JWT auth + 6-role RBAC with query scoping & LLM context isolation</span><span class="task-tag">security</span></li>
+        <li><span class="task-icon">✅</span><span class="task-text">Scraping → AI Scoring → Generation → Human Review pipeline</span><span class="task-tag">pipeline</span></li>
+        <li><span class="task-icon">✅</span><span class="task-text">Thread liveness protection (locked / removed / archived detection)</span><span class="task-tag">safety</span></li>
+        <li><span class="task-icon">✅</span><span class="task-text">Kill switches — global + per-avatar + per-client</span><span class="task-tag">safety</span></li>
+        <li><span class="task-icon">✅</span><span class="task-text">Persona routing + strategy-aware generation (5 karma-gated approaches)</span><span class="task-tag">ai</span></li>
+        <li><span class="task-icon">✅</span><span class="task-text">Self-learning loop (edit capture → pattern extraction → few-shot injection)</span><span class="task-tag">ai</span></li>
+        <li><span class="task-icon">✅</span><span class="task-text">Per-client scoring (Gemini Flash, 72h cutoff, 50/run cap)</span><span class="task-tag">ai</span></li>
+        <li><span class="task-icon">✅</span><span class="task-text">Avatar presence map + per-subreddit karma tracking</span><span class="task-tag">intelligence</span></li>
+        <li><span class="task-icon">✅</span><span class="task-text">Shadowban detection (5-state model, auto-freeze) + CQS monitoring</span><span class="task-tag">safety</span></li>
+        <li><span class="task-icon">✅</span><span class="task-text">System topology dashboard + activity events + scrape logs</span><span class="task-tag">observability</span></li>
+        <li><span class="task-icon">✅</span><span class="task-text">7-step client onboarding wizard</span><span class="task-tag">ux</span></li>
+        <li><span class="task-icon">✅</span><span class="task-text">Avatar farm + rental model (farm avatars, client-scoped access)</span><span class="task-tag">business</span></li>
+        <li><span class="task-icon">✅</span><span class="task-text">Comment approach diversity (karma-gated rotation, max 2 in a row)</span><span class="task-tag">ai</span></li>
+        <li><span class="task-icon">✅</span><span class="task-text">Repurpose scraping (evergreen top/year posts, weekly harvest)</span><span class="task-tag">pipeline</span></li>
+        <li><span class="task-icon">✅</span><span class="task-text">Admin panel (dark theme) + user-facing pages (light theme)</span><span class="task-tag">ux</span></li>
+        <li><span class="task-icon">✅</span><span class="task-text">Avatar Intelligence UI (confidence score, removal rate, learned patterns)</span><span class="task-tag">ux</span></li>
+        <li><span class="task-icon">✅</span><span class="task-text">Mentor phase (phase 0 — excluded from all automated pipelines)</span><span class="task-tag">business</span></li>
+        <li><span class="task-icon">✅</span><span class="task-text">LLM output validation (Pydantic schemas) + retry with exponential backoff</span><span class="task-tag">reliability</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- PHASE 1: CURRENT (open by default) -->
+  <div class="phase" id="phase-1">
+    <button class="phase-toggle" aria-expanded="true" onclick="toggle(this)">
+      <span class="phase-indicator ind-current"></span>
+      <div class="phase-info">
+        <div class="phase-label lbl-current">Phase 1 — In Progress</div>
+        <div class="phase-title">Launch & Last Mile Delivery</div>
+        <div class="phase-subtitle">Telegram posting bot, production deployment, first paid pilot (XM Cyber)</div>
+      </div>
+      <span class="phase-timeline">May 14–25, 2026</span>
+      <svg class="phase-chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"/></svg>
+    </button>
+    <div class="phase-content open">
+      <ul class="task-list">
+        <li><span class="task-icon">🔧</span><span class="task-text">Telegram Posting Bot — core (aiogram 3.x, webhook, 1-tap post)</span><span class="task-tag">P0</span></li>
+        <li><span class="task-icon">🔧</span><span class="task-text">Telegram Bot — push notifications on draft approval</span><span class="task-tag">P0</span></li>
+        <li><span class="task-icon">🔧</span><span class="task-text">Telegram Bot — admin panel (assign avatars to owners)</span><span class="task-tag">P0</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Production deployment (DigitalOcean, domain, SSL, health checks)</span><span class="task-tag">P0</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">XM Cyber data validation + first end-to-end test run</span><span class="task-tag">P0</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Impact Dashboard (engagement gauges, top comments, weekly trend)</span><span class="task-tag">P1</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Brand Voice Settings (client-visible form: product, competitors, tone)</span><span class="task-tag">P1</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Avatar Phase Progress Bar (phase + ETA + allowed/forbidden actions)</span><span class="task-tag">P1</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Public Dry Run (test generation without posting)</span><span class="task-tag">P1</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- PHASE 1.5 -->
+  <div class="phase" id="phase-1-5">
+    <button class="phase-toggle" aria-expanded="false" onclick="toggle(this)">
+      <span class="phase-indicator ind-next"></span>
+      <div class="phase-info">
+        <div class="phase-label lbl-next">Phase 1.5 — Next</div>
+        <div class="phase-title">AI Operations Assistant</div>
+        <div class="phase-subtitle">RAG-powered chat for Max & Tzvi — query any platform data in natural language</div>
+      </div>
+      <span class="phase-timeline">May 26 — Jun 8, 2026</span>
+      <svg class="phase-chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"/></svg>
+    </button>
+    <div class="phase-content">
+      <ul class="task-list">
+        <li><span class="task-icon">⬜</span><span class="task-text">RAG pipeline with pgvector — index all platform entities</span><span class="task-tag">ai</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Chat interface in admin panel (conversational queries)</span><span class="task-tag">ux</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Index: Client, Avatar, CommentDraft, ActivityEvent</span><span class="task-tag">data</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Index: ScrapeLog, AuditLog, AIUsageLog, HealthStatus</span><span class="task-tag">data</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Index: docs (memory, permission matrix, business brief, legal risks)</span><span class="task-tag">data</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- PHASE 2 -->
+  <div class="phase" id="phase-2">
+    <button class="phase-toggle" aria-expanded="false" onclick="toggle(this)">
+      <span class="phase-indicator ind-next"></span>
+      <div class="phase-info">
+        <div class="phase-label lbl-next">Phase 2 — Planned</div>
+        <div class="phase-title">Pipeline Intelligence & Scale Prep</div>
+        <div class="phase-subtitle">Outcome tracking, budget engine, A/B testing, pagination — ready for 10+ clients</div>
+      </div>
+      <span class="phase-timeline">Jun — Jul 2026</span>
+      <svg class="phase-chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"/></svg>
+    </button>
+    <div class="phase-content">
+      <ul class="task-list">
+        <li><span class="task-icon">⬜</span><span class="task-text">Comment outcome tracking (karma snapshots at 4h / 24h / 48h + removal detection)</span><span class="task-tag">P1</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Budget engine (smart daily limits per avatar, auto-pause on cap)</span><span class="task-tag">P1</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Cross-avatar deduplication (prevent 2 avatars commenting on same thread)</span><span class="task-tag">P1</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Timing jitter (±30% randomization on all intervals)</span><span class="task-tag">P1</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Subreddit rule extraction (PRAW sidebar/wiki → LLM → compliance checks)</span><span class="task-tag">P1</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Edit Effectiveness Dashboard (edit rate, common edits, pattern adoption)</span><span class="task-tag">P1</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">A/B Testing framework for tone & approach experiments</span><span class="task-tag">P2</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Pagination on all list endpoints</span><span class="task-tag">P1</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Idempotency keys (prevent duplicate task execution)</span><span class="task-tag">P1</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Prompt versioning (move to DB/files, enable A/B)</span><span class="task-tag">P2</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Strategy Questions feedback loop (structured answers → next generation)</span><span class="task-tag">P2</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Queue observability (DLQ + metrics + alerting)</span><span class="task-tag">P2</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- PHASE 3 -->
+  <div class="phase" id="phase-3">
+    <button class="phase-toggle" aria-expanded="false" onclick="toggle(this)">
+      <span class="phase-indicator ind-future"></span>
+      <div class="phase-info">
+        <div class="phase-label lbl-future">Phase 3 — Future</div>
+        <div class="phase-title">Agency Multi-Tenant & Self-Service</div>
+        <div class="phase-subtitle">Multi-client workspaces, trust engine, white-label reports, Stripe billing</div>
+      </div>
+      <span class="phase-timeline">Aug — Oct 2026</span>
+      <svg class="phase-chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"/></svg>
+    </button>
+    <div class="phase-content">
+      <ul class="task-list">
+        <li><span class="task-icon">⬜</span><span class="task-text">Agency multi-tenant workspace (team roles, sub-client management)</span><span class="task-tag">business</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Trust engine (per-avatar, per-subreddit decay scores)</span><span class="task-tag">intelligence</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">White-label reports (PDF + CSV, scheduled delivery to clients)</span><span class="task-tag">ux</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Client-facing analytics API</span><span class="task-tag">api</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Self-service client onboarding (B2C flow, Stripe billing)</span><span class="task-tag">business</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Horizontal scaling (separate worker pools by task type)</span><span class="task-tag">infra</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Cross-client analytics (agency-level dashboard)</span><span class="task-tag">ux</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- PHASE 4 -->
+  <div class="phase" id="phase-4">
+    <button class="phase-toggle" aria-expanded="false" onclick="toggle(this)">
+      <span class="phase-indicator ind-far"></span>
+      <div class="phase-info">
+        <div class="phase-label lbl-far">Phase 4 — Horizon</div>
+        <div class="phase-title">Growth & Advanced Intelligence</div>
+        <div class="phase-subtitle">Smart onboarding, viral acceleration, engagement heatmaps, LinkedIn expansion</div>
+      </div>
+      <span class="phase-timeline">Nov 2026 — Feb 2027</span>
+      <svg class="phase-chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"/></svg>
+    </button>
+    <div class="phase-content">
+      <ul class="task-list">
+        <li><span class="task-icon">⬜</span><span class="task-text">Smart onboarding (client enters website → AI suggests keywords & subreddits)</span><span class="task-tag">ai</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Viral acceleration rules (engagement-based triggers)</span><span class="task-tag">intelligence</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Engagement heatmap (best hours for posting per subreddit)</span><span class="task-tag">analytics</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">LinkedIn integration (social_manager role)</span><span class="task-tag">expansion</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Vector memory (long-term avatar context across conversations)</span><span class="task-tag">ai</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Competitor intelligence module</span><span class="task-tag">intelligence</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Mentor tracking & strategy (high-karma account management)</span><span class="task-tag">intelligence</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- PHASE 5 -->
+  <div class="phase" id="phase-5">
+    <button class="phase-toggle" aria-expanded="false" onclick="toggle(this)">
+      <span class="phase-indicator ind-far"></span>
+      <div class="phase-info">
+        <div class="phase-label lbl-far">Phase 5 — Horizon</div>
+        <div class="phase-title">Enterprise Infrastructure</div>
+        <div class="phase-subtitle">AWS migration, real billing, full compliance, white-label, self-service portal</div>
+      </div>
+      <span class="phase-timeline">2027+</span>
+      <svg class="phase-chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"/></svg>
+    </button>
+    <div class="phase-content">
+      <ul class="task-list">
+        <li><span class="task-icon">⬜</span><span class="task-text">AWS migration (ECS + SQS + ElastiCache + RDS)</span><span class="task-tag">infra</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Real billing (Stripe Connect, automatic invoices, plan limit enforcement)</span><span class="task-tag">business</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">White-label (custom domain, branding per agency client)</span><span class="task-tag">business</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Data retention cleanup (TTL for old threads, GDPR/CCPA compliance)</span><span class="task-tag">compliance</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Cross-avatar routing / upvote coordination</span><span class="task-tag">intelligence</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Client self-service portal (full B2C experience)</span><span class="task-tag">business</span></li>
+        <li><span class="task-icon">⬜</span><span class="task-text">Auto-generated PDF reports (scheduled, per-client branding)</span><span class="task-tag">ux</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ECONOMICS SECTION -->
+  <h2 class="section-title" id="economics">Unit Economics</h2>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Clients</th>
+        <th class="num">LLM / mo</th>
+        <th class="num">Infra / mo</th>
+        <th class="num">Total Cost</th>
+        <th class="num">Revenue</th>
+        <th class="num">Margin</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>3 (pilot)</td>
+        <td class="num">$105</td>
+        <td class="num">$27</td>
+        <td class="num">$132</td>
+        <td class="num">$1,500</td>
+        <td class="num highlight">91%</td>
+      </tr>
+      <tr>
+        <td>10</td>
+        <td class="num">$351</td>
+        <td class="num">$27</td>
+        <td class="num">$378</td>
+        <td class="num">$5,000</td>
+        <td class="num highlight">92%</td>
+      </tr>
+      <tr>
+        <td>50</td>
+        <td class="num">$1,755</td>
+        <td class="num">$54</td>
+        <td class="num">$1,809</td>
+        <td class="num">$25,000</td>
+        <td class="num highlight">93%</td>
+      </tr>
+      <tr>
+        <td>100</td>
+        <td class="num">$3,510</td>
+        <td class="num">$130</td>
+        <td class="num">$3,640</td>
+        <td class="num">$50,000</td>
+        <td class="num highlight">93%</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 class="section-title">Phase Transition Triggers</h2>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Transition</th>
+        <th>Trigger</th>
+        <th>Metric</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Phase 1 → 1.5</td>
+        <td>Telegram bot live, first client posting</td>
+        <td>≥ 10 posted drafts / week</td>
+      </tr>
+      <tr>
+        <td>Phase 1.5 → 2</td>
+        <td>3+ paying clients onboarded</td>
+        <td>MRR ≥ $1,500</td>
+      </tr>
+      <tr>
+        <td>Phase 2 → 3</td>
+        <td>10+ clients OR agency request</td>
+        <td>MRR ≥ $5,000</td>
+      </tr>
+      <tr>
+        <td>Phase 3 → 4</td>
+        <td>50+ clients, churn &lt; 5%</td>
+        <td>MRR ≥ $25,000</td>
+      </tr>
+      <tr>
+        <td>Phase 4 → 5</td>
+        <td>Enterprise client OR 100+ avatars OR ops &gt; 4h/week</td>
+        <td>MRR ≥ $50,000</td>
+      </tr>
+    </tbody>
+  </table>
+
+</main>
+
+<footer>
+  RAMP — Reddit Avatar Marketing Platform &middot; Max + Tzvi &middot; Cyprus &middot; Updated May 15, 2026
+</footer>
+
+<script>
+function toggle(btn) {
+  const expanded = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', !expanded);
+  const content = btn.nextElementSibling;
+  if (expanded) {
+    content.classList.remove('open');
+  } else {
+    content.classList.add('open');
+  }
+}
+</script>
+</body>
+</html>
