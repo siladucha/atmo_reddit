@@ -1008,7 +1008,8 @@ def set_comment_status(
     draft = db.query(CommentDraft).filter(CommentDraft.id == comment_id).first()
     if not draft:
         raise HTTPException(status_code=404)
-    if not current_user.is_superuser:
+    # Platform roles (owner, partner, avatar_manager, qa) can review any draft
+    if not current_user.is_superuser and current_user.user_role.value not in ('owner', 'partner', 'avatar_manager', 'qa'):
         if current_user.client_id != draft.client_id:
             raise HTTPException(status_code=403)
     # Check draft approval permission (role-based + client flag for client_viewer)

@@ -121,14 +121,15 @@ async def require_owner(user: User = Depends(get_current_user)) -> User:
 
 
 async def require_platform_admin(user: User = Depends(get_current_user)) -> User:
-    """Owner or partner roles. Raises 403 otherwise.
+    """Owner, partner, or avatar_manager roles. Raises 403 otherwise.
 
     Also accepts is_superuser=True for backward compatibility with legacy
     accounts that haven't been migrated to explicit roles yet.
 
-    Use for admin panel routes, client management, user management.
+    Use for admin panel routes. avatar_manager gets access to avatar-related
+    routes; non-avatar routes are further gated by navigation visibility.
     """
-    if user.user_role not in (UserRole.owner, UserRole.partner):
+    if user.user_role not in (UserRole.owner, UserRole.partner, UserRole.avatar_manager):
         # Legacy backward compat: is_superuser=True also grants platform admin
         if not user.is_superuser:
             raise HTTPException(status_code=403, detail="Access Denied")

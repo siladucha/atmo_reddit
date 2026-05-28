@@ -20,7 +20,7 @@ from sqlalchemy import func as sa_func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies.admin import require_superuser
+from app.dependencies.admin import require_avatar_admin
 from app.models.avatar import Avatar
 from app.models.client import Client
 from app.models.comment_draft import CommentDraft
@@ -112,7 +112,7 @@ class _HobbyThreadProxy:
 def workflow_panel(
     request: Request,
     avatar_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
     """HTMX partial: render the unified workflow panel."""
@@ -148,7 +148,7 @@ def workflow_panel(
 def workflow_rebuild_epg(
     request: Request,
     avatar_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
     """Rebuild EPG and return the full workflow panel."""
@@ -195,7 +195,7 @@ def workflow_generate_hobby(
     avatar_id: uuid.UUID,
     hobby_post_id: str = Form(...),
     subreddit: str = Form(""),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
     """Generate a single hobby comment for an EPG slot.
@@ -335,7 +335,7 @@ def workflow_generate_slot(
     request: Request,
     avatar_id: uuid.UUID,
     slot_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
     """Generate a comment for a specific EPG slot.
@@ -379,7 +379,7 @@ def workflow_generate_slot(
 def workflow_generate_all(
     request: Request,
     avatar_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
     """Generate all planned EPG slots for this avatar today.
@@ -432,7 +432,7 @@ def workflow_approve(
     request: Request,
     avatar_id: uuid.UUID,
     draft_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
     """Approve a draft and return it as an 'approved' card with post actions."""
@@ -521,7 +521,7 @@ def workflow_reject(
     request: Request,
     avatar_id: uuid.UUID,
     draft_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
     """Reject a draft and return a dismissed card."""

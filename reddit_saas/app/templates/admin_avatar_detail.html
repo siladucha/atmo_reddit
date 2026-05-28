@@ -123,6 +123,23 @@
                 <span>CQS</span>
                 <span class="opacity-80">· {{ (avatar.cqs_level or 'not checked')|upper }}</span>
             </button>
+
+            {# Pool badge #}
+            <span class="inline-flex items-center gap-2 px-2.5 py-1 rounded text-xs font-medium border
+                         {% if avatar.pool == 'mentor' %}{{ badge_classes['purple'] }}
+                         {% elif avatar.pool == 'warm' %}{{ badge_classes['amber'] }}
+                         {% elif avatar.pool == 'b2c' %}{{ badge_classes['green'] }}
+                         {% else %}{{ badge_classes['blue'] }}{% endif %}"
+                  title="Avatar pool classification: B2B (client work), B2C (self-service), Mentor (pre-warmed, excluded), Warm (aging/building karma)">
+                <span>Pool</span>
+                <span class="opacity-80">· {{ (avatar.pool or 'b2b')|upper }}</span>
+            </span>
+            {% if avatar.industry %}
+            <span class="inline-flex items-center gap-2 px-2.5 py-1 rounded text-xs font-medium border {{ badge_classes['slate'] }}"
+                  title="Industry/domain expertise">
+                <span>{{ avatar.industry }}</span>
+            </span>
+            {% endif %}
         </div>
         {% endif %}{# end signal badges hide for avatar_manager #}
 
@@ -230,7 +247,8 @@
         <!-- EPG — Daily Publishing Program -->
         {% include "partials/avatar_epg.html" %}
 
-        <!-- Client Assignment -->
+        <!-- Client Assignment (hidden for avatar_manager) -->
+        {% if request.state.user_role != 'avatar_manager' %}
         <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
             <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Client Assignment{% set tooltip_text = "Which clients this avatar is assigned to. An avatar can serve multiple clients. Assignment determines which subreddits and keywords the avatar engages with." %}{% include "partials/block_tooltip.html" %}</h2>
             {% if assigned_clients %}
@@ -276,6 +294,7 @@
             </form>
             {% endif %}
         </div>
+        {% endif %}
 
         <!-- Confidence Score (loaded via HTMX) -->
         <div id="confidence-container"

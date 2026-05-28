@@ -31,6 +31,9 @@ class Client(Base):
     plan_type: Mapped[str] = mapped_column(String(20), default="starter", server_default="starter")
     draft_approval_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
+    # Industry classification (for avatar-client matching)
+    industry: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
     # Relationships
     subreddits = relationship("ClientSubreddit", back_populates="client")  # legacy, kept for migration
     subreddit_assignments = relationship("ClientSubredditAssignment", back_populates="client")

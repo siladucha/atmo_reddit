@@ -1,0 +1,478 @@
+﻿RAMP  — Product Roadmap · Confidential · v1.1 · May 2026
+
+
+RAMP
+Reddit Avatar Management Platform
+
+
+
+
+PRODUCT ROADMAP
+Holy Bible — Version 1.1 · May 2026
+
+
+________________
+
+
+   00 · NORTH STAR & GUIDING PRINCIPLES
+
+
+RAMP is not a social media scheduling tool. It is a Reddit brand presence infrastructure company. Every feature we build, every prioritization decision, every sprint must be evaluated against one question:
+"Does this make RAMP's avatars more credible, more durable, and more impactful for client outcomes?"
+
+
+The Moat — Never Compromise These
+🔒  Execution Abstraction
+	Clients never touch the posting layer. Ever. Not even in white-label. This is both the product and the legal principle.
+	🎭  Persona Depth
+	Every avatar is a fully realized human with history, voice, opinions, and constraints. No spray-and-pray. Generic = dead.
+	⏳  Phase Discipline
+	Brand mentions happen only after karma and credibility are established. Premature integration kills the entire investment.
+	🛡️  Pattern Invisibility
+	Cross-avatar coordination must never be detectable. No timing patterns, no clustering, no identical behavior fingerprints.
+	
+
+Prioritization Framework
+Every backlog item is scored before entering a sprint. Inputs: client revenue impact, moat reinforcement, risk mitigation, infrastructure dependency, operational cost reduction. When two items tie — the one that unblocks more downstream items wins.
+
+
+  ⚡ Phase Flexibility: Any feature may be accelerated to an earlier phase if there is clear demand — from the market or from existing clients. Demand signal overrides timeline. Document the signal when it happens.  
+________________
+
+
+   01 · WHERE WE STAND TODAY
+
+
+Built & Live
+LAYER
+	STATUS
+	NOTES
+	Admin panel + dashboard
+	✓ Live
+	Dark theme, full admin + partner views
+	7-step client onboarding (admin)
+	✓ Live
+	Self-serve version is backlog
+	Thread discovery + scraping pipeline
+	✓ Live
+	Keyword search, scoring, dedup
+	AI scoring (relevance, quality, strategic)
+	✓ Live
+	Gemini 2.5 Flash Lite
+	AI generation (persona-aware comments + posts)
+	✓ Live
+	Claude Sonnet 4
+	Self-learning loop (edit capture + few-shot)
+	✓ Live
+	Captures human corrections
+	Decision Center (30-day strategy per avatar)
+	✓ Live
+	Based on karma state + Reddit context
+	Human review queue (approve/edit/regen)
+	✓ Live
+	Core loop working
+	Role-based access (4 levels)
+	✓ Live
+	Super admin / partner / client mgr / client
+	AI cost tracking (per-client, per-avatar)
+	✓ Live
+	Token-level logging
+	Avatar health / shadowban detection
+	✓ Live
+	5-state detection, auto-freeze
+	Infrastructure: Docker / FastAPI / PG / Redis
+	✓ Live
+	DigitalOcean, AWS-ready
+	
+
+Critical Gaps — Blockers to Scale
+GAP
+	SEVERITY
+	WHY IT BLOCKS SCALE
+	No platform-side posting (manual still goes through local browser)
+	HIGH
+	Every post/comment requires operator to use client's local browser. Cannot handle more than 2-3 clients.
+	No client-facing dashboard
+	HIGH
+	Cannot onboard real paying clients without a separate, exec-friendly view.
+	No self-serve onboarding
+	MED
+	Every client requires manual setup. SaaS motion doesn't exist yet.
+	No nested comment replies
+	MED
+	Avatars only reply to posts. Can't hold actual conversations.
+	No cross-avatar coordination
+	MED
+	Karma compounding effect doesn't exist. Core moat value delayed.
+	No Stripe / billing enforcement
+	LOW-MED
+	Can't enforce plan limits. Revenue is manual. Doesn't scale.
+	________________
+
+
+   02 · ROADMAP AT A GLANCE
+
+
+Four phases. Each unlocks the next. Do not skip.
+
+
+PHASE
+	NAME
+	TIMEFRAME
+	EXIT CRITERIA
+	0
+	LAUNCH READY
+	Now → Month 1
+	3 paying clients onboarded. Platform-side posting live. Client dashboard live.
+	1
+	PRODUCT-MARKET FIT
+	Month 2–3
+	Self-serve onboarding live. 10 active clients. Nested replies. Competitor monitoring. Churn < 15%.
+	2
+	SCALE ENGINE
+	Month 4–6
+	Full posting automation live. Cross-avatar coordination. AEO/GEO integration. 25+ clients.
+	3
+	PLATFORM EXPANSION
+	Month 7–12
+	Agency/white-label. LinkedIn/X expansion. 60+ clients.
+	
+
+  ⚡ Phase Flexibility: Any feature may be accelerated to an earlier phase if there is clear demand — from the market or from existing clients. Demand signal overrides timeline. Document the signal when it happens.  
+________________
+
+
+   PHASE 0 — LAUNCH READY
+
+
+Timeframe: Now → End of Month 1     Theme: Close the gap between "built" and "sellable"
+This phase has one job: get from alpha to paying clients. Every item here removes a manual step or enables the first sales motion. Nothing speculative. No nice-to-haves.
+P0.1 — Production Deployment
+* Domain purchase, DNS, SSL setup — live URL accessible to clients and partners
+* Assess: single Reddit API app vs. multi-app per client fleet — decision gates schema finalization
+* Tooltip layer: all metric fields get plain-language explanations (Decision Center, avatar profiles)
+P0.2 — Platform-Side Posting (Internal Manual)
+This is Phase 0's posting milestone: operators can execute approved posts and comments directly from inside the RAMP platform — no more switching to a client's local browser to post manually.
+* Authenticated Reddit session management per avatar — stored securely in platform
+* One-click "Post Now" action from human review queue — comment or post dispatched via platform
+* Activity log: every post/comment tied to avatar, subreddit, timestamp, operator who executed
+* Pre-post guardrail layer: phase eligibility check, rate check, content rule validation before every dispatch
+* VPN guidance for operators as an interim security layer until full proxy architecture is live
+Note: This is operator-executed, not automated. A human still clicks post. Full browser-session automation comes in Phase 2.
+P0.3 — Client Dashboard V1 (Minimal)
+Clients need something to look at from Day 1. Not feature-rich — exec-friendly. Goal: client feels like their investment is working from Week 1.
+* Separate client view from admin panel — role-gated, no pipeline controls visible
+* Activity feed: recent comments posted, avatars active, subreddits covered
+* Avatars overview: name, phase, karma score, last active
+* Keywords and subreddits assigned to client
+* Content queue: approve / edit / reject drafts (comments + posts)
+* Pipeline trigger removal: clients cannot run scraping or generation — view and approval only, technically enforced
+Note — expanded dashboard: Richer analytics, share of voice, and momentum events feed are Phase 2 upgrades. The Phase 0 version is intentionally minimal.
+P0.4 — Phase System V1
+* Phase 1/2/3 eligibility enforcement per avatar per subreddit
+* Automated phase transition on karma threshold — no manual override required
+* Phase regression on inactivity or moderation event
+* Avatar status lifecycle: inventory → assigned → active → suspended → retired
+Risk: Without enforced phase rules, brand mentions can leak into early engagement — killing credibility and client trust.
+P0.5 — Avatar Activity Breakdown
+Operational visibility for internal team and partners. Must be live from day one — you cannot manage avatars you cannot observe.
+* 30/60/90-day view: karma growth, comments posted, upvote rate, top-performing comments
+* Subreddits active in — distribution view per avatar
+* Survival rate and shadowban history (internal-only — not surfaced to client)
+* Confidence score (internal-only)
+P0.6 — Pre-Warmed Avatar Inventory Pipeline (Manual Phase)
+Even before the pipeline is automated, we must be actively building inventory. Pre-warmed avatars are the most defensible upsell — every week we delay is karma we cannot recover.
+* Manual process to start: assigned team members run hobby-subreddit activity on inventory avatars daily
+* Inventory avatars tracked in platform: phase level, karma score, subreddits active in, assignment status
+* Tiered inventory: Standard (fresh), Silver ($199 — Phase 1 eligible), Gold ($499 — Phase 2 eligible)
+* Automation of this pipeline moves to Phase 2 once cross-avatar coordination rules are stable
+Revenue impact: A client who buys a Gold avatar gets months of compounded credibility on day one. This is a premium upsell that compounds in value the longer the inventory pipeline runs.
+P0.7 — Content Intelligence: Subreddit Historical Analysis (Lite)
+Before drafting any content for a new subreddit, the system should understand that subreddit's culture. This is a lightweight version of the full content intelligence layer.
+* Subreddit tone fingerprint: analyze top-performing content to derive community profile (technical, supportive, contrarian, humorous)
+* Length and framing calibration: system learns what post/comment formats perform best per subreddit
+* Cached on first analysis, refreshed periodically — not real-time
+* Full content intelligence layer (historical lookback, recommendation engine, external news integration) continues development into Phase 1
+Phase Exit Gate — Do Not Proceed Until:
+* 3 paying clients have signed contracts and been onboarded
+* Platform-side posting is live — operators can post from within RAMP without touching a local browser
+* Client dashboard V1 is accessible and non-broken for client role
+* Phase system is enforced in the DB — not manual tracking
+* Avatar inventory pipeline is running — at least 5 avatars in Silver tier or above
+
+
+________________
+
+
+   PHASE 1 — PRODUCT-MARKET FIT
+
+
+Timeframe: Month 2–3     Theme: Make the product good enough that clients stay and tell others
+Phase 0 gets clients in the door. Phase 1 keeps them. The focus shifts to quality, depth, and the self-serve motion that will let you stop manually onboarding every client.
+P1.1 — Self-Serve Client Onboarding
+This is what converts RAMP from an agency to a SaaS. Without it, you are capped at however many clients you and Max can manually handle.
+* Conversational AI-powered wizard (5–7 steps): URL scrape, ICP, voice profile, guardrails, keywords, subreddit suggestions
+* ToV document upload (PDF, DOCX, TXT, MD) — AI ingests into avatar persona context
+* Onboarding quality gate: thin brief blocks avatar activation, surfaces specific fields to complete
+* Subreddit auto-suggestions based on ICP and keyword profile
+* Plan tier enforcement: avatar count limit, subreddit count limit, action budget cap — technically enforced
+Risk: Thin briefs produce generic avatars that kill credibility. The quality gate is moat protection, not UX. Hard block on thin briefs — no exceptions.
+P1.2 — Platform-Side Posting: Completion
+Phase 1 completes the posting features started in P0.2 — adding scheduling, retry logic, and deeper session management.
+* Comment + post scheduling: set time window, system dispatches at a human-plausible moment within it
+* Retry logic on failed dispatch — with alert to operator
+* Session health checks per avatar before dispatch — detect token expiry or account issues early
+Reminder: Full browser-session automation (GoLogin/AdsPower + Puppeteer) is a Phase 2 item. Phase 1 posting is still operator-initiated, just more robust.
+P1.3 — Nested Comment Replies
+* Generate replies to other comments within a thread — not just top-level post replies
+* Comment thread engagement detection: when users reply to an avatar's comment, detect it, assess response warrant, draft reply for human review
+* Nested replies enable real conversations — avatars can hold a position, debate, agree, thank
+Why Phase 1: Top-level-only commenting is a detectable bot pattern. Real users reply to replies. Also a gap vs. the legacy Airtable system — catch-up work.
+P1.4 — Competitor Intelligence & Monitoring
+Relatively low infrastructure cost since scraping and scoring pipelines already exist. High client value from day one.
+* Real-time tracking of competitor brand mentions in target subreddits
+* Alert feed: "[Competitor X] mentioned in r/netsec — 200 upvotes — avatar response queued"
+* Share of voice: client vs. competitor mention delta — baseline set Day 1, tracked continuously
+* Momentum Events feed: client-facing real-time alerts for breakout comments and competitor activity
+Build note: Leverage existing scraping infrastructure. Competitor tracking is keyword monitoring with a different target — the marginal cost is low.
+P1.5 — Mentor Avatar System
+Mentor avatars are high-karma, high-influence Reddit accounts that our system studies and learns from. They are not operated by RAMP — they are observed.
+* System identifies top-performing accounts in target subreddits: post frequency, upvote rates, comment style, topic distribution
+* Mentor profile built per account: vocabulary patterns, framing tendencies, how they handle disagreement, what topics they lead vs. follow
+* Each inventory/client avatar is allocated one or more mentor avatars as behavioral anchors
+* Generation engine injects mentor context as style reference — not reproduction, stylistic calibration
+* Mentor assignments are updated when a mentor's activity drops or their credibility shifts
+Why this matters: The difference between a convincing avatar and a detectable one is whether it sounds like a real person in that community. Mentor learning is the training wheel that bridges the gap.
+P1.6 — Content Intelligence Layer (Full)
+Completion of the lite version started in P0.7.
+* 12-month historical lookback on top-performing subreddit content — style calibration only, never reproduction
+* Content recommendation engine: surface briefs to clients — "this topic has 14 threads this month with no authoritative resource, publish a guide and we'll cite it"
+* External intelligence layer (optional add-on): real-time retrieval of relevant news/research per thread — adds cost and latency, configurable per avatar/plan
+P1.7 — AI Budget Cap Per Client
+* Hard monthly AI cost limit, configurable per plan tier
+* Pause non-critical generation when approaching limit — alert admin and client
+* Internal cost model: ~$2/month low-karma avatar, ~$10/month high-karma avatar — price tiers accordingly
+* Haiku for cheap tasks (scoring, classification), Sonnet only for persona-aware generation
+P1.8 — Stripe Integration + Plan Enforcement
+* Self-serve subscription billing — activate when self-serve onboarding (P1.1) is live
+* Plan limits technically enforced: avatar count, subreddit count, action quotas, budget caps
+* Upgrade prompt when client hits plan ceiling — triggers upsell flow for subreddits, avatars, or tier upgrade
+* Fallback: bank transfer remains available for enterprise/agency deals regardless of Stripe status
+P1.9 — Success Metrics V1 (Client-Facing KPIs)
+Clients need to see ROI in the language of their business — not raw operational metrics.
+METRIC CATEGORY
+	VISIBLE FROM
+	WHAT IT SHOWS
+	Activity metrics
+	Day 1
+	Comments posted, upvotes received, threads engaged
+	Presence metrics
+	Month 2+
+	Karma growth, subreddit penetration, top-comment rate
+	Brand mention delta
+	Month 3+
+	Organic brand mentions vs. Day 1 baseline
+	Share of voice vs. competitors
+	Month 3+
+	Client vs. competitor mention ratio in target subreddits
+	Intent signals
+	Month 5+
+	High-intent threads engaged, brand-adjacent conversion signals
+	Phase Exit Gate — Do Not Proceed Until:
+* First client self-onboarded without manual help from Tzvi or Max
+* 10 active clients on the platform
+* Nested reply capability live and generating real conversations
+* Competitor monitoring live and surfacing alerts
+* Stripe billing enforced — plan limits are technical, not just documented
+* Churn below 15%
+
+
+________________
+
+
+   PHASE 2 — SCALE ENGINE
+
+
+Timeframe: Month 4–6     Theme: Activate the compounding mechanics that no competitor can replicate
+This is where the moat deepens. Full posting automation, cross-avatar coordination, and AEO/GEO integration are the features that make RAMP structurally hard to replicate.
+P2.1 — Full Posting Automation (Browser + Proxy Layer)
+This is the upgrade from operator-executed posting (Phase 0/1) to truly automated posting that scales without human intervention.
+* Anti-detect browser profiles per avatar — GoLogin (preferred for programmatic API, npm integration)
+* Residential US IP proxy assignment — one sticky IP per avatar profile
+* Puppeteer/Playwright sidecar VM — executes approved content through human-like browser session
+* Behavioral entropy engine: randomized delays, scroll simulation, non-linear navigation, reading behavior before posting
+* Interaction isolation prevention: avatars must consume (read, scroll, upvote) as well as post — pure posting behavior is a detection signal
+* Evaluate partner Chrome extension (Max to assess) as supplementary or alternative execution layer
+Cost model: ~$13–23/avatar/month (proxy + browser profile). Priced into avatar tier costs.
+Risk: Behavioral fingerprinting. Test all automation patterns on experimental burn avatars for 30 days before rolling to production fleet.
+P2.2 — Cross-Avatar Coordination
+Avatars support each other's content — but never in a way that creates detectable patterns.
+* Smart routing: avatars upvote and reply to each other's content based on persona fit check
+* Rules engine: max 2 avatars per comment per 24h window
+* Randomized upvote delay: 2–18 hours (never immediate)
+* Genuine comment required 30% of the time — not just a silent upvote
+* Viral acceleration: Hot (50+ upvotes) or Viral (200+) compresses phase eligibility — but LOCKS all cross-avatar support for 48h post-viral
+Risk: Clustering is the #1 detection signal. Rules engine must be validated on experimental avatars before production rollout.
+P2.3 — Pre-Warmed Avatar Inventory Pipeline (Automated)
+* Background automation: system accumulates karma on inventory avatars in hobby subreddits without operator intervention
+* Phase tracking, karma milestone alerts, and assignment readiness flags — all automated
+* Upgrade from Phase 0 manual process: same tiers (Standard / Silver / Gold), fully automated now
+P2.4 — AEO/GEO Reporting Integration
+As LLMs become the primary research layer for B2B buyers, tracking Reddit's influence on LLM citations becomes the most compelling ROI story available.
+* Partner integration with Profound, Otterly, or Brandlight for LLM citation tracking
+* Bundle as upsell add-on: "See how your Reddit presence drives AI search visibility"
+* Internal AEO module: Phase 3 exploration only — partner first, build only if partners fail to deliver
+P2.5 — Mobile Autopilot (Demand-Gated)
+Concept: a React Native or Flutter app on an operator's own mobile device that queues and drips approved posts through the device — compliant because auth is on real hardware.
+* Do NOT build until demand signal confirmed in 3+ sales calls or client requests
+* Max to evaluate partner Chrome extension first — if it solves the same problem, mobile app may be unnecessary
+* If built: React Native or Flutter, approved queue synced from platform, user approves timing on device
+Gate: This item is Phase 2 in placement but demand-gated. It may never be built if the browser automation layer (P2.1) renders it redundant.
+P2.6 — Expanded Client Dashboard
+Upgrade from the minimal Phase 0 dashboard to a full analytics experience.
+* Share of voice visualization: client vs. competitors over time
+* Momentum Events feed: real-time alerts for breakout comments, phase transitions, competitor spikes
+* Avatar performance deep-dive: full 30/60/90-day breakdown visible to client (limited version)
+* Subreddit discovery: system surfaces new relevant subreddits as upsell when client is at plan limit
+* Monthly PDF auto-report: white-labeled, designed for client champions to present to their superiors
+P2.7 — Personal Brand / Mentor Learning Module
+Building on the Mentor Avatar System from Phase 1, this module extends the learning approach to serve clients who want a personal brand presence — avatars that operate as named thought leaders, not anonymous community members.
+* System trains on the client's own existing content (articles, talks, LinkedIn posts) to build a voice model
+* Mentor avatar allocation: system matches inventory avatar to a mentor whose community standing mirrors the client's target positioning
+* Personal brand avatars have different phase rules — authenticity over karma, content quality over volume
+* Different risk profile from anonymous avatars — requires separate legal framework and client contract addendum
+Demand gate: Build only if 3+ clients express clear interest during Phase 1. Assess on sales calls. Do not build speculatively.
+Phase Exit Gate — Do Not Proceed Until:
+* Full posting automation live and running for 30+ days with zero production bans
+* Cross-avatar coordination live with no clustering incidents detected
+* AEO/GEO partner integration live and included in at least one client report
+* 25+ active clients
+* First agency deal signed or in late-stage pipeline
+
+
+________________
+
+
+   PHASE 3 — PLATFORM EXPANSION
+
+
+Timeframe: Month 7–12     Theme: Expand surface area — channels, buyers, and business models
+Phase 3 is earned. It requires a stable, well-monetized Reddit core product. Do not start Phase 3 work while Phase 2 is unstable. Expanding too early is how good products die.
+P3.1 — Agency & White-Label Model
+* Multi-tenant workspace hierarchy: agency master view → client workspaces → isolated data
+* White-label domain + branding configuration per agency
+* Two onboarding flows: agency-led and client-invited
+* Hybrid avatar pool: agency-level shared pool + client-specific dedicated avatars
+* Aggregated billing at agency level with per-client cost breakdown
+* Agency archetypes: Silent Operator (full managed), Co-Pilot (reviews + approves), Reseller (packages and sells)
+* Agency pricing: ~$999–$3,499/mo depending on client count and white-label depth
+P3.2 — LinkedIn Avatar Expansion
+* Same avatar identities as Reddit — same persona, adapted platform behavior
+* Company profile creation: branding, logo, description per client
+* LinkedIn commenting + posting built on top of existing generation engine
+* Phase system adapted for LinkedIn equivalent (connection depth, endorsements, content velocity)
+Dependency: Reddit core must be stable at 25+ clients with positive NPS before LinkedIn work begins. Do not split engineering focus prematurely.
+P3.3 — Twitter/X Avatar Expansion
+* Same cross-platform persona model as LinkedIn
+* Assess demand first — build only on confirmed signal from 3+ clients
+* X's anti-automation enforcement is more aggressive than Reddit or LinkedIn — requires dedicated research sprint before any build decision
+Phase Exit Gate — Do Not Proceed Until:
+* Agency/white-label signed with at least 1 live agency partner managing 3+ clients
+* LinkedIn expansion live for at least 2 clients with no critical incidents
+* 60+ total active clients across all channels
+
+
+________________
+
+
+   05 · OPEN ALIGNMENT QUESTIONS
+
+
+These questions must be answered before building can proceed in the affected areas. Do not build around them.
+#
+	QUESTION
+	BLOCKS
+	STATUS
+	1
+	Single Reddit API app vs. multiple per client fleet — rate limit isolation vs. management overhead
+	P0.1 / Schema finalization
+	⚠ Decide now
+	2
+	Is Airtable fully deprecated? When does custom UI replace it completely?
+	Internal ops cleanup
+	⚠ Align
+	3
+	Which metrics are client-visible vs. internal-only? (Survival rate, confidence score, CQS)
+	P0.3 Client dashboard
+	⚠ Sign-off needed
+	4
+	Chrome extension from partner — what is the incorporation path? Max needs to test and report back.
+	P2.1 / Mobile autopilot decision
+	○ In review
+	5
+	Personal brand module demand confirmed? Track in Phase 1 sales calls.
+	P2.7 build/no-build decision
+	⚠ Track demand
+	________________
+
+
+   06 · RISK REGISTER
+
+
+RISK
+	SEVERITY
+	MITIGATION
+	Reddit ToS / CFAA exposure
+	HIGH
+	Corporate structure + contract language + client ToS disclosure. Never post via API at scale.
+	Account loss (shadowban / ban)
+	MED
+	5-state shadowban detection, auto-freeze, experimental burn fleet before rolling new automation to production.
+	Behavioral fingerprinting detection
+	MED
+	Timing entropy engine, navigation simulation, no API posting at scale, one IP per avatar, cross-avatar max 2/24h rule.
+	Brand damage (premature brand mention)
+	HIGH
+	Phase system enforced in DB. Hard block on brand mentions before Phase 2 eligibility. Pre-post guardrail on every dispatch.
+	FTC endorsement disclosure risk
+	MED
+	Client ToS acceptance includes disclosure of paid nature. Contract language covers this. Not legal advice.
+	AI cost overrun per client
+	LOW-MED
+	Hard monthly AI budget cap (P1.7). Haiku for cheap tasks, Sonnet for generation only.
+	Client churn from weak early results
+	MED
+	Activity metrics visible Day 1. Expectation set at onboarding: Months 1-2 are credibility building, brand uplift measurable Month 3+.
+	LinkedIn/X expansion fragmenting focus
+	LOW
+	Phase gates prevent expansion work from starting while Reddit core is unstable. One platform at a time.
+	________________
+
+
+   07 · INTENTIONALLY DEFERRED
+
+
+These items are recognized. They are not forgotten. They are parked until a specific trigger is met. Building them now would be distraction.
+ITEM
+	WHY DEFERRED
+	TRIGGER TO REVISIT
+	White-label client websites
+	High complexity, unclear demand, brand risk exposure.
+	Agency model live + agency specifically requests it
+	Internal AEO/GEO reporting module
+	Partners (Profound/Otterly/Brandlight) are faster to integrate.
+	Partners fail to deliver acceptable integration
+	Twitter/X avatar expansion
+	X enforcement is aggressive. Requires dedicated research sprint.
+	LinkedIn expansion stable + X demand confirmed from 3+ clients
+	Personal brand module
+	Different risk profile. Demand unconfirmed.
+	3+ clients request it during Phase 1
+	
+
+
+
+
+
+RAMP — Product Roadmap  ·  Confidential  ·  Version 1.1  ·  May 2026
+This document is the product bible. Update it when priorities change. Never let reality drift from the roadmap silently.

@@ -15,6 +15,7 @@ from app.database import get_db
 from app.dependencies.admin import require_superuser
 from app.dependencies.admin import require_avatar_admin
 from app.dependencies.admin import require_user_management_access
+from app.dependencies.admin import require_review_access
 from app.dependencies.permissions import get_current_user, require_owner
 from app.dependencies.permissions import verify_client_access_from_path
 from app.models.avatar import Avatar
@@ -885,6 +886,78 @@ def admin_reset_password(
         pass
 
     user = db.query(User).filter(User.id == user_id).first()
+    return templates.TemplateResponse(
+        name="partials/admin_user_row.html",
+        context={"request": request, "user": user, "current_user": current_user},
+        request=request,
+    )
+
+
+@router.post("/users/{user_id}/change-role", response_class=HTMLResponse)
+def admin_change_user_role(
+    request: Request,
+    user_id: uuid.UUID,
+    new_role: str = Form(...),
+    current_user: User = Depends(require_owner),
+    db: Session = Depends(get_db),
+):
+    """Change a user's role. Only owner can do this."""
+    from app.models.user_role import UserRole
+
+    # Validate role
+    try:
+        role_enum = UserRole(new_role)
+    except ValueError:
+        user = db.query(User).filter(User.id == user_id).first()
+        return templates.TemplateResponse(
+            name="partials/admin_user_row.html",
+            context={"request": request, "user": user, "current_user": current_user},
+            request=request,
+        )
+
+    # Cannot change own role
+    if user_id == current_user.id:
+        user = db.query(User).filter(User.id == user_id).first()
+        return templates.TemplateResponse(
+            name="partials/admin_user_row.html",
+            context={"request": request, "user": user, "current_user": current_user},
+            request=request,
+        )
+
+    # Only owner can assign owner role
+    if role_enum == UserRole.owner and current_user.user_role != UserRole.owner:
+        user = db.query(User).filter(User.id == user_id).first()
+        return templates.TemplateResponse(
+            name="partials/admin_user_row.html",
+            context={"request": request, "user": user, "current_user": current_user},
+            request=request,
+        )
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return HTMLResponse("User not found", status_code=404)
+
+    old_role = user.role
+    user.role = role_enum.value
+
+    # Sync is_superuser flag for backward compat
+    user.is_superuser = role_enum in (UserRole.owner, UserRole.partner)
+
+    db.commit()
+
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="change_role",
+        entity_type="user",
+        entity_id=user.id,
+        details={
+            "email": user.email,
+            "old_role": old_role,
+            "new_role": role_enum.value,
+        },
+    )
+
     return templates.TemplateResponse(
         name="partials/admin_user_row.html",
         context={"request": request, "user": user, "current_user": current_user},
@@ -1986,6 +2059,7 @@ def admin_avatars(
     q: str = "",
     status: str = "",
     client_id: str = "",
+    pool: str = "",
     sort: str = "username",
     view: str = "table",
     group: str = "client",
@@ -2016,13 +2090,14 @@ def admin_avatars(
         q=q.strip(),
         status=status,
         client_id=client_id,
+        pool=pool,
         sort=sort,
         view=view if view in ("grid", "table") else "table",
         group=group if group in ("client", "none") else "client",
         page=page,
     )
 
-    # Avatar manager can only see unassigned avatars (no client_ids)
+    # Avatar manager flag — sees only unassigned avatars in the list
     from app.models.user_role import UserRole as _UserRole
     is_avatar_manager = current_user.user_role == _UserRole.avatar_manager
     viewer_client_id = None
@@ -2032,6 +2107,7 @@ def admin_avatars(
             q=q.strip(),
             status=status,
             client_id="",
+            pool=pool,
             sort=sort,
             view=view if view in ("grid", "table") else "table",
             group="none",
@@ -2040,7 +2116,7 @@ def admin_avatars(
 
     avatar_page = list_avatars_page(db, f, viewer_client_id=viewer_client_id)
 
-    # If avatar_manager, post-filter to only unassigned avatars
+    # Avatar manager sees only unassigned avatars in the list
     if is_avatar_manager:
         avatar_page.items = [
             a for a in avatar_page.items
@@ -2123,6 +2199,7 @@ def admin_avatars_check_visible(
     q: str = "",
     status: str = "",
     client_id: str = "",
+    pool: str = "",
     sort: str = "username",
     view: str = "table",
     group: str = "client",
@@ -2146,7 +2223,7 @@ def admin_avatars_check_visible(
     from app.services.safety import get_avatar_health
     from app.services import karma_tracker
 
-    f = AvatarFilter(q=q.strip(), status=status, client_id=client_id, sort=sort,
+    f = AvatarFilter(q=q.strip(), status=status, client_id=client_id, pool=pool, sort=sort,
                      view=view, group=group, page=page)
     page_data = list_avatars_page(db, f, viewer_client_id=None)
     force = request.query_params.get("force") == "1"
@@ -2440,6 +2517,8 @@ def admin_avatar_create_submit(
     helpful_mode_topics: str = Form(""),
     constraints: str = Form(""),
     hobby_subreddits: str = Form(""),
+    pool: str = Form("b2b"),
+    industry: str = Form(""),
     client_id: str = Form(""),
     current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
@@ -2457,6 +2536,8 @@ def admin_avatar_create_submit(
         helpful_mode_topics=helpful_mode_topics or None,
         constraints=constraints or None,
         hobby_subreddits=hobby_list,
+        pool=pool if pool in ("b2b", "b2c", "mentor", "warm") else "b2b",
+        industry=industry or None,
         active=True,
     )
     db.add(avatar)
@@ -2472,9 +2553,8 @@ def admin_avatar_create_submit(
     )
 
     # Auto-assign to client if created from client context
-    # Avatar manager cannot assign to clients
     redirect_url = "/admin/avatars"
-    if client_id and current_user.user_role != _UserRole.avatar_manager:
+    if client_id:
         try:
             cid = uuid.UUID(client_id)
             admin_service.assign_avatars_to_client(db, cid, [avatar.id], current_user.id)
@@ -2483,6 +2563,160 @@ def admin_avatar_create_submit(
             pass
 
     return RedirectResponse(url=redirect_url, status_code=303)
+
+
+@router.get("/avatars/export-csv")
+def admin_avatars_export_csv(
+    request: Request,
+    client_id: str = "",
+    current_user: User = Depends(require_avatar_admin),
+    db: Session = Depends(get_db),
+):
+    """Export avatars as CSV file for download."""
+    from fastapi.responses import Response
+    from app.services.avatar_csv import export_avatars_csv
+
+    cid = None
+    if client_id:
+        try:
+            cid = uuid.UUID(client_id)
+        except (ValueError, AttributeError):
+            pass
+
+    csv_content = export_avatars_csv(db, client_id=cid)
+
+    suffix = f"_{client_id[:8]}" if client_id else ""
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d")
+    filename = f"avatars{suffix}_{ts}.csv"
+
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="export_csv",
+        entity_type="avatar",
+        details={"client_id": client_id or None, "format": "csv"},
+    )
+
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/avatars/csv-template")
+def admin_avatars_csv_template(
+    request: Request,
+    current_user: User = Depends(require_avatar_admin),
+):
+    """Download an empty CSV template with headers and example row."""
+    from fastapi.responses import Response
+    from app.services.avatar_csv import get_csv_template
+
+    csv_content = get_csv_template()
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="avatars_template.csv"'},
+    )
+
+
+@router.get("/avatars/import", response_class=HTMLResponse)
+def admin_avatars_import_page(
+    request: Request,
+    client_id: str = "",
+    current_user: User = Depends(require_avatar_admin),
+    db: Session = Depends(get_db),
+):
+    """Page with CSV upload form for bulk avatar import."""
+    client = None
+    if client_id:
+        try:
+            client = db.query(Client).filter(Client.id == uuid.UUID(client_id)).first()
+        except (ValueError, AttributeError):
+            pass
+
+    return templates.TemplateResponse(
+        name="admin_avatar_import.html",
+        context={
+            "request": request,
+            "active_nav": "avatars",
+            "client_id": client_id,
+            "client": client,
+            "result": None,
+        },
+        request=request,
+    )
+
+
+@router.post("/avatars/import", response_class=HTMLResponse)
+async def admin_avatars_import_submit(
+    request: Request,
+    current_user: User = Depends(require_avatar_admin),
+    db: Session = Depends(get_db),
+):
+    """Process uploaded CSV file and create avatars."""
+    from app.services.avatar_csv import import_avatars_csv
+
+    form = await request.form()
+    csv_file = form.get("csv_file")
+    client_id_str = form.get("client_id", "")
+
+    client_id = None
+    client = None
+    if client_id_str:
+        try:
+            client_id = uuid.UUID(str(client_id_str))
+            client = db.query(Client).filter(Client.id == client_id).first()
+        except (ValueError, AttributeError):
+            pass
+
+    if not csv_file or not hasattr(csv_file, "read"):
+        return templates.TemplateResponse(
+            name="admin_avatar_import.html",
+            context={
+                "request": request,
+                "active_nav": "avatars",
+                "client_id": client_id_str,
+                "client": client,
+                "result": {"error": "No CSV file uploaded"},
+            },
+            request=request,
+        )
+
+    # Read file content
+    content = await csv_file.read()
+    try:
+        csv_content = content.decode("utf-8")
+    except UnicodeDecodeError:
+        csv_content = content.decode("utf-8-sig")  # Handle BOM
+
+    result = import_avatars_csv(db, csv_content, current_user.id, client_id=client_id)
+
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="import_csv",
+        entity_type="avatar",
+        details={
+            "client_id": str(client_id) if client_id else None,
+            "created_count": result["created_count"],
+            "skipped_count": result["skipped_count"],
+            "error_count": result["error_count"],
+        },
+    )
+
+    return templates.TemplateResponse(
+        name="admin_avatar_import.html",
+        context={
+            "request": request,
+            "active_nav": "avatars",
+            "client_id": client_id_str,
+            "client": client,
+            "result": result,
+        },
+        request=request,
+    )
 
 
 @router.post("/avatars/assign-to-client", response_class=HTMLResponse)
@@ -2495,11 +2729,6 @@ def admin_assign_avatar_to_client(
 ):
     """Assign an avatar to a client from the avatars list page."""
     from app.services import admin as admin_service
-    from app.models.user_role import UserRole as _UserRole
-
-    # Avatar manager cannot assign avatars to clients
-    if current_user.user_role == _UserRole.avatar_manager:
-        raise HTTPException(status_code=403, detail="Access Denied")
 
     try:
         admin_service.assign_avatars_to_client(db, client_id, [avatar_id], current_user.id)
@@ -2565,11 +2794,6 @@ def admin_avatar_detail(
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
         return HTMLResponse("Avatar not found", status_code=404)
-
-    # Avatar manager can only view unassigned avatars
-    if current_user.user_role == _UserRole.avatar_manager:
-        if avatar.client_ids and avatar.client_ids != []:
-            return HTMLResponse("Access Denied", status_code=403)
 
     # Get health data (includes phase progress and eligibility)
     health = get_avatar_health(db, avatar)
@@ -2829,7 +3053,7 @@ def admin_avatar_detail(
             "today": today,
             "epg": epg,
             "now_utc": datetime.now(timezone.utc),
-            "is_avatar_manager": current_user.user_role == _UserRole.avatar_manager,
+            "is_avatar_manager": False,
         },
         request=request,
     )
@@ -2848,11 +3072,6 @@ def admin_avatar_edit_page(
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
         return HTMLResponse("Avatar not found", status_code=404)
-
-    # Avatar manager can only edit unassigned avatars
-    if current_user.user_role == _UserRole.avatar_manager:
-        if avatar.client_ids and avatar.client_ids != []:
-            return HTMLResponse("Access Denied", status_code=403)
 
     # Format hobby_subreddits for the text input
     hobby_list = avatar.hobby_subreddits or []
@@ -2885,6 +3104,8 @@ def admin_avatar_edit_submit(
     helpful_mode_topics: str = Form(""),
     constraints: str = Form(""),
     hobby_subreddits: str = Form(""),
+    pool: str = Form("b2b"),
+    industry: str = Form(""),
     current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
@@ -2895,11 +3116,6 @@ def admin_avatar_edit_submit(
     if not avatar:
         return HTMLResponse("Avatar not found", status_code=404)
 
-    # Avatar manager can only edit unassigned avatars
-    if current_user.user_role == _UserRole.avatar_manager:
-        if avatar.client_ids and avatar.client_ids != []:
-            return HTMLResponse("Access Denied", status_code=403)
-
     avatar.reddit_username = reddit_username
     avatar.email_address = email_address or None
     avatar.voice_profile_md = voice_profile_md or None
@@ -2908,6 +3124,8 @@ def admin_avatar_edit_submit(
     avatar.helpful_mode_topics = helpful_mode_topics or None
     avatar.constraints = constraints or None
     avatar.hobby_subreddits = [s.strip() for s in hobby_subreddits.split(",") if s.strip()] if hobby_subreddits else []
+    avatar.pool = pool if pool in ("b2b", "b2c", "mentor", "warm") else avatar.pool
+    avatar.industry = industry or None
 
     db.commit()
 
@@ -3109,7 +3327,19 @@ def admin_avatar_profile_analytics(
         force = request.query_params.get("force") == "1"
         fresh = bool(snapshot and is_fresh(snapshot.fetched_at, freshness_hours))
         if force or not fresh:
-            analytics = fetch_and_save(db, avatar.id, avatar.reddit_username)
+            try:
+                analytics = fetch_and_save(db, avatar.id, avatar.reddit_username)
+            except Exception as e:
+                logger.warning("Profile analytics fetch failed for %s: %s", avatar.reddit_username, e)
+                analytics = snapshot_to_analytics(snapshot) if snapshot else None
+                if analytics is None:
+                    return HTMLResponse(
+                        f"<div class='p-4 rounded-lg bg-red-900/20 border border-red-700/50'>"
+                        f"<p class='text-sm text-red-300'>⚠️ Reddit API error for u/{avatar.reddit_username}</p>"
+                        f"<p class='text-xs text-gray-500 mt-1'>{str(e)[:100]}</p>"
+                        f"<p class='text-xs text-gray-500 mt-1'>Account may be suspended, deleted, or shadowbanned.</p>"
+                        f"</div>"
+                    )
         else:
             analytics = snapshot_to_analytics(snapshot)
     else:
@@ -3119,7 +3349,17 @@ def admin_avatar_profile_analytics(
             analytics = snapshot_to_analytics(snapshot)
         else:
             # No snapshot exists — fetch and save
-            analytics = fetch_and_save(db, avatar.id, avatar.reddit_username)
+            try:
+                analytics = fetch_and_save(db, avatar.id, avatar.reddit_username)
+            except Exception as e:
+                logger.warning("Profile analytics fetch failed for %s: %s", avatar.reddit_username, e)
+                return HTMLResponse(
+                    f"<div class='p-4 rounded-lg bg-red-900/20 border border-red-700/50'>"
+                    f"<p class='text-sm text-red-300'>⚠️ Reddit API error for u/{avatar.reddit_username}</p>"
+                    f"<p class='text-xs text-gray-500 mt-1'>{str(e)[:100]}</p>"
+                    f"<p class='text-xs text-gray-500 mt-1'>Account may be suspended, deleted, or shadowbanned.</p>"
+                    f"</div>"
+                )
 
     return templates.TemplateResponse(
         name="partials/avatar_profile_analytics.html",
@@ -3330,7 +3570,7 @@ def _extract_strategy_questions(strategy) -> list[str]:
 def admin_avatar_strategy_panel(
     request: Request,
     avatar_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
     """HTMX partial: Strategy panel showing current strategy + history."""
@@ -3371,7 +3611,7 @@ def admin_avatar_strategy_panel(
 def admin_avatar_strategy_generate(
     request: Request,
     avatar_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
     """Kick off async strategy generation. Returns a polling indicator with ETA."""
@@ -3487,7 +3727,7 @@ def admin_avatar_strategy_preview(
     request: Request,
     avatar_id: uuid.UUID,
     strategy_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
     """HTMX partial: Preview a specific strategy version's content."""
@@ -3518,7 +3758,7 @@ def admin_avatar_strategy_approve(
     request: Request,
     avatar_id: uuid.UUID,
     strategy_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
     """Approve a strategy document for pipeline use."""
@@ -5578,7 +5818,7 @@ def admin_review(
     avatar_id: str | None = None,
     age: str | None = None,
     content_type: str = "comments",
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_review_access),
     db: Session = Depends(get_db),
 ):
     """Admin review queue — approve / reject / edit comment and post drafts.

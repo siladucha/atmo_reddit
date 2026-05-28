@@ -1,0 +1,165 @@
+{% extends "admin_base.html" %}
+{% block title %}Import Avatars{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <a href="/admin/" class="hover:text-white">Admin</a>
+    <span class="mx-2 text-gray-600">/</span>
+    <a href="/admin/avatars" class="hover:text-white">Avatars</a>
+    <span class="mx-2 text-gray-600">/</span>
+    <span class="text-white">Import CSV</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+    <!-- Header -->
+    <div>
+        <h1 class="text-2xl font-semibold text-white">Import Avatars from CSV</h1>
+        <p class="text-sm text-gray-400 mt-1">
+            Upload a CSV file to bulk-create avatars. Existing usernames will be skipped (no duplicates).
+        </p>
+    </div>
+
+    {% if client %}
+    <div class="bg-indigo-900/30 border border-indigo-700 rounded-lg px-4 py-3">
+        <p class="text-sm text-indigo-300">
+            Importing for client: <strong class="text-white">{{ client.client_name }}</strong>
+            — all created avatars will be auto-assigned to this client.
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- Result banner -->
+    {% if result %}
+        {% if result.error %}
+        <div class="bg-red-900/30 border border-red-700 rounded-lg px-4 py-3">
+            <p class="text-sm text-red-300">{{ result.error }}</p>
+        </div>
+        {% else %}
+        <div class="bg-slate-800 border border-slate-700 rounded-lg p-5 space-y-3">
+            <h2 class="text-lg font-medium text-white">Import Results</h2>
+            <div class="grid grid-cols-3 gap-4">
+                <div class="bg-green-900/20 border border-green-800 rounded-lg p-3 text-center">
+                    <div class="text-2xl font-bold text-green-400">{{ result.created_count }}</div>
+                    <div class="text-xs text-green-300 mt-1">Created</div>
+                </div>
+                <div class="bg-amber-900/20 border border-amber-800 rounded-lg p-3 text-center">
+                    <div class="text-2xl font-bold text-amber-400">{{ result.skipped_count }}</div>
+                    <div class="text-xs text-amber-300 mt-1">Skipped (exists)</div>
+                </div>
+                <div class="bg-red-900/20 border border-red-800 rounded-lg p-3 text-center">
+                    <div class="text-2xl font-bold text-red-400">{{ result.error_count }}</div>
+                    <div class="text-xs text-red-300 mt-1">Errors</div>
+                </div>
+            </div>
+
+            {% if result.created %}
+            <details class="mt-3">
+                <summary class="text-sm text-green-400 cursor-pointer hover:text-green-300">
+                    Created avatars ({{ result.created|length }})
+                </summary>
+                <ul class="mt-2 text-sm text-gray-300 space-y-1 pl-4">
+                    {% for username in result.created %}
+                    <li class="text-green-300">u/{{ username }}</li>
+                    {% endfor %}
+                </ul>
+            </details>
+            {% endif %}
+
+            {% if result.skipped %}
+            <details class="mt-2">
+                <summary class="text-sm text-amber-400 cursor-pointer hover:text-amber-300">
+                    Skipped avatars ({{ result.skipped|length }})
+                </summary>
+                <ul class="mt-2 text-sm text-gray-300 space-y-1 pl-4">
+                    {% for username in result.skipped %}
+                    <li class="text-amber-300">u/{{ username }} — already exists</li>
+                    {% endfor %}
+                </ul>
+            </details>
+            {% endif %}
+
+            {% if result.errors %}
+            <details class="mt-2" open>
+                <summary class="text-sm text-red-400 cursor-pointer hover:text-red-300">
+                    Errors ({{ result.errors|length }})
+                </summary>
+                <ul class="mt-2 text-sm text-gray-300 space-y-1 pl-4">
+                    {% for err in result.errors %}
+                    <li class="text-red-300">Row {{ err.row }}{% if err.username %} ({{ err.username }}){% endif %}: {{ err.error }}</li>
+                    {% endfor %}
+                </ul>
+            </details>
+            {% endif %}
+        </div>
+        {% endif %}
+    {% endif %}
+
+    <!-- Upload form -->
+    <div class="bg-slate-800 border border-slate-700 rounded-lg p-6 space-y-5">
+        <form method="POST" action="/admin/avatars/import" enctype="multipart/form-data" class="space-y-5">
+            {% if client_id %}
+            <input type="hidden" name="client_id" value="{{ client_id }}">
+            {% endif %}
+
+            <div>
+                <label for="csv_file" class="block text-sm font-medium text-gray-300 mb-2">CSV File</label>
+                <input type="file"
+                       id="csv_file"
+                       name="csv_file"
+                       accept=".csv,text/csv"
+                       required
+                       class="block w-full text-sm text-gray-300
+                              file:mr-4 file:py-2 file:px-4
+                              file:rounded-lg file:border-0
+                              file:text-sm file:font-medium
+                              file:bg-indigo-600 file:text-white
+                              hover:file:bg-indigo-500
+                              file:cursor-pointer cursor-pointer">
+                <p class="text-xs text-gray-500 mt-2">
+                    Max recommended: 500 rows per upload. UTF-8 encoding.
+                </p>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <button type="submit"
+                        class="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors">
+                    Upload &amp; Import
+                </button>
+                <a href="/admin/avatars{% if client_id %}?client_id={{ client_id }}{% endif %}"
+                   class="text-gray-400 hover:text-white text-sm">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Help section -->
+    <div class="bg-slate-800/50 border border-slate-700 rounded-lg p-5 space-y-3">
+        <h3 class="text-sm font-medium text-white">CSV Format</h3>
+        <p class="text-xs text-gray-400">
+            Required column: <code class="text-indigo-300">reddit_username</code>. All other columns are optional.
+        </p>
+        <div class="text-xs text-gray-400 space-y-1">
+            <p><strong class="text-gray-300">Columns:</strong>
+                reddit_username, email_address, pool, industry, warming_phase,
+                voice_profile_md, tone_principles, speech_patterns, hill_i_die_on,
+                helpful_mode_topics, constraints, vocabulary_lean,
+                hobby_subreddits, business_subreddits, is_farm_avatar, active
+            </p>
+            <p><strong class="text-gray-300">pool</strong> values: b2b, b2c, mentor, warm</p>
+            <p><strong class="text-gray-300">warming_phase</strong>: 0 (mentor), 1, 2, 3</p>
+            <p><strong class="text-gray-300">hobby_subreddits / business_subreddits</strong>: comma-separated (e.g. "r/homelab, r/networking")</p>
+            <p><strong class="text-gray-300">is_farm_avatar / active</strong>: true/false</p>
+        </div>
+        <a href="/admin/avatars/csv-template"
+           class="inline-flex items-center gap-1.5 text-sm text-indigo-400 hover:text-indigo-300 mt-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            Download CSV Template
+        </a>
+    </div>
+</div>
+{% endblock %}

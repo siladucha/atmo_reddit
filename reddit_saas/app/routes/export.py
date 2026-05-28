@@ -25,14 +25,14 @@ router = APIRouter(prefix="/export", tags=["export"])
 
 
 async def require_report_access(user: User = Depends(get_current_user)) -> User:
-    """Allow owner, partner, client_admin, and client_manager to access reports.
+    """Allow owner, partner, avatar_manager, client_admin, and client_manager to access reports.
 
-    - owner/partner: platform-wide access (all reports)
+    - owner/partner/avatar_manager: platform-wide access (all reports)
     - client_admin/client_manager: scoped to their own client (enforced per-endpoint)
 
     Raises 403 for client_viewer, b2c_user, or other roles.
     """
-    allowed_roles = (UserRole.owner, UserRole.partner, UserRole.client_admin, UserRole.client_manager)
+    allowed_roles = (UserRole.owner, UserRole.partner, UserRole.avatar_manager, UserRole.client_admin, UserRole.client_manager)
     if user.user_role not in allowed_roles and not user.is_superuser:
         raise HTTPException(status_code=403, detail="Access Denied")
     return user
@@ -44,7 +44,7 @@ def _verify_client_scope(user: User, client_id: uuid.UUID) -> None:
     Raises 403 if the user is client-scoped and client_id doesn't match.
     Owner/partner always pass.
     """
-    if user.user_role in (UserRole.owner, UserRole.partner) or user.is_superuser:
+    if user.user_role in (UserRole.owner, UserRole.partner, UserRole.avatar_manager) or user.is_superuser:
         return
     if user.client_id != client_id:
         raise HTTPException(status_code=403, detail="Access Denied")
@@ -152,7 +152,7 @@ def export_single_avatar(
 ):
     """Export a single avatar with profile analytics as avatar_{username}.json."""
     # Client-scoped users: verify avatar belongs to their client
-    if current_user.user_role not in (UserRole.owner, UserRole.partner) and not current_user.is_superuser:
+    if current_user.user_role not in (UserRole.owner, UserRole.partner, UserRole.avatar_manager) and not current_user.is_superuser:
         from app.models.avatar import Avatar
         avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
         if not avatar or (current_user.client_id and str(current_user.client_id) not in (avatar.client_ids or [])):
@@ -173,7 +173,7 @@ def export_avatar_client_report(
 ):
     """Full avatar report for client delivery — profile, stats, comments, subreddit activity."""
     # Client-scoped users: verify avatar belongs to their client
-    if current_user.user_role not in (UserRole.owner, UserRole.partner) and not current_user.is_superuser:
+    if current_user.user_role not in (UserRole.owner, UserRole.partner, UserRole.avatar_manager) and not current_user.is_superuser:
         from app.models.avatar import Avatar
         avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
         if not avatar or (current_user.client_id and str(current_user.client_id) not in (avatar.client_ids or [])):
@@ -195,7 +195,7 @@ def export_avatar_markdown_report(
 ):
     """Markdown avatar report for client delivery — quality scores, activity, recommendations."""
     # Client-scoped users: verify avatar belongs to their client
-    if current_user.user_role not in (UserRole.owner, UserRole.partner) and not current_user.is_superuser:
+    if current_user.user_role not in (UserRole.owner, UserRole.partner, UserRole.avatar_manager) and not current_user.is_superuser:
         from app.models.avatar import Avatar
         avatar_check = db.query(Avatar).filter(Avatar.id == avatar_id).first()
         if not avatar_check or (current_user.client_id and str(current_user.client_id) not in (avatar_check.client_ids or [])):
@@ -229,7 +229,7 @@ def export_threads(
     db: Session = Depends(get_db),
 ):
     # Client-scoped users must provide their own client_id
-    if current_user.user_role not in (UserRole.owner, UserRole.partner) and not current_user.is_superuser:
+    if current_user.user_role not in (UserRole.owner, UserRole.partner, UserRole.avatar_manager) and not current_user.is_superuser:
         if not client_id or uuid.UUID(client_id) != current_user.client_id:
             raise HTTPException(status_code=403, detail="Access Denied")
 
@@ -247,7 +247,7 @@ def export_comments(
     db: Session = Depends(get_db),
 ):
     # Client-scoped users must provide their own client_id
-    if current_user.user_role not in (UserRole.owner, UserRole.partner) and not current_user.is_superuser:
+    if current_user.user_role not in (UserRole.owner, UserRole.partner, UserRole.avatar_manager) and not current_user.is_superuser:
         if not client_id or uuid.UUID(client_id) != current_user.client_id:
             raise HTTPException(status_code=403, detail="Access Denied")
 
@@ -264,7 +264,7 @@ def export_subreddits(
     db: Session = Depends(get_db),
 ):
     # Client-scoped users must provide their own client_id
-    if current_user.user_role not in (UserRole.owner, UserRole.partner) and not current_user.is_superuser:
+    if current_user.user_role not in (UserRole.owner, UserRole.partner, UserRole.avatar_manager) and not current_user.is_superuser:
         if not client_id or uuid.UUID(client_id) != current_user.client_id:
             raise HTTPException(status_code=403, detail="Access Denied")
 
@@ -314,7 +314,7 @@ def export_activity(
     db: Session = Depends(get_db),
 ):
     # Client-scoped users must provide their own client_id
-    if current_user.user_role not in (UserRole.owner, UserRole.partner) and not current_user.is_superuser:
+    if current_user.user_role not in (UserRole.owner, UserRole.partner, UserRole.avatar_manager) and not current_user.is_superuser:
         if not client_id or uuid.UUID(client_id) != current_user.client_id:
             raise HTTPException(status_code=403, detail="Access Denied")
 

@@ -77,6 +77,7 @@ class AvatarFilter:
     q: str = ""
     status: str = ""
     client_id: str = ""
+    pool: str = ""
     sort: str = "username"
     view: str = "grid"
     group: str = "client"
@@ -92,14 +93,14 @@ class AvatarFilter:
         params = self.__dict__.copy()
         params.update(override)
         # Defaults that don't need to appear in the URL
-        defaults = {"q": "", "status": "", "client_id": "", "sort": "username",
+        defaults = {"q": "", "status": "", "client_id": "", "pool": "", "sort": "username",
                     "view": "grid", "group": "client", "page": 1}
         clean = {k: v for k, v in params.items() if v not in ("", None) and v != defaults.get(k)}
         return urlencode(clean)
 
     @property
     def has_active_filters(self) -> bool:
-        return bool(self.q or self.status or self.client_id)
+        return bool(self.q or self.status or self.client_id or self.pool)
 
 
 @dataclass
@@ -274,6 +275,9 @@ def list_avatars_page(
     if f.client_id:
         base = base.filter(Avatar.client_ids.any(f.client_id))
 
+    if f.pool:
+        base = base.filter(Avatar.pool == f.pool)
+
     base = _apply_status_filter(base, f.status)
 
     if f.q:
@@ -442,6 +446,8 @@ def build_avatar_view(
     out.update({
         "email_address": avatar.email_address,
         "active_flag": avatar.active,
+        "pool": getattr(avatar, "pool", "b2b"),
+        "industry": getattr(avatar, "industry", None),
         "is_frozen": avatar.is_frozen,
         "freeze_reason": avatar.freeze_reason,
         "frozen_at": avatar.frozen_at,

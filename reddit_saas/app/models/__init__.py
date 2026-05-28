@@ -2,6 +2,7 @@ from app.models.user import User
 from app.models.user_role import UserRole
 from app.models.client import Client
 from app.models.avatar import Avatar
+from app.models.avatar_pool import AvatarPool
 from app.models.subreddit import ClientSubreddit, Subreddit, ClientSubredditAssignment
 from app.models.thread import RedditThread
 from app.models.comment_draft import CommentDraft
@@ -29,6 +30,7 @@ __all__ = [
     "UserRole",
     "Client",
     "Avatar",
+    "AvatarPool",
     "ClientSubreddit",
     "Subreddit",
     "ClientSubredditAssignment",

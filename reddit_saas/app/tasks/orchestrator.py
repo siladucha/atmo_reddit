@@ -85,6 +85,7 @@ def run_hobby_pipeline_all_avatars():
                 Avatar.is_frozen.is_(False),
                 Avatar.health_status.notin_(("shadowbanned", "suspended")),
                 Avatar.warming_phase != 0,  # Mentor — excluded from pipelines
+                Avatar.pool.in_(["b2b", "b2c"]),  # Only pipeline-eligible pools
             )
             .all()
         )

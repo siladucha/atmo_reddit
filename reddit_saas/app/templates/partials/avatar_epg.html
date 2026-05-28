@@ -1,5 +1,5 @@
 <!-- EPG — Daily Publishing Program for Avatar -->
-<div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
+<div id="epg-panel" class="bg-dark-steel rounded-lg border border-slate-700 p-4">
     <div class="flex justify-between items-center mb-3">
         <h3 class="text-sm font-semibold text-white flex items-center gap-2">
             📺 Today's EPG
@@ -23,7 +23,7 @@
                 {{ epg.status }}
             </span>
             {% endif %}
-            <form method="post" action="/admin/avatars/{{ avatar.id }}/build-epg" class="inline">
+            <form hx-post="/admin/avatars/{{ avatar.id }}/build-epg" hx-target="#epg-panel" hx-swap="outerHTML" class="inline">
                 <button type="submit" class="text-xs bg-amber-600 hover:bg-amber-700 text-white px-2 py-1 rounded transition-colors">
                     ▶ Build
                 </button>

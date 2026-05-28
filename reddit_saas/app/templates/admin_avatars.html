@@ -30,6 +30,30 @@
             </p>
         </div>
         <div class="flex gap-2">
+            <div class="relative">
+                <button type="button" onclick="this.nextElementSibling.classList.toggle('hidden')"
+                        class="bg-slate-700 hover:bg-slate-600 text-gray-300 px-3 py-2 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                    </svg>
+                    Import / Export
+                </button>
+                <div class="hidden absolute right-0 mt-1 w-52 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 py-1"
+                     onclick="this.classList.add('hidden')">
+                    <a href="/admin/avatars/export-csv{% if f.client_id %}?client_id={{ f.client_id }}{% endif %}"
+                       class="block px-4 py-2 text-sm text-gray-300 hover:bg-slate-700 hover:text-white">
+                        ↓ Export CSV
+                    </a>
+                    <a href="/admin/avatars/import{% if f.client_id %}?client_id={{ f.client_id }}{% endif %}"
+                       class="block px-4 py-2 text-sm text-gray-300 hover:bg-slate-700 hover:text-white">
+                        ↑ Import CSV
+                    </a>
+                    <a href="/admin/avatars/csv-template"
+                       class="block px-4 py-2 text-sm text-gray-300 hover:bg-slate-700 hover:text-white">
+                        ⬇ Download Template
+                    </a>
+                </div>
+            </div>
             {% if f.client_id and not is_avatar_manager %}
             <button type="button"
                     id="assign-avatar-btn"
@@ -103,6 +127,14 @@
             {% for value, label in status_options %}
             <option value="{{ value }}" {% if f.status == value %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
+        </select>
+
+        <select name="pool" class="text-sm bg-slate-night border border-slate-600 text-gray-200 rounded px-2 py-1.5">
+            <option value="" {% if not f.pool %}selected{% endif %}>All pools</option>
+            <option value="b2b" {% if f.pool == 'b2b' %}selected{% endif %}>B2B</option>
+            <option value="b2c" {% if f.pool == 'b2c' %}selected{% endif %}>B2C</option>
+            <option value="mentor" {% if f.pool == 'mentor' %}selected{% endif %}>Mentor</option>
+            <option value="warm" {% if f.pool == 'warm' %}selected{% endif %}>Warming</option>
         </select>
 
         <select name="sort" class="text-sm bg-slate-night border border-slate-600 text-gray-200 rounded px-2 py-1.5">

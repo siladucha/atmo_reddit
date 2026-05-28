@@ -63,6 +63,7 @@ def score_threads(self, client_id: str, triggered_by: str = "scheduler"):
                 and not a.is_shadowbanned
                 and a.health_status not in ("shadowbanned", "suspended")
                 and a.warming_phase != 0  # Mentor excluded
+                and getattr(a, "pool", "b2b") in ("b2b", "b2c")  # Only pipeline-eligible pools
             ]
 
             total_scored = 0
@@ -203,6 +204,7 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
                 and a.health_status not in ("shadowbanned", "suspended")
                 and a.cqs_level != "lowest"  # CQS lowest → hobby only, no brand comments
                 and a.warming_phase != 0  # Mentor — excluded from pipelines
+                and getattr(a, "pool", "b2b") in ("b2b", "b2c")  # Only pipeline-eligible pools
             ]
 
             # Log avatars excluded due to health_status
@@ -507,6 +509,9 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
             return 0
         if avatar.warming_phase == 0:
             logger.info(f"generate_hobby_comments: avatar {avatar.reddit_username} is Mentor (phase 0), skipping")
+            return 0
+        if not getattr(avatar, "pool", "b2b") in ("b2b", "b2c", "warm"):
+            logger.info(f"generate_hobby_comments: avatar {avatar.reddit_username} pool={avatar.pool}, skipping")
             return 0
         if avatar.is_frozen:
             logger.info(f"generate_hobby_comments: avatar {avatar.reddit_username} is frozen, skipping")
@@ -954,6 +959,7 @@ def evaluate_all_avatar_phases():
                 Avatar.active.is_(True),
                 Avatar.is_shadowbanned.is_(False),
                 Avatar.warming_phase != 0,  # Mentor — not subject to phase evaluation
+                Avatar.pool.in_(["b2b", "b2c"]),  # Only pipeline-eligible pools
             )
             .all()
         )

@@ -34,3 +34,7 @@ logs/
 
 # Backups (local DB dumps)
 backups/
+
+# SSH deploy keys
+.ssh_deploy
+.ssh_deploy.pub

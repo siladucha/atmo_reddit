@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>RAMP — DevOps Guide</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #f5f7fa;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'SF Mono', 'Fira Code', monospace, system-ui;
+            line-height: 1.6;
+            color: #1a2a3a;
+            padding: 2rem 1rem;
+        }
+
+        .document {
+            max-width: 1300px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.12);
+            overflow: hidden;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #1a3a4a 0%, #2c5a6a 100%);
+            padding: 2rem 2.5rem;
+            border-bottom: 3px solid #4a9aaa;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.5rem;
+            color: white;
+        }
+
+        .header-meta {
+            display: flex;
+            gap: 2rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+            font-size: 0.85rem;
+            font-family: monospace;
+            color: #c8dce4;
+        }
+
+        .header-meta strong {
+            color: #7fcdff;
+        }
+
+        /* Content */
+        .content {
+            padding: 2rem 2.5rem;
+        }
+
+        /* Typography */
+        h2 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #e0e8f0;
+            color: #1a3a4a;
+        }
+
+        h2:first-of-type {
+            margin-top: 0;
+        }
+
+        h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1.75rem;
+            margin-bottom: 0.75rem;
+            color: #2c5a6a;
+        }
+
+        h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-top: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: #5a7a8a;
+        }
+
+        p {
+            margin-bottom: 1rem;
+            color: #2a3a4a;
+        }
+
+        /* Lists */
+        ul, ol {
+            margin: 1rem 0 1rem 1.75rem;
+        }
+
+        li {
+            margin: 0.5rem 0;
+            color: #2a3a4a;
+        }
+
+        code, .code {
+            background: #eef2f5;
+            color: #c7254e;
+            padding: 0.2rem 0.4rem;
+            border-radius: 6px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.85rem;
+        }
+
+        pre {
+            background: #1e2a2e;
+            color: #d8dee9;
+            padding: 1rem 1.25rem;
+            border-radius: 12px;
+            overflow-x: auto;
+            margin: 1.25rem 0;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.8rem;
+            line-height: 1.5;
+            box-shadow: inset 0 0 8px rgba(0,0,0,0.2);
+        }
+
+        blockquote {
+            background: #f0f4f8;
+            border-left: 4px solid #4a9aaa;
+            padding: 1rem 1.5rem;
+            margin: 1.25rem 0;
+            border-radius: 8px;
+            color: #1a3a4a;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.25rem 0;
+            font-size: 0.85rem;
+            border-radius: 12px;
+            overflow: hidden;
+            background: white;
+            border: 1px solid #dce4ec;
+        }
+
+        th {
+            background: #eef2f5;
+            padding: 0.75rem 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: #1a3a4a;
+            border-bottom: 1px solid #dce4ec;
+        }
+
+        td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #eef2f5;
+            color: #2a3a4a;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Cards */
+        .note {
+            background: #eef5f7;
+            border-left: 4px solid #4a9aaa;
+            padding: 1rem 1.25rem;
+            border-radius: 12px;
+            margin: 1.25rem 0;
+        }
+
+        .warning {
+            background: #fef5e7;
+            border-left: 4px solid #f0ad4e;
+            padding: 1rem 1.25rem;
+            border-radius: 12px;
+            margin: 1.25rem 0;
+        }
+
+        .success {
+            background: #e8f5e9;
+            border-left: 4px solid #5cb85c;
+            padding: 1rem 1.25rem;
+            border-radius: 12px;
+            margin: 1.25rem 0;
+        }
+
+        /* Diagram */
+        .diagram {
+            background: #f0f4f8;
+            border: 1px solid #dce4ec;
+            padding: 1.5rem;
+            border-radius: 12px;
+            font-family: monospace;
+            font-size: 0.7rem;
+            overflow-x: auto;
+            white-space: pre;
+            color: #2a3a4a;
+            margin: 1.5rem 0;
+        }
+
+        /* TOC */
+        .toc {
+            background: #f8fafc;
+            padding: 1.25rem 1.75rem;
+            border-radius: 16px;
+            margin-bottom: 2rem;
+            border: 1px solid #dce4ec;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .toc h3 {
+            margin-top: 0;
+            margin-bottom: 0.75rem;
+            color: #1a3a4a;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .toc h3::before {
+            content: "📑";
+            font-size: 1.2rem;
+        }
+
+        .toc ul {
+            margin: 0;
+            columns: 2;
+            column-gap: 2rem;
+        }
+
+        .toc li {
+            margin: 0.4rem 0;
+            break-inside: avoid;
+        }
+
+        .toc a {
+            color: #2c5a6a;
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: color 0.2s;
+        }
+
+        .toc a:hover {
+            color: #4a9aaa;
+            text-decoration: underline;
+        }
+
+        .footer {
+            background: #f0f4f8;
+            padding: 1.5rem 2.5rem;
+            border-top: 1px solid #dce4ec;
+            text-align: center;
+            font-size: 0.8rem;
+            color: #6a8a9a;
+            font-family: monospace;
+        }
+
+        hr {
+            margin: 2rem 0;
+            border: none;
+            border-top: 1px solid #dce4ec;
+        }
+
+        @media (max-width: 680px) {
+            .content {
+                padding: 1.25rem;
+            }
+            .header {
+                padding: 1.25rem;
+            }
+            .toc ul {
+                columns: 1;
+            }
+            pre, .diagram {
+                font-size: 0.6rem;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="document">
+    <div class="header">
+        <h1>🔧 RAMP — DevOps Guide</h1>
+        <div class="header-meta">
+            <span><strong>Server:</strong> 161.35.27.165 (Frankfurt)</span>
+            <span><strong>Domain:</strong> gorampit.com (SSL via Let's Encrypt)</span>
+            <span><strong>Stack:</strong> Docker Compose · 7 services</span>
+            <span><strong>Cost:</strong> ~$23/mo + backups</span>
+        </div>
+    </div>
+
+    <div class="content">
+        <!-- Table of Contents -->
+        <div class="toc">
+            <h3>Table of Contents</h3>
+            <ul>
+                <li><a href="#overview">Overview</a></li>
+                <li><a href="#architecture">Architecture</a></li>
+                <li><a href="#services">Services</a></li>
+                <li><a href="#deployment">Deployment</a></li>
+                <li><a href="#env-vars">Environment Variables</a></li>
+                <li><a href="#monitoring">Monitoring & Logs</a></li>
+                <li><a href="#database">Database Operations</a></li>
+                <li><a href="#nginx">Nginx Routing</a></li>
+                <li><a href="#celery">Celery Beat Schedule</a></li>
+                <li><a href="#startup">Startup Flow</a></li>
+                <li><a href="#troubleshooting">Troubleshooting</a></li>
+                <li><a href="#security">Security Notes</a></li>
+                <li><a href="#ssl">SSL / HTTPS</a></li>
+                <li><a href="#scaling">Scaling Plan</a></li>
+                <li><a href="#oneliners">Useful One-Liners</a></li>
+            </ul>
+        </div>
+
+        <!-- Overview -->
+        <h2 id="overview">📡 Overview</h2>
+        <p><strong>Reddit marketing SaaS platform.</strong> Single DigitalOcean droplet running Docker Compose with 7 services.</p>
+        <div class="note">
+            <code>Server:</code> 161.35.27.165 (Frankfurt, 2 vCPU / 4 GB RAM / 60 GB SSD, Ubuntu 24.04)<br>
+            <code>Domain:</code> gorampit.com (Let's Encrypt SSL, auto-renew, expires Aug 26 2026)<br>
+            <code>Access:</code> ssh root@161.35.27.165<br>
+            <code>Project path:</code> /app/ (main app), /marketing_site/ (marketing)<br>
+            <code>URLs:</code> https://gorampit.com (marketing), https://gorampit.com/admin (panel)<br>
+            <code>Cost:</code> ~$23/mo (with weekly backups)
+        </div>
+
+        <!-- Architecture -->
+        <h2 id="architecture">🏗️ Architecture</h2>
+        <div class="diagram">
+┌─────────────────────────────────────────────────────────────────┐
+│  DigitalOcean Droplet (161.35.27.165)                           │
+│                                                                  │
+│  ┌──────────┐                                                    │
+│  │  nginx   │ :80 → 301 redirect to HTTPS                        │
+│  │  alpine  │ :443 (SSL — Let's Encrypt)                         │
+│  └────┬─────┘                                                    │
+│       │                                                          │
+│       ├── /admin, /api, /auth, /review → app:8000                │
+│       └── / (default), /roadmap       → marketing:8000           │
+│                                                                  │
+│  ┌─────────┐  ┌────────────┐  ┌─────────────┐  ┌───────────┐   │
+│  │   app   │  │   celery   │  │ celery-beat │  │ marketing │   │
+│  │ FastAPI │  │  worker×2  │  │  scheduler  │  │  FastAPI  │   │
+│  │ :8000   │  │            │  │             │  │  :8000    │   │
+│  └────┬────┘  └─────┬──────┘  └──────┬──────┘  └───────────┘   │
+│       │              │                │                           │
+│  ┌────┴──────────────┴────────────────┴──────┐                   │
+│  │  PostgreSQL 16 (pgvector)  │  Redis 7     │                   │
+│  │  Volume: reddit_saas_pgdata│  128MB max   │                   │
+│  └───────────────────────────────────────────┘                   │
+└─────────────────────────────────────────────────────────────────┘
+        </div>
+
+        <!-- Services -->
+        <h2 id="services">🧩 Services</h2>
+        <table>
+            <thead><tr><th>Service</th><th>Image</th><th>Memory Limit</th><th>Purpose</th></tr></thead>
+            <tbody>
+                <tr><td>nginx</td><td>nginx:alpine</td><td>64 MB</td><td>Reverse proxy, routing, gzip, security headers</td></tr>
+                <tr><td>app</td><td>reddit-saas-app</td><td>512 MB</td><td>FastAPI backend (admin panel, API, pages)</td></tr>
+                <tr><td>celery</td><td>reddit-saas-app</td><td>768 MB</td><td>Background workers (scraping, AI pipeline)</td></tr>
+                <tr><td>celery-beat</td><td>reddit-saas-app</td><td>256 MB</td><td>Periodic task scheduler</td></tr>
+                <tr><td>marketing</td><td>reddit-saas-marketing</td><td>256 MB</td><td>Marketing site (landing, roadmap)</td></tr>
+                <tr><td>db</td><td>pgvector/pgvector:pg16</td><td>512 MB</td><td>PostgreSQL with vector extension</td></tr>
+                <tr><td>redis</td><td>redis:7-alpine</td><td>192 MB</td><td>Cache, locks, task broker</td></tr>
+            </tbody>
+        </table>
+        <div class="success"><strong>✓ Total memory budget:</strong> ~2.5 GB (fits in 4 GB droplet with swap)</div>
+
+        <!-- Deployment -->
+        <h2 id="deployment">🚀 Deployment</h2>
+        <h3>Quick Deploy (from local Mac)</h3>
+        <pre>cd /Volumes/2SSD/Projects/ReddirSaaS/reddit_saas
+
+# Auto-detect changes and deploy only what's needed:
+make deploy
+
+# Or force specific service:
+make deploy-app       # Main app + celery workers
+make deploy-mkt       # Marketing site only
+make deploy-nginx     # Reload nginx (zero downtime)
+make deploy-all       # Full rebuild everything</pre>
+
+        <h3>Manual Deploy (step by step)</h3>
+        <pre># 1. Push code to server
+rsync -avz --exclude='.venv/' --exclude='__pycache__/' --exclude='.hypothesis/' \
+  --exclude='.git/' --exclude='*.pyc' --exclude='.DS_Store' --exclude='logs/' \
+  --exclude='.env' --exclude='.claude/' --exclude='.kiro/' --exclude='.vscode/' \
+  --exclude='tests/' --delete \
+  ./ root@161.35.27.165:/app/
+
+# 2. Build and restart on server
+ssh root@161.35.27.165 "cd /app && \
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml build && \
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
+
+# 3. Verify
+ssh root@161.35.27.165 "curl -s http://localhost/health"</pre>
+
+        <h3>Deploy Marketing Site</h3>
+        <pre>rsync -avz --exclude='.venv/' --exclude='__pycache__/' --exclude='.git/' \
+  --exclude='*.pyc' --exclude='.DS_Store' --exclude='.env' --delete \
+  ../marketing_site/ root@161.35.27.165:/marketing_site/
+
+ssh root@161.35.27.165 "cd /app && \
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml build marketing && \
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d marketing"</pre>
+
+        <!-- Environment Variables -->
+        <h2 id="env-vars">🔐 Environment Variables</h2>
+        <p>File: <code>/app/.env</code> on server (never committed to git)</p>
+        <table>
+            <thead><tr><th>Variable</th><th>Example</th><th>Purpose</th></tr></thead>
+            <tbody>
+                <tr><td>DATABASE_URL</td><td>postgresql://user:pass@db:5432/reddit_saas</td><td>PostgreSQL connection</td></tr>
+                <tr><td>REDIS_URL</td><td>redis://:PASS@redis:6379/0</td><td>Redis connection</td></tr>
+                <tr><td>REDIS_PASSWORD</td><td>(strong password)</td><td>Redis auth</td></tr>
+                <tr><td>POSTGRES_PASSWORD</td><td>(strong password)</td><td>PostgreSQL auth</td></tr>
+                <tr><td>SECRET_KEY</td><td>(random 32+ chars)</td><td>JWT signing key</td></tr>
+                <tr><td>ACCESS_TOKEN_EXPIRE_MINUTES</td><td>1440</td><td>JWT token TTL (24h)</td></tr>
+                <tr><td>ADMIN_EMAIL</td><td>admin@ramp.com</td><td>First admin account</td></tr>
+                <tr><td>ADMIN_PASSWORD</td><td>(strong password)</td><td>First admin password</td></tr>
+                <tr><td>REDDIT_CLIENT_ID</td><td>(from reddit.com/prefs/apps)</td><td>Reddit API</td></tr>
+                <tr><td>REDDIT_CLIENT_SECRET</td><td>(from reddit.com/prefs/apps)</td><td>Reddit API</td></tr>
+                <tr><td>LITELLM_API_KEY</td><td>(OpenRouter or direct key)</td><td>LLM API access</td></tr>
+                <tr><td>LITELLM_SCORING_MODEL</td><td>gemini/gemini-2.0-flash</td><td>Scoring model</td></tr>
+                <tr><td>LITELLM_GENERATION_MODEL</td><td>anthropic/claude-sonnet-4-20250514</td><td>Generation model</td></tr>
+                <tr><td>APP_ENV</td><td>production</td><td>Enables secure cookies, disables /docs</td></tr>
+            </tbody>
+        </table>
+
+        <!-- Monitoring -->
+        <h2 id="monitoring">📊 Monitoring & Logs</h2>
+        <h3>Health Check</h3>
+        <pre>curl https://gorampit.com/health
+curl http://localhost/health   # from server</pre>
+
+        <h3>View Logs</h3>
+        <pre># All services
+ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f --tail=50"
+
+# Specific service
+ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f --tail=50 app"
+ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f --tail=50 celery"
+
+# Makefile shortcuts
+make server-logs
+make server-logs-app</pre>
+
+        <h3>Container Status & Disk</h3>
+        <pre>ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml ps"
+make deploy-status
+
+ssh root@161.35.27.165 "df -h / && echo '---' && docker system df"</pre>
+
+        <!-- Database -->
+        <h2 id="database">🗄️ Database Operations</h2>
+        <h3>Backup (server → local)</h3>
+        <pre>ssh root@161.35.27.165 "cd /app && docker compose exec -T db pg_dump -U reddit_saas_user -d reddit_saas --no-owner --format=custom -f /tmp/dump.custom"
+scp root@161.35.27.165:/tmp/dump.custom /tmp/reddit_saas_prod_backup.custom</pre>
+
+        <h3>Restore (local → server)</h3>
+        <pre># Dump local DB
+docker compose exec -T db pg_dump -U reddit_saas_user -d reddit_saas --no-owner --format=custom -f /tmp/dump.custom
+docker compose cp db:/tmp/dump.custom /tmp/reddit_saas_live.custom
+
+# Upload and restore
+scp /tmp/reddit_saas_live.custom root@161.35.27.165:/tmp/
+ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T db pg_restore -U reddit_saas_user -d reddit_saas --clean --if-exists --no-owner --single-transaction /tmp/reddit_saas_live.custom"
+ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart app"</pre>
+
+        <h3>DB Shell & Local Docker</h3>
+        <pre>ssh root@161.35.27.165 "cd /app && docker compose exec db psql -U reddit_saas_user -d reddit_saas"
+
+# Local Makefile commands
+make db-sync          # Dump local PostgreSQL → restore into Docker
+make db-shell         # psql into local Docker DB
+make db-tables        # Show tables + row counts
+make fresh-start      # Wipe Docker volume + rebuild + sync</pre>
+
+        <!-- Nginx Routing -->
+        <h2 id="nginx">🔄 Nginx Routing</h2>
+        <table>
+            <thead><tr><th>Path</th><th>Backend</th><th>Purpose</th></tr></thead>
+            <tbody>
+                <tr><td>/admin/*</td><td>app:8000</td><td>Admin panel</td></tr>
+                <tr><td>/auth/*, /login, /register, /logout</td><td>app:8000</td><td>Authentication</td></tr>
+                <tr><td>/api/admin/*, /api/mobile/*</td><td>app:8000</td><td>API endpoints</td></tr>
+                <tr><td>/review/*, /threads/*, /clients/*, /avatars/*</td><td>app:8000</td><td>User pages</td></tr>
+                <tr><td>/health</td><td>app:8000</td><td>Health check</td></tr>
+                <tr><td>/ (default), /roadmap</td><td>marketing:8000</td><td>Landing pages, roadmap</td></tr>
+            </tbody>
+        </table>
+        <div class="note"><strong>Domain:</strong> gorampit.com (Let's Encrypt SSL, HSTS enabled)<br>
+        <strong>HTTP → HTTPS:</strong> All port 80 traffic 301-redirects to https://gorampit.com<br>
+        <strong>Security headers:</strong> X-Frame-Options, X-Content-Type-Options, X-XSS-Protection, Referrer-Policy, Strict-Transport-Security<br>
+        <strong>Timeout:</strong> proxy_read_timeout 120s (for long AI pipeline calls)</div>
+
+        <!-- Celery Beat -->
+        <h2 id="celery">⏰ Celery Beat Schedule (Israel Time)</h2>
+        <table>
+            <thead><tr><th>Time</th><th>Task</th><th>Purpose</th></tr></thead>
+            <tbody>
+                <tr><td>every 60s</td><td>queue_tick / system_heartbeat</td><td>Scrape scheduling + health pulse</td></tr>
+                <tr><td>05:20</td><td>snapshot_profile_analytics_all_avatars</td><td>Profile analytics</td></tr>
+                <tr><td>06:00</td><td>evaluate_all_avatar_phases</td><td>Phase evaluation</td></tr>
+                <tr><td>06:30</td><td>check_cqs_all_avatars</td><td>CQS batch check</td></tr>
+                <tr><td>07:30, 13:30</td><td>health_check_all_avatars</td><td>Shadowban detection</td></tr>
+                <tr><td>08:00, 14:00</td><td>run_full_pipeline_all_clients</td><td>AI pipeline (score + generate)</td></tr>
+                <tr><td>10:00</td><td>run_hobby_pipeline_all_avatars</td><td>Hobby content</td></tr>
+                <tr><td>every 4h</td><td>track_karma_all_avatars</td><td>Karma tracking</td></tr>
+                <tr><td>Sunday 03:00</td><td>scrape_repurpose_all_subreddits</td><td>Evergreen content harvest</td></tr>
+            </tbody>
+        </table>
+
+        <!-- Startup Flow -->
+        <h2 id="startup">⚙️ Startup Flow (entrypoint.sh)</h2>
+        <pre>1. Create pgvector extension (if not exists)
+2. Run `alembic upgrade heads`
+   - If fails: check if tables exist from pg_restore → skip
+   - If no tables: `Base.metadata.create_all()` as fallback
+3. Run `python -m app.seed` (idempotent — creates default admin + NeuroYoga client)
+4. Start `uvicorn` on port 8000</pre>
+
+        <!-- Troubleshooting -->
+        <h2 id="troubleshooting">🔧 Troubleshooting</h2>
+        <h3>App won't start</h3>
+        <pre>ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=30 app"</pre>
+
+        <h3>Celery tasks not running</h3>
+        <pre>ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=30 celery"
+ssh root@161.35.27.165 "cd /app && docker compose exec redis redis-cli -a \$REDIS_PASSWORD ping"</pre>
+
+        <h3>Out of memory</h3>
+        <pre>ssh root@161.35.27.165 "free -h && docker stats --no-stream"
+ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart"
+ssh root@161.35.27.165 "docker system prune -f"</pre>
+
+        <h3>DB migration stuck</h3>
+        <pre>ssh root@161.35.27.165 "cd /app && docker compose exec app alembic current"
+ssh root@161.35.27.165 "cd /app && docker compose exec app alembic stamp heads"</pre>
+
+        <!-- Security -->
+        <h2 id="security">🛡️ Security Notes</h2>
+        <ul>
+            <li>SSH access: key-based only (passphrase-protected ed25519)</li>
+            <li><code>.env</code> file: never in git, never in rsync</li>
+            <li>SSL: Let's Encrypt certificate for gorampit.com (auto-renew via certbot timer)</li>
+            <li>HSTS: <code>max-age=31536000; includeSubDomains</code></li>
+            <li>HTTP → HTTPS: forced redirect on all traffic</li>
+            <li>PostgreSQL + Redis: not exposed externally (Docker internal network only)</li>
+            <li>Redis: password-protected</li>
+            <li>Nginx: security headers on all responses</li>
+            <li>App: JWT auth, RBAC with 6 roles, client data isolation</li>
+            <li>Backups: DigitalOcean weekly snapshots enabled</li>
+        </ul>
+
+        <!-- Scaling Plan -->
+        <h2 id="ssl">🔒 SSL / HTTPS</h2>
+        <table>
+            <thead><tr><th>Property</th><th>Value</th></tr></thead>
+            <tbody>
+                <tr><td>Domain</td><td>gorampit.com</td></tr>
+                <tr><td>Certificate</td><td>Let's Encrypt (issuer: E7)</td></tr>
+                <tr><td>Issued</td><td>May 28, 2026</td></tr>
+                <tr><td>Expires</td><td>Aug 26, 2026 (90-day cycle)</td></tr>
+                <tr><td>Auto-renew</td><td>certbot systemd timer (runs twice daily)</td></tr>
+                <tr><td>HSTS</td><td>max-age=31536000; includeSubDomains</td></tr>
+                <tr><td>HTTP redirect</td><td>All :80 → 301 → https://gorampit.com</td></tr>
+                <tr><td>IP access</td><td>https://161.35.27.165 → 301 → https://gorampit.com</td></tr>
+            </tbody>
+        </table>
+        <h3>Manual Renewal (if needed)</h3>
+        <pre># Dry run (test renewal without changing anything)
+ssh root@161.35.27.165 "certbot renew --dry-run"
+
+# Force renewal
+ssh root@161.35.27.165 "certbot renew --force-renewal && nginx -s reload"
+
+# Check certificate expiry
+echo | openssl s_client -connect 161.35.27.165:443 -servername gorampit.com 2>/dev/null | openssl x509 -noout -dates</pre>
+        <div class="warning"><strong>⚠️ Renewal reminder:</strong> Let's Encrypt certs expire every 90 days. Certbot timer handles this automatically, but verify after server reboots that the timer is active: <code>systemctl status certbot.timer</code></div>
+
+        <h2 id="scaling">📈 Scaling Plan</h2>
+        <table>
+            <thead><tr><th>Trigger</th><th>Action</th><th>Cost Impact</th></tr></thead>
+            <tbody>
+                <tr><td>5+ paying clients</td><td>Migrate PG to DO Managed DB</td><td>+$15/mo</td></tr>
+                <tr><td>Response time > 2s</td><td>Upgrade droplet to 4 vCPU / 8 GB</td><td>+$25/mo</td></tr>
+                <tr><td>100+ avatars</td><td>Add second worker droplet</td><td>+$23/mo</td></tr>
+                <tr><td>Enterprise client</td><td>Migrate to AWS (ECS + RDS + ElastiCache)</td><td>~$200/mo</td></tr>
+            </tbody>
+        </table>
+        <div class="note"><strong>AWS credits available:</strong> $7,000 (for future migration)</div>
+
+        <!-- One-Liners -->
+        <h2 id="oneliners">💡 Useful One-Liners</h2>
+        <pre># Quick health check
+curl -s https://gorampit.com/health | python3 -m json.tool
+
+# Check SSL certificate expiry
+echo | openssl s_client -connect 161.35.27.165:443 -servername gorampit.com 2>/dev/null | openssl x509 -noout -dates
+
+# Count avatars in production DB
+ssh root@161.35.27.165 "cd /app && docker compose exec -T db psql -U reddit_saas_user -d reddit_saas -c 'SELECT count(*) FROM avatars;'"
+
+# Check disk space
+ssh root@161.35.27.165 "df -h /"
+
+# Restart just celery
+ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart celery celery-beat"
+
+# View last 5 pipeline runs
+ssh root@161.35.27.165 "cd /app && docker compose exec -T db psql -U reddit_saas_user -d reddit_saas -c \"SELECT event_type, message, created_at FROM activity_events WHERE event_type LIKE 'pipeline%' ORDER BY created_at DESC LIMIT 5;\""
+
+# Emergency: stop all AI tasks (kill switch)
+ssh root@161.35.27.165 "cd /app && docker compose exec -T db psql -U reddit_saas_user -d reddit_saas -c \"UPDATE system_settings SET value='false' WHERE key='pipeline_enabled';\""
+
+# Renew SSL certificate (auto via certbot timer, manual if needed)
+ssh root@161.35.27.165 "certbot renew --dry-run"</pre>
+    </div>
+
+    <div class="footer">
+        RAMP · DevOps Guide · 161.35.27.165 · Updated May 28, 2026
+    </div>
+</div>
+</body>
+</html>

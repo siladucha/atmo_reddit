@@ -27,6 +27,7 @@
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">{{ sort_header('Client', 'client', 'client_desc') }}</th>
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Reddit</th>
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">{{ sort_header('Phase', 'phase_asc', 'phase_desc') }}</th>
+            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Pool</th>
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">{{ sort_header('Karma', 'karma_asc', 'karma_desc') }}</th>
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">AI Cost</th>
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Health</th>
@@ -91,6 +92,22 @@
                 <span class="px-2 py-0.5 rounded text-xs font-medium bg-green-900/50 text-green-400 border border-green-700">P3 · Brand</span>
                 {% else %}
                 <span class="text-gray-500 text-xs">—</span>
+                {% endif %}
+            </td>
+            <td class="px-4 py-2">
+                {% if a.pool == 'b2b' %}
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-900/50 text-indigo-300 border border-indigo-700">B2B</span>
+                {% elif a.pool == 'b2c' %}
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-900/50 text-emerald-300 border border-emerald-700">B2C</span>
+                {% elif a.pool == 'mentor' %}
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-900/50 text-purple-300 border border-purple-700">Mentor</span>
+                {% elif a.pool == 'warm' %}
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-900/50 text-amber-300 border border-amber-700">Warm</span>
+                {% else %}
+                <span class="text-[10px] text-gray-600">—</span>
+                {% endif %}
+                {% if a.industry %}
+                <div class="text-[10px] text-gray-500 mt-0.5">{{ a.industry }}</div>
                 {% endif %}
             </td>
             <td class="px-4 py-2 text-gray-300 font-mono text-xs">

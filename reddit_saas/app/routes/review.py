@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.database import get_db
-from app.dependencies.admin import require_superuser
+from app.dependencies.admin import require_superuser, require_review_access
 from app.models.client import Client
 from app.models.comment_draft import CommentDraft
 from app.models.post_draft import PostDraft
@@ -49,7 +49,7 @@ def list_pending_comments(
     status: str = "pending",
     client_id: UUID | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_review_access),
 ):
     """List comment drafts for review."""
     query = db.query(CommentDraft).filter(CommentDraft.status == status)
@@ -64,7 +64,7 @@ def update_comment(
     comment_id: UUID,
     data: UpdateCommentRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_review_access),
 ):
     """Approve, reject, or edit a comment draft."""
     comment = db.query(CommentDraft).filter(CommentDraft.id == comment_id).first()
@@ -213,7 +213,7 @@ def list_pending_posts(
     status: str = "pending",
     client_id: UUID | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_review_access),
 ):
     """List post drafts for review."""
     query = db.query(PostDraft).filter(PostDraft.status == status)
@@ -228,7 +228,7 @@ def update_post(
     post_id: UUID,
     data: UpdatePostRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_review_access),
 ):
     """Approve, reject, or edit a post draft."""
     post = db.query(PostDraft).filter(PostDraft.id == post_id).first()

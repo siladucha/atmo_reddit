@@ -33,6 +33,18 @@
         {% elif a.warming_phase == 3 %}
         <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-green-900/50 text-green-400 border border-green-700">P3</span>
         {% endif %}
+        {% if a.pool and a.pool != 'b2b' %}
+        <span class="px-2 py-0.5 rounded text-[10px] font-medium
+              {% if a.pool == 'b2c' %}bg-emerald-900/50 text-emerald-300 border border-emerald-700
+              {% elif a.pool == 'mentor' %}bg-purple-900/50 text-purple-300 border border-purple-700
+              {% elif a.pool == 'warm' %}bg-amber-900/50 text-amber-300 border border-amber-700
+              {% else %}bg-slate-700 text-gray-400 border border-slate-600{% endif %}">
+            {{ a.pool|upper }}
+        </span>
+        {% endif %}
+        {% if a.industry %}
+        <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-700 text-gray-300 border border-slate-600">{{ a.industry }}</span>
+        {% endif %}
     </div>
 
     <div class="mt-3 grid grid-cols-2 gap-2 text-[11px] text-gray-400">

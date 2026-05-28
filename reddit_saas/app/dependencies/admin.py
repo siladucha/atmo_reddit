@@ -67,3 +67,22 @@ async def require_user_management_access(
     if user.user_role == UserRole.client_admin:
         return user
     raise HTTPException(status_code=403, detail="Access Denied")
+
+
+async def require_review_access(
+    user: User = Depends(get_current_user),
+) -> User:
+    """Dependency for review queue endpoints.
+
+    Allows:
+    - owner/partner (platform admins)
+    - avatar_manager (can review/approve hobby drafts for warming)
+    - qa (cross-client reviewer)
+
+    Raises 403 for all other roles.
+    """
+    if user.user_role in (UserRole.owner, UserRole.partner, UserRole.avatar_manager, UserRole.qa):
+        return user
+    if user.is_superuser:
+        return user
+    raise HTTPException(status_code=403, detail="Access Denied")

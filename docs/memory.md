@@ -1,5 +1,8 @@
 # Memory — Reddit Marketing SaaS
 
+> ⚠️ **This file is legacy.** The canonical knowledge base is now at [`docs/kb/`](./kb/README.md).  
+> This file is kept for historical reference. New documentation goes into `docs/kb/`.
+
 ## Partnership
 - **50/50** — Tzvi (бизнес/маркетинг/клиенты) + Max (вся разработка)
 - **Юрлицо:** Кипрская компания, Tzvi CEO (EU citizenship)

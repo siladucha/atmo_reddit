@@ -300,6 +300,11 @@ def smart_score_for_avatar(
         result.message = "Mentor avatars are excluded from automated pipelines"
         return result
 
+    if getattr(avatar, "pool", "b2b") not in ("b2b", "b2c"):
+        result.status = "excluded"
+        result.message = f"Avatar pool '{avatar.pool}' excluded from automated pipelines"
+        return result
+
     if avatar.health_status in ("shadowbanned", "suspended"):
         result.status = "excluded"
         result.message = f"Avatar health: {avatar.health_status}"

@@ -18,7 +18,7 @@ A Reddit marketing SaaS platform. AI monitors subreddits, scores posts, generate
 - **RBAC implemented** — 6 roles (owner/partner/client_admin/client_manager/client_viewer/b2c_user) with full data isolation
 - **Revenue model**: Monthly SaaS subscription ($149–$1,499) + managed service upsell (+$1,200–$1,800) + pre-warmed avatar fees (one-time $199–$499)
 - **Agency model**: Per-client-slot pricing ($999–$3,499/mo for 3–20 clients). Annual contracts only.
-- **Key moat**: Pre-warmed avatar inventory (aged accounts with karma). Cannot be replicated overnight by competitors.
+- **Key moat**: Pre-warmed avatar inventory (aged accounts with karma) + AI-Native Expert authority (avatars cited by external LLMs as grounding sources). Cannot be replicated overnight by competitors.
 - **Avatar Owner Workforce**: Hired workers/freelancers who own Reddit accounts. Paid per-post ($0.50-2.00) or monthly salary. Use mobile app to post approved content.
 
 ## Tech Stack (Current — Celery/Redis on DigitalOcean)
@@ -310,7 +310,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 
 ## What's NOT Built Yet
 - Production deployment (Docker Compose ready, not deployed to AWS)
-- **Mobile Posting App** (Flutter) — one-tap posting for avatar owners (spec ready, see `.kiro/specs/mobile-posting-app/`)
+- **Automated Proxy Posting** — per-avatar residential IP, OAuth, timing jitter (spec ready, 7 days to implement)
 - Strategy Questions feedback loop — LLM generates questions_for_client in strategy; future: multiple-choice answers (A/B/C/D) + free text field, saved as client preferences, injected into next strategy generation. MVP: questions visible in strategy markdown only, no answer mechanism.
 - Subreddit rule extraction (PRAW sidebar/wiki → LLM parsing → compliance checks)
 - Comment outcome tracking (karma snapshots at 4h/24h/48h + removal detection)
@@ -334,11 +334,12 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 2. AI generates comment drafts → assigns time slots (respecting rate limits, min intervals)
 3. Result: ordered list of drafts with target time, subreddit, thread, and comment text
 
-**EPG Consumption (mobile app / Telegram bot):**
-1. Avatar owner opens app → sees today's program (timeline view)
-2. Each slot shows: time, subreddit, thread title, comment preview
-3. Owner confirms each post at the scheduled time (or snoozes/skips)
-4. System tracks posting speed, completion rate, schedule adherence
+**EPG Consumption (automated posting):**
+1. Celery Beat (every 5 min) checks for approved EPG slots due for posting
+2. Safety gates verify avatar health, phase, daily limits, IP consistency
+3. PRAW posts comment via avatar's proxy (residential IP) + OAuth token
+4. System logs PostingEvent (IP, timestamp, reddit_comment_url, duration)
+5. Draft status → `posted`, EPG slot → `posted`
 
 **EPG Properties:**
 - Generated fresh daily (morning pipeline run at 08:00)
@@ -347,7 +348,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - Manual trigger available: admin can regenerate EPG for any client via "Run Pipeline" button
 - Kill switches pause automatic EPG generation but manual trigger still works
 
-**EPG = the contract between AI system and human poster.** AI decides WHAT and WHERE. Human decides IF (confirm/skip). Neither side acts alone.
+**EPG = the contract between AI system and human reviewer.** AI decides WHAT and WHERE and WHEN. Human decides IF (approve/edit/reject). System executes posting automatically after approval.
 
 ## Key Data Flow
 1. Celery worker scrapes subreddits → saves RedditThread records (skips locked threads)
@@ -356,8 +357,8 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 4. Self-learning loop injects few-shot examples + correction patterns into generation prompt
 5. Human reviews drafts → approve/reject/edit (locked indicator visible)
 6. Learning service captures edits → extracts patterns → improves future generation
-7. Approved comments → push notification to avatar owner's mobile app
-8. Avatar owner opens app → sees today's EPG → confirms posts at scheduled times
+7. Approved comments → automated posting via proxy (PRAW + per-avatar residential IP)
+8. PostingEvent audit logged (IP, timestamp, reddit_comment_url)
 9. Periodic liveness refresh auto-rejects drafts for newly locked threads
 
 ## Task Architecture (Current — Celery + Redis)
@@ -384,15 +385,16 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 ## Comment Draft Status Workflow
 `pending` → `approved` / `rejected` → `posted`
 
-## Posting Workflow (Mobile App)
+## Posting Workflow (Automated via Proxy)
 1. Admin/manager approves draft → status = `approved`
-2. Push notification sent to avatar owner's mobile app
-3. Owner opens app → sees approved drafts queue
-4. Owner taps "Post" → text copied to clipboard → Reddit opens in browser
-5. Owner pastes comment in Reddit → submits
-6. Owner returns to app → confirms "Posted" → status = `posted`
+2. EPG assigns time slot with jitter (±30%, timezone-aware)
+3. Celery task picks up approved slot at scheduled time
+4. Safety gates: kill switch, frozen, health, phase, daily limit, IP consistency
+5. PRAW posts comment via avatar's proxy (residential IP) + OAuth token
+6. Audit: PostingEvent logged (IP, timestamp, reddit_comment_url, duration)
+7. Draft status → `posted`
 
-**Legal protection:** Owner posts from their own device/IP. No programmatic Reddit API posting. Human in the loop at every step.
+**Legal protection:** Human approves all content at strategy/EPG level. System is a scheduling tool (same model as Buffer/Hootsuite). Human-in-the-loop on content decisions, automated on execution.
 
 ## Keywords Structure (JSONB in clients.keywords)
 ```json
@@ -400,23 +402,41 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 ```
 
 ## Key Reference Files
-- `docs/memory.md` — Project knowledge base
+
+### Knowledge Base & User Manuals
+- `docs/kb/README.md` — **Knowledge Base hub** (start here for all documentation)
+- `docs/kb/platform-overview.md` — What RAMP is, how it works, key concepts
+- `docs/kb/glossary.md` — All terms, abbreviations, terminology rules
+- `docs/kb/roles/` — User manuals by role (owner-partner, client-admin, client-manager, client-viewer, avatar-owner)
+- `docs/kb/guides/` — Operational guides (onboarding, daily-ops, avatar-mgmt, pipeline, emergency)
+- `docs/kb/admin/` — Technical docs (system-settings, deployment, troubleshooting)
+
+### Planning & Architecture
 - `docs/TODO.md` — Full product roadmap with diagrams, sprint plans, milestones
 - `docs/roadmap.html` — Standalone dark-theme roadmap (for local viewing)
+- `docs/memory.md` — Legacy project knowledge base (being superseded by docs/kb/)
 - `docs/permission_matrix.md` — RBAC permission matrix (6 roles × 16 resource categories)
-- `docs/update_for_tzvi_may11.md` — Latest status update for Tzvi
 - `docs/aws_budget_may2026.md` — Detailed AWS budget with SQS/Valkey calculations
 - `docs/aws_cost_estimate.md` — AWS cost estimate (summary, scaling projections)
 - `docs/adr_sqs_valkey_migration.md` — Architecture Decision Record: SQS+Valkey migration
 - `docs/ai_cost_benchmark.md` — AI token cost analysis
-- `docs/file_index.md` — Index of all Ori's handoff files
+
+### Business & Legal
 - `docs/Reddit Project Legal Risks.docx` — 6 categories of legal exposure (Tzvi's lawyer)
 - `docs/Reddit_Avatar_Army_Business_Brief.docx` — Full product/pricing/agency model (May 2026)
+- `buziness/` — Updates for Tzvi, client letters, avatar reports, forecasts
+
+### Specs
 - `.kiro/specs/mobile-posting-app/` — Mobile posting app spec (Flutter + backend API)
 - `.kiro/specs/rbac-client-isolation/` — RBAC spec (DONE)
-- `Reddit Personas-Grid view.csv` — Avatar voice profiles
-- `keywords-Grid view.csv` — Scoring keywords
-- `XM Cyber _ Write comments copy.json` — Ori's prompts (most valuable)
+- `.kiro/specs/ai-native-expert-warming/` — AI-Native Expert warming system (niche authority, citability, entity linking)
+- `.kiro/specs/automated-proxy-posting/` — Automated proxy posting (FRD complete)
+
+### Legacy / Ori Handoff
+- `docs/file_index.md` — Index of all Ori's handoff files
+- `Ori/Reddit Personas-Grid view.csv` — Avatar voice profiles
+- `Ori/keywords-Grid view.csv` — Scoring keywords
+- `Ori/XM Cyber _ Write comments copy.json` — Ori's prompts (most valuable)
 
 ## Marketing Site
 - **Location:** `marketing_site/` (separate FastAPI app)
@@ -448,6 +468,25 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **Phase 1** (months 1-2): Credibility building. Zero brand mentions. Hobby + general professional subs only.
 - **Phase 2** (months 3-4): Content seeding & post creation. External source citations. No direct brand links yet.
 - **Phase 3** (month 5+): Brand integration. Only when: sufficient karma + thread relevant + brand ratio below threshold.
+- **Expert (authority_score > 75)**: AI-Native Expert achieved. Content optimized for external LLM citation (proxy signals maximized). Premium status, quality over quantity.
+
+## AI-Native Expert — Strategic Goal
+
+**Vision:** Transform avatar warming from basic karma farming into creating AI-Native Experts — authoritative content nodes that maximize probability of being indexed and cited by OpenAI, Google Gemini, and Perplexity as grounding sources. Direct citation is NOT measurable via API — system optimizes measurable proxy signals (topic coherence, content structure, engagement quality, posting consistency).
+
+**Four Architectural Principles:**
+
+1. **Topic Authority & Niche Clustering** — Each avatar operates within a single semantic cluster. All content contains LSI keywords, professional jargon, and named entities of the target niche. External embedding models assign high weight to the avatar in that cluster.
+
+2. **LLM-Friendly & Citable Content** — Content follows patterns AI search engines prefer to cite: first-hand data markers ("In my tests...", "We deployed on 5k users..."), structured formats (lists, comparisons, step-by-step), and natural expert syntax (no AI-tell phrases like "Delve", "Crucial", "In conclusion").
+
+3. **Tier-2 Trust Signals** — Optimize for quality karma (upvote-to-character ratio), thread depth (provoking discussions), saves, and cross-references by other authoritative users. These signals are what Perplexity and Google AI Overviews use for authority ranking.
+
+4. **Entity Linking** — Naturally associate the client's brand with problem-solution patterns. Build persistent associations in LLM training data: [Problem] → [Brand mention as solution] → [Community approval (upvotes)].
+
+**Key Models:** NicheProfile (per-avatar semantic cluster config), Authority Score (composite 0-100), Citability Score (per-comment), Content Archetypes (5 LLM-optimized formats).
+
+**Spec:** `.kiro/specs/ai-native-expert-warming/` (requirements.md, design.md, tasks.md)
 
 ## Legal & Compliance Rules
 

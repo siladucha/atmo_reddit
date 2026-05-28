@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models.avatar_pool import AvatarPool  # noqa: F401 — re-exported for convenience
 from app.models.health_status import HealthStatus  # noqa: F401 — referenced for validation/documentation
 
 
@@ -17,6 +18,10 @@ class Avatar(Base):
     reddit_username: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     email_address: Mapped[str | None] = mapped_column(String(255), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # Pool & industry classification
+    pool: Mapped[str] = mapped_column(String(20), default="b2b", server_default="b2b", nullable=False)
+    industry: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     # Farm / rental
     is_farm_avatar: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")

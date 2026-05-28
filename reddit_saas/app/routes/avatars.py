@@ -64,11 +64,7 @@ def list_avatars(
         query = query.filter(Avatar.active.is_(True))
     avatars = query.all()
 
-    # Avatar manager can only see unassigned avatars
-    if current_user.user_role == UserRole.avatar_manager:
-        avatars = [a for a in avatars if not a.client_ids or a.client_ids == []]
-    elif client_id:
-        # Filter by client if specified (not applicable for avatar_manager)
+    if client_id:
         cid = str(client_id)
         avatars = [a for a in avatars if a.client_ids and cid in a.client_ids]
 
@@ -86,11 +82,6 @@ def get_avatar(
     if not avatar:
         raise HTTPException(status_code=404, detail="Avatar not found")
 
-    # Avatar manager can only view unassigned avatars
-    if current_user.user_role == UserRole.avatar_manager:
-        if avatar.client_ids and avatar.client_ids != []:
-            raise HTTPException(status_code=403, detail="Access Denied")
-
     return {
         "avatar": avatar,
         "health": get_avatar_health(db, avatar),
@@ -104,10 +95,6 @@ def create_avatar(
     current_user: User = Depends(require_avatar_admin),
 ):
     """Create a new avatar."""
-    # Avatar manager cannot assign to clients on creation
-    if current_user.user_role == UserRole.avatar_manager and data.client_ids:
-        raise HTTPException(status_code=403, detail="Avatar manager cannot assign avatars to clients")
-
     # Check username uniqueness
     existing = db.query(Avatar).filter(Avatar.reddit_username == data.reddit_username).first()
     if existing:

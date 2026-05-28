@@ -195,18 +195,9 @@ class QueryScope:
         if self.user.user_role in (UserRole.owner, UserRole.partner):
             return query  # Full access
 
-        # Avatar manager: special scoping — only unassigned avatars
+        # Avatar manager: full access to avatars and related models (drafts, hobby, etc.)
         if self.user.user_role == UserRole.avatar_manager:
-            from app.models.avatar import Avatar
-            if model is Avatar:
-                return self._scope_avatar_query_unassigned(query)
-            # Avatar manager cannot access other models
-            logger.warning(
-                "SECURITY: avatar_manager user %s attempted query on %s — returning empty",
-                self.user.id,
-                model.__tablename__,
-            )
-            return query.filter(False)
+            return query  # Full access (same as partner for data queries)
 
         # Client-scoped user
         client_id = self.user.client_id

@@ -9,9 +9,11 @@ class UserRole(str, Enum):
     owner          — Full system access (Max). Infrastructure, kill switches, all settings.
     partner        — Business admin (Tzvi). All clients, onboarding, reports, user management.
                      Cannot modify system settings or kill switches.
-    avatar_manager — Avatar inventory manager. Can view ONLY unassigned avatars (not belonging
-                     to any client) and create new avatars. Cannot see client data, drafts,
-                     or pipeline. Access to admin panel (avatar section only).
+    avatar_manager — Avatar lifecycle manager (Peredo). Full access to ALL avatars
+                     (assigned and unassigned). Can freeze/unfreeze, override phase,
+                     trigger health checks, build EPG, view/approve hobby drafts.
+                     Cannot see client business data, system settings, or billing.
+                     Access to admin panel (avatars + review queue).
     qa             — Cross-client reviewer (Jenny). Can review/approve/reject all clients.
                      Read-only access to client data. Can warm own avatars.
     client_admin   — B2B company administrator. Scoped to own client. Can manage team
@@ -49,6 +51,7 @@ class UserRole(str, Enum):
         return self in (
             UserRole.owner,
             UserRole.partner,
+            UserRole.avatar_manager,
             UserRole.qa,
             UserRole.client_admin,
             UserRole.client_manager,
@@ -92,9 +95,11 @@ class UserRole(str, Enum):
     def can_manage_unassigned_avatars(self) -> bool:
         """Returns True for roles limited to unassigned (no-client) avatars only.
 
-        avatar_manager can only see/create avatars that have no client_ids assigned.
+        NOTE: As of May 2026, avatar_manager has full access to ALL avatars
+        (assigned and unassigned) for lifecycle management (warming, health, EPG).
+        This property is kept for backward compat but always returns False now.
         """
-        return self == UserRole.avatar_manager
+        return False
 
     @property
     def can_warm_avatars(self) -> bool:
