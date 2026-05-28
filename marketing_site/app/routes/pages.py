@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 
 from app.services.ab_tests import get_default_variants, get_tests_for_page, ACTIVE_TESTS
@@ -63,3 +63,9 @@ async def roadmap_page(request: Request) -> HTMLResponse:
 async def thank_you_page(request: Request) -> HTMLResponse:
     """Render the thank-you confirmation page."""
     return templates.TemplateResponse(request=request, name="marketing_thank_you.html")
+
+
+@router.get("/pitch-deck.html")
+async def pitch_deck() -> FileResponse:
+    """Serve the RAMP white-label pitch deck as a static HTML file."""
+    return FileResponse("app/static/pitch-deck.html", media_type="text/html")

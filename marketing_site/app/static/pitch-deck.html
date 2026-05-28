@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAMP White Label — Pitch Deck</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --bg-card: #f3f4f6;
+            --bg-code: #f1f3f5;
+            --text-primary: #111827;
+            --text-secondary: #4b5563;
+            --text-muted: #9ca3af;
+            --accent-blue: #4f46e5;
+            --accent-purple: #7c3aed;
+            --accent-gradient: linear-gradient(135deg, #4f46e5, #7c3aed);
+            --border-color: #e5e7eb;
+            --border-subtle: #f0f0f0;
+            --success: #16a34a;
+            --warning: #d97706;
+            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            --font-mono: 'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Progress bar */
+        .progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 0%;
+            height: 3px;
+            background: var(--accent-gradient);
+            z-index: 1000;
+            transition: width 0.3s ease;
+        }
+
+        /* Slide sections */
+        .slide {
+            min-height: 100vh;
+            padding: 80px 60px 100px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .slide-inner {
+            max-width: 1100px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* Footer */
+        .slide-footer {
+            position: absolute;
+            bottom: 30px;
+            left: 60px;
+            right: 60px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
+        }
+
+        .slide-footer .brand {
+            font-weight: 700;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Typography */
+        h1 {
+            font-size: 3.2rem;
+            font-weight: 800;
+            letter-spacing: -1px;
+            margin-bottom: 16px;
+            line-height: 1.1;
+        }
+
+        h2 {
+            font-size: 2.4rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            margin-bottom: 12px;
+            line-height: 1.2;
+        }
+
+        h3 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: var(--text-secondary);
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+            max-width: 700px;
+        }
+
+        .tagline {
+            font-size: 1.6rem;
+            font-weight: 700;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 24px;
+            letter-spacing: 1px;
+        }
+
+        /* Stat callouts */
+        .stat-callout {
+            font-size: 3rem;
+            font-weight: 800;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            display: inline-block;
+        }
+
+        .stat-label {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* Lists */
+        ul, ol {
+            list-style: none;
+            padding: 0;
+        }
+
+        .feature-list li {
+            padding: 10px 0;
+            padding-left: 28px;
+            position: relative;
+            color: var(--text-secondary);
+            font-size: 1.05rem;
+        }
+
+        .feature-list li::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 18px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-gradient);
+        }
+
+        .feature-list li strong {
+            color: var(--text-primary);
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 0.95rem;
+        }
+
+        th {
+            text-align: left;
+            padding: 12px 16px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-weight: 600;
+            border-bottom: 2px solid var(--accent-blue);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 11px 16px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        tr:nth-child(even) td {
+            background: rgba(243, 244, 246, 0.7);
+        }
+
+        tr:hover td {
+            background: rgba(79, 70, 229, 0.04);
+        }
+
+        td strong {
+            color: var(--text-primary);
+        }
+
+        /* Code blocks */
+        .code-block {
+            background: var(--bg-code);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 24px;
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            line-height: 1.5;
+            overflow-x: auto;
+            margin: 24px 0;
+            color: var(--text-secondary);
+            white-space: pre;
+        }
+
+        /* Cards / Grid */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin: 24px 0;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            margin: 24px 0;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .card h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .card p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .card .icon {
+            font-size: 1.8rem;
+            margin-bottom: 12px;
+        }
+
+        /* Highlight box */
+        .highlight-box {
+            background: linear-gradient(135deg, rgba(79, 70, 229, 0.06), rgba(124, 58, 237, 0.06));
+            border: 1px solid rgba(79, 70, 229, 0.25);
+            border-radius: 12px;
+            padding: 28px;
+            margin: 24px 0;
+        }
+
+        .highlight-box.success {
+            background: linear-gradient(135deg, rgba(22, 163, 74, 0.06), rgba(22, 163, 74, 0.03));
+            border-color: rgba(22, 163, 74, 0.25);
+        }
+
+        /* Quote */
+        blockquote {
+            border-left: 3px solid var(--accent-blue);
+            padding: 16px 24px;
+            margin: 24px 0;
+            background: rgba(79, 70, 229, 0.04);
+            border-radius: 0 8px 8px 0;
+            font-style: italic;
+            color: var(--text-secondary);
+            font-size: 1.05rem;
+        }
+
+        /* Badge */
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-done {
+            background: rgba(22, 163, 74, 0.1);
+            color: var(--success);
+        }
+
+        .badge-accent {
+            background: rgba(79, 70, 229, 0.1);
+            color: var(--accent-blue);
+        }
+
+        /* Confidential notice */
+        .confidential {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        /* Moat layers */
+        .moat-layers {
+            margin: 30px 0;
+        }
+
+        .moat-layer {
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin-bottom: -1px;
+        }
+
+        .moat-layer:nth-child(1) {
+            border-color: rgba(124, 58, 237, 0.4);
+            background: rgba(124, 58, 237, 0.06);
+        }
+
+        .moat-layer:nth-child(2) {
+            border-color: rgba(79, 70, 229, 0.4);
+            background: rgba(79, 70, 229, 0.06);
+            margin-left: 30px;
+            margin-right: 30px;
+        }
+
+        .moat-layer:nth-child(3) {
+            border-color: rgba(59, 130, 246, 0.4);
+            background: rgba(59, 130, 246, 0.06);
+            margin-left: 60px;
+            margin-right: 60px;
+        }
+
+        .moat-layer h4 {
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .moat-layer p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        /* Competitor row highlight */
+        tr.ramp-row td {
+            background: rgba(79, 70, 229, 0.08) !important;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        /* Timeline */
+        .timeline {
+            display: flex;
+            gap: 0;
+            margin: 24px 0;
+        }
+
+        .timeline-item {
+            flex: 1;
+            padding: 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            position: relative;
+            text-align: center;
+        }
+
+        .timeline-item:first-child { border-radius: 8px 0 0 8px; }
+        .timeline-item:last-child { border-radius: 0 8px 8px 0; }
+
+        .timeline-item .week {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: var(--accent-blue);
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .timeline-item .desc {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        /* Print styles */
+        @media print {
+            .slide {
+                page-break-after: always;
+                min-height: 100vh;
+                padding: 40px;
+            }
+            .progress-bar { display: none; }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .slide { padding: 40px 24px 80px; }
+            .slide-footer { left: 24px; right: 24px; }
+            h1 { font-size: 2.2rem; }
+            h2 { font-size: 1.8rem; }
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+            .code-block { font-size: 0.7rem; padding: 16px; }
+            .moat-layer:nth-child(2) { margin-left: 15px; margin-right: 15px; }
+            .moat-layer:nth-child(3) { margin-left: 30px; margin-right: 30px; }
+            .timeline { flex-direction: column; }
+            .timeline-item { border-radius: 0 !important; }
+            .timeline-item:first-child { border-radius: 8px 8px 0 0 !important; }
+            .timeline-item:last-child { border-radius: 0 0 8px 8px !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="progress-bar" id="progressBar"></div>
+
+    <!-- SLIDE 1: Title -->
+    <section class="slide" id="slide-1">
+        <div class="slide-inner" style="text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <div style="margin-bottom: 40px;">
+                <h1 style="font-size: 4rem; letter-spacing: 6px; margin-bottom: 8px;">RAMP</h1>
+                <h3 style="color: var(--text-muted); font-weight: 400; font-size: 1rem; letter-spacing: 2px;">WHITE LABEL</h3>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 4px;">Reddit Marketing Infrastructure for Agencies</p>
+            </div>
+
+            <p class="tagline">YOUR BRAND. OUR ENGINE. THEIR RESULTS.</p>
+
+            <p class="subtitle" style="text-align: center; margin-bottom: 40px;">The turnkey Reddit marketing platform that agencies deploy under their own brand.</p>
+
+            <ul class="feature-list" style="text-align: left; max-width: 600px;">
+                <li>Full pipeline: monitoring → persona creation → content generation → posting → learning</li>
+                <li>Established avatar accounts with real community credibility</li>
+                <li>AI that improves with every campaign</li>
+                <li>Zero trace of RAMP — your clients see only your brand</li>
+            </ul>
+
+            <div class="confidential">
+                <p>Confidential — For Investor & Partner Discussion Only</p>
+                <p style="margin-top: 8px; color: var(--accent-blue);">Pre-Seed · White Label · 2026</p>
+            </div>
+        </div>
+        <div class="slide-footer">
+            <span class="brand">RAMP</span>
+            <span>1 / 11</span>
+        </div>
+    </section>
+
+    <!-- SLIDE 2: The Problem -->
+    <section class="slide" id="slide-2">
+        <div class="slide-inner">
+            <h2>The Problem</h2>
+            <h3 style="font-size: 1.8rem; color: var(--text-primary); font-weight: 700; margin-bottom: 24px;">Agencies Are Losing Revenue Every Day</h3>
+            <p class="subtitle">The opportunity is massive. The barrier is technical.</p>
+
+            <div class="grid-3" style="margin-bottom: 32px;">
+                <div class="card">
+                    <div class="icon">🎯</div>
+                    <h4>Reddit = Key AI Search Source</h4>
+                    <p>AI search engines (ChatGPT, Perplexity, Gemini) heavily reference Reddit discussions. Agencies know this. Their clients are asking for it.</p>
+                </div>
+                <div class="card">
+                    <div class="icon">💰</div>
+                    <h4>Too Complex to Build In-House</h4>
+                    <p>Building a Reddit engagement platform requires persona management, content AI, account credibility systems, and safety guardrails. No agency has the team or timeline.</p>
+                </div>
+                <div class="card">
+                    <div class="icon">🏗️</div>
+                    <h4>Need Resellable Infra</h4>
+                    <p>Agencies need infrastructure they can resell — not another tool to learn. They want margin, not complexity.</p>
+                </div>
+            </div>
+
+            <div class="highlight-box">
+                <p style="font-size: 1.1rem; color: var(--text-primary); font-weight: 600;">Reddit is the only major channel agencies can't effectively serve due to technical complexity and compliance risk. We solve that.</p>
+            </div>
+        </div>
+        <div class="slide-footer">
+            <span class="brand">RAMP</span>
+            <span>2 / 11</span>
+        </div>
+    </section>
+
+    <!-- SLIDE 3: The Solution -->
+    <section class="slide" id="slide-3">
+        <div class="slide-inner">
+            <h2>The Solution</h2>
+            <h3 style="font-size: 1.8rem; color: var(--text-primary); font-weight: 700; margin-bottom: 24px;">RAMP — Compliance-First Infrastructure for Agencies</h3>
+            <p class="subtitle">White label means: their brand, our engine. Clients never know RAMP exists.</p>
+
+            <div class="grid-3">
+                <div class="card">
+                    <div class="icon">⚡</div>
+                    <h4>Full Reddit Pipeline</h4>
+                    <p>Monitoring → Persona Creation → Content Generation → Posting → Learning. Established avatars with real credibility. AI that improves with every campaign.</p>
+                </div>
+                <div class="card">
+                    <div class="icon">🎨</div>
+                    <h4>Deploy Under Your Brand</h4>
+                    <p>Their domain, their logo, their mobile app. Clients log in and see only the agency's brand. Zero trace of RAMP anywhere.</p>
+                </div>
+                <div class="card">
+                    <div class="icon">🤝</div>
+                    <h4>Clear Division of Labor</h4>
+                    <p>Agency focuses on relationships and strategy. RAMP handles technology and infrastructure. Agency sells premium service without building anything.</p>
+                </div>
+            </div>
+
+            <blockquote style="margin-top: 32px;">
+                "You sell Reddit marketing. We make it work. Your clients never know we exist."
+            </blockquote>
+        </div>
+        <div class="slide-footer">
+            <span class="brand">RAMP</span>
+            <span>3 / 11</span>
+        </div>
+    </section>
+
+    <!-- SLIDE 4: How It Works -->
+    <section class="slide" id="slide-4">
+        <div class="slide-inner">
+            <h2>How It Works</h2>
+            <h3 style="font-size: 1.8rem; color: var(--text-primary); font-weight: 700; margin-bottom: 24px;">How the Platform Works</h3>
+
+            <div style="margin: 24px 0; text-align: center;">
+                <svg viewBox="0 0 900 220" xmlns="http://www.w3.org/2000/svg" style="max-width: 100%; height: auto;">
+                    <!-- Agency Box -->
+                    <rect x="20" y="20" width="240" height="180" rx="12" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="2"/>
+                    <text x="140" y="55" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="18" font-weight="700" fill="#111827">AGENCY</text>
+                    <text x="140" y="85" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="12" fill="#6b7280">• Client management</text>
+                    <text x="140" y="107" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="12" fill="#6b7280">• Strategy &amp; pricing</text>
+                    <text x="140" y="129" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="12" fill="#6b7280">• Branding &amp; relationships</text>
+                    <text x="140" y="151" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="12" fill="#6b7280">• Sets own pricing</text>
+                    <text x="140" y="185" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="10" fill="#9ca3af">VISIBLE TO CLIENTS</text>
+
+                    <!-- Arrow 1 -->
+                    <defs>
+                        <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" style="stop-color:#4f46e5"/>
+                            <stop offset="100%" style="stop-color:#7c3aed"/>
+                        </linearGradient>
+                    </defs>
+                    <line x1="270" y1="110" x2="320" y2="110" stroke="url(#arrowGrad)" stroke-width="3"/>
+                    <polygon points="320,104 335,110 320,116" fill="#7c3aed"/>
+
+                    <!-- RAMP Engine Box -->
+                    <rect x="340" y="20" width="240" height="180" rx="12" fill="rgba(79,70,229,0.06)" stroke="#4f46e5" stroke-width="2" stroke-dasharray="6,3"/>
+                    <text x="460" y="55" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="18" font-weight="700" fill="#4f46e5">RAMP ENGINE</text>
+                    <text x="460" y="78" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#7c3aed" font-style="italic">(invisible)</text>
+                    <text x="460" y="103" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="12" fill="#4b5563">• AI pipeline</text>
+                    <text x="460" y="123" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="12" fill="#4b5563">• Contributor network</text>
+                    <text x="460" y="143" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="12" fill="#4b5563">• Self-learning loop</text>
+                    <text x="460" y="163" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="12" fill="#4b5563">• Safety guardrails</text>
+                    <text x="460" y="185" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="10" fill="#9ca3af">NEVER VISIBLE</text>
+
+                    <!-- Arrow 2 -->
+                    <line x1="590" y1="110" x2="640" y2="110" stroke="url(#arrowGrad)" stroke-width="3"/>
+                    <polygon points="640,104 655,110 640,116" fill="#7c3aed"/>
+
+                    <!-- Reddit Box -->
+                    <rect x="660" y="20" width="220" height="180" rx="12" fill="#fff7ed" stroke="#fb923c" stroke-width="2"/>
+                    <text x="770" y="55" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="18" font-weight="700" fill="#ea580c">REDDIT</text>
+                    <text x="770" y="90" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="12" fill="#6b7280">• Real posts</text>
+                    <text x="770" y="112" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="12" fill="#6b7280">• Real karma</text>
+                    <text x="770" y="134" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="12" fill="#6b7280">• Real community trust</text>
+                    <text x="770" y="156" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="12" fill="#6b7280">• Real results</text>
+                    <text x="770" y="185" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="10" fill="#9ca3af">OUTCOMES</text>
+                </svg>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h4>What the Partner Gets</h4>
+                    <ul class="feature-list">
+                        <li>RAMP dashboard — role-based access for partners, managers, and clients</li>
+                        <li>RAMP mobile app — avatar owners authorize Reddit via OAuth and approve posting</li>
+                        <li>RAMP inventory or client's own account for personal brands</li>
+                        <li>AI pipeline — from avatar onboarding to posting verification</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h4>What the End-Client Sees</h4>
+                    <ul class="feature-list">
+                        <li>Agency's domain → <code style="color: var(--accent-blue);">reddit.theiragency.com</code></li>
+                        <li>Agency's logo → on every screen, every email, every report</li>
+                        <li>Agency's app → in the App Store under the agency's name</li>
+                        <li><strong>RAMP is invisible. Zero fingerprints.</strong></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="slide-footer">
+            <span class="brand">RAMP</span>
+            <span>4 / 11</span>
+        </div>
+    </section>
+
+    <!-- SLIDE 5: What Partners Get -->
+    <section class="slide" id="slide-5">
+        <div class="slide-inner">
+            <h2>What Partners Get</h2>
+            <h3 style="font-size: 1.8rem; color: var(--text-primary); font-weight: 700; margin-bottom: 24px;">The Full Stack — Day 1</h3>
+            <p class="subtitle">Platform + Dashboard + Mobile App + Avatars + AI — all under your brand.</p>
+
+            <div class="grid-3">
+                <div class="card">
+                    <div class="icon">🖥️</div>
+                    <h4>RAMP Dashboard</h4>
+                    <p>Role-based access: partners manage all clients, client admins manage their team, managers approve content, viewers see reports.</p>
+                </div>
+                <div class="card">
+                    <div class="icon">📱</div>
+                    <h4>RAMP Mobile App</h4>
+                    <p>Avatar owners download the app, authorize their Reddit account via OAuth, and approve content for posting.</p>
+                </div>
+                <div class="card">
+                    <div class="icon">👤</div>
+                    <h4>RAMP Inventory</h4>
+                    <p>Silver: 500-1K karma. Gold: 2K+ karma, 6+ months. Ready Day 1. For personal brands — clients use their own Reddit account.</p>
+                </div>
+                <div class="card">
+                    <div class="icon">🤖</div>
+                    <h4>AI Pipeline</h4>
+                    <p>Avatar onboarding → credibility building → scraping → scoring → generation → review → posting → verification. End-to-end.</p>
+                </div>
+                <div class="card">
+                    <div class="icon">🔄</div>
+                    <h4>Self-Learning Loop</h4>
+                    <p>Improves with every human edit. Gets smarter over time — automatically. Content quality compounds.</p>
+                </div>
+                <div class="card">
+                    <div class="icon">🔒</div>
+                    <h4>Complete Client Isolation</h4>
+                    <p>Multi-tenant, zero data leakage. Your clients never see each other. Your data never touches another partner.</p>
+                </div>
+            </div>
+
+            <table style="margin-top: 24px;">
+                <thead>
+                    <tr>
+                        <th>Component</th>
+                        <th>What It Means</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>RAMP dashboard</strong></td><td>Role-based access: partner, client_admin, client_manager, client_viewer — each sees only their scope</td></tr>
+                    <tr><td><strong>RAMP mobile app</strong></td><td>Avatar owners download the app, authorize Reddit via OAuth, and approve posting from their phone</td></tr>
+                    <tr><td><strong>RAMP inventory</strong></td><td>Silver (500-1K karma) and Gold (2K+ karma, 6+ months) — or client's own account for personal brands</td></tr>
+                    <tr><td><strong>AI pipeline</strong></td><td>Avatar onboarding → credibility building → scraping → scoring → generation → review → posting → verification</td></tr>
+                    <tr><td><strong>Self-learning loop</strong></td><td>Every human edit teaches the system. Content quality compounds over time</td></tr>
+                    <tr><td><strong>Complete client isolation</strong></td><td>Multi-tenant architecture, zero data leakage between clients or partners</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="slide-footer">
+            <span class="brand">RAMP</span>
+            <span>5 / 11</span>
+        </div>
+    </section>
+
+    <!-- SLIDE 6: The Moat -->
+    <section class="slide" id="slide-6">
+        <div class="slide-inner">
+            <h2>The Moat</h2>
+            <h3 style="font-size: 1.8rem; color: var(--text-primary); font-weight: 700; margin-bottom: 24px;">Why Can't Someone Copy This?</h3>
+            <p class="subtitle">Three layers of defensibility. Each one compounds over time.</p>
+
+            <div class="moat-layers">
+                <div class="moat-layer">
+                    <h4 style="color: #a78bfa;">Layer 3: DATA FLYWHEEL (Self-Learning Loop)</h4>
+                    <p>Every human edit teaches the system. Months of accumulated correction patterns. New entrants start with zero training data. We have thousands of labeled examples.</p>
+                </div>
+                <div class="moat-layer" style="margin-top: 16px;">
+                    <h4 style="color: #818cf8;">Layer 2: AI-NATIVE EXPERT (Compounding Authority)</h4>
+                    <p>Avatars progress from members to recognized domain experts. Expert-tier content gets cited by LLMs as grounding sources. Authority compounds — each interaction builds on the last.</p>
+                </div>
+                <div class="moat-layer" style="margin-top: 16px;">
+                    <h4 style="color: #6366f1;">Layer 1: MANAGED CONTRIBUTOR NETWORK (6-Month Replication Barrier)</h4>
+                    <p>Real karma. Real history. Real community standing. Established contributors with 2K+ karma and 6+ months of authentic participation cannot be replicated overnight.</p>
+                </div>
+            </div>
+
+            <blockquote style="margin-top: 32px;">
+                "Even if someone copies the code tomorrow, they can't copy the inventory, the authority, or the learned patterns. Those take months and years to build. We're already building them."
+            </blockquote>
+
+            <div class="highlight-box" style="margin-top: 24px;">
+                <p style="color: var(--text-primary); font-weight: 600;">Network effect: More edits = better content = more clients = more edits. The flywheel accelerates with every partner we onboard.</p>
+                <p style="color: var(--text-secondary); margin-top: 8px; font-size: 0.9rem;">For investors: This is a compounding moat. Every day we operate, the gap widens. Competitors don't just need to match our technology — they need to match our <strong style="color: var(--text-primary);">time in market</strong>.</p>
+            </div>
+        </div>
+        <div class="slide-footer">
+            <span class="brand">RAMP</span>
+            <span>6 / 11</span>
+        </div>
+    </section>
+
+    <!-- SLIDE 7: Partner Economics -->
+    <section class="slide" id="slide-7">
+        <div class="slide-inner">
+            <h2>Partner Economics</h2>
+            <h3 style="font-size: 1.8rem; color: var(--text-primary); font-weight: 700; margin-bottom: 24px;">The 10x Leverage Math</h3>
+            <p class="subtitle">You pay $2K. You earn $20K. You didn't write a single line of code.</p>
+
+            <div class="highlight-box" style="text-align: center; padding: 40px;">
+                <div style="display: flex; justify-content: center; gap: 60px; flex-wrap: wrap; align-items: center;">
+                    <div>
+                        <div class="stat-callout">$18K/mo</div>
+                        <div class="stat-label">PROFIT at full capacity</div>
+                    </div>
+                    <div>
+                        <div class="stat-callout">10x</div>
+                        <div class="stat-label">LEVERAGE on investment</div>
+                    </div>
+                    <div>
+                        <div class="stat-callout">90%</div>
+                        <div class="stat-label">GROSS MARGIN</div>
+                    </div>
+                </div>
+                <p style="margin-top: 24px; color: var(--text-secondary); font-size: 0.95rem;">Growth Tier: $1,999/mo for 8 client slots × $2,500/client = $20,000 revenue</p>
+            </div>
+
+            <div class="grid-2" style="margin-top: 32px;">
+                <div>
+                    <h4 style="margin-bottom: 12px; color: var(--text-primary);">Break-Even Analysis</h4>
+                    <table>
+                        <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+                        <tbody>
+                            <tr><td>Platform cost (Growth tier)</td><td><strong>$1,999/mo</strong></td></tr>
+                            <tr><td>Revenue from 1 client</td><td><strong>$2,500/mo</strong></td></tr>
+                            <tr><td>Break-even</td><td><strong style="color: var(--success);">Client #1</strong></td></tr>
+                            <tr><td>Revenue at full capacity (8)</td><td><strong>$20,000/mo</strong></td></tr>
+                            <tr><td>Monthly profit at capacity</td><td><strong>$18,001/mo</strong></td></tr>
+                            <tr><td>Annual profit at capacity</td><td><strong>$216,012/yr</strong></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div>
+                    <h4 style="margin-bottom: 12px; color: var(--text-primary);">Avatar Markup — Pure Margin</h4>
+                    <table>
+                        <thead><tr><th>Avatar Tier</th><th>Cost</th><th>Charge</th><th>Markup</th></tr></thead>
+                        <tbody>
+                            <tr><td>Silver (500-1K karma)</td><td>$199</td><td>$500-$750</td><td><strong>2.5-3.8x</strong></td></tr>
+                            <tr><td>Gold (2K+, 6+ months)</td><td>$499</td><td>$800-$1,000</td><td><strong>1.6-2.0x</strong></td></tr>
+                        </tbody>
+                    </table>
+                    <p style="margin-top: 12px; font-size: 0.85rem; color: var(--text-secondary);">Every avatar sale is incremental profit. Recurring upsell as clients scale.</p>
+                </div>
+            </div>
+
+            <blockquote style="margin-top: 24px;">
+                "Your first client pays for the platform. Clients 2-8 are pure profit. Add avatar markups on top. You're running a $200K+/year business line with zero technical staff."
+            </blockquote>
+        </div>
+        <div class="slide-footer">
+            <span class="brand">RAMP</span>
+            <span>7 / 11</span>
+        </div>
+    </section>
+
+    <!-- SLIDE 8: RAMP Revenue Model -->
+    <section class="slide" id="slide-8">
+        <div class="slide-inner">
+            <h2>RAMP Revenue Model</h2>
+            <h3 style="font-size: 1.8rem; color: var(--text-primary); font-weight: 700; margin-bottom: 24px;">Per-Slot Pricing with Volume Tiers</h3>
+            <p class="subtitle">Simple, predictable pricing. Partners pay per client slot. We grow when they grow.</p>
+
+            <table>
+                <thead>
+                    <tr><th>Tier</th><th>Price/mo</th><th>Client Slots</th><th>Cost/Slot</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>Starter</strong></td><td>$999/mo</td><td>3 slots</td><td>$333/slot</td></tr>
+                    <tr><td><strong>Growth</strong></td><td>$1,999/mo</td><td>8 slots</td><td>$250/slot</td></tr>
+                    <tr><td><strong>Scale</strong></td><td>$3,499/mo</td><td>20 slots</td><td>$175/slot</td></tr>
+                    <tr><td><strong>Enterprise</strong></td><td>Custom</td><td>Unlimited</td><td>Negotiated</td></tr>
+                </tbody>
+            </table>
+
+            <div class="grid-2" style="margin-top: 32px;">
+                <div>
+                    <h4 style="margin-bottom: 12px; color: var(--text-primary);">Revenue Streams</h4>
+                    <table>
+                        <thead><tr><th>Stream</th><th>Model</th><th>Margin</th></tr></thead>
+                        <tbody>
+                            <tr><td>Platform subscriptions</td><td>Monthly per-slot tiers</td><td><strong>75-85%</strong></td></tr>
+                            <tr><td>Managed contributor network</td><td>One-time ($199-$499)</td><td><strong>60-70%</strong></td></tr>
+                            <tr><td>Annual contract discount</td><td>15-20% off prepay</td><td>Better cash flow</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div>
+                    <h4 style="margin-bottom: 12px; color: var(--text-primary);">Unit Economics (RAMP's Perspective)</h4>
+                    <table>
+                        <thead><tr><th>Cost Item</th><th>Amount/mo</th></tr></thead>
+                        <tbody>
+                            <tr><td>Infrastructure per partner</td><td><strong style="color: var(--success);">Minimal</strong> (shared infra)</td></tr>
+                            <tr><td>LLM cost (8 clients)</td><td>~$280/mo</td></tr>
+                            <tr><td>Support (amortized)</td><td>~$200/mo</td></tr>
+                            <tr><td><strong>Total cost per partner</strong></td><td><strong>~$480/mo</strong></td></tr>
+                            <tr><td><strong>Revenue (Growth tier)</strong></td><td><strong>$1,999/mo</strong></td></tr>
+                            <tr><td><strong>Gross margin</strong></td><td><strong style="color: var(--success);">75-85%</strong></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <blockquote style="margin-top: 24px;">
+                "Every new partner adds $1,500+/mo in gross profit with zero additional infrastructure cost. The platform scales horizontally — same codebase, same server, same team."
+            </blockquote>
+        </div>
+        <div class="slide-footer">
+            <span class="brand">RAMP</span>
+            <span>8 / 11</span>
+        </div>
+    </section>
+
+    <!-- SLIDE 9: Competitive Landscape -->
+    <section class="slide" id="slide-9">
+        <div class="slide-inner">
+            <h2>Competitive Landscape</h2>
+            <h3 style="font-size: 1.8rem; color: var(--text-primary); font-weight: 700; margin-bottom: 24px;">Every Competitor Solves One Piece. We Solve the Entire Pipeline.</h3>
+
+            <table>
+                <thead>
+                    <tr><th>Competitor</th><th>What They Do</th><th>What's Missing</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>ReddGrow</strong></td>
+                        <td>Find threads, draft comments</td>
+                        <td>No personas, no credibility building, user posts from OWN account</td>
+                    </tr>
+                    <tr>
+                        <td><strong>ReplyAgent</strong></td>
+                        <td>Managed accounts, auto-post</td>
+                        <td>Generic accounts, no persona depth, spray-and-pray</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Redreach</strong></td>
+                        <td>Find threads, suggest replies</td>
+                        <td>User posts manually, no accounts, no credibility building</td>
+                    </tr>
+                    <tr>
+                        <td><strong>CrowdReply</strong></td>
+                        <td>Find threads, post for you</td>
+                        <td>No personas, no credibility building, generic drive-by</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Brand24 / Sprout</strong></td>
+                        <td>Monitor mentions</td>
+                        <td>No engagement, no posting, observation only</td>
+                    </tr>
+                    <tr class="ramp-row">
+                        <td><strong>RAMP</strong></td>
+                        <td>Full pipeline + personas + inventory + learning</td>
+                        <td style="color: var(--success);">Nothing — FULL STACK</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="highlight-box" style="margin-top: 32px;">
+                <h4 style="color: var(--text-primary); margin-bottom: 8px;">Why this matters:</h4>
+                <ul class="feature-list" style="margin: 0;">
+                    <li><strong>ReddGrow / Redreach</strong> — thread discovery only. User posts from own account (zero credibility separation).</li>
+                    <li><strong>ReplyAgent / CrowdReply</strong> — generic accounts with no history. Reddit's spam filters catch these in weeks.</li>
+                    <li><strong>Brand24 / Sprout</strong> — monitoring tools. They don't help you participate in the conversation.</li>
+                    <li><strong>RAMP</strong> — the only platform covering the full pipeline with established accounts and self-learning AI.</li>
+                </ul>
+            </div>
+
+            <blockquote style="margin-top: 24px;">
+                "Every competitor solves one piece. We solve the entire pipeline. And we do it with established accounts that have real community credibility — something no competitor can replicate without 6+ months."
+            </blockquote>
+        </div>
+        <div class="slide-footer">
+            <span class="brand">RAMP</span>
+            <span>9 / 11</span>
+        </div>
+    </section>
+
+    <!-- SLIDE 10: Traction & Readiness -->
+    <section class="slide" id="slide-10">
+        <div class="slide-inner">
+            <h2>Traction & Readiness</h2>
+            <h3 style="font-size: 1.8rem; color: var(--text-primary); font-weight: 700; margin-bottom: 24px;">Platform Built. Pipeline Running. Clients Active.</h3>
+
+            <h4 style="margin-bottom: 12px; color: var(--success);">✅ What's Built and Running in Production</h4>
+            <table>
+                <thead><tr><th>Component</th><th>Status</th><th>Details</th></tr></thead>
+                <tbody>
+                    <tr><td>Multi-tenant RBAC (8 roles, query scoping, data isolation)</td><td><span class="badge badge-done">DONE</span></td><td>40+ property-based tests, full client isolation</td></tr>
+                    <tr><td>AI pipeline (scrape → score → generate → post → learn)</td><td><span class="badge badge-done">DONE</span></td><td>Runs daily, 2 pipeline cycles/day (08:00, 14:00)</td></tr>
+                    <tr><td>Self-learning loop (edit capture → patterns → few-shot)</td><td><span class="badge badge-done">DONE</span></td><td>Correction patterns accumulating, quality improving</td></tr>
+                    <tr><td>Avatar credibility system (phases, karma, health)</td><td><span class="badge badge-done">DONE</span></td><td>4 phases + Mentor, CQS monitoring, auto-freeze</td></tr>
+                    <tr><td>Client management (7-step onboarding, CRUD)</td><td><span class="badge badge-done">DONE</span></td><td>Full lifecycle: create → configure → activate → deactivate</td></tr>
+                    <tr><td>Safety guardrails (phase gates, kill switches, freeze)</td><td><span class="badge badge-done">DONE</span></td><td>Brand ratio, promotional language, shadowban detection</td></tr>
+                    <tr><td>Custom domain + SSL (nginx routing)</td><td><span class="badge badge-done">DONE</span></td><td>Auto-provisioned, wildcard server block</td></tr>
+                    <tr><td>Content publishing (human-approved, compliance-first)</td><td><span class="badge badge-done">DONE</span></td><td>Human approval required, safety gates, rate limiting</td></tr>
+                    <tr><td>Mobile app (Flutter, iOS + Android)</td><td><span class="badge badge-accent">MVP</span></td><td>OAuth login, draft queue, approve/post workflow</td></tr>
+                </tbody>
+            </table>
+
+            <div class="highlight-box success" style="margin-top: 32px;">
+                <h4 style="color: var(--success); margin-bottom: 12px;">🚀 Active Pilots</h4>
+                <div class="grid-2" style="margin: 0; gap: 16px;">
+                    <div>
+                        <ul class="feature-list">
+                            <li><strong>XM Cyber</strong> — cybersecurity vertical, 6+ months active, 0 account bans, pipeline running daily</li>
+                            <li><strong>NeuroYoga (ATMO)</strong> — wellness vertical, full onboarding complete, content generating</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <ul class="feature-list">
+                            <li>Full pipeline operational in production</li>
+                            <li>Self-learning loop accumulating patterns</li>
+                            <li>Contributor network building credibility in background</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="highlight-box" style="margin-top: 24px;">
+                <h4 style="color: var(--text-primary); margin-bottom: 8px;">What We Need Now</h4>
+                <p style="color: var(--text-secondary); font-size: 1.05rem;">Pilot clients with budget — agencies or brands ready to pay for Reddit community engagement as a managed service. The platform is ready. We need paying customers to validate the model at scale.</p>
+            </div>
+
+            <div class="highlight-box" style="margin-top: 16px;">
+                <h4 style="color: var(--text-primary); margin-bottom: 8px;">⚡ Risk Mitigation — Platform Independence</h4>
+                <ul class="feature-list" style="margin: 0;">
+                    <li><strong>Multi-platform roadmap:</strong> Core AI pipeline (scoring, generation, learning) is platform-agnostic. Discord, Quora, and X support planned for H2 2026.</li>
+                    <li><strong>Compliance-first architecture:</strong> Human approval on all content, phase gates, rate limiting, contributor health monitoring — designed to work within platform rules, not against them.</li>
+                    <li><strong>Diversified contributor base:</strong> No single account represents more than 5% of any client's activity. Enforcement against one contributor doesn't disrupt operations.</li>
+                </ul>
+            </div>
+        </div>
+        <div class="slide-footer">
+            <span class="brand">RAMP</span>
+            <span>10 / 11</span>
+        </div>
+    </section>
+
+    <!-- SLIDE 11: Financial Projections -->
+    <section class="slide" id="slide-11">
+        <div class="slide-inner">
+            <h2>Financial Projections</h2>
+            <h3 style="font-size: 1.8rem; color: var(--text-primary); font-weight: 700; margin-bottom: 24px;">Two Scenarios. Both Profitable from Month 1.</h3>
+            <p class="subtitle">Conservative and aggressive — same infrastructure, same team, same codebase.</p>
+
+            <div class="grid-2" style="margin-bottom: 32px;">
+                <div class="card" style="text-align: center;">
+                    <h4 style="color: var(--text-muted); text-transform: uppercase; font-size: 0.8rem; letter-spacing: 1px;">Conservative</h4>
+                    <div class="stat-callout" style="font-size: 2.2rem;">$174K ARR</div>
+                    <p style="margin-top: 8px; color: var(--text-secondary);">5 partners by Month 12</p>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;">$12,500/mo platform revenue · 81% margin</p>
+                </div>
+                <div class="card" style="text-align: center; border-color: rgba(79, 70, 229, 0.3);">
+                    <h4 style="color: var(--accent-blue); text-transform: uppercase; font-size: 0.8rem; letter-spacing: 1px;">Aggressive</h4>
+                    <div class="stat-callout" style="font-size: 2.2rem;">$660K ARR</div>
+                    <p style="margin-top: 8px; color: var(--text-secondary);">10 partners by Month 12</p>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;">$40,000/mo platform revenue · 87% margin</p>
+                </div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr><th>Metric</th><th>Conservative</th><th>Aggressive</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Partners at Month 12</td><td>5</td><td><strong>10</strong></td></tr>
+                    <tr><td>Monthly platform revenue</td><td>$12,500/mo</td><td><strong>$40,000/mo</strong></td></tr>
+                    <tr><td>Run-rate ARR (Month 12)</td><td>$174,000</td><td><strong>$660,000</strong></td></tr>
+                    <tr><td>Year 1 actual collected</td><td>~$110,000</td><td><strong>~$387,000</strong></td></tr>
+                    <tr><td>Gross margin at Month 12</td><td>81%</td><td><strong>87%</strong></td></tr>
+                    <tr><td>Monthly profit at Month 12</td><td>$11,806</td><td><strong>$47,656</strong></td></tr>
+                </tbody>
+            </table>
+
+            <div class="highlight-box" style="margin-top: 24px;">
+                <h4 style="color: var(--text-primary); margin-bottom: 8px;">Path to $50K/month</h4>
+                <p style="color: var(--text-secondary);">15 partners × blended $3,333/partner = <strong style="color: var(--text-primary);">$50,000/mo</strong></p>
+                <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Same server. Same team. Same codebase. Margin improves with scale.</p>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <h4 style="margin-bottom: 12px; color: var(--text-primary);">Unit Economics Per Partner</h4>
+                <table>
+                    <thead><tr><th>Cost Item</th><th>Per Partner/Month</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        <tr><td>Infrastructure</td><td><strong style="color: var(--success);">Minimal</strong></td><td>Shared multi-tenant infrastructure</td></tr>
+                        <tr><td>LLM API (8 clients)</td><td><strong>~$280</strong></td><td>14% of Growth tier fee</td></tr>
+                        <tr><td>Support (amortized)</td><td><strong>~$200</strong></td><td>Decreases at scale</td></tr>
+                        <tr><td><strong>Total cost</strong></td><td><strong>~$530</strong></td><td></td></tr>
+                        <tr><td><strong>Revenue (Growth)</strong></td><td><strong>$1,999</strong></td><td></td></tr>
+                        <tr><td><strong>Gross profit</strong></td><td><strong style="color: var(--success);">$1,469 (73.5%)</strong></td><td></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <blockquote style="margin-top: 20px;">
+                "We're profitable from the first partner. Every additional partner adds $1,500+/month in gross profit with zero additional infrastructure. This is a software margin business, not a services business."
+            </blockquote>
+        </div>
+        <div class="slide-footer">
+            <span class="brand">RAMP</span>
+            <span>11 / 11</span>
+        </div>
+    </section>
+
+    <!-- SLIDE 12: Contact -->
+    <section class="slide" id="slide-12">
+        <div class="slide-inner" style="text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <div style="margin-bottom: 40px;">
+                <h1 style="font-size: 4rem; letter-spacing: 6px; margin-bottom: 8px;">RAMP</h1>
+                <p class="tagline">Reddit Avatar Management Platform</p>
+            </div>
+
+            <p style="font-size: 1.3rem; color: var(--text-secondary); margin-bottom: 40px; max-width: 600px;">
+                Community engagement management platform.<br>
+                Ready for pilot clients.
+            </p>
+
+            <div style="margin-bottom: 40px;">
+                <p style="font-size: 1.4rem; color: var(--accent-blue); font-weight: 700; margin-bottom: 8px;">
+                    <a href="https://gorampit.com" style="color: var(--accent-blue); text-decoration: none;">gorampit.com</a>
+                </p>
+            </div>
+
+            <div class="grid-2" style="max-width: 500px; gap: 40px; margin-bottom: 40px;">
+                <div>
+                    <p style="color: var(--text-primary); font-size: 1.1rem; font-weight: 600;">Tzvi Vaknin</p>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;">CEO, Business & Clients</p>
+                    <p style="margin-top: 4px;"><a href="https://www.linkedin.com/in/tzvi-vaknin/" style="color: var(--accent-blue); text-decoration: none; font-size: 0.85rem;">linkedin.com/in/tzvi-vaknin</a></p>
+                </div>
+                <div>
+                    <p style="color: var(--text-primary); font-size: 1.1rem; font-weight: 600;">Max Breger</p>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;">CTO, Product & Engineering</p>
+                    <p style="margin-top: 4px;"><a href="https://www.linkedin.com/in/breger/" style="color: var(--accent-blue); text-decoration: none; font-size: 0.85rem;">linkedin.com/in/breger</a></p>
+                </div>
+            </div>
+
+            <div class="confidential">
+                <p>Confidential — For Investor & Partner Discussion Only</p>
+            </div>
+        </div>
+        <div class="slide-footer">
+            <span class="brand">RAMP</span>
+            <span>11 / 11</span>
+        </div>
+    </section>
+
+    <script>
+        // Progress bar
+        window.addEventListener('scroll', () => {
+            const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
+            const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+            const scrolled = (winScroll / height) * 100;
+            document.getElementById('progressBar').style.width = scrolled + '%';
+        });
+
+        // Smooth scroll for keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            const slides = document.querySelectorAll('.slide');
+            const viewportCenter = window.scrollY + window.innerHeight / 2;
+            let currentIndex = 0;
+
+            slides.forEach((slide, i) => {
+                if (slide.offsetTop <= viewportCenter) {
+                    currentIndex = i;
+                }
+            });
+
+            if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') {
+                e.preventDefault();
+                const next = Math.min(currentIndex + 1, slides.length - 1);
+                slides[next].scrollIntoView({ behavior: 'smooth' });
+            } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+                e.preventDefault();
+                const prev = Math.max(currentIndex - 1, 0);
+                slides[prev].scrollIntoView({ behavior: 'smooth' });
+            }
+        });
+    </script>
+</body>
+</html>
