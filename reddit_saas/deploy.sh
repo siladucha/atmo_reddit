@@ -125,6 +125,7 @@ deploy_app() {
     restart_app_services
     sleep 5
     check_health
+    log "Version deployed: $(ssh "$SERVER" "cat ${APP_PATH}/VERSION")"
 }
 
 deploy_marketing() {

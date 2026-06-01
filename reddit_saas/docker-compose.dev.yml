@@ -6,6 +6,8 @@ services:
   app:
     volumes:
       - .:/app
+    ports:
+      - "8000:8000"
     command: >
       sh -c "
         until getent hosts db && getent hosts redis; do
