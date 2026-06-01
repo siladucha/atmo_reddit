@@ -1,6 +1,6 @@
 [project]
 name = "ramp"
-version = "0.1.0"
+version = "0.2.0"
 description = "RAMP — Reddit Audience Management Platform"
 requires-python = ">=3.11"
 dependencies = [
@@ -15,6 +15,7 @@ dependencies = [
     "litellm>=1.40.0",
     "celery>=5.4.0",
     "redis>=5.0.0",
+    "cryptography>=42.0.0",
     "python-jose[cryptography]>=3.3.0",
     "passlib[bcrypt]>=1.7.0",
     "bcrypt==4.0.1",
