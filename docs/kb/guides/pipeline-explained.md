@@ -1,7 +1,7 @@
 # Guide — Pipeline Explained
 
 > **Audience:** Everyone (non-technical explanation)  
-> **Last updated:** 2026-05-28
+> **Last updated:** 2026-05-29
 
 ---
 
@@ -125,7 +125,7 @@ Each stage has safety checks and can be paused independently.
 2. Opens Reddit in the avatar's browser profile
 3. Navigates to the thread
 4. Pastes the approved comment
-5. Confirms "Posted" in the platform
+5. Marks "Posted" in the platform and pastes the Reddit comment URL
 
 **Future method (automated proxy posting):**
 1. System picks up approved EPG slots at scheduled time
@@ -133,6 +133,26 @@ Each stage has safety checks and can be paused independently.
 3. Posts via Reddit API using avatar's proxy (residential IP)
 4. Logs PostingEvent (IP, timestamp, reddit_comment_url)
 5. Draft status → "posted"
+
+### After Posting — Karma Tracking
+
+Once a comment is posted and its `reddit_comment_url` is saved, the system automatically monitors it:
+
+| Check | Frequency | What It Does |
+|-------|-----------|--------------|
+| Karma score | Every 4h | Fetches current upvote/downvote score |
+| Removal detection | Every 4h | Checks if comment body is `[removed]` or `[deleted]` |
+| Disappearance detection | Every 4h | If posted < 2 days ago and not found → likely removed |
+
+**Tracking window:** 7 days from posting date. After 7 days, the comment is no longer actively checked (karma stabilizes by then).
+
+**What happens on removal:**
+- `is_deleted` flag set to `true`
+- `deleted_detected_at` timestamp recorded
+- Removal counted toward avatar's removal rate analytics
+- If removal rate > 20% → warning in Avatar Intelligence panel
+
+> See [Daily Operations → Posting Tracking](./daily-operations.md#posting-tracking--how-it-works) for full details on the tracking mechanism.
 
 ---
 

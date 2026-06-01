@@ -1,7 +1,7 @@
 # Guide — Avatar Management
 
 > **Audience:** Owner, Partner, Avatar Manager  
-> **Last updated:** 2026-05-28
+> **Last updated:** 2026-05-29
 
 ---
 
@@ -296,3 +296,53 @@ Computed from:
 - Sudden karma drop → possible mass-downvote or mod action
 - CQS dropping → reduce posting frequency, improve quality
 - Multiple avatars frozen simultaneously → systemic issue, check IP/proxy
+
+---
+
+## Checking Posted Comments (Daily Verification)
+
+### Where to Find Posted Comment Links
+
+1. **Admin → Review page** — filter by status "posted", shows `reddit_comment_url` for each
+2. **Avatar detail → Performance tab** — removal rate analytics with per-subreddit breakdown
+3. **Database directly** — `comment_drafts` table, `status = 'posted'`, `reddit_comment_url` column
+
+### Daily Posting Verification Checklist
+
+```
+□ Open Activity Feed — look for "Karma tracking complete" event
+□ Check: any new deletions detected? (count in event metadata)
+□ Open Avatar detail → Performance → Removal Rate
+□ Spot-check 2-3 posted URLs manually (open in incognito, verify visible)
+□ If removal rate > 20% for any subreddit → investigate (voice mismatch? rule violation?)
+```
+
+### What the System Tracks Automatically
+
+| Metric | How | When |
+|--------|-----|------|
+| Karma score per comment | Fetches from Reddit API | Every 4h |
+| Comment removal | Checks body for `[removed]`/`[deleted]` | Every 4h |
+| Comment disappearance | Not found in avatar's last 100 comments | Every 4h |
+| Per-subreddit karma totals | Aggregated from individual comments | Every 4h |
+
+### What Requires Manual Verification
+
+| Check | Why Manual | How Often |
+|-------|-----------|-----------|
+| Comment actually visible to others | Shadowban may hide it | Weekly (incognito spot-check) |
+| Comment not auto-collapsed | Low karma or new account | Weekly |
+| Thread still active | Thread may be archived | Before posting |
+| Subreddit rules compliance | Rules change, AI may miss nuances | When removal detected |
+
+### Interpreting Karma Scores
+
+| Score | Meaning | Action |
+|-------|---------|--------|
+| 1 | Default (no votes) | Normal for niche subs |
+| 2-5 | Mild positive reception | Good — avatar fits the community |
+| 5+ | Strong engagement | Excellent — note what worked |
+| 0 | Neutral or 1 up + 1 down | Monitor — may indicate borderline content |
+| Negative | Downvoted | Investigate — voice mismatch or off-topic |
+
+> **Note:** In niche subreddits (< 50K members), scores of 1-2 are completely normal. High scores (10+) are rare and indicate exceptional content fit.

@@ -1,7 +1,7 @@
 # Guide — Daily Operations
 
 > **Audience:** Owner, Partner, Client Admin, Client Manager  
-> **Last updated:** 2026-05-28
+> **Last updated:** 2026-05-29
 
 ---
 
@@ -20,7 +20,7 @@ All times in Israel Time (Asia/Jerusalem):
 | 13:30 | Health check (second run) | Check for new alerts |
 | 14:00 | **Afternoon pipeline** (score + generate) | Review drafts after ~14:30 |
 | Every 60s | Scrape scheduling (queue_tick) | — |
-| Every 4h | Karma tracking | — |
+| Every 4h | Karma tracking (posted comments) | Check for removals in Activity Feed |
 
 ---
 
@@ -103,6 +103,64 @@ Every edit you make teaches the system:
 
 ---
 
+## Posting Tracking — How It Works
+
+### Where Posted Comment Links Live
+
+Every comment that gets posted on Reddit has its URL stored in the `comment_drafts` table:
+
+| Field | Purpose |
+|-------|---------|
+| `reddit_comment_url` | Full Reddit permalink to the posted comment |
+| `posted_at` | Timestamp when the comment was posted |
+| `reddit_score` | Current karma (upvotes minus downvotes) |
+| `is_deleted` | Whether the comment was removed/deleted |
+| `deleted_detected_at` | When removal was first detected |
+| `last_karma_check_at` | Last time the system checked this comment |
+
+### Automated Karma Tracking (Every 4 Hours)
+
+The `track_karma_all_avatars` Celery task runs every 4 hours and performs:
+
+1. **For each active avatar:** fetches last 100 comments from Reddit via PRAW
+2. **Matches** Reddit comments to our `comment_drafts` by text content (first 80 chars)
+3. **Updates karma:** stores current `reddit_score` for each matched comment
+4. **Detects removals:** if comment body is `[removed]` or `[deleted]` → marks `is_deleted = true`
+5. **Detects disappearances:** if a comment posted < 2 days ago isn't found in Reddit history → likely removed
+6. **Updates per-subreddit karma** breakdown for the avatar
+
+### Tracking Window & Rate Limits
+
+| Parameter | Value | Purpose |
+|-----------|-------|---------|
+| Check window | 7 days | Only checks comments posted in last 7 days |
+| Recheck interval | 4 hours minimum | Won't re-check same comment more often |
+| API delay | 2 seconds between avatars | Respects Reddit rate limits |
+| Comment fetch limit | 100 per avatar | Reddit API limit per request |
+
+### What Gets Logged
+
+After each tracking run, the system records:
+- `karma_tracking_batch_completed` audit entry (avatars processed, comments updated, deletions detected)
+- Activity event with full stats (visible in Dashboard → Activity Feed)
+
+### Current Data (Production)
+
+As of May 2026 (NeuroYoga pilot):
+- **9 posted comments** with Reddit URLs being tracked
+- **1 confirmed removal** (detected within 20 minutes of posting)
+- **2 comments without URLs** (posted before URL tracking was added)
+- Karma scores: range 1-2 (typical for niche subreddits)
+- Last karma check: May 21 (system checks every 4h when avatars are active)
+
+### How to Verify Tracking is Working
+
+1. **Dashboard → Activity Feed** — look for "Karma tracking complete" events
+2. **Avatar detail → Performance tab** — shows removal rate and karma per subreddit
+3. **Direct check:** any posted draft with `last_karma_check_at` within last 4h = tracking is running
+
+---
+
 ## Afternoon Check (5 min)
 
 **Time: ~15:00 (after afternoon pipeline)**
@@ -110,6 +168,7 @@ Every edit you make teaches the system:
 1. Review new drafts from 14:00 pipeline
 2. Check if morning-approved drafts were posted
 3. Any new health alerts?
+4. Spot-check karma tracking: any removals detected since morning?
 
 ---
 
