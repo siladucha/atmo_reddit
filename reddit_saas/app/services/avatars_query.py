@@ -469,5 +469,11 @@ def build_avatar_view(
         "cqs_stale": _is_cqs_stale(avatar.cqs_checked_at),
         # Profile completeness (7 voice/personality fields)
         "profile_pct": _profile_completeness_pct(avatar),
+        # Posting
+        "posting_mode": avatar.posting_mode or "disabled",
+        "last_posted_at": avatar.last_posted_at,
+        "consecutive_post_failures": avatar.consecutive_post_failures or 0,
+        "has_proxy": bool(avatar.proxy_url_encrypted),
+        "has_credentials": bool(avatar.reddit_password_encrypted or avatar.refresh_token_encrypted),
     })
     return out

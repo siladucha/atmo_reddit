@@ -314,6 +314,7 @@ def scrape_single_subreddit(self, subreddit_name: str, client_id: str) -> dict:
                 ups=post["ups"],
                 downs=post["downs"],
                 scraped_at=datetime.now(timezone.utc),
+                reddit_created_at=datetime.fromtimestamp(post["created_utc"], tz=timezone.utc) if post.get("created_utc") else None,
             )
             db.add(thread)
 

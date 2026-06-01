@@ -330,6 +330,7 @@ def _select_business_threads(
     high_kw = [k.lower() for k in keywords.get("high", [])]
     medium_kw = [k.lower() for k in keywords.get("medium", [])]
     low_kw = [k.lower() for k in keywords.get("low", [])]
+    competitor_kw = [k.lower() for k in keywords.get("competitor", [])]
 
     def _keyword_score(thread: RedditThread) -> float:
         text = f"{thread.post_title} {thread.post_body or ''}".lower()
@@ -343,6 +344,9 @@ def _select_business_threads(
         for kw in low_kw:
             if kw in text:
                 score += 1.0
+        for kw in competitor_kw:
+            if kw in text:
+                score += 2.5  # Competitor mentions are high-value engagement targets
         return score
 
     # Score and sort

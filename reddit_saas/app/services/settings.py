@@ -197,9 +197,9 @@ DEFAULTS: dict[str, dict] = {
         "group": "scraping",
     },
     "scrape_freshness_window_hours": {
-        "value": "12",
+        "value": "6",
         "secret": False,
-        "desc": "Freshness window in hours (1–168)",
+        "desc": "Freshness window in hours (1–168). Each subreddit is re-scraped after this many hours.",
         "group": "scraping",
     },
     "scrape_rate_limit_rpm": {
@@ -386,6 +386,19 @@ DEFAULTS: dict[str, dict] = {
         "secret": False,
         "desc": "Delay between individual CQS checks in a batch (seconds)",
         "group": "health_check",
+    },
+    # --- Automated Posting ---
+    "auto_posting_enabled": {
+        "value": "true",
+        "secret": False,
+        "desc": "Global kill switch for automated posting. Set to 'false' to halt all auto-posts immediately.",
+        "group": "posting",
+    },
+    "auto_posting_daily_cap": {
+        "value": "8",
+        "secret": False,
+        "desc": "Maximum automated posts per avatar per day (safety ceiling). Effective cap = min(phase_limit, this value).",
+        "group": "posting",
     },
 }
 

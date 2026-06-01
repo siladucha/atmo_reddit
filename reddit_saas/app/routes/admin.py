@@ -35,6 +35,8 @@ from app.services.metrics_collector import (
     gauge_color,
     get_metrics_collector,
 )
+from app.version import __version__ as app_version
+from app.config import get_settings as _get_settings
 
 router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="app/templates")
@@ -43,6 +45,9 @@ templates = Jinja2Templates(directory="app/templates")
 templates.env.cache = {}
 # Expose dry-run toggle to the admin nav (admin_base.html).
 templates.env.globals["dry_run_enabled"] = is_dry_run_enabled_global
+# Expose version and posting status to all admin templates.
+templates.env.globals["app_version"] = app_version
+templates.env.globals["posting_disabled"] = lambda: _get_settings().posting_disabled
 
 
 # ---------------------------------------------------------------------------
@@ -1388,6 +1393,7 @@ def admin_client_update(
     competitive_landscape: str = Form(""),
     brand_voice: str = Form(""),
     icp_profiles: str = Form(""),
+    autopilot_enabled: str = Form(""),
     current_user: User = Depends(require_superuser),
     _client_access: User = Depends(verify_client_access_from_path),
     db: Session = Depends(get_db),
@@ -1405,6 +1411,7 @@ def admin_client_update(
             competitive_landscape=competitive_landscape or None,
             brand_voice=brand_voice or None,
             icp_profiles=icp_profiles or None,
+            autopilot_enabled=autopilot_enabled == "true",
         )
     except ValueError as e:
         return HTMLResponse(str(e), status_code=404)
@@ -5280,28 +5287,26 @@ def admin_update_setting(
 
 
 # ---------------------------------------------------------------------------
-# Billing placeholder (6.11)
+# Billing & Cost Dashboard (6.11)
 # ---------------------------------------------------------------------------
 
 @router.get("/billing", response_class=HTMLResponse)
 def admin_billing(
     request: Request,
+    month: str | None = None,
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
-    ai_costs = admin_service.get_ai_cost_summary(db)
+    from app.services.billing_dashboard import get_billing_dashboard
 
-    from app.services.settings import get_setting
-    budget_str = get_setting(db, "monthly_budget_usd")
-    budget = float(budget_str) if budget_str else 100.0
+    data = get_billing_dashboard(db, month=month)
 
     return templates.TemplateResponse(
         name="admin_billing.html",
         context={
             "request": request,
             "active_nav": "billing",
-            "ai_costs": ai_costs,
-            "budget": budget,
+            **data,
         },
         request=request,
     )
@@ -5583,6 +5588,7 @@ def admin_scrape_queue_trigger(
                 ups=post["ups"],
                 downs=post["downs"],
                 scraped_at=datetime.now(timezone.utc),
+                reddit_created_at=datetime.fromtimestamp(post["created_utc"], tz=timezone.utc) if post.get("created_utc") else None,
             )
             db.add(thread)
         db.commit()
@@ -5663,6 +5669,7 @@ def admin_threads(
     from app.models.thread import RedditThread
     from app.models.thread_score import ThreadScore
     from app.models.ai_usage import AIUsageLog
+    from app.models.comment_draft import CommentDraft
     from app.services.scoring import get_client_threads_with_scores
     from sqlalchemy import func as sa_func
     from sqlalchemy.orm import selectinload
@@ -5743,6 +5750,11 @@ def admin_threads(
             key=lambda i: i["thread"].scraped_at or datetime.min,
             reverse=is_desc,
         )
+    elif sort == "posted":
+        threads_data.sort(
+            key=lambda i: i["thread"].reddit_created_at or i["thread"].created_at or datetime.min,
+            reverse=is_desc,
+        )
     elif sort == "author":
         threads_data.sort(
             key=lambda i: (i["thread"].author or "").lower(),
@@ -5756,6 +5768,123 @@ def admin_threads(
     start = (page - 1) * per_page
     end = start + per_page
     threads_page = threads_data[start:end]
+
+    # Batch-fetch avatar assignments for threads on this page:
+    # Priority: 1) EPG slot (avatar assigned by daily plan)
+    #           2) CommentDraft (draft already generated)
+    #           3) Best-fit by subreddit karma (fallback for engage threads)
+    page_thread_ids = [item["thread"].id for item in threads_page if item["thread"]]
+    avatar_map: dict = {}
+
+    if page_thread_ids:
+        from app.models.epg_slot import EPGSlot
+
+        # Step 1: EPG slots — the authoritative assignment from the daily plan
+        epg_assignments = (
+            db.query(EPGSlot.thread_id, Avatar.reddit_username)
+            .join(Avatar, Avatar.id == EPGSlot.avatar_id)
+            .filter(
+                EPGSlot.thread_id.in_(page_thread_ids),
+                EPGSlot.thread_id.isnot(None),
+            )
+            .order_by(EPGSlot.plan_date.desc())
+            .all()
+        )
+        for tid, username in epg_assignments:
+            if tid not in avatar_map:
+                avatar_map[tid] = username
+
+        # Step 2: CommentDraft — if a draft exists but no EPG slot
+        remaining_ids = [tid for tid in page_thread_ids if tid not in avatar_map]
+        if remaining_ids:
+            draft_assignments = (
+                db.query(CommentDraft.thread_id, Avatar.reddit_username)
+                .join(Avatar, Avatar.id == CommentDraft.avatar_id)
+                .filter(CommentDraft.thread_id.in_(remaining_ids))
+                .all()
+            )
+            for tid, username in draft_assignments:
+                if tid not in avatar_map:
+                    avatar_map[tid] = username
+
+    # Step 3: for engage threads still without assignment, show best-fit by subreddit karma
+    engage_subs_needed: dict[str, list] = {}
+    for item in threads_page:
+        t = item["thread"]
+        s = item.get("score")
+        if t and t.id not in avatar_map and s and s.tag == "engage":
+            sub = t.subreddit.lower() if t.subreddit else ""
+            if sub:
+                engage_subs_needed.setdefault(sub, []).append(t.id)
+
+    if engage_subs_needed:
+        from app.models.subreddit_karma import SubredditKarma
+        from sqlalchemy import func as _fn
+
+        client_ids_in_page = set()
+        for item in threads_page:
+            s = item.get("score")
+            if s and s.client_id:
+                client_ids_in_page.add(str(s.client_id))
+
+        relevant_avatars = (
+            db.query(Avatar)
+            .filter(
+                Avatar.active.is_(True),
+                Avatar.is_frozen.is_(False),
+                Avatar.warming_phase > 0,
+            )
+            .all()
+        )
+        relevant_avatars = [
+            a for a in relevant_avatars
+            if a.client_ids and any(cid in a.client_ids for cid in client_ids_in_page)
+        ]
+        relevant_avatar_ids = [a.id for a in relevant_avatars]
+        avatar_id_to_name = {a.id: a.reddit_username for a in relevant_avatars}
+
+        if relevant_avatar_ids:
+            karma_rows = (
+                db.query(SubredditKarma.avatar_id, SubredditKarma.subreddit_name, SubredditKarma.comment_karma)
+                .filter(
+                    SubredditKarma.avatar_id.in_(relevant_avatar_ids),
+                    _fn.lower(SubredditKarma.subreddit_name).in_(list(engage_subs_needed.keys())),
+                )
+                .all()
+            )
+
+            best_per_sub: dict[str, tuple] = {}
+            for av_id, sub_name, karma in karma_rows:
+                sub_lower = sub_name.lower()
+                if sub_lower not in best_per_sub or karma > best_per_sub[sub_lower][1]:
+                    best_per_sub[sub_lower] = (av_id, karma)
+
+            for sub, thread_ids in engage_subs_needed.items():
+                if sub in best_per_sub:
+                    av_id, _ = best_per_sub[sub]
+                    username = avatar_id_to_name.get(av_id)
+                    if username:
+                        for tid in thread_ids:
+                            if tid not in avatar_map:
+                                avatar_map[tid] = username
+
+            # Fallback: first available avatar for subs with no karma data
+            for sub, thread_ids in engage_subs_needed.items():
+                for tid in thread_ids:
+                    if tid not in avatar_map and relevant_avatars:
+                        avatar_map[tid] = relevant_avatars[0].reddit_username
+
+    # Enrich threads_page with avatar_username
+    for item in threads_page:
+        t = item["thread"]
+        item["avatar_username"] = avatar_map.get(t.id) if t else None
+
+    # Post-enrichment sort by avatar (if requested)
+    if sort == "avatar":
+        threads_page.sort(
+            key=lambda i: (i.get("avatar_username") or "zzz").lower(),
+            reverse=is_desc,
+        )
 
     clients_list = (
         db.query(Client)
@@ -5795,6 +5924,7 @@ def admin_threads(
             "order": order,
             "last_scoring_log": last_scoring_log,
             "ai_cost_24h": float(ai_cost_24h),
+            "now_utc": datetime.now(timezone.utc),
             "page": page,
             "total_pages": total_pages,
             "total": total,
@@ -5941,6 +6071,7 @@ def admin_review(
                 "content_type": content_type,
                 "subreddit_options": subreddit_options,
                 "avatar_options": avatar_options,
+                "now_utc": now,
                 "stats": {
                     "total_pending": total_pending,
                     "oldest_age_hours": oldest_age_hours,
@@ -6192,6 +6323,7 @@ def admin_review(
             "content_type": content_type,
             "subreddit_options": subreddit_options,
             "avatar_options": avatar_options,
+            "now_utc": now,
             "stats": {
                 "total_pending": total_pending,
                 "oldest_age_hours": oldest_age_hours,
@@ -6292,6 +6424,23 @@ async def admin_draft_save_edit_post(
     if not edited_text or not edited_text.strip():
         return HTMLResponse("<div class='text-amber-400 text-xs p-2'>Cannot save empty text</div>", status_code=422)
 
+    # Safety check: brand mention protection (Phase 1/2 avatars cannot mention brand)
+    from app.services.safety_blocks import check_safety_blocks
+    from app.models.client import Client as _Client
+
+    avatar = draft.avatar
+    client = db.query(_Client).filter(_Client.id == draft.client_id).first() if draft.client_id else None
+    if avatar and client:
+        original_edited = draft.edited_draft
+        draft.edited_draft = edited_text.strip()
+        block = check_safety_blocks(draft, avatar, client)
+        draft.edited_draft = original_edited  # restore before potential abort
+        if block:
+            return HTMLResponse(
+                f"<span class='text-red-400 text-xs'>⚠ {block['message']}</span>",
+                status_code=200,
+            )
+
     # Save edited_draft (preserve ai_draft unchanged)
     draft.edited_draft = edited_text.strip()
     db.commit()
@@ -6316,7 +6465,7 @@ async def admin_draft_save_edit_post(
 
     # Return success message (HTMX will swap this in)
     return HTMLResponse(
-        f'<div class="text-green-400 text-xs p-2">✓ Saved ({len(draft.edited_draft)} chars)</div>',
+        f'<span class="text-green-400 text-xs">✓ Saved ({len(draft.edited_draft)} chars)</span>',
         status_code=200,
     )
 
@@ -7575,3 +7724,132 @@ def admin_avatar_learned_patterns(
         "partials/avatar_learned_patterns.html",
         {"avatar": avatar, "patterns": patterns},
     )
+
+
+# ---------------------------------------------------------------------------
+# Posting Management
+# ---------------------------------------------------------------------------
+
+
+@router.post("/avatars/{avatar_id}/posting-mode", response_class=HTMLResponse)
+def admin_avatar_posting_mode(
+    request: Request,
+    avatar_id: uuid.UUID,
+    mode: str = Form(...),
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Toggle avatar posting mode between 'auto' and 'disabled'."""
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+
+    if mode not in ("auto", "disabled"):
+        raise HTTPException(status_code=400, detail="Mode must be 'auto' or 'disabled'")
+
+    old_mode = avatar.posting_mode
+    avatar.posting_mode = mode
+    db.commit()
+
+    audit_service.log_action(
+        db,
+        action="posting_mode_changed",
+        entity_type="avatar",
+        entity_id=avatar.id,
+        user_id=current_user.id,
+        details={"old_mode": old_mode, "new_mode": mode},
+    )
+
+    return RedirectResponse(url=f"/admin/avatars/{avatar_id}#posting-section", status_code=303)
+
+
+@router.post("/avatars/{avatar_id}/reset-posting-failures", response_class=HTMLResponse)
+def admin_avatar_reset_posting_failures(
+    request: Request,
+    avatar_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Reset consecutive posting failure counter and unfreeze if frozen by failures."""
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+
+    old_failures = avatar.consecutive_post_failures
+    avatar.consecutive_post_failures = 0
+
+    # Unfreeze if frozen due to consecutive failures
+    if avatar.is_frozen and avatar.freeze_reason == "consecutive_failures":
+        avatar.is_frozen = False
+        avatar.freeze_reason = None
+        avatar.frozen_at = None
+
+    db.commit()
+
+    audit_service.log_action(
+        db,
+        action="posting_failures_reset",
+        entity_type="avatar",
+        entity_id=avatar.id,
+        user_id=current_user.id,
+        details={"old_failures": old_failures, "unfrozen": old_failures >= 3},
+    )
+
+    return RedirectResponse(url=f"/admin/avatars/{avatar_id}#posting-section", status_code=303)
+
+
+@router.post("/avatars/{avatar_id}/posting-config", response_class=HTMLResponse)
+def admin_avatar_posting_config(
+    request: Request,
+    avatar_id: uuid.UUID,
+    reddit_password: str = Form(""),
+    proxy_url: str = Form(""),
+    user_agent: str = Form(""),
+    declared_timezone: str = Form("America/New_York"),
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Save posting configuration (credentials, proxy, user-agent, timezone)."""
+    from app.services.encryption import FieldEncryptor
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+
+    encryptor = FieldEncryptor()
+    changes = []
+
+    if reddit_password.strip():
+        avatar.reddit_password_encrypted = encryptor.encrypt(reddit_password.strip())
+        changes.append("reddit_password")
+
+    if proxy_url.strip():
+        # Validate format
+        from app.services.posting_safety import validate_proxy_url
+        valid, err = validate_proxy_url(proxy_url.strip())
+        if not valid:
+            raise HTTPException(status_code=400, detail=f"Invalid proxy URL: {err}")
+        avatar.proxy_url_encrypted = encryptor.encrypt(proxy_url.strip())
+        changes.append("proxy_url")
+
+    if user_agent.strip():
+        avatar.user_agent_string = user_agent.strip()
+        changes.append("user_agent")
+
+    if declared_timezone.strip():
+        avatar.declared_timezone = declared_timezone.strip()
+        changes.append("declared_timezone")
+
+    db.commit()
+
+    if changes:
+        audit_service.log_action(
+            db,
+            action="posting_config_updated",
+            entity_type="avatar",
+            entity_id=avatar.id,
+            user_id=current_user.id,
+            details={"fields_updated": changes},
+        )
+
+    return RedirectResponse(url=f"/admin/avatars/{avatar_id}#posting-section", status_code=303)

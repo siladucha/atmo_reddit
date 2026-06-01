@@ -54,6 +54,7 @@ _DOCS_CREDENTIALS = {
 PUBLIC_PREFIXES = (
     "/auth/",
     "/static/",
+    "/api/oauth/",
 )
 
 

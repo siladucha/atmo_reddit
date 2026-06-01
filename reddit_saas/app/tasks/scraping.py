@@ -105,6 +105,7 @@ def scrape_professional_subreddits(client_id: str):
                         downs=post["downs"],
                         is_locked=post.get("is_locked", False),
                         scraped_at=datetime.now(timezone.utc),
+                        reddit_created_at=datetime.fromtimestamp(post["created_utc"], tz=timezone.utc) if post.get("created_utc") else None,
                     )
                     db.add(thread)
                     existing_ids.add(post["reddit_native_id"])
@@ -396,6 +397,7 @@ def scrape_subreddit_shared(self, subreddit_id: str) -> dict:
                 downs=post["downs"],
                 is_locked=post.get("is_locked", False),
                 scraped_at=datetime.now(timezone.utc),
+                reddit_created_at=datetime.fromtimestamp(post["created_utc"], tz=timezone.utc) if post.get("created_utc") else None,
             )
             db.add(thread)
 
@@ -599,6 +601,7 @@ def scrape_repurpose_all_subreddits() -> dict:
                         downs=post["downs"],
                         is_locked=post.get("is_locked", False),
                         scraped_at=datetime.now(timezone.utc),
+                        reddit_created_at=datetime.fromtimestamp(post["created_utc"], tz=timezone.utc) if post.get("created_utc") else None,
                     )
                     db.add(thread)
                     existing_ids.add(post["reddit_native_id"])

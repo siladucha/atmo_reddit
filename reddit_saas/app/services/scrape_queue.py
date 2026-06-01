@@ -488,6 +488,7 @@ def scrape_subreddit_immediate(db: Session, subreddit_name: str, client_id: str)
                 ups=post["ups"],
                 downs=post["downs"],
                 scraped_at=datetime.now(timezone.utc),
+                reddit_created_at=datetime.fromtimestamp(post["created_utc"], tz=timezone.utc) if post.get("created_utc") else None,
             )
             db.add(thread)
         db.commit()

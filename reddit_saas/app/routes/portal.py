@@ -39,6 +39,10 @@ router = APIRouter(
     tags=["client-portal"],
 )
 templates = Jinja2Templates(directory="app/templates")
+from app.version import __version__ as app_version
+from app.config import get_settings as _get_settings
+templates.env.globals["app_version"] = app_version
+templates.env.globals["posting_disabled"] = lambda: _get_settings().posting_disabled
 
 
 # --- Helpers ---

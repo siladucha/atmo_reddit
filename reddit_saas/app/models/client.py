@@ -31,6 +31,9 @@ class Client(Base):
     plan_type: Mapped[str] = mapped_column(String(20), default="starter", server_default="starter")
     draft_approval_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
+    # Autopilot — auto-approve generated drafts without human review
+    autopilot_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+
     # Industry classification (for avatar-client matching)
     industry: Mapped[str | None] = mapped_column(String(100), nullable=True)
 

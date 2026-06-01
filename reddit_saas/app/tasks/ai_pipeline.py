@@ -4,6 +4,7 @@ import logging
 import uuid
 
 import redis
+import sqlalchemy as sa
 from sqlalchemy import func
 
 from app.tasks.worker import celery_app
@@ -250,9 +251,17 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
                 .subquery()
             )
 
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc)
+
             # Query threads via ThreadScore for this client with tag='engage'
             # NOTE: Image-only posts (empty post_body) are excluded — LLM cannot
             # see images and would generate nonsensical comments.
+            # Age filter: skip threads older than 7 days — replying to old threads
+            # looks suspicious and reduces engagement value.
+            from datetime import timedelta as _td
+            max_thread_age = now - _td(days=7)
+
             engage_threads = (
                 db.query(RedditThread)
                 .join(ThreadScore, ThreadScore.thread_id == RedditThread.id)
@@ -264,6 +273,17 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
                     RedditThread.post_body.isnot(None),
                     func.length(RedditThread.post_body) > 20,
                     ~RedditThread.id.in_(db.query(threads_with_drafts.c.thread_id)),
+                    # Thread age filter: prefer reddit_created_at, fallback to created_at
+                    sa.or_(
+                        sa.and_(
+                            RedditThread.reddit_created_at.isnot(None),
+                            RedditThread.reddit_created_at >= max_thread_age,
+                        ),
+                        sa.and_(
+                            RedditThread.reddit_created_at.is_(None),
+                            RedditThread.created_at >= max_thread_age,
+                        ),
+                    ),
                 )
                 .order_by(
                     ThreadScore.alert.desc(),
@@ -429,6 +449,22 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
                     # Step 7: Edit/clean comment
                     edit_comment(db, draft, thread, client)
 
+                    # Step 8: Autopilot auto-approve (if client has autopilot_enabled)
+                    if client.autopilot_enabled:
+                        draft.status = "approved"
+                        db.commit()
+                        # Sync EPG slot if linked
+                        try:
+                            from app.services.epg_executor import sync_slot_status
+                            sync_slot_status(db, draft.id, "approved")
+                            db.commit()
+                        except Exception:
+                            pass
+                        logger.info(
+                            "Draft AUTO-APPROVED (autopilot): avatar=%s thread=%s",
+                            avatar.reddit_username, thread.post_title[:40],
+                        )
+
                     # Add to previous comments for next iteration (update cache)
                     if str(avatar.id) in _avatar_prev_cache:
                         _avatar_prev_cache[str(avatar.id)].insert(0, draft.ai_draft)
@@ -438,6 +474,46 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
 
                 except Exception as e:
                     logger.error(f"Failed to generate comment for thread {thread.id}: {e}")
+                    # Log to activity events for admin visibility
+                    try:
+                        from app.models.activity_event import ActivityEvent
+                        event = ActivityEvent(
+                            event_type="generation_error",
+                            client_id=client.id,
+                            message=f"Generation failed for {avatar.reddit_username} on r/{thread.subreddit}: {str(e)[:200]}",
+                            event_metadata={
+                                "avatar_id": str(avatar.id),
+                                "avatar_username": avatar.reddit_username,
+                                "thread_id": str(thread.id),
+                                "thread_title": thread.post_title[:100] if thread.post_title else "",
+                                "subreddit": thread.subreddit,
+                                "error": str(e)[:500],
+                                "source": "auto_pipeline",
+                            },
+                        )
+                        db.add(event)
+                        db.commit()
+                    except Exception:
+                        db.rollback()
+                    # Log to audit table
+                    try:
+                        from app.services.audit import log_system_action
+                        log_system_action(
+                            db=db,
+                            action="generation_error",
+                            entity_type="comment_draft",
+                            entity_id=thread.id,
+                            client_id=client.id,
+                            details={
+                                "avatar_id": str(avatar.id),
+                                "avatar_username": avatar.reddit_username,
+                                "thread_id": str(thread.id),
+                                "subreddit": thread.subreddit,
+                                "error": str(e)[:500],
+                            },
+                        )
+                    except Exception:
+                        db.rollback()
                     continue
 
             logger.info(f"Generated {generated} comments for {client.client_name}")
@@ -623,6 +699,23 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
                         )
                         db.add(draft)
                         db.commit()
+
+                        # Autopilot: auto-approve hobby draft if client has autopilot_enabled
+                        if draft_client_id:
+                            try:
+                                from app.models.client import Client as ClientModel
+                                _client = db.query(ClientModel).filter(ClientModel.id == draft_client_id).first()
+                                if _client and _client.autopilot_enabled:
+                                    draft.status = "approved"
+                                    post.status = "approved"
+                                    db.commit()
+                                    logger.info(
+                                        "Hobby draft AUTO-APPROVED (autopilot): avatar=%s sub=r/%s",
+                                        avatar.reddit_username, post.subreddit,
+                                    )
+                            except Exception:
+                                pass
+
                     except Exception as draft_err:
                         logger.warning(f"Failed to create CommentDraft for hobby post {post.id}: {draft_err}")
                         db.rollback()
@@ -634,6 +727,24 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
 
                 except Exception as e:
                     logger.error(f"Failed hobby comment for post {post.id}: {e}")
+                    # Log to audit for admin visibility
+                    try:
+                        from app.services.audit import log_system_action
+                        log_system_action(
+                            db=db,
+                            action="generation_error",
+                            entity_type="hobby_comment",
+                            entity_id=post.id if hasattr(post, 'id') else None,
+                            details={
+                                "avatar_id": str(avatar.id),
+                                "avatar_username": avatar.reddit_username,
+                                "post_id": str(post.id) if hasattr(post, 'id') else None,
+                                "subreddit": post.subreddit if hasattr(post, 'subreddit') else None,
+                                "error": str(e)[:500],
+                            },
+                        )
+                    except Exception:
+                        db.rollback()
                     continue
 
             logger.info(f"Generated {generated} hobby comments for {avatar.reddit_username}")

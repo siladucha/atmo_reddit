@@ -496,7 +496,7 @@ def activate_client(
 # Keyword management
 # ---------------------------------------------------------------------------
 
-_VALID_PRIORITIES = {"HIGH", "MEDIUM", "LOW"}
+_VALID_PRIORITIES = {"HIGH", "MEDIUM", "LOW", "COMPETITOR"}
 
 
 def get_client_keywords(
@@ -520,7 +520,7 @@ def get_client_keywords(
         return []
 
     result: list[dict] = []
-    for priority in ("high", "medium", "low"):
+    for priority in ("high", "medium", "low", "competitor"):
         for name in client.keywords.get(priority, []):
             result.append({"name": name, "priority": priority.upper()})
     return result
@@ -582,7 +582,7 @@ def add_keyword(
 
     # Check for duplicate keyword (case-insensitive) across all priorities
     trimmed = name.strip()
-    for pkey in ("high", "medium", "low"):
+    for pkey in ("high", "medium", "low", "competitor"):
         for existing_kw in client.keywords.get(pkey, []):
             if existing_kw.strip().lower() == trimmed.lower():
                 raise ValueError(f"Keyword '{trimmed}' already exists (priority: {pkey.upper()})")

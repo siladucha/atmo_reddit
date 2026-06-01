@@ -3,6 +3,8 @@
 Prevents concurrent scraping of the same subreddit by multiple workers.
 Uses a Lua script for atomic release to ensure only the lock owner can
 release it.
+
+Also provides a generic DistributedLock for arbitrary keys (used by posting).
 """
 
 import logging
@@ -10,6 +12,8 @@ import socket
 import time
 
 import redis
+
+from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +25,57 @@ else
     return 0
 end
 """
+
+
+class DistributedLock:
+    """Generic distributed lock using Redis SETNX.
+
+    Used by posting tasks to prevent concurrent posting for the same avatar.
+
+    Usage:
+        lock = DistributedLock(key="posting_lock:avatar_id", ttl=300)
+        if lock.acquire():
+            try:
+                # do work
+            finally:
+                lock.release()
+    """
+
+    def __init__(self, key: str, ttl: int = 300) -> None:
+        self.key = key
+        self.ttl = ttl
+        self._value: str | None = None
+        self._redis: redis.Redis | None = None
+
+    def _get_redis(self) -> redis.Redis:
+        if self._redis is None:
+            settings = get_settings()
+            self._redis = redis.from_url(settings.redis_url, decode_responses=True)
+        return self._redis
+
+    def acquire(self) -> bool:
+        """Try to acquire the lock. Returns True if acquired."""
+        r = self._get_redis()
+        self._value = f"{socket.gethostname()}:{time.time()}"
+        acquired = r.set(self.key, self._value, nx=True, ex=self.ttl)
+        if acquired:
+            logger.debug("Lock acquired: %s (TTL=%ds)", self.key, self.ttl)
+            return True
+        logger.debug("Lock NOT acquired: %s (already held)", self.key)
+        return False
+
+    def release(self) -> None:
+        """Release the lock (only if we own it)."""
+        if not self._value:
+            return
+        r = self._get_redis()
+        script = r.register_script(_RELEASE_SCRIPT)
+        result = script(keys=[self.key], args=[self._value])
+        if result:
+            logger.debug("Lock released: %s", self.key)
+        else:
+            logger.warning("Lock release failed: %s (value mismatch)", self.key)
+        self._value = None
 
 
 class ScrapeDistributedLock:

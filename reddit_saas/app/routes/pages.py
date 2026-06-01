@@ -23,11 +23,16 @@ from app.services.auth import authenticate_user, create_user, create_access_toke
 from app.services.cookies import set_auth_cookie, delete_auth_cookie
 from app.services import audit as audit_service
 from app.services.access_control import can_approve_drafts
+from app.version import __version__ as app_version
+from app.config import get_settings as _get_settings
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+templates.env.globals["app_version"] = app_version
+templates.env.globals["posting_disabled"] = lambda: _get_settings().posting_disabled
+templates.env.globals["app_env"] = _get_settings().app_env
 
 ALLOWED_TABS = ("overview", "subreddits", "keywords", "avatars", "threads", "review", "reports")
 
@@ -149,17 +154,18 @@ def _tab_keywords(client_id: UUID, db: Session) -> dict:
     """Return keywords for the client grouped by priority."""
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client or not client.keywords:
-        return {"keywords": [], "keywords_by_priority": {"high": [], "medium": [], "low": []}}
+        return {"keywords": [], "keywords_by_priority": {"high": [], "medium": [], "low": [], "competitor": []}}
 
     keywords_by_priority = {
         "high": client.keywords.get("high", []),
         "medium": client.keywords.get("medium", []),
         "low": client.keywords.get("low", []),
+        "competitor": client.keywords.get("competitor", []),
     }
 
     # Flat list for total count
     keywords_flat = []
-    for priority in ("high", "medium", "low"):
+    for priority in ("high", "medium", "low", "competitor"):
         for name in client.keywords.get(priority, []):
             keywords_flat.append({"name": name, "priority": priority})
 
@@ -210,6 +216,8 @@ def _tab_avatars(client_id: UUID, db: Session, is_admin: bool) -> dict:
 
 def _tab_threads(client_id: UUID, db: Session, tag: str | None = None) -> dict:
     """Return recent threads for the client, optionally filtered by tag."""
+    from datetime import datetime, timezone
+
     query = db.query(RedditThread).filter(RedditThread.client_id == client_id)
 
     if tag and tag != "all":
@@ -221,16 +229,45 @@ def _tab_threads(client_id: UUID, db: Session, tag: str | None = None) -> dict:
         .all()
     )
 
-    thread_list = [
-        {
+    # Batch-fetch avatar assignments for "engage" threads (from CommentDraft)
+    thread_ids = [t.id for t in threads]
+    avatar_map: dict = {}
+    if thread_ids:
+        from app.models.avatar import Avatar
+        avatar_assignments = (
+            db.query(CommentDraft.thread_id, Avatar.reddit_username)
+            .join(Avatar, Avatar.id == CommentDraft.avatar_id)
+            .filter(
+                CommentDraft.thread_id.in_(thread_ids),
+                CommentDraft.client_id == client_id,
+            )
+            .all()
+        )
+        # Take first avatar per thread (most recent assignment)
+        for tid, username in avatar_assignments:
+            if tid not in avatar_map:
+                avatar_map[tid] = username
+
+    now = datetime.now(timezone.utc)
+    thread_list = []
+    for t in threads:
+        # Calculate age in days from Reddit post date (or fallback to created_at)
+        thread_date = t.reddit_created_at or t.created_at
+        age_days = None
+        if thread_date:
+            age_days = int((now - thread_date).total_seconds() / 86400)
+
+        thread_list.append({
             "title": t.post_title,
             "subreddit": t.subreddit,
             "tag": t.tag,
             "composite": t.composite,
             "url": t.url,
-        }
-        for t in threads
-    ]
+            "assigned_avatar": avatar_map.get(t.id),
+            "reddit_created_at": t.reddit_created_at.strftime("%b %d, %H:%M") if t.reddit_created_at else None,
+            "created_at": t.created_at.strftime("%Y-%m-%d %H:%M") if t.created_at else None,
+            "age_days": age_days,
+        })
 
     return {"threads": thread_list}
 
@@ -1123,23 +1160,54 @@ def set_comment_status(
 def edit_comment_text(comment_id: UUID, request: Request, edited_text: str = Form(...), db: Session = Depends(get_db)):
     current_user = _get_current_user(request, db)
     if not current_user:
-        raise HTTPException(status_code=403, detail="Authentication required")
+        return HTMLResponse(
+            '<span class="text-red-400 font-medium">✗ Not authenticated — please refresh the page</span>',
+            status_code=200,
+        )
     # Input validation: limit comment length
     if len(edited_text) > 2000:
         return HTMLResponse(
-            '<span class="text-red-600 font-medium">✗ Text too long (max 2000 chars)</span>',
-            status_code=400,
+            '<span class="text-red-400 font-medium">✗ Text too long (max 2000 chars)</span>',
+            status_code=200,
         )
     draft = db.query(CommentDraft).filter(CommentDraft.id == comment_id).first()
     if not draft:
-        raise HTTPException(status_code=404)
+        return HTMLResponse(
+            '<span class="text-red-400 font-medium">✗ Draft not found</span>',
+            status_code=200,
+        )
     if not current_user.is_superuser:
         if current_user.client_id != draft.client_id:
-            raise HTTPException(status_code=403)
+            return HTMLResponse(
+                '<span class="text-red-400 font-medium">✗ Access denied</span>',
+                status_code=200,
+            )
     # Check draft approval permission (role-based + client flag for client_viewer)
-    client = db.query(Client).filter(Client.id == draft.client_id).first()
-    if not client or not can_approve_drafts(current_user, client):
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    # Skip permission check for superusers or when draft has no client (hobby drafts)
+    client = None
+    if draft.client_id:
+        client = db.query(Client).filter(Client.id == draft.client_id).first()
+        if not current_user.is_superuser and (not client or not can_approve_drafts(current_user, client)):
+            return HTMLResponse(
+                '<span class="text-red-400 font-medium">✗ Insufficient permissions</span>',
+                status_code=200,
+            )
+
+    # Safety check: brand mention protection (Phase 1/2 avatars cannot mention brand)
+    from app.services.safety_blocks import check_safety_blocks
+    avatar = draft.avatar
+    if avatar and client:
+        # Temporarily set edited_draft to check the new text
+        original_edited = draft.edited_draft
+        draft.edited_draft = edited_text
+        block = check_safety_blocks(draft, avatar, client)
+        draft.edited_draft = original_edited  # restore before potential abort
+        if block:
+            return HTMLResponse(
+                f'<span class="text-red-400 font-medium">⚠ {block["message"]}</span>',
+                status_code=200,
+            )
+
     draft.edited_draft = edited_text
     db.commit()
     audit_service.log_action(
@@ -1151,7 +1219,7 @@ def edit_comment_text(comment_id: UUID, request: Request, edited_text: str = For
         client_id=draft.client_id,
         details={"avatar_username": draft.avatar.reddit_username if draft.avatar else None},
     )
-    return HTMLResponse('<span class="text-blue-600 font-medium">✓ Saved</span>')
+    return HTMLResponse('<span class="text-green-400 font-medium">✓ Saved</span>')
 
 
 @router.post("/review/{comment_id}/posted", response_class=HTMLResponse)
@@ -1546,53 +1614,25 @@ def avatar_create_submit(
 
 # --- Admin ---
 
-@router.get("/settings", response_class=HTMLResponse)
-def settings_page(request: Request, db: Session = Depends(get_db)):
-    from app.services.settings import get_all_settings, check_connections, init_defaults, seed_from_env
-    init_defaults(db)
-    seed_from_env(db)
-    settings = get_all_settings(db)
-    connections = check_connections(db)
-    return _render(request, "settings.html", {
-        "settings": settings,
-        "connections": connections,
-        "save_success": False,
-    }, db=db)
+@router.get("/settings")
+def settings_page_redirect():
+    """Legacy /settings → redirect to admin settings."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/admin/settings", status_code=301)
 
 
-@router.post("/settings", response_class=HTMLResponse)
-def settings_save(request: Request, db: Session = Depends(get_db)):
-    from app.services.settings import get_all_settings, set_setting, check_connections, DEFAULTS
-    import asyncio
-
-    # Get form data synchronously
-    # FastAPI form parsing needs async, but we're in sync route
-    # Use a workaround: read from the raw scope
-    pass
+@router.post("/settings")
+def settings_save_redirect():
+    """Legacy POST /settings → redirect to admin settings."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/admin/settings", status_code=301)
 
 
-# Use a separate async route for form handling
-from starlette.requests import Request as StarletteRequest
-
-
-@router.post("/settings-save", response_class=HTMLResponse)
-async def settings_save_async(request: StarletteRequest, db: Session = Depends(get_db)):
-    from app.services.settings import set_setting, get_all_settings, check_connections, DEFAULTS
-
-    form = await request.form()
-    for key in DEFAULTS:
-        value = form.get(key, "")
-        if isinstance(value, str) and value.strip():
-            set_setting(db, key, value.strip())
-        # Don't overwrite secrets with empty string (user left placeholder)
-
-    settings = get_all_settings(db)
-    connections = check_connections(db)
-    return _render(request, "settings.html", {
-        "settings": settings,
-        "connections": connections,
-        "save_success": True,
-    }, db=db)
+@router.post("/settings-save")
+def settings_save_async_redirect():
+    """Legacy POST /settings-save → redirect to admin settings."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/admin/settings", status_code=301)
 
 
 @router.get("/admin-page", response_class=HTMLResponse)

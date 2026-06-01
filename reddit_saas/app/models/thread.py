@@ -30,6 +30,8 @@ class RedditThread(Base):
 
     scraped_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Actual Reddit post creation time (from submission.created_utc)
+    reddit_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Thread liveness
     is_locked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)

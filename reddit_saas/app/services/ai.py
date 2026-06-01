@@ -105,7 +105,7 @@ def call_llm(
             raise
 
     duration_ms = int((time.time() - start) * 1000)
-    content = response.choices[0].message.content
+    content = response.choices[0].message.content or ""
 
     # Extract token usage
     usage = response.usage
@@ -168,16 +168,39 @@ def call_llm_json(
         response_format={"type": "json_object"},
     )
 
+    content = result["content"]
+
+    # Guard: LLM returned None or empty string (safety filter, rate limit, etc.)
+    if not content or not content.strip():
+        raise ValueError(
+            f"LLM returned empty response (model={result.get('model', 'unknown')}, "
+            f"input_tokens={result.get('input_tokens', '?')}, "
+            f"output_tokens={result.get('output_tokens', '?')})"
+        )
+
     try:
-        data = json.loads(result["content"])
+        data = json.loads(content)
     except json.JSONDecodeError:
         # Try to extract JSON from markdown code blocks
-        content = result["content"]
+        extracted = content
         if "```json" in content:
-            content = content.split("```json")[1].split("```")[0].strip()
+            extracted = content.split("```json")[1].split("```")[0].strip()
         elif "```" in content:
-            content = content.split("```")[1].split("```")[0].strip()
-        data = json.loads(content)
+            extracted = content.split("```")[1].split("```")[0].strip()
+
+        if not extracted or not extracted.strip():
+            raise ValueError(
+                f"LLM returned non-JSON response (model={result.get('model', 'unknown')}, "
+                f"content_preview={content[:200]!r})"
+            )
+
+        try:
+            data = json.loads(extracted)
+        except json.JSONDecodeError as inner_e:
+            raise ValueError(
+                f"LLM returned unparseable response (model={result.get('model', 'unknown')}, "
+                f"error={inner_e}, content_preview={content[:200]!r})"
+            ) from inner_e
 
     # Validate against schema if provided
     if schema is not None:

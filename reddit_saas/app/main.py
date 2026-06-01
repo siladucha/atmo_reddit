@@ -9,9 +9,10 @@ from fastapi.templating import Jinja2Templates
 from app.config import get_settings, get_config
 from app.logging_config import setup_logging
 from app.middleware.auth import AuthMiddleware
+from app.version import __version__
 from app.middleware.errors import ErrorMiddleware
 from app.middleware.security import SecurityHeadersMiddleware, RateLimitMiddleware
-from app.routes import admin, auth, dashboard, review, pipeline, avatars, avatar_analysis, avatar_pipeline, avatar_workflow, clients, pages, dry_run, export, decision_center, portal
+from app.routes import admin, auth, dashboard, review, pipeline, avatars, avatar_analysis, avatar_pipeline, avatar_workflow, clients, pages, dry_run, export, decision_center, portal, oauth
 from app.services.metrics_collector import (
     get_metrics_collector,
     install_metrics_logging_handler,
@@ -30,7 +31,7 @@ install_metrics_logging_handler(metrics_collector)
 
 app = FastAPI(
     title="RAMP",
-    version="0.1.0",
+    version=__version__,
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
@@ -113,6 +114,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 # API Routes
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(oauth.router, tags=["oauth"])  # prefix="/api/oauth" defined in router
 app.include_router(clients.router, prefix="/clients-api", tags=["clients-api"])
 app.include_router(avatars.router, prefix="/avatars-api", tags=["avatars-api"])
 app.include_router(avatar_analysis.router, tags=["avatar-analysis"])
@@ -138,7 +140,7 @@ def health_check():
     Returns 200 if all services are reachable, 503 otherwise.
     Used by load balancers and container orchestrators.
     """
-    checks = {"version": "0.1.0"}
+    checks = {"version": __version__, "env": app_env, "posting_disabled": settings.posting_disabled}
     all_ok = True
 
     # Check database
@@ -156,8 +158,7 @@ def health_check():
     # Check Redis
     try:
         import redis as redis_lib
-        from app.config import get_settings
-        r = redis_lib.from_url(get_settings().redis_url, socket_timeout=2)
+        r = redis_lib.from_url(settings.redis_url, socket_timeout=2)
         r.ping()
         checks["redis"] = "ok"
     except Exception as e:
@@ -175,7 +176,12 @@ def health_check():
 
 @app.on_event("startup")
 def on_startup():
-    logger.info("RAMP started — env=%s", app_env)
+    from app.version import __version__
+    logger.info("RAMP v%s started — env=%s", __version__, app_env)
+
+    # Log posting override status
+    if settings.posting_disabled:
+        logger.warning("⚠️  POSTING_DISABLED=true — automated posting blocked at env level")
 
     # Ensure all settings exist in DB and seed values from .env
     from app.database import SessionLocal

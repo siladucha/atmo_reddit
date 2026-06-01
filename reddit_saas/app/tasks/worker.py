@@ -20,6 +20,7 @@ celery_app = Celery(
         "app.tasks.presence",
         "app.tasks.profile_analytics",
         "app.tasks.strategy",
+        "app.tasks.posting",
     ],
 )
 
@@ -77,6 +78,10 @@ celery_app.conf.update(
         "repurpose-scrape-weekly": {
             "task": "scrape_repurpose_all_subreddits",
             "schedule": crontab(hour=3, minute=0, day_of_week="sunday"),  # Weekly, low-traffic time
+        },
+        "execute-pending-posts": {
+            "task": "execute_pending_posts",
+            "schedule": 300.0,  # Every 5 minutes — check for approved slots due for posting
         },
     },
     # Broker connection resilience

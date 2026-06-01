@@ -166,16 +166,26 @@ Upvotes: {hobby_post.post_ups or 0}"""
         db.add(draft)
 
         # Update slot
-        slot.status = "generated"
         slot.draft_id = draft.id
         slot.generated_at = datetime.now(timezone.utc)
+
+        # Autopilot: auto-approve if client has autopilot_enabled
+        if _should_auto_approve(db, slot.client_id):
+            slot.status = "approved"
+            draft.status = "approved"
+            logger.info(
+                "EPG hobby slot AUTO-APPROVED (autopilot): avatar=%s sub=r/%s slot=%s",
+                avatar.reddit_username, hobby_post.subreddit, slot.id,
+            )
+        else:
+            slot.status = "generated"
 
         db.commit()
         db.refresh(draft)
 
         logger.info(
-            "EPG hobby slot generated: avatar=%s sub=r/%s slot=%s",
-            avatar.reddit_username, hobby_post.subreddit, slot.id,
+            "EPG hobby slot generated: avatar=%s sub=r/%s slot=%s status=%s",
+            avatar.reddit_username, hobby_post.subreddit, slot.id, slot.status,
         )
         return draft
 
@@ -287,14 +297,25 @@ def _generate_professional_slot(db: Session, slot: EPGSlot, avatar: Avatar) -> C
         edit_comment(db, draft, thread, client)
 
         # Update slot
-        slot.status = "generated"
         slot.draft_id = draft.id
         slot.generated_at = datetime.now(timezone.utc)
+
+        # Autopilot: auto-approve if client has autopilot_enabled
+        if _should_auto_approve(db, slot.client_id):
+            slot.status = "approved"
+            draft.status = "approved"
+            logger.info(
+                "EPG pro slot AUTO-APPROVED (autopilot): avatar=%s sub=r/%s slot=%s",
+                avatar.reddit_username, thread.subreddit, slot.id,
+            )
+        else:
+            slot.status = "generated"
+
         db.commit()
 
         logger.info(
-            "EPG pro slot generated: avatar=%s sub=r/%s thread='%s' slot=%s",
-            avatar.reddit_username, thread.subreddit, thread.post_title[:40], slot.id,
+            "EPG pro slot generated: avatar=%s sub=r/%s thread='%s' slot=%s status=%s",
+            avatar.reddit_username, thread.subreddit, thread.post_title[:40], slot.id, slot.status,
         )
         return draft
 
@@ -393,3 +414,35 @@ def _skip_slot(db: Session, slot: EPGSlot, reason: str) -> None:
     slot.skip_reason = reason
     db.commit()
     logger.info(f"EPG slot {slot.id} skipped: {reason}")
+
+    # Log generation errors to audit for admin visibility
+    if "generation_error" in reason or "error" in reason.lower():
+        try:
+            from app.services.audit import log_system_action
+            log_system_action(
+                db=db,
+                action="generation_error",
+                entity_type="epg_slot",
+                entity_id=slot.id,
+                client_id=slot.client_id,
+                details={
+                    "slot_id": str(slot.id),
+                    "avatar_id": str(slot.avatar_id),
+                    "thread_id": str(slot.thread_id) if slot.thread_id else None,
+                    "reason": reason,
+                },
+            )
+        except Exception:
+            db.rollback()
+
+
+def _should_auto_approve(db: Session, client_id: uuid.UUID | None) -> bool:
+    """Check if client has autopilot_enabled — drafts auto-approve without human review."""
+    if not client_id:
+        return False
+    try:
+        from app.models.client import Client
+        client = db.query(Client).filter(Client.id == client_id).first()
+        return bool(client and client.autopilot_enabled)
+    except Exception:
+        return False

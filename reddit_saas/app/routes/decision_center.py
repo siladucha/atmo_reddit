@@ -37,6 +37,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin/decision-center")
 templates = Jinja2Templates(directory="app/templates")
 templates.env.cache = {}
+from app.version import __version__ as app_version
+from app.config import get_settings as _get_settings
+templates.env.globals["app_version"] = app_version
+templates.env.globals["posting_disabled"] = lambda: _get_settings().posting_disabled
 
 
 @router.get("")

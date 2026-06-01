@@ -31,6 +31,10 @@ from app.services.transparency import record_activity_event
 router = APIRouter(prefix="/admin/dry-run")
 templates = Jinja2Templates(directory="app/templates")
 templates.env.globals["dry_run_enabled"] = dry_run_service.is_dry_run_enabled_global
+from app.version import __version__ as app_version
+from app.config import get_settings as _get_settings
+templates.env.globals["app_version"] = app_version
+templates.env.globals["posting_disabled"] = lambda: _get_settings().posting_disabled
 
 
 def _require_dry_run_on(db: Session) -> None:
