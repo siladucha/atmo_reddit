@@ -8,11 +8,13 @@ Implement the automated proxy posting system that takes human-approved EPG comme
 
 - [ ] 1. Database models and migrations
   - [ ] 1.1 Create RedditApp model and migration
-    - Create `app/models/reddit_app.py` with fields: id, client_id, client_secret_encrypted, app_name, registered_under_username, redirect_uri, is_active, created_at
-    - Add unique constraint on client_id
+    - Create `app/models/reddit_app.py` with fields: id, client_id (FK to clients, nullable), client_id_reddit (Reddit's OAuth client_id, unique), client_secret_encrypted, app_name, registered_under_username, redirect_uri, is_active, health_status, last_health_check_at, created_at
+    - Add unique constraint on client_id_reddit
+    - Add FK to clients.id for client_id (nullable — NULL = shared pool)
+    - health_status: healthy | suspect | revoked | unknown (default: unknown)
     - Register model in `app/models/__init__.py`
     - Create Alembic migration for `reddit_apps` table
-    - _Requirements: 1.1, 1.2_
+    - _Requirements: 1.1, 1.2, 1.3, 13.9_
 
   - [ ] 1.2 Create PostingEvent model and migration
     - Create `app/models/posting_event.py` with fields: id, avatar_id, draft_id, epg_slot_id, posted_at, ip_used, proxy_url_hash, user_agent_used, reddit_comment_id, reddit_comment_url, response_status, response_body_excerpt, error_message, attempt_number, duration_ms, outcome
@@ -22,9 +24,9 @@ Implement the automated proxy posting system that takes human-approved EPG comme
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5_
 
   - [ ] 1.3 Extend Avatar model with proxy posting fields
-    - Add fields to `app/models/avatar.py`: proxy_url_encrypted, user_agent_string, declared_timezone, posting_mode, reddit_app_id, refresh_token_encrypted, last_posted_at, last_posted_ip, last_posted_user_agent, consecutive_post_failures
+    - Add fields to `app/models/avatar.py`: proxy_url_encrypted, user_agent_string, declared_timezone, posting_mode, reddit_app_id, refresh_token_encrypted, reddit_password_encrypted, last_posted_at, last_posted_ip, consecutive_post_failures
     - Add ForeignKey to reddit_apps.id for reddit_app_id
-    - Default posting_mode to "manual", declared_timezone to "America/New_York"
+    - Default posting_mode to "disabled", declared_timezone to "America/New_York"
     - Create Alembic migration for avatar table alterations
     - _Requirements: 2.1, 2.2, 6.3, 7.1_
 
@@ -47,9 +49,10 @@ Implement the automated proxy posting system that takes human-approved EPG comme
   - [ ] 4.1 Implement posting safety gates
     - Create `app/services/posting_safety.py` with `check_posting_safety()` function
     - Implement SafetyResult dataclass (allowed: bool, reason: str)
-    - Check order: global kill switch → posting_mode → is_frozen → health_status → phase policy → daily limit → proxy configured → user-agent configured → IP consistency → user-agent consistency
-    - Query SystemSetting for `auto_posting_enabled`
-    - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 6.1, 6.2, 6.3, 6.4_
+    - Check order: global kill switch → posting_mode → is_frozen → health_status → phase policy (0 excluded, 1 hobby-only, 2 no brand, 3 with ratio) → daily cap (min(phase_limit, auto_posting_daily_cap)) → proxy configured → user-agent configured → IP subnet consistency (/24)
+    - Implement `is_same_subnet(ip1, ip2, prefix_length=24)` utility for IP comparison
+    - Query SystemSetting for `auto_posting_enabled` and `auto_posting_daily_cap`
+    - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 6.1, 6.2, 6.3, 6.4_
 
   - [ ]* 4.2 Write property test for kill switch and mode enforcement
     - **Property 8: Kill Switch and Mode Enforcement**
@@ -59,8 +62,8 @@ Implement the automated proxy posting system that takes human-approved EPG comme
     - **Property 9: Safety Gates Refuse Unhealthy Avatars**
     - **Validates: Requirements 5.6, 5.7**
 
-  - [ ]* 4.4 Write property test for IP consistency enforcement
-    - **Property 10: IP Consistency Enforcement**
+  - [ ]* 4.4 Write property test for IP subnet consistency enforcement
+    - **Property 10: IP Subnet Consistency Enforcement**
     - **Validates: Requirements 5.1, 5.2**
 
   - [ ] 4.5 Implement proxy URL validation
@@ -82,11 +85,12 @@ Implement the automated proxy posting system that takes human-approved EPG comme
     - Create `app/services/timing_engine.py`
     - Implement `calculate_jittered_time()` with ±30% jitter using `secrets.randbelow()`
     - Implement `get_next_valid_posting_time()` with min 45 min / max 90 min interval enforcement
+    - Implement `get_effective_daily_cap()` — returns `min(phase_daily_limit, auto_posting_daily_cap)` using PHASE_DAILY_LIMITS dict and avatar's warming_phase (CQS "lowest" → 1 for Phase 1)
     - Implement active hours clamping (08:00–23:00 in avatar timezone)
-    - Implement daily post cap (max 8 per day)
     - Implement peak hour bias (12:00–14:00, 18:00–22:00 at 2x weight)
+    - Add `auto_posting_daily_cap` system setting (default: 8, group: posting)
     - Use `zoneinfo.ZoneInfo` for timezone conversions
-    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 7.2, 7.3, 7.4, 7.5_
+    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 7.2, 7.3, 7.4, 7.5_
 
   - [ ]* 5.2 Write property test for timing engine output invariants
     - **Property 6: Timing Engine Output Invariants**
@@ -191,26 +195,52 @@ Implement the automated proxy posting system that takes human-approved EPG comme
 - [ ] 10. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 11. Reddit app management and constraints
+- [ ] 11. Reddit app management, client isolation, and health monitoring
   - [ ] 11.1 Implement Reddit app admin CRUD
     - Add routes to `app/routes/admin.py` for listing, creating, editing Reddit apps
-    - Validate client_id and client_secret non-empty on creation
-    - Display avatar count per app in list view
+    - Validate client_id_reddit and client_secret non-empty on creation
+    - Display: app name, owning client (or "Shared Pool"), avatar count, health status, last health check
     - Encrypt client_secret before storage
-    - _Requirements: 1.2, 1.3, 1.6_
+    - Support assigning app to a client or to shared pool (client_id nullable)
+    - _Requirements: 1.2, 1.6, 1.8_
 
-  - [ ] 11.2 Implement max avatars per Reddit app constraint
-    - Add validation in avatar assignment logic: reject if app already has 3 active avatars
-    - Add validation in admin UI when assigning avatar to app
-    - _Requirements: 1.4, 1.5_
+  - [ ] 11.2 Implement client-scoped app assignment validation
+    - Create `app/services/app_assignment.py` with `validate_avatar_app_assignment()` function
+    - Rules: client avatar → only client's apps; farm avatar → only shared pool apps; app must be active and not revoked
+    - Add `get_available_apps_for_avatar()` helper
+    - Enforce validation in admin UI when assigning avatar to app
+    - Emit soft warning when app has 15+ avatars (client) or 50+ avatars (shared pool)
+    - _Requirements: 1.5, 1.7, 13.1, 13.2, 13.11_
 
-  - [ ]* 11.3 Write property test for max avatars per Reddit app
-    - **Property 16: Max Avatars Per Reddit App**
-    - **Validates: Requirements 1.5**
+  - [ ]* 11.3 Write property test for client-scoped app isolation
+    - **Property 16: Client-Scoped App Isolation**
+    - **Validates: Requirements 1.5, 13.2**
 
   - [ ]* 11.4 Write property test for proxy URL uniqueness among active avatars
     - **Property 3: Proxy URL Uniqueness Among Active Avatars**
     - **Validates: Requirements 2.5**
+
+  - [ ] 11.5 Implement App Health Check service and Celery task
+    - Create `app/services/app_health_check.py` with `check_app_health()` and `run_all_app_health_checks()`
+    - For each active app: pick one avatar with refresh_token, attempt GET /api/v1/me
+    - On success: mark app healthy, update last_health_check_at
+    - On 401/403: mark app revoked, freeze all avatars on that app with reason `app_revoked: {app_name}`, emit critical activity event
+    - On network error: mark as suspect (retry next cycle)
+    - Implement `detect_app_failure_pattern()` — if 2+ avatars on same app get auth errors within 1h, proactively mark app as suspect
+    - Create Celery task `check_reddit_app_health` (every 60 min)
+    - Register in Celery Beat schedule
+    - Log all results as activity events
+    - _Requirements: 13.4, 13.5, 13.6, 13.10_
+
+  - [ ]* 11.6 Write property test for app health check freezes on revocation
+    - **Property 18: App Health Check Freezes on Revocation**
+    - **Validates: Requirements 13.5**
+
+  - [ ] 11.7 Implement app revocation admin UI alerts
+    - Display prominent alert on client page when their app is revoked
+    - Show instructions: "Create new app, register, reconnect avatars via OAuth"
+    - Add "Reassign to new app" workflow in admin UI (triggers re-OAuth for each avatar)
+    - _Requirements: 13.7, 13.8_
 
 - [ ] 12. Admin UI for proxy posting management
   - [ ] 12.1 Implement avatar detail proxy section
@@ -236,7 +266,39 @@ Implement the automated proxy posting system that takes human-approved EPG comme
     - Add route in `app/routes/admin.py`
     - _Requirements: 10.7, 6.1, 6.5_
 
-- [ ] 13. Final checkpoint - Ensure all tests pass
+- [ ] 13. Client onboarding for automated posting
+  - [ ] 13.1 Implement posting readiness checker
+    - Create `app/services/posting_readiness.py` with `check_client_posting_readiness()` function
+    - Check all prerequisites: client active, app registered, avatars configured (proxy, user-agent, OAuth, app assignment), test post passed, global kill switch on
+    - Return structured result with per-prerequisite status and action items
+    - _Requirements: 14.1, 14.2, 14.3_
+
+  - [ ] 13.2 Implement test post action
+    - Add `execute_test_post()` to posting service
+    - Picks oldest approved EPG_Slot or creates a synthetic test slot
+    - Executes full posting flow with diagnostics
+    - Does NOT count toward daily cap or statistics
+    - Returns detailed result (IP used, response, duration, success/failure reason)
+    - _Requirements: 14.4_
+
+  - [ ] 13.3 Implement posting_mode validation guard
+    - Block setting `posting_mode = 'auto'` unless all prerequisites (proxy, user-agent, OAuth, app) are met
+    - Return validation error listing missing fields
+    - Apply guard in admin UI avatar edit endpoint
+    - _Requirements: 14.6_
+
+  - [ ] 13.4 Implement posting readiness UI
+    - Add "Posting Readiness" checklist section to client detail page (green/red indicators per prerequisite)
+    - Add "Test Post" button per avatar on avatar detail page
+    - Add global `/admin/posting/onboarding` view showing all clients with readiness % and blocking issues
+    - _Requirements: 14.2, 14.3, 14.5, 14.8_
+
+  - [ ] 13.5 Implement farm-to-client reassignment workflow
+    - Guide operator through: reassign app → re-OAuth → verify proxy → test post → enable auto
+    - Add "Reassign to Client" action on farm avatar detail page
+    - _Requirements: 14.7_
+
+- [ ] 14. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes
@@ -263,8 +325,10 @@ Implement the automated proxy posting system that takes human-approved EPG comme
     { "id": 5, "tasks": ["7.2", "7.4"] },
     { "id": 6, "tasks": ["7.5", "7.6", "7.7", "8.1"] },
     { "id": 7, "tasks": ["8.2", "8.3", "9.1", "9.2", "9.3"] },
-    { "id": 8, "tasks": ["11.1", "11.2"] },
-    { "id": 9, "tasks": ["11.3", "11.4", "12.1", "12.2", "12.3"] }
+    { "id": 8, "tasks": ["11.1", "11.2", "11.5"] },
+    { "id": 9, "tasks": ["11.3", "11.4", "11.6", "11.7", "12.1", "12.2", "12.3"] },
+    { "id": 10, "tasks": ["13.1", "13.2", "13.3"] },
+    { "id": 11, "tasks": ["13.4", "13.5"] }
   ]
 }
 ```

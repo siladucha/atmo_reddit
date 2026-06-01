@@ -79,6 +79,18 @@ ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docke
 - **SQS migration deferred**: Celery + Redis works fine for current scale (50 avatars).
 - **Timezone**: All containers, PostgreSQL, Celery Beat, and logs use `Asia/Jerusalem` (IDT/IST). Set via `TZ` env var in docker-compose + `PGTZ` for PostgreSQL + `-c timezone=Asia/Jerusalem` in postgres command + Celery `timezone="Asia/Jerusalem"` config.
 
+### Versioning & Environment Controls (June 2026)
+- **VERSION file**: `reddit_saas/VERSION` — single source of truth (e.g. `0.2.0`)
+- **`app/version.py`**: reads VERSION file, exposes `__version__`
+- **Health endpoint**: `/health` returns `{"version": "0.2.0", "env": "...", "posting_disabled": true/false, ...}`
+- **UI footer**: version + env + posting status shown in both `base.html` and `admin_base.html` (sidebar) for all roles
+- **`POSTING_DISABLED` env var**: env-level kill switch for automated posting. Cannot be toggled from admin UI.
+  - Server `.env`: `POSTING_DISABLED=true` (posting blocked until business decision)
+  - Local `.env`: not set (defaults to `false`, posting works for local avatar testing)
+  - Checked as gate #0 in `posting_safety.py` — before all other checks
+- **`pyproject.toml` version**: kept in sync with VERSION file
+- **Bump workflow**: update `reddit_saas/VERSION` → pyproject.toml auto-reads it at build time
+
 ### Migration Status (Celery → SQS)
 - Migration spec exists (`.kiro/specs/sqs-valkey-migration/`) but NOT yet implemented
 - Current system runs on Celery + Redis (fully functional)
@@ -135,7 +147,9 @@ reddit_saas/
 │   │   ├── edit_record.py     # EditRecord (self-learning loop)
 │   │   ├── correction_pattern.py # CorrectionPattern (learned patterns)
 │   │   ├── health_status.py   # HealthStatus (shadowban detection)
-│   │   └── strategy_document.py # StrategyDocument
+│   │   ├── strategy_document.py # StrategyDocument
+│   │   ├── reddit_app.py      # RedditApp (OAuth/script app registry, client-scoped)
+│   │   └── posting_event.py   # PostingEvent (posting audit trail)
 │   ├── schemas/               # Pydantic validation schemas
 │   │   ├── avatar_analysis.py # BehavioralProfile, AvatarAnalysisRequest
 │   │   └── llm_outputs.py     # ScoringOutput, CommentOutput
@@ -205,13 +219,19 @@ reddit_saas/
 │   │   ├── text_sanitizer.py  # Text sanitization (Markdown/Unicode stripping)
 │   │   ├── thread_liveness.py # Thread locked/removed/archived detection
 │   │   ├── topology.py        # System topology (9 nodes, heatmap, forecast)
-│   │   └── transparency.py    # Activity events, pipeline stats
+│   │   ├── transparency.py    # Activity events, pipeline stats
+│   │   ├── encryption.py      # Fernet field encryption (proxy URLs, passwords, tokens)
+│   │   ├── posting_safety.py  # 9 pre-posting safety gates
+│   │   ├── timing_engine.py   # Jitter, active hours, daily cap, peak bias
+│   │   ├── praw_factory.py    # Dual-mode PRAW client (password + OAuth) with proxy
+│   │   └── posting.py         # Core posting orchestration (load → safety → post → audit)
 │   ├── tasks/                 # Celery background tasks
 │   │   ├── ai_pipeline.py     # AI scoring/generation (retry, kill switches)
 │   │   ├── health_check.py    # Avatar health checks
 │   │   ├── heartbeat.py       # Worker heartbeat
 │   │   ├── karma_tracking.py  # Karma tracking tasks
 │   │   ├── orchestrator.py    # Pipeline orchestration
+│   │   ├── posting.py         # Automated posting (execute_pending_posts + post_comment)
 │   │   ├── presence.py        # Avatar presence scanning
 │   │   ├── profile_analytics.py # Profile analytics tasks
 │   │   ├── queue_ticker.py    # Queue tick (scrape scheduling)
@@ -283,13 +303,25 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 
 ### Safety & Operations
 - Avatar freeze/unfreeze (is_frozen, freeze_reason, frozen_at)
-- Global kill switches (pipeline_enabled, generation_enabled, scrape_enabled)
+- Global kill switches (pipeline_enabled, generation_enabled, scrape_enabled, auto_posting_enabled)
 - Context isolation assertions (avatar-client ownership verified at runtime)
 - Shadowban detection (5-state health model, auto-freeze)
 - CQS (Contributor Quality Score) automated monitoring — periodic batch check via Celery Beat, auto-freeze on lowest (Phase 2+)
 - Text sanitizer (strips Markdown, Unicode, formatting artifacts)
 - Content safety checks (brand ratio, phase gates, promotional language)
 - Client deactivation cascade (is_active=false → assignments deactivated → avatars unassigned → all tasks skip)
+- **Automated posting safety gates** (9 checks): kill switch, posting_mode, frozen, health, phase 0 exclusion, daily cap, proxy configured, user-agent configured, /24 subnet consistency
+
+### Automated Posting (June 1, 2026)
+- **Core posting service** — full orchestration: load slot → safety gates → PRAW → post → audit
+- **Dual-mode auth** — password auth (MVP, working) + OAuth (upgrade path, pending Reddit approval)
+- **Timing engine** — ±30% jitter, min 45 min interval, active hours 08:00-23:00, peak hour bias
+- **Daily cap** — `min(phase_limit, auto_posting_daily_cap)` with configurable system setting (default 8)
+- **Celery integration** — Beat task every 5 min + per-slot task with retry (60×2^attempt)
+- **Audit trail** — PostingEvent model logs every attempt (IP, proxy hash, user-agent, response, duration)
+- **Field encryption** — Fernet AES-128-CBC for passwords, tokens, proxy URLs
+- **First verified post** — r/test comment `op2xfcp` via u/Hot-Thought2408 (June 1, 2026)
+- **OAuth callback** — endpoint deployed at `https://gorampit.com/api/oauth/reddit/callback`
 
 ### Avatar Intelligence
 - Avatar subreddit presence map (scan Reddit history, per-subreddit metrics)
@@ -309,8 +341,10 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - Subreddit freshness tracking with stale indicators
 
 ## What's NOT Built Yet
-- Production deployment (Docker Compose ready, not deployed to AWS)
-- **Automated Proxy Posting** — per-avatar residential IP, OAuth, timing jitter (spec ready, 7 days to implement)
+- ~~Production deployment~~ → **DONE** (gorampit.com, DigitalOcean, SSL)
+- **Automated Posting — Admin UI** — proxy config section, posting logs, global dashboard, kill switch toggle
+- **Automated Posting — Proxy integration** — need to buy residential proxies (ProxyJet)
+- **Automated Posting — OAuth mode** — pending Reddit approval for web app creation
 - Strategy Questions feedback loop — LLM generates questions_for_client in strategy; future: multiple-choice answers (A/B/C/D) + free text field, saved as client preferences, injected into next strategy generation. MVP: questions visible in strategy markdown only, no answer mechanism.
 - Subreddit rule extraction (PRAW sidebar/wiki → LLM parsing → compliance checks)
 - Comment outcome tracking (karma snapshots at 4h/24h/48h + removal detection)
@@ -381,20 +415,27 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 | 08:00, 14:00 | `run_full_pipeline_all_clients` | Score → Generate → Posts |
 | 10:00 | `run_hobby_pipeline_all_avatars` | Hobby scrape + generate |
 | every 4h | `track_karma_all_avatars` | Karma tracking |
+| every 5 min | `execute_pending_posts` | Automated posting (approved EPG slots) |
 
 ## Comment Draft Status Workflow
 `pending` → `approved` / `rejected` → `posted`
 
-## Posting Workflow (Automated via Proxy)
-1. Admin/manager approves draft → status = `approved`
-2. EPG assigns time slot with jitter (±30%, timezone-aware)
-3. Celery task picks up approved slot at scheduled time
-4. Safety gates: kill switch, frozen, health, phase, daily limit, IP consistency
-5. PRAW posts comment via avatar's proxy (residential IP) + OAuth token
-6. Audit: PostingEvent logged (IP, timestamp, reddit_comment_url, duration)
-7. Draft status → `posted`
+## Posting Workflow (Automated — Implemented June 1, 2026)
+1. Admin/manager approves draft → status = `approved`, EPG slot status = `approved`
+2. EPG assigns time slot with jitter (±30%, timezone-aware, peak hour bias)
+3. `execute_pending_posts` Celery Beat task (every 5 min) finds due slots
+4. Dispatches `post_comment` task per slot (Redis lock per avatar prevents concurrency)
+5. Safety gates (9 checks): kill switch, posting_mode, frozen, health, phase 0, daily cap, proxy, user-agent, /24 subnet
+6. PRAW posts comment via avatar's credentials (password auth MVP) + proxy (when configured)
+7. On success: draft.status=`posted`, slot.status=`posted`, avatar.last_posted_at updated
+8. Audit: PostingEvent logged (IP, proxy_url_hash, user_agent, reddit_comment_url, duration_ms)
+9. On auth error (401/403): avatar frozen, no retry
+10. On transient error: retry 3× with exponential backoff (60, 120, 240s)
+11. On 3 consecutive failures: avatar frozen with reason `consecutive_failures`
 
-**Legal protection:** Human approves all content at strategy/EPG level. System is a scheduling tool (same model as Buffer/Hootsuite). Human-in-the-loop on content decisions, automated on execution.
+**Auth modes:** Password auth (MVP, working) via `smi_parser_bot` script app. OAuth (upgrade path) pending Reddit approval.
+**Daily cap:** `min(phase_limit, auto_posting_daily_cap)` — Phase 1: 3, Phase 2: 7, Phase 3: min(18, cap). Default cap: 8.
+**Legal protection:** Human approves all content at strategy/EPG level. System is a scheduling tool (same model as Buffer/Hootsuite).
 
 ## Keywords Structure (JSONB in clients.keywords)
 ```json

@@ -28,21 +28,29 @@ The system integrates with existing infrastructure:
 
 ### 1. Reddit App Registry (`models/reddit_app.py`)
 
-Stores registered Reddit OAuth applications for diversification.
+Stores registered Reddit OAuth applications, scoped to a specific client or to the shared pool.
 
 ```python
 class RedditApp(Base):
     __tablename__ = "reddit_apps"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    client_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    client_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=True)  # NULL = shared pool
+    client_id_reddit: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)  # Reddit's OAuth client_id
     client_secret_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
     app_name: Mapped[str] = mapped_column(String(255), nullable=False)
     registered_under_username: Mapped[str] = mapped_column(String(255), nullable=False)
     redirect_uri: Mapped[str] = mapped_column(String(500), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    health_status: Mapped[str] = mapped_column(String(20), default="unknown", server_default="unknown")  # healthy | suspect | revoked | unknown
+    last_health_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 ```
+
+**Client scoping rules:**
+- `client_id IS NOT NULL` → app belongs to that client. Only that client's avatars may use it.
+- `client_id IS NULL` → shared pool app. Only farm/unassigned avatars may use it.
+- Constraint enforced at service layer (assignment validation) and documented in admin UI.
 
 ### 2. Avatar Model Extensions
 
@@ -58,11 +66,11 @@ declared_timezone: Mapped[str] = mapped_column(String(50), default="America/New_
 posting_mode: Mapped[str] = mapped_column(String(20), default="disabled")  # auto | disabled
 reddit_app_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("reddit_apps.id"), nullable=True)
 refresh_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+reddit_password_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)  # MVP: password auth
 
 # Posting state
 last_posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 last_posted_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
-last_posted_user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
 consecutive_post_failures: Mapped[int] = mapped_column(Integer, default=0)
 ```
 
@@ -139,7 +147,7 @@ def execute_post(db: Session, epg_slot_id: uuid.UUID) -> PostingEvent:
 
 ### 6. PRAW Client Factory (`services/praw_factory.py`)
 
-Constructs per-avatar authenticated PRAW clients with proxy routing.
+Constructs per-avatar authenticated PRAW clients with proxy routing. Supports both auth modes.
 
 ```python
 import praw
@@ -152,26 +160,46 @@ def create_avatar_reddit_client(
 ) -> praw.Reddit:
     """Create an authenticated PRAW client routed through the avatar's proxy.
 
+    Supports two auth modes:
+    - Password auth (MVP): uses avatar.reddit_username + avatar.reddit_password_encrypted
+    - OAuth auth (upgrade): uses avatar.refresh_token_encrypted
+
     Uses requestor_kwargs to inject a custom requests.Session with:
     - Proxy configuration (SOCKS5 or HTTP)
     - Custom User-Agent header
     - Connection timeouts (30s connect, 60s read)
     """
     proxy_url = encryptor.decrypt(avatar.proxy_url_encrypted)
-    refresh_token = encryptor.decrypt(avatar.refresh_token_encrypted)
     client_secret = encryptor.decrypt(reddit_app.client_secret_encrypted)
 
     session = requests.Session()
     session.proxies = {"https": proxy_url, "http": proxy_url}
     session.headers["User-Agent"] = avatar.user_agent_string
 
-    reddit = praw.Reddit(
-        client_id=reddit_app.client_id,
-        client_secret=client_secret,
-        refresh_token=refresh_token,
-        user_agent=avatar.user_agent_string,
-        requestor_kwargs={"session": session},
-    )
+    # OAuth mode (per-avatar refresh_token)
+    if avatar.refresh_token_encrypted:
+        refresh_token = encryptor.decrypt(avatar.refresh_token_encrypted)
+        reddit = praw.Reddit(
+            client_id=reddit_app.client_id_reddit,
+            client_secret=client_secret,
+            refresh_token=refresh_token,
+            user_agent=avatar.user_agent_string,
+            requestor_kwargs={"session": session},
+        )
+    # Password auth mode (MVP — uses existing script app)
+    elif avatar.reddit_password_encrypted:
+        password = encryptor.decrypt(avatar.reddit_password_encrypted)
+        reddit = praw.Reddit(
+            client_id=reddit_app.client_id_reddit,
+            client_secret=client_secret,
+            username=avatar.reddit_username,
+            password=password,
+            user_agent=avatar.user_agent_string,
+            requestor_kwargs={"session": session},
+        )
+    else:
+        raise PostingConfigError(f"Avatar {avatar.reddit_username} has no auth credentials (no refresh_token, no password)")
+
     return reddit
 ```
 
@@ -190,9 +218,31 @@ SLEEP_HOURS_START = 0    # 00:00 local
 SLEEP_HOURS_END = 7      # 07:00 local
 MIN_INTERVAL_MINUTES = 45
 MAX_INTERVAL_MINUTES = 90
-MAX_DAILY_POSTS = 8
 JITTER_FACTOR = 0.30
 PEAK_HOURS = [(12, 14), (18, 22)]
+
+# Phase-based daily limits (from PhasePolicy)
+PHASE_DAILY_LIMITS = {
+    0: 0,   # Mentor — excluded from pipeline
+    1: 3,   # Hobby only (CQS "lowest": 1)
+    2: 7,   # Hobby + professional
+    3: 18,  # Full brand integration
+}
+
+def get_effective_daily_cap(
+    avatar: Avatar,
+    auto_posting_daily_cap: int = 8,
+) -> int:
+    """Calculate effective daily posting cap for an avatar.
+
+    Returns min(phase_daily_limit, auto_posting_daily_cap).
+    The auto_posting_daily_cap is a system setting (default 8) that acts
+    as a safety ceiling regardless of phase.
+    """
+    phase_limit = PHASE_DAILY_LIMITS.get(avatar.warming_phase, 0)
+    if avatar.warming_phase == 1 and avatar.cqs_level == "lowest":
+        phase_limit = 1
+    return min(phase_limit, auto_posting_daily_cap)
 
 def calculate_jittered_time(
     scheduled_at: datetime,
@@ -213,7 +263,7 @@ def get_next_valid_posting_time(
 ) -> datetime | None:
     """Calculate next valid posting time respecting all constraints.
 
-    Returns None if daily limit reached or no valid window today.
+    Returns None if effective daily cap reached or no valid window today.
     """
 ```
 
@@ -239,12 +289,11 @@ def check_posting_safety(
     2. Avatar posting_mode == 'auto'
     3. Avatar not frozen
     4. Avatar health_status not in (shadowbanned, suspended)
-    5. Phase policy (hobby-only for phase 1)
-    6. Daily post count < max (default 8)
+    5. Phase policy (phase 0 excluded, phase 1 hobby-only, phase 2 no brand, phase 3 with ratio)
+    6. Daily post count < effective cap (min(phase_limit, auto_posting_daily_cap))
     7. Proxy URL configured and non-empty
     8. User-agent string configured and non-empty
-    9. IP consistency (resolved IP matches last_posted_ip)
-    10. User-agent consistency (matches last_posted_user_agent)
+    9. IP subnet consistency (resolved IP in same /24 as last_posted_ip)
     """
 ```
 
@@ -279,7 +328,7 @@ def post_comment(self, epg_slot_id: str):
 
 | Table | New Fields | Purpose |
 |-------|-----------|---------|
-| `avatars` | proxy_url_encrypted, user_agent_string, declared_timezone, posting_mode, reddit_app_id, refresh_token_encrypted, last_posted_at, last_posted_ip, last_posted_user_agent, consecutive_post_failures | Per-avatar posting config & state |
+| `avatars` | proxy_url_encrypted, user_agent_string, declared_timezone, posting_mode, reddit_app_id, refresh_token_encrypted, last_posted_at, last_posted_ip, consecutive_post_failures | Per-avatar posting config & state |
 | `epg_slots` | (no schema change — uses existing status lifecycle) | Status transitions: approved → posted |
 | `comment_drafts` | (no schema change — uses existing posted_at, reddit_comment_url) | Updated on successful post |
 
@@ -290,6 +339,7 @@ def post_comment(self, epg_slot_id: str):
 | `reddit_apps.client_secret_encrypted` | Text (base64 Fernet ciphertext) | Fernet AES-128-CBC |
 | `avatars.proxy_url_encrypted` | Text (base64 Fernet ciphertext) | Fernet AES-128-CBC |
 | `avatars.refresh_token_encrypted` | Text (base64 Fernet ciphertext) | Fernet AES-128-CBC |
+| `avatars.reddit_password_encrypted` | Text (base64 Fernet ciphertext) | Fernet AES-128-CBC |
 | `posting_events.proxy_url_hash` | String(64) — SHA-256 hex | One-way hash (correlation only) |
 
 Key: `FIELD_ENCRYPTION_KEY` in `.env`, generated via `cryptography.fernet.Fernet.generate_key()`.
@@ -362,7 +412,7 @@ post_comment (per-slot task, bind=True, max_retries=3)
   │
   ├─ Build PRAW client (proxy + OAuth)
   │
-  ├─ Resolve proxy IP → verify consistency
+  ├─ Resolve proxy IP → verify subnet consistency (/24)
   │
   ├─ Submit comment (submission.reply or comment.reply)
   │
@@ -398,9 +448,11 @@ DEFAULT_TTL = 300  # 5 minutes — enough for one post + retries
 
 ## Proxy IP Resolution
 
-To verify IP consistency, the system resolves the proxy's exit IP before posting:
+To verify IP subnet consistency, the system resolves the proxy's exit IP before posting:
 
 ```python
+import ipaddress
+
 def resolve_proxy_ip(proxy_url: str, timeout: int = 10) -> str | None:
     """Resolve the exit IP of a proxy by making a request to an IP echo service.
 
@@ -411,9 +463,19 @@ def resolve_proxy_ip(proxy_url: str, timeout: int = 10) -> str | None:
     session.proxies = {"https": proxy_url, "http": proxy_url}
     response = session.get("https://api.ipify.org", timeout=timeout)
     return response.text.strip()
+
+def is_same_subnet(ip1: str, ip2: str, prefix_length: int = 24) -> bool:
+    """Check if two IPs are in the same /24 subnet.
+
+    Allows normal residential proxy IP rotation within the same provider block.
+    Returns True if both IPs share the same /24 prefix.
+    """
+    net1 = ipaddress.ip_network(f"{ip1}/{prefix_length}", strict=False)
+    net2 = ipaddress.ip_network(f"{ip2}/{prefix_length}", strict=False)
+    return net1 == net2
 ```
 
-This is called before the first post (to establish `last_posted_ip`) and on subsequent posts to verify consistency.
+This is called before the first post (to establish `last_posted_ip`) and on subsequent posts to verify subnet consistency. The /24 subnet check allows for normal IP rotation within the same residential proxy provider while detecting suspicious changes (different ISP, different country).
 
 ---
 
@@ -469,6 +531,128 @@ Added to existing `/admin/avatars/{id}` page as a new tab/section:
 - Global kill switch toggle
 - Recent posting events table (last 50)
 - Per-avatar posting summary (posts today, last post time, status)
+
+---
+
+## Testing Strategy
+
+### OAuth Scaling Architecture
+
+The system uses per-avatar OAuth tokens with client-scoped Reddit apps for blast radius isolation:
+
+**Architecture:**
+```
+Client A (ATMO):
+  Reddit App "ATMO-1" (client_id_reddit=abc123)
+    ├─ Avatar 1: refresh_token_1 → 60 req/min (independent)
+    ├─ Avatar 2: refresh_token_2 → 60 req/min (independent)
+    └─ Avatar 3: refresh_token_3 → 60 req/min (independent)
+
+Client B (XM Cyber):
+  Reddit App "XMC-1" (client_id_reddit=def456)
+    ├─ Avatar 4: refresh_token_4 → 60 req/min (independent)
+    └─ Avatar 5: refresh_token_5 → 60 req/min (independent)
+
+Shared Pool (farm/warming):
+  Reddit App "Farm-1" (client_id=NULL)
+    ├─ Avatar 6: refresh_token_6 → 60 req/min
+    ├─ Avatar 7: refresh_token_7 → 60 req/min
+    └─ ... (up to 50+ avatars, soft warning at 15)
+```
+
+**Key principles:**
+- Each client gets 1+ dedicated Reddit apps → full blast radius isolation between clients
+- Each avatar has its own refresh_token → own 60 req/min rate limit (independent of app)
+- Farm/warming avatars use shared pool apps (no client assignment)
+- When farm avatar is rented to a client → reassign to client's app (re-OAuth required)
+- No hard limit on avatars per app (soft warning at 15 per client app, 50 per shared pool app)
+- If App "ATMO-1" is revoked → only ATMO's avatars affected, XM Cyber continues normally
+
+**Capacity at scale:**
+| Clients | Avatars/client | Farm | Total Apps | Total Capacity |
+|---------|---------------|------|-----------|---------------|
+| 3 | 5 | 20 | 3 client + 2 shared = 5 | 35 × 60 = 2,100 req/min |
+| 10 | 10 | 50 | 10 client + 3 shared = 13 | 150 × 60 = 9,000 req/min |
+| 50 | 10 | 100 | 50 client + 3 shared = 53 | 600 × 60 = 36,000 req/min |
+
+**Key insight:** Reddit rate limits are per-token, not per-app. Multiple apps exist solely for client isolation and blast radius control, not for capacity.
+
+---
+
+## App Health Check Service (`services/app_health_check.py`)
+
+Periodic verification that Reddit apps are still valid.
+
+```python
+from datetime import datetime, timedelta
+
+async def check_app_health(db: Session, reddit_app: RedditApp, encryptor: FieldEncryptor) -> str:
+    """Verify a Reddit app's credentials are still valid.
+
+    Makes a lightweight API call (GET /api/v1/me) using any avatar's token
+    that is assigned to this app. If no avatars have tokens, marks as 'unknown'.
+
+    Returns: 'healthy' | 'suspect' | 'revoked' | 'unknown'
+    """
+
+async def run_all_app_health_checks(db: Session) -> dict:
+    """Celery Beat task (every 60 min): check all active apps.
+
+    For each active app:
+    1. Pick one avatar with a valid refresh_token
+    2. Attempt GET /api/v1/me through that avatar's token
+    3. On success: mark app as 'healthy'
+    4. On 401/403: mark app as 'revoked', freeze all avatars on that app
+    5. On network error: mark as 'suspect' (will retry next cycle)
+
+    Returns summary: {checked: N, healthy: N, suspect: N, revoked: N}
+    """
+
+def detect_app_failure_pattern(db: Session, app_id: uuid.UUID, window_hours: int = 1) -> bool:
+    """Detect if 2+ avatars on the same app got auth errors within a time window.
+
+    Called from error handling in posting service. If pattern detected,
+    proactively marks app as 'suspect' without waiting for scheduled health check.
+    """
+```
+
+### Celery Beat Schedule Addition
+
+```python
+"check-reddit-app-health": {
+    "task": "check_reddit_app_health",
+    "schedule": 3600.0,  # Every 60 minutes
+},
+```
+
+---
+
+## Client-App Assignment Validation (`services/app_assignment.py`)
+
+```python
+def validate_avatar_app_assignment(
+    db: Session,
+    avatar: Avatar,
+    reddit_app: RedditApp,
+) -> tuple[bool, str]:
+    """Validate that an avatar can be assigned to a Reddit app.
+
+    Rules:
+    1. If avatar has client_ids → app must belong to one of those clients (or shared pool during transition)
+    2. If avatar is farm (no client) → app must be shared pool (client_id IS NULL)
+    3. App must be active and health_status != 'revoked'
+
+    Returns: (allowed: bool, reason: str)
+    """
+
+def get_available_apps_for_avatar(db: Session, avatar: Avatar) -> list[RedditApp]:
+    """Get list of Reddit apps this avatar is eligible to use.
+
+    For client avatars: returns apps belonging to their client
+    For farm avatars: returns shared pool apps
+    Excludes revoked and inactive apps.
+    """
+```
 
 ---
 
@@ -531,9 +715,9 @@ For any comment draft, the posting service SHALL use submission.reply() when loc
 
 ### Property 6: Timing Engine Output Invariants
 
-For any set of posting times generated by the timing engine for a single avatar: (a) all consecutive pairs are separated by at least 45 minutes and at most 90 minutes, (b) no time falls outside 08:00–23:00 in the avatar's declared timezone, and (c) no more than 8 posts are scheduled per day.
+For any set of posting times generated by the timing engine for a single avatar: (a) all consecutive pairs are separated by at least 45 minutes and at most 90 minutes, (b) no time falls outside 08:00–23:00 in the avatar's declared timezone, and (c) no more than `min(phase_daily_limit, auto_posting_daily_cap)` posts are scheduled per day.
 
-**Validates: Requirements 4.1, 4.2, 4.3, 4.4, 4.5, 4.6**
+**Validates: Requirements 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7**
 
 ### Property 7: Jitter Bounds
 
@@ -553,9 +737,9 @@ For any avatar that is frozen OR has health_status in ('shadowbanned', 'suspende
 
 **Validates: Requirements 5.6, 5.7**
 
-### Property 10: IP Consistency Enforcement
+### Property 10: IP Subnet Consistency Enforcement
 
-For any avatar where last_posted_ip is not null and the resolved proxy IP differs from last_posted_ip, the posting service SHALL freeze the avatar with a security alert and refuse to post.
+For any avatar where last_posted_ip is not null and the resolved proxy IP is in a different /24 subnet from last_posted_ip, the posting service SHALL freeze the avatar with a security alert and refuse to post. IPs within the same /24 subnet are considered consistent (normal residential proxy rotation).
 
 **Validates: Requirements 5.1, 5.2**
 
@@ -589,14 +773,20 @@ For any avatar that accumulates 3 consecutive posting failures within a 24-hour 
 
 **Validates: Requirements 8.5**
 
-### Property 16: Max Avatars Per Reddit App
+### Property 16: Client-Scoped App Isolation
 
-For any sequence of avatar-to-app assignments, the system SHALL reject assignments that would cause any single Reddit app to have more than 3 active avatars assigned.
+For any avatar assigned to client C, the avatar's reddit_app_id SHALL reference a RedditApp where reddit_app.client_id equals C (or reddit_app.client_id IS NULL only if the avatar is a farm avatar with no client assignment). An avatar of client A SHALL never be assigned to an app belonging to client B.
 
-**Validates: Requirements 1.5**
+**Validates: Requirements 1.5, 13.2**
 
 ### Property 17: No Posting During Sleep Hours
 
 For any generated posting time, the time SHALL never fall between 00:00–07:00 in the avatar's declared timezone.
 
 **Validates: Requirements 7.4**
+
+### Property 18: App Health Check Freezes on Revocation
+
+For any Reddit app that receives a 401/403 response during health check, ALL avatars assigned to that app SHALL be frozen with reason containing the app name, and the app's health_status SHALL be set to 'revoked'.
+
+**Validates: Requirements 13.5**
