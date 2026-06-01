@@ -26,6 +26,7 @@
                 <option value="HIGH">HIGH</option>
                 <option value="MEDIUM" selected>MEDIUM</option>
                 <option value="LOW">LOW</option>
+                <option value="COMPETITOR">COMPETITOR</option>
             </select>
         </div>
         <button type="submit"
@@ -52,6 +53,7 @@
                     <span class="px-2 py-0.5 rounded text-xs font-medium
                           {% if kw.priority == 'HIGH' %}bg-red-900/50 text-red-400 border border-red-700
                           {% elif kw.priority == 'MEDIUM' %}bg-amber-900/50 text-amber-400 border border-amber-700
+                          {% elif kw.priority == 'COMPETITOR' %}bg-purple-900/50 text-purple-400 border border-purple-700
                           {% else %}bg-emerald-900/50 text-emerald-400 border border-emerald-700{% endif %}">
                         {{ kw.priority }}
                     </span>
@@ -68,6 +70,7 @@
                                 <option value="HIGH" {% if kw.priority == 'HIGH' %}selected{% endif %}>HIGH</option>
                                 <option value="MEDIUM" {% if kw.priority == 'MEDIUM' %}selected{% endif %}>MEDIUM</option>
                                 <option value="LOW" {% if kw.priority == 'LOW' %}selected{% endif %}>LOW</option>
+                                <option value="COMPETITOR" {% if kw.priority == 'COMPETITOR' %}selected{% endif %}>COMPETITOR</option>
                             </select>
                             <button type="submit" class="text-indigo-400 hover:text-indigo-300 text-xs">Update</button>
                         </form>

@@ -183,6 +183,16 @@
                         <span title="Comments on post">💬{{ item.thread.comment_count or 0 }}</span>
                         {% if item.thread.author %}<span title="Post author" class="text-gray-500">by {{ item.thread.author }}</span>{% endif %}
                         {% endif %}
+                        {% if item.thread %}
+                        <span class="text-gray-500">│</span>
+                        {% set thread_date = item.thread.reddit_created_at or item.thread.created_at %}
+                        {% if thread_date %}
+                        {% set thread_age_hours = ((now_utc - thread_date).total_seconds() / 3600)|int %}
+                        <span class="{% if thread_age_hours > 168 %}text-red-400{% elif thread_age_hours > 48 %}text-amber-400{% else %}text-gray-400{% endif %}" title="Thread posted {{ thread_date.strftime('%b %d, %H:%M UTC') }}. Age: {{ thread_age_hours }}h. Red = >7 days (risky to reply).">
+                            📅 {% if thread_age_hours < 24 %}{{ thread_age_hours }}h ago{% elif thread_age_hours < 168 %}{{ (thread_age_hours / 24)|int }}d ago{% else %}{{ (thread_age_hours / 24)|int }}d ago ⚠{% endif %}
+                        </span>
+                        {% endif %}
+                        {% endif %}
                     </div>
                 </div>
                 <div class="flex items-center gap-2 shrink-0 ml-2">
@@ -446,4 +456,96 @@
         {% endfor %}
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Brand mention safety warning — detects brand names/domains in edit textarea
+// and warns if avatar is in Phase 1 or early Phase 2
+(function() {
+    // Build brand lookup from clients (injected server-side)
+    const brandData = {
+        {% for c in clients %}
+        "{{ c.id }}": {
+            name: "{{ c.brand_name|default('', true)|e }}",
+            domain: "{{ c.brand_domain|default('', true)|e }}"
+        },
+        {% endfor %}
+    };
+
+    // Avatar phase lookup from breakdown
+    const avatarPhases = {
+        {% for av in avatar_breakdown %}
+        "{{ av.avatar_id }}": {{ av.phase }},
+        {% endfor %}
+    };
+
+    function checkBrandMention(textarea) {
+        const text = textarea.value.toLowerCase();
+        const card = textarea.closest('[id^="comment-"]');
+        if (!card) return;
+
+        // Find existing warning or create one
+        let warning = card.querySelector('.brand-safety-warning');
+
+        // Check all brands
+        let detected = [];
+        for (const [clientId, brand] of Object.entries(brandData)) {
+            if (brand.name && text.includes(brand.name.toLowerCase())) {
+                detected.push(brand.name);
+            }
+            if (brand.domain && text.includes(brand.domain.toLowerCase())) {
+                detected.push(brand.domain);
+            }
+        }
+
+        if (detected.length > 0) {
+            // Get avatar phase from the card context
+            const avatarEl = card.querySelector('[title*="Avatar assigned"]');
+            let avatarUsername = '';
+            let phase = null;
+            if (avatarEl) {
+                const match = avatarEl.textContent.match(/u\/(\S+)/);
+                if (match) avatarUsername = match[1];
+            }
+            // Try to find phase from avatar breakdown
+            for (const [avId, p] of Object.entries(avatarPhases)) {
+                phase = p; // fallback: use any known phase
+            }
+
+            const uniqueDetected = [...new Set(detected)];
+            const msg = `⚠️ BRAND MENTION DETECTED: "${uniqueDetected.join('", "')}" — ` +
+                (phase === 1
+                    ? 'Phase 1 avatar: brand mentions are BLOCKED. This comment will be rejected by safety gates.'
+                    : phase === 2
+                    ? 'Phase 2 avatar: brand mentions are restricted. Ensure brand ratio stays below 10% in early phase.'
+                    : 'Verify brand mention is appropriate for this avatar\'s current phase.');
+
+            if (!warning) {
+                warning = document.createElement('div');
+                warning.className = 'brand-safety-warning px-3 py-2 bg-red-900/40 border-t border-red-700 text-xs text-red-300 font-medium';
+                textarea.closest('form').parentElement.appendChild(warning);
+            }
+            warning.textContent = msg;
+            warning.style.display = 'block';
+        } else if (warning) {
+            warning.style.display = 'none';
+        }
+    }
+
+    // Attach to all edit textareas (current and future via event delegation)
+    document.addEventListener('input', function(e) {
+        if (e.target.matches('textarea[name="edited_text"]')) {
+            checkBrandMention(e.target);
+        }
+    });
+
+    // Also check on focus (in case text was pre-filled)
+    document.addEventListener('focusin', function(e) {
+        if (e.target.matches('textarea[name="edited_text"]')) {
+            checkBrandMention(e.target);
+        }
+    });
+})();
+</script>
 {% endblock %}

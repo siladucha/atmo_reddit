@@ -142,8 +142,8 @@
             <!-- Edit drawer (hidden) -->
             <div data-edit-drawer class="hidden border-t border-slate-700 p-3 bg-slate-900/40">
                 <form hx-post="/review/{{ item.draft_id }}/edit"
-                      hx-target="closest [data-dc-card]"
-                      hx-swap="outerHTML"
+                      hx-target="find .dc-edit-status"
+                      hx-swap="innerHTML"
                       class="flex gap-2 items-end">
                     <textarea name="edited_text" rows="3"
                               class="flex-1 px-3 py-2 bg-slate-night border border-slate-600 text-gray-200 rounded text-sm resize-none focus:outline-none focus:border-indigo-500">{{ item.comment_text }}</textarea>
@@ -153,6 +153,7 @@
                                 class="text-gray-500 hover:text-white px-3 py-1.5 rounded text-xs">Cancel</button>
                     </div>
                 </form>
+                <span class="dc-edit-status text-xs mt-1 block"></span>
             </div>
         </div>
         {% endfor %}
@@ -261,13 +262,14 @@
             <!-- Edit drawer (hidden) -->
             <div data-edit-drawer class="hidden border-t border-slate-700 p-3 bg-slate-900/40">
                 <form hx-post="/review/{{ item.draft_id }}/edit"
-                      hx-target="closest [data-dc-card]"
-                      hx-swap="outerHTML"
+                      hx-target="find .dc-edit-status"
+                      hx-swap="innerHTML"
                       class="flex gap-2 items-end">
                     <textarea name="edited_text" rows="2"
                               class="flex-1 px-3 py-2 bg-slate-night border border-slate-600 text-gray-200 rounded text-sm resize-none focus:outline-none focus:border-indigo-500">{{ item.comment_text }}</textarea>
                     <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded text-xs">Save</button>
                 </form>
+                <span class="dc-edit-status text-xs mt-1 block"></span>
             </div>
         </div>
         {% endfor %}

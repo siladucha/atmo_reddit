@@ -1,37 +1,326 @@
 {% extends "admin_base.html" %}
-{% block title %}Billing{% endblock %}
+{% block title %}Billing & Costs — RAMP{% endblock %}
 {% block breadcrumbs %}
 <nav class="text-sm text-gray-400">
-    <span class="text-gray-500">Admin</span> / <span class="text-white">Billing</span>
+    <span class="text-gray-500">Admin</span> / <span class="text-white">Billing & Costs</span>
 </nav>
 {% endblock %}
 {% block content %}
-<div class="max-w-3xl mx-auto">
-    <h1 class="text-2xl font-semibold text-white mb-6">Billing</h1>
+<div class="space-y-6">
 
-    <!-- Current Usage -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
-        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
-            <div class="text-sm text-gray-400 mb-1">Current AI Cost</div>
-            <div class="text-3xl font-mono font-semibold text-white">${{ "%.2f"|format(ai_costs.total_cost) }}</div>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- Period Selector -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div class="flex items-center justify-between">
+        <h1 class="text-lg font-semibold text-white">{{ period_label }}</h1>
+        <form method="get" action="/admin/billing" class="flex items-center gap-2">
+            <select name="month" onchange="this.form.submit()"
+                    class="bg-slate-700 border border-slate-600 text-gray-200 text-sm rounded-lg px-3 py-1.5 focus:ring-indigo-500 focus:border-indigo-500">
+                {% for m in available_months %}
+                <option value="{{ m.value }}" {% if m.value == selected_month %}selected{% endif %}>{{ m.label }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- P&L Summary Row -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+            <div class="text-xs text-gray-400 uppercase tracking-wide">Revenue (est.)</div>
+            <div class="text-2xl font-mono font-semibold text-emerald-400 mt-1">${{ "%.0f"|format(pnl.revenue_monthly) }}</div>
+            <div class="text-xs text-gray-500 mt-1">{{ pnl.active_clients }} active client{{ 's' if pnl.active_clients != 1 }}</div>
         </div>
-        <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
-            <div class="text-sm text-gray-400 mb-1">Monthly Budget</div>
-            <div class="text-3xl font-mono font-semibold text-white">${{ "%.2f"|format(budget) }}</div>
+        <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+            <div class="text-xs text-gray-400 uppercase tracking-wide">AI Cost (projected)</div>
+            <div class="text-2xl font-mono font-semibold text-amber-400 mt-1">${{ "%.2f"|format(pnl.ai_cost_projected) }}</div>
+            <div class="text-xs text-gray-500 mt-1">{{ ai_summary.days_elapsed }}d elapsed this month</div>
+        </div>
+        <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+            <div class="text-xs text-gray-400 uppercase tracking-wide">Infra Cost</div>
+            <div class="text-2xl font-mono font-semibold text-blue-400 mt-1">${{ "%.1f"|format(pnl.infra_cost) }}</div>
+            <div class="text-xs text-gray-500 mt-1">DO + backups</div>
+        </div>
+        <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+            <div class="text-xs text-gray-400 uppercase tracking-wide">Profit (est.)</div>
+            <div class="text-2xl font-mono font-semibold {% if pnl.profit >= 0 %}text-emerald-400{% else %}text-red-400{% endif %} mt-1">
+                ${{ "%.0f"|format(pnl.profit) }}
+            </div>
+            <div class="text-xs text-gray-500 mt-1">{{ pnl.margin_pct }}% margin</div>
+        </div>
+        <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+            <div class="text-xs text-gray-400 uppercase tracking-wide">Budget Usage</div>
+            <div class="text-2xl font-mono font-semibold {% if budget_pct > 100 %}text-red-400{% elif budget_pct > 80 %}text-amber-400{% else %}text-emerald-400{% endif %} mt-1">
+                {{ "%.0f"|format(budget_pct) }}%
+            </div>
+            <div class="text-xs text-gray-500 mt-1">${{ "%.2f"|format(ai_summary.total_cost) }} / ${{ "%.0f"|format(budget) }}</div>
         </div>
     </div>
 
-    <!-- Coming Soon -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-8 text-center">
-        <div class="text-4xl mb-4">🚧</div>
-        <h2 class="text-xl font-semibold text-white mb-2">Coming Soon</h2>
-        <p class="text-gray-400 mb-6">
-            Billing management, subscription plans, and payment processing will be available in a future update.
-        </p>
-        <a href="/settings"
-           class="inline-block bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors">
-            Go to Settings
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- AI Cost Trend (14 days) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div class="bg-slate-800 rounded-lg p-5 border border-slate-700">
+        <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-4">AI Cost — Last 14 Days</h2>
+        <div class="flex items-end gap-1 h-32">
+            {% set max_cost = trend|map(attribute='cost')|max or 1 %}
+            {% for day in trend %}
+            <div class="flex-1 flex flex-col items-center gap-1 group relative">
+                <div class="w-full bg-indigo-500/80 rounded-t transition-all hover:bg-indigo-400"
+                     style="height: {{ (day.cost / max_cost * 100)|int }}%{% if day.cost == 0 %}; min-height: 2px{% endif %}">
+                </div>
+                <div class="text-[9px] text-gray-500 truncate">{{ day.date_str }}</div>
+                <!-- Tooltip -->
+                <div class="absolute bottom-full mb-2 hidden group-hover:block bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-gray-300 whitespace-nowrap z-10">
+                    ${{ "%.3f"|format(day.cost) }} · {{ day.calls }} calls
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- Two columns: Operations + Models -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Cost by Operation -->
+        <div class="bg-slate-800 rounded-lg p-5 border border-slate-700">
+            <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">Cost by Operation</h2>
+            <div class="space-y-2">
+                {% for op in operations %}
+                <div class="flex items-center gap-3">
+                    <div class="w-28 text-xs text-gray-400 truncate" title="{{ op.operation }}">{{ op.label }}</div>
+                    <div class="flex-1 bg-slate-700 rounded-full h-3 overflow-hidden">
+                        <div class="h-full bg-indigo-500 rounded-full" style="width: {{ op.pct|int }}%"></div>
+                    </div>
+                    <div class="text-xs text-gray-300 font-mono w-16 text-right">${{ "%.3f"|format(op.cost) }}</div>
+                    <div class="text-xs text-gray-500 w-10 text-right">{{ op.pct|int }}%</div>
+                </div>
+                {% endfor %}
+                {% if not operations %}
+                <div class="text-sm text-gray-500 text-center py-4">No AI calls this month</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Cost by Model -->
+        <div class="bg-slate-800 rounded-lg p-5 border border-slate-700">
+            <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">Cost by Model</h2>
+            <div class="space-y-2">
+                {% for m in models %}
+                <div class="flex items-center gap-3">
+                    <div class="w-36 text-xs text-gray-400 truncate" title="{{ m.model }}">{{ m.model.split('/')[-1] }}</div>
+                    <div class="flex-1 bg-slate-700 rounded-full h-3 overflow-hidden">
+                        <div class="h-full bg-emerald-500 rounded-full" style="width: {{ m.pct|int }}%"></div>
+                    </div>
+                    <div class="text-xs text-gray-300 font-mono w-16 text-right">${{ "%.3f"|format(m.cost) }}</div>
+                    <div class="text-xs text-gray-500 w-10 text-right">{{ m.pct|int }}%</div>
+                </div>
+                {% endfor %}
+                {% if not models %}
+                <div class="text-sm text-gray-500 text-center py-4">No AI calls this month</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- Client Cost & Usage Table -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div class="bg-slate-800 rounded-lg p-5 border border-slate-700">
+        <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">Client Cost & Usage (This Month)</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-xs text-gray-500 uppercase border-b border-slate-700">
+                        <th class="text-left py-2 px-2">Client</th>
+                        <th class="text-left py-2 px-2">Plan</th>
+                        <th class="text-right py-2 px-2">AI Cost</th>
+                        <th class="text-right py-2 px-2">Plan Price</th>
+                        <th class="text-right py-2 px-2">Margin</th>
+                        <th class="text-center py-2 px-2">Comments</th>
+                        <th class="text-center py-2 px-2">Avatars</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-700/50">
+                    {% for c in clients %}
+                    <tr class="{% if not c.is_active %}opacity-50{% endif %} hover:bg-slate-700/30">
+                        <td class="py-2 px-2">
+                            <span class="text-gray-200">{{ c.client_name }}</span>
+                            {% if not c.is_active %}<span class="text-xs text-gray-500 ml-1">⏸</span>{% endif %}
+                        </td>
+                        <td class="py-2 px-2">
+                            <span class="px-1.5 py-0.5 rounded text-xs
+                                {% if c.plan_type == 'scale' %}bg-violet-900/50 text-violet-300
+                                {% elif c.plan_type == 'growth' %}bg-blue-900/50 text-blue-300
+                                {% elif c.plan_type == 'starter' %}bg-slate-700 text-gray-300
+                                {% elif c.plan_type == 'seed' %}bg-slate-700 text-gray-400
+                                {% else %}bg-amber-900/50 text-amber-300{% endif %}">
+                                {{ c.plan_label }}
+                            </span>
+                        </td>
+                        <td class="py-2 px-2 text-right font-mono text-gray-300">${{ "%.2f"|format(c.ai_cost) }}</td>
+                        <td class="py-2 px-2 text-right font-mono text-gray-400">${{ c.plan_price }}</td>
+                        <td class="py-2 px-2 text-right">
+                            <span class="font-mono {% if c.margin_pct >= 80 %}text-emerald-400{% elif c.margin_pct >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">
+                                {{ c.margin_pct }}%
+                            </span>
+                        </td>
+                        <td class="py-2 px-2 text-center">
+                            <div class="flex items-center justify-center gap-1">
+                                <span class="text-gray-300">{{ c.comments_posted }}</span>
+                                <span class="text-gray-600">/</span>
+                                <span class="text-gray-500">{{ c.comments_limit }}</span>
+                            </div>
+                            <div class="w-full bg-slate-700 rounded-full h-1 mt-1">
+                                <div class="h-full rounded-full {% if c.comments_pct >= 90 %}bg-red-500{% elif c.comments_pct >= 70 %}bg-amber-500{% else %}bg-emerald-500{% endif %}"
+                                     style="width: {{ c.comments_pct }}%"></div>
+                            </div>
+                        </td>
+                        <td class="py-2 px-2 text-center">
+                            <div class="flex items-center justify-center gap-1">
+                                <span class="text-gray-300">{{ c.avatars_active }}</span>
+                                <span class="text-gray-600">/</span>
+                                <span class="text-gray-500">{{ c.avatars_limit }}</span>
+                            </div>
+                            <div class="w-full bg-slate-700 rounded-full h-1 mt-1">
+                                <div class="h-full rounded-full {% if c.avatars_pct >= 90 %}bg-red-500{% elif c.avatars_pct >= 70 %}bg-amber-500{% else %}bg-emerald-500{% endif %}"
+                                     style="width: {{ c.avatars_pct }}%"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not clients %}
+                    <tr><td colspan="7" class="text-center py-6 text-gray-500">No clients</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- Two columns: Posting Quotas + Infrastructure -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Posting Quotas (Today) -->
+        <div class="bg-slate-800 rounded-lg p-5 border border-slate-700">
+            <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">Posting — Today</h2>
+            <div class="grid grid-cols-3 gap-3 mb-4">
+                <div class="text-center">
+                    <div class="text-2xl font-mono font-semibold text-emerald-400">{{ posting.posts_today }}</div>
+                    <div class="text-xs text-gray-500">Posted</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-mono font-semibold text-red-400">{{ posting.failures_today }}</div>
+                    <div class="text-xs text-gray-500">Failed</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-mono font-semibold text-blue-400">{{ posting.posting_avatars }}</div>
+                    <div class="text-xs text-gray-500">Auto Avatars</div>
+                </div>
+            </div>
+
+            <!-- EPG Slots breakdown -->
+            <div class="text-xs text-gray-400 mb-2">EPG Slots Today ({{ posting.epg_slots.total }} total)</div>
+            <div class="flex gap-1 h-4 rounded overflow-hidden mb-3">
+                {% if posting.epg_slots.total > 0 %}
+                {% set total = posting.epg_slots.total %}
+                {% if posting.epg_slots.posted > 0 %}
+                <div class="bg-emerald-500" style="width: {{ posting.epg_slots.posted / total * 100 }}%" title="Posted: {{ posting.epg_slots.posted }}"></div>
+                {% endif %}
+                {% if posting.epg_slots.approved > 0 %}
+                <div class="bg-blue-500" style="width: {{ posting.epg_slots.approved / total * 100 }}%" title="Approved: {{ posting.epg_slots.approved }}"></div>
+                {% endif %}
+                {% if posting.epg_slots.generated > 0 %}
+                <div class="bg-amber-500" style="width: {{ posting.epg_slots.generated / total * 100 }}%" title="Generated: {{ posting.epg_slots.generated }}"></div>
+                {% endif %}
+                {% if posting.epg_slots.planned > 0 %}
+                <div class="bg-slate-600" style="width: {{ posting.epg_slots.planned / total * 100 }}%" title="Planned: {{ posting.epg_slots.planned }}"></div>
+                {% endif %}
+                {% if posting.epg_slots.skipped > 0 %}
+                <div class="bg-gray-600" style="width: {{ posting.epg_slots.skipped / total * 100 }}%" title="Skipped: {{ posting.epg_slots.skipped }}"></div>
+                {% endif %}
+                {% else %}
+                <div class="bg-slate-700 w-full"></div>
+                {% endif %}
+            </div>
+            <div class="flex flex-wrap gap-3 text-xs text-gray-500">
+                <span>🟢 Posted {{ posting.epg_slots.posted }}</span>
+                <span>🔵 Approved {{ posting.epg_slots.approved }}</span>
+                <span>🟡 Generated {{ posting.epg_slots.generated }}</span>
+                <span>⚫ Planned {{ posting.epg_slots.planned }}</span>
+                <span>⏭ Skipped {{ posting.epg_slots.skipped }}</span>
+            </div>
+
+            {% if posting.avatar_posts %}
+            <div class="mt-4 pt-3 border-t border-slate-700">
+                <div class="text-xs text-gray-400 mb-2">Posts by Avatar Today</div>
+                {% for ap in posting.avatar_posts %}
+                <div class="flex items-center justify-between text-xs py-1">
+                    <span class="text-gray-300">u/{{ ap.username }}</span>
+                    <span class="text-gray-400">Phase {{ ap.phase }} · <span class="text-emerald-400 font-mono">{{ ap.posts_today }}</span> posts</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Infrastructure Costs -->
+        <div class="bg-slate-800 rounded-lg p-5 border border-slate-700">
+            <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">Infrastructure — Monthly</h2>
+            <div class="space-y-2">
+                {% for item in infra.line_items %}
+                <div class="flex items-center justify-between text-sm py-1.5 border-b border-slate-700/50 last:border-0">
+                    <span class="text-gray-400">{{ item.label }}</span>
+                    <span class="font-mono {% if item.monthly_usd > 0 %}text-gray-200{% else %}text-gray-500{% endif %}">
+                        {% if item.monthly_usd > 0 %}${{ "%.1f"|format(item.monthly_usd) }}{% else %}$0 (included){% endif %}
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="mt-3 pt-3 border-t border-slate-600 flex items-center justify-between">
+                <span class="text-sm font-medium text-gray-300">Total Infrastructure</span>
+                <span class="text-lg font-mono font-semibold text-blue-400">${{ "%.1f"|format(infra.total_monthly) }}/mo</span>
+            </div>
+
+            <!-- Cost split visualization -->
+            <div class="mt-4 pt-3 border-t border-slate-700">
+                <div class="text-xs text-gray-400 mb-2">Total Cost Split</div>
+                {% set total_all = pnl.ai_cost_projected + pnl.infra_cost %}
+                {% if total_all > 0 %}
+                {% set ai_pct = (pnl.ai_cost_projected / total_all * 100)|int %}
+                {% set infra_pct = 100 - ai_pct %}
+                <div class="flex gap-0.5 h-5 rounded overflow-hidden">
+                    <div class="bg-amber-500 flex items-center justify-center text-[10px] text-white font-medium" style="width: {{ ai_pct }}%">
+                        {% if ai_pct > 15 %}AI {{ ai_pct }}%{% endif %}
+                    </div>
+                    <div class="bg-blue-500 flex items-center justify-center text-[10px] text-white font-medium" style="width: {{ infra_pct }}%">
+                        {% if infra_pct > 15 %}Infra {{ infra_pct }}%{% endif %}
+                    </div>
+                </div>
+                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>🟡 AI: ${{ "%.2f"|format(pnl.ai_cost_projected) }}/mo</span>
+                    <span>🔵 Infra: ${{ "%.1f"|format(pnl.infra_cost) }}/mo</span>
+                </div>
+                {% else %}
+                <div class="text-sm text-gray-500 text-center py-2">No cost data yet</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- Quick Links -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div class="flex flex-wrap gap-3 text-sm">
+        <a href="/admin/ai-costs" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-gray-300 rounded-lg transition-colors">
+            📊 Detailed AI Costs →
+        </a>
+        <a href="/admin/settings" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-gray-300 rounded-lg transition-colors">
+            ⚙️ System Settings →
         </a>
     </div>
+
 </div>
 {% endblock %}

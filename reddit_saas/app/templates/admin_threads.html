@@ -124,9 +124,10 @@
                     <th class="px-4 py-3">{{ sort_link('tag', 'Tag') }}</th>
                     <th class="px-4 py-3">{{ sort_link('title', 'Title') }}</th>
                     <th class="px-4 py-3">{{ sort_link('subreddit', 'Subreddit') }}</th>
+                    <th class="px-4 py-3">{{ sort_link('avatar', 'Avatar') }}</th>
                     <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Client</th>
                     <th class="px-4 py-3">{{ sort_link('ups', 'Score') }}</th>
-                    <th class="px-4 py-3">{{ sort_link('scraped', 'Scraped') }}</th>
+                    <th class="px-4 py-3">{{ sort_link('posted', 'Posted') }}</th>
                     <th class="px-4 py-3">{{ sort_link('author', 'Author') }}</th>
                     <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Open</th>
                 </tr>
@@ -157,11 +158,31 @@
                         {% endif %}
                     </td>
                     <td class="px-4 py-3 text-gray-400">r/{{ t.subreddit }}</td>
+                    <td class="px-4 py-3">
+                        {% if item.avatar_username %}
+                        <span class="px-1.5 py-0.5 rounded text-xs bg-indigo-900/50 text-indigo-300 border border-indigo-700/50" title="Best-fit avatar for this thread (by subreddit karma)">u/{{ item.avatar_username }}</span>
+                        {% elif s and s.tag == 'engage' %}
+                        <span class="text-gray-600 text-xs" title="No avatar with karma in this subreddit">?</span>
+                        {% else %}
+                        <span class="text-gray-700 text-xs">—</span>
+                        {% endif %}
+                    </td>
                     <td class="px-4 py-3 text-gray-400">
                         {% if s %}{{ client_map.get(s.client_id|string, '?') }}{% else %}—{% endif %}
                     </td>
                     <td class="px-4 py-3 text-gray-400 font-mono text-xs">↑{{ t.ups }}</td>
-                    <td class="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{{ t.scraped_at.strftime('%b %d, %H:%M') if t.scraped_at else '—' }}</td>
+                    <td class="px-4 py-3 text-xs whitespace-nowrap">
+                        {% set thread_date = t.reddit_created_at or t.created_at %}
+                        {% if thread_date %}
+                        {% set age_hours = ((now_utc - thread_date).total_seconds() / 3600)|int %}
+                        <span class="{% if age_hours > 168 %}text-red-400{% elif age_hours > 48 %}text-amber-400{% else %}text-gray-400{% endif %}"
+                              title="{{ thread_date.strftime('%Y-%m-%d %H:%M UTC') }}">
+                            {% if age_hours < 1 %}just now{% elif age_hours < 24 %}{{ age_hours }}h ago{% elif age_hours < 168 %}{{ (age_hours / 24)|int }}d ago{% else %}{{ (age_hours / 24)|int }}d ⚠{% endif %}
+                        </span>
+                        {% else %}
+                        <span class="text-gray-600">—</span>
+                        {% endif %}
+                    </td>
                     <td class="px-4 py-3 text-gray-400 text-xs">{{ t.author or '—' }}</td>
                     <td class="px-4 py-3">
                         {% if t.url %}
@@ -172,7 +193,7 @@
                 {% endfor %}
                 {% if not threads %}
                 <tr>
-                    <td colspan="7" class="px-4 py-8 text-center text-gray-500">No threads match the current filters.</td>
+                    <td colspan="9" class="px-4 py-8 text-center text-gray-500">No threads match the current filters.</td>
                 </tr>
                 {% endif %}
             </tbody>

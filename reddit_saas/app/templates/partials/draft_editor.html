@@ -14,9 +14,9 @@
     </div>
 
     <!-- Editable textarea -->
-    <form hx-put="/admin/drafts/{{ draft.id }}/edited-draft"
-          hx-target="#comment-{{ draft.id }}"
-          hx-swap="outerHTML"
+    <form hx-post="/admin/drafts/{{ draft.id }}/save-edit"
+          hx-target="#editor-status-{{ draft.id }}"
+          hx-swap="innerHTML"
           hx-indicator="#save-spinner-{{ draft.id }}">
         <div class="mb-2">
             <div class="text-[10px] uppercase tracking-wider text-gray-500 font-medium mb-1">Edited Draft</div>
@@ -40,7 +40,7 @@
             </div>
             <div class="flex items-center gap-2">
                 <span id="save-spinner-{{ draft.id }}" class="htmx-indicator text-xs text-gray-500">saving...</span>
-                <span id="save-error-{{ draft.id }}" class="text-xs text-red-400 hidden">Save failed — text preserved</span>
+                <span id="editor-status-{{ draft.id }}" class="text-xs"></span>
                 <button type="button"
                         onclick="document.getElementById('editor-panel-{{ draft.id }}').remove()"
                         class="px-2 py-1 text-xs text-gray-500 hover:text-gray-300 transition-colors">

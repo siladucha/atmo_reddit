@@ -140,6 +140,23 @@
                 <span>{{ avatar.industry }}</span>
             </span>
             {% endif %}
+
+            {# Posting badge #}
+            <button type="button"
+                    data-avatar-jump="posting"
+                    data-avatar-anchor="posting-section"
+                    title="Automated posting status. Mode: auto (system posts approved drafts) or disabled. Requires proxy + credentials."
+                    class="inline-flex items-center gap-2 px-2.5 py-1 rounded text-xs font-medium border
+                           {% if avatar.posting_mode == 'auto' %}{{ badge_classes['green'] }}
+                           {% elif avatar.consecutive_post_failures >= 3 %}{{ badge_classes['red'] }}
+                           {% else %}{{ badge_classes['slate'] }}{% endif %} hover:brightness-110">
+                <span>Posting</span>
+                <span class="opacity-80">·
+                    {% if avatar.posting_mode == 'auto' %}AUTO
+                    {% else %}OFF{% endif %}
+                    {% if avatar.consecutive_post_failures >= 3 %} · {{ avatar.consecutive_post_failures }} fails{% endif %}
+                </span>
+            </button>
         </div>
         {% endif %}{# end signal badges hide for avatar_manager #}
 
@@ -171,6 +188,10 @@
             <button type="button" data-avatar-detail-tab="content"
                     class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white flex-shrink-0">
                 Content
+            </button>
+            <button type="button" data-avatar-detail-tab="posting"
+                    class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white flex-shrink-0">
+                Posting
             </button>
             <button type="button" data-avatar-detail-tab="strategy"
                     class="avatar-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white flex-shrink-0">
@@ -1281,51 +1302,68 @@
     </div>
 
     {# ============================================================ CONTENT (drafts + decisions + pipeline) #}
-    <div data-avatar-detail-panel="content" class="avatar-detail-panel hidden space-y-6">
+    <div data-avatar-detail-panel="content" class="avatar-detail-panel hidden space-y-4">
 
         <!-- Live Pulse & Risk (loaded via HTMX) -->
-        <div id="dc-avatar-live-pulse"
-             hx-get="/admin/decision-center/live-pulse/{{ avatar.id }}"
-             hx-trigger="load"
-             hx-swap="innerHTML">
-            <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
-                <div class="h-4 bg-gray-700 rounded w-48 mb-3"></div>
-                <div class="h-12 bg-gray-700 rounded w-full mb-3"></div>
-                <div class="h-4 bg-gray-700 rounded w-3/4"></div>
-            </div>
-        </div>
-
-        <!-- Decision Queue for this avatar (loaded via HTMX) -->
-        <div class="bg-dark-steel rounded-lg border border-slate-700 p-5">
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Decision Queue{% set tooltip_text = "Pending comment drafts for this avatar, prioritized by risk level. High-risk items appear first. Each card has a direct Reddit link, copy button, and approve/reject/edit actions." %}{% include "partials/block_tooltip.html" %}</h2>
-                <!-- Bulk approve button -->
-                <button hx-post="/admin/decision-center/bulk-approve"
-                        hx-target="#dc-toast"
-                        hx-swap="innerHTML"
-                        hx-vals='{"min_confidence": 90}'
-                        hx-confirm="Approve all drafts with AI confidence ≥ 90%?"
-                        class="px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white rounded text-xs font-medium transition-colors">
-                    ✓ Bulk Approve (≥90%)
-                </button>
-            </div>
-            <div id="dc-toast" class="mb-2"></div>
-            <div id="dc-avatar-queue"
-                 hx-get="/admin/decision-center/queue?avatar_id={{ avatar.id }}"
+        <details open class="group">
+            <summary class="cursor-pointer bg-dark-steel rounded-lg border border-slate-700 px-5 py-3 flex items-center justify-between select-none hover:border-slate-600 transition-colors">
+                <span class="text-sm font-medium text-gray-300 uppercase tracking-wide">Live Pulse & Risk</span>
+                <svg class="w-4 h-4 text-gray-500 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <div id="dc-avatar-live-pulse" class="mt-1"
+                 hx-get="/admin/decision-center/live-pulse/{{ avatar.id }}"
                  hx-trigger="load"
                  hx-swap="innerHTML">
-                <div class="animate-pulse space-y-2">
-                    <div class="h-16 bg-gray-700 rounded w-full"></div>
-                    <div class="h-16 bg-gray-700 rounded w-full"></div>
-                    <div class="h-16 bg-gray-700 rounded w-full"></div>
+                <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 animate-pulse">
+                    <div class="h-4 bg-gray-700 rounded w-48 mb-3"></div>
+                    <div class="h-12 bg-gray-700 rounded w-full mb-3"></div>
+                    <div class="h-4 bg-gray-700 rounded w-3/4"></div>
                 </div>
             </div>
-        </div>
+        </details>
+
+        <!-- Decision Queue for this avatar (loaded via HTMX) — open by default -->
+        <details open class="group">
+            <summary class="cursor-pointer bg-dark-steel rounded-lg border border-slate-700 px-5 py-3 flex items-center justify-between select-none hover:border-slate-600 transition-colors">
+                <div>
+                    <span class="text-sm font-medium text-gray-300 uppercase tracking-wide">Decision Queue</span>
+                    <span class="text-[11px] text-gray-500 ml-2 normal-case">— action required</span>
+                </div>
+                <svg class="w-4 h-4 text-gray-500 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mt-1">
+                <div class="flex items-center justify-end mb-3">
+                    <button hx-post="/admin/decision-center/bulk-approve"
+                            hx-target="#dc-toast"
+                            hx-swap="innerHTML"
+                            hx-vals='{"min_confidence": 90}'
+                            hx-confirm="Approve all drafts with AI confidence ≥ 90%?"
+                            class="px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white rounded text-xs font-medium transition-colors">
+                        ✓ Bulk Approve (≥90%)
+                    </button>
+                </div>
+                <div id="dc-toast" class="mb-2"></div>
+                <div id="dc-avatar-queue"
+                     hx-get="/admin/decision-center/queue?avatar_id={{ avatar.id }}"
+                     hx-trigger="load"
+                     hx-swap="innerHTML">
+                    <div class="animate-pulse space-y-2">
+                        <div class="h-16 bg-gray-700 rounded w-full"></div>
+                        <div class="h-16 bg-gray-700 rounded w-full"></div>
+                        <div class="h-16 bg-gray-700 rounded w-full"></div>
+                    </div>
+                </div>
+            </div>
+        </details>
 
         <!-- Quick Actions -->
-        <div class="bg-dark-steel rounded-lg border border-slate-700 p-5">
-            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Quick Actions{% set tooltip_text = "Emergency actions for this avatar. Freeze = stop all pipelines immediately. Reduce Frequency = lower posting rate. Diversify = spread activity across more subreddits." %}{% include "partials/block_tooltip.html" %}</h2>
-            <div class="flex flex-wrap gap-2">
+        <details class="group">
+            <summary class="cursor-pointer bg-dark-steel rounded-lg border border-slate-700 px-5 py-3 flex items-center justify-between select-none hover:border-slate-600 transition-colors">
+                <span class="text-sm font-medium text-gray-300 uppercase tracking-wide">Quick Actions</span>
+                <svg class="w-4 h-4 text-gray-500 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mt-1">
+                <div class="flex flex-wrap gap-2">
                 <form hx-post="/admin/decision-center/execute-action/{{ avatar.id }}"
                       hx-target="#dc-avatar-action-result"
                       hx-swap="innerHTML"
@@ -1360,14 +1398,16 @@
                 </form>
             </div>
             <div id="dc-avatar-action-result" class="mt-3"></div>
-        </div>
+            </div>
+        </details>
 
-        <!-- AI Insights (collapsible) -->
+        <!-- AI Insights -->
         <details class="group">
-            <summary class="cursor-pointer text-sm text-indigo-400 hover:text-indigo-300 py-2 select-none">
-                AI Insights & Health Scorecard
+            <summary class="cursor-pointer bg-dark-steel rounded-lg border border-slate-700 px-5 py-3 flex items-center justify-between select-none hover:border-slate-600 transition-colors">
+                <span class="text-sm font-medium text-gray-300 uppercase tracking-wide">AI Insights & Health Scorecard</span>
+                <svg class="w-4 h-4 text-gray-500 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
             </summary>
-            <div id="dc-avatar-insights" class="mt-2"
+            <div id="dc-avatar-insights" class="mt-1"
                  hx-get="/admin/decision-center/insights/{{ avatar.id }}"
                  hx-trigger="revealed once"
                  hx-swap="innerHTML">
@@ -1385,13 +1425,16 @@
         {% set pro_pending_count = pro_drafts | selectattr('draft.status', 'equalto', 'pending') | list | length %}
         {% set pro_approved_count = pro_drafts | selectattr('draft.status', 'equalto', 'approved') | list | length %}
         {% set pro_posted_count = pro_drafts | selectattr('draft.status', 'equalto', 'posted') | list | length %}
-        <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">
-                Professional Comments ({{ pro_count }})
-                <span class="text-[11px] text-gray-500 normal-case font-normal ml-2">
-                    {{ pro_pending_count }} pending · {{ pro_approved_count }} approved · {{ pro_posted_count }} posted
-                </span>
-            </h2>
+        <details class="group">
+            <summary class="cursor-pointer bg-dark-steel rounded-lg border border-slate-700 px-5 py-3 flex items-center justify-between select-none hover:border-slate-600 transition-colors">
+                <div>
+                    <span class="text-sm font-medium text-gray-300 uppercase tracking-wide">Professional Comments ({{ pro_count }})</span>
+                    <span class="text-[11px] text-gray-500 ml-2 normal-case">{{ pro_pending_count }} pending · {{ pro_approved_count }} approved · {{ pro_posted_count }} posted</span>
+                </div>
+                <svg class="w-4 h-4 text-gray-500 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <div class="bg-dark-steel rounded-lg border border-slate-700 p-6 mt-1">
+            <p class="text-[11px] text-gray-500 mb-4">Full history of all brand-related comments for this avatar (read-only overview)</p>
             <div class="space-y-4">
                 {% for item in pro_drafts %}
                 {% if loop.index == 6 and pro_count > 5 %}
@@ -1459,7 +1502,7 @@
                 </details>
                 {% endif %}
             </div>
-        </div>
+        </details>
         {% endif %}
 
         <!-- Hobby Comments -->
@@ -1467,10 +1510,12 @@
         {% set hobby_visible = hobby_comments | selectattr('ai_comment') | list %}
         {% set hobby_count = hobby_visible|length %}
         {% if hobby_count > 0 %}
-        <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
-            <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">
-                Hobby Comments — Karma Building ({{ hobby_count }})
-            </h2>
+        <details class="group">
+            <summary class="cursor-pointer bg-dark-steel rounded-lg border border-slate-700 px-5 py-3 flex items-center justify-between select-none hover:border-slate-600 transition-colors">
+                <span class="text-sm font-medium text-gray-300 uppercase tracking-wide">Hobby Comments — Karma Building ({{ hobby_count }})</span>
+                <svg class="w-4 h-4 text-gray-500 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <div class="bg-dark-steel rounded-lg border border-slate-700 p-6 mt-1">
             <div class="space-y-3">
                 {% for h in hobby_visible %}
                 {% if loop.index == 6 and hobby_count > 5 %}
@@ -1509,22 +1554,184 @@
                 </details>
                 {% endif %}
             </div>
-        </div>
+        </details>
         {% endif %}
         {% endif %}
 
         <!-- Manual Pipeline (lazy-loaded) -->
-        <div id="pipeline-panel-content"
-             hx-get="/admin/avatars/{{ avatar.id }}/pipeline"
-             hx-trigger="revealed once"
-             hx-swap="innerHTML">
-            <div class="flex items-center gap-2 text-sm text-gray-400 p-6">
-                <svg class="animate-spin h-4 w-4 text-indigo-400" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                </svg>
-                Loading pipeline panel...
+        <details class="group">
+            <summary class="cursor-pointer bg-dark-steel rounded-lg border border-slate-700 px-5 py-3 flex items-center justify-between select-none hover:border-slate-600 transition-colors">
+                <span class="text-sm font-medium text-gray-300 uppercase tracking-wide">Manual Pipeline</span>
+                <svg class="w-4 h-4 text-gray-500 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <div id="pipeline-panel-content" class="mt-1"
+                 hx-get="/admin/avatars/{{ avatar.id }}/pipeline"
+                 hx-trigger="revealed once"
+                 hx-swap="innerHTML">
+                <div class="flex items-center gap-2 text-sm text-gray-400 p-6">
+                    <svg class="animate-spin h-4 w-4 text-indigo-400" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    Loading pipeline panel...
+                </div>
             </div>
+        </details>
+
+    </div>
+
+    {# ============================================================ POSTING #}
+    <div data-avatar-detail-panel="posting" class="avatar-detail-panel hidden space-y-6" id="posting-section">
+
+        <!-- Posting Status Overview -->
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+            <h3 class="text-lg font-semibold text-white mb-4">Automated Posting</h3>
+
+            {% if posting_disabled is defined and posting_disabled() %}
+            <div class="mb-4 px-4 py-3 rounded-lg bg-amber-900/30 border border-amber-700 text-amber-300 text-sm">
+                🚫 <strong>Posting disabled at environment level</strong> (POSTING_DISABLED=true). No avatar can post automatically regardless of individual settings.
+            </div>
+            {% endif %}
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="bg-slate-800 rounded-lg p-3 border border-slate-700">
+                    <div class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Mode</div>
+                    <div class="text-sm font-medium {% if avatar.posting_mode == 'auto' %}text-green-400{% else %}text-gray-400{% endif %}">
+                        {{ (avatar.posting_mode or 'disabled')|upper }}
+                    </div>
+                </div>
+                <div class="bg-slate-800 rounded-lg p-3 border border-slate-700">
+                    <div class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Last Posted</div>
+                    <div class="text-sm font-medium text-gray-200">
+                        {% if avatar.last_posted_at %}
+                        {{ avatar.last_posted_at.strftime('%d/%m/%Y %H:%M') }}
+                        {% else %}
+                        <span class="text-gray-500">Never</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="bg-slate-800 rounded-lg p-3 border border-slate-700">
+                    <div class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Failures</div>
+                    <div class="text-sm font-medium {% if avatar.consecutive_post_failures >= 3 %}text-red-400{% elif avatar.consecutive_post_failures > 0 %}text-amber-400{% else %}text-green-400{% endif %}">
+                        {{ avatar.consecutive_post_failures or 0 }}
+                        {% if avatar.consecutive_post_failures >= 3 %}<span class="text-[10px]"> (frozen)</span>{% endif %}
+                    </div>
+                </div>
+                <div class="bg-slate-800 rounded-lg p-3 border border-slate-700">
+                    <div class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Last IP</div>
+                    <div class="text-sm font-mono text-gray-200">
+                        {{ avatar.last_posted_ip or '—' }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Readiness Checklist -->
+            <h4 class="text-sm font-medium text-gray-300 mb-2">Readiness</h4>
+            <div class="space-y-2 mb-6">
+                <div class="flex items-center gap-2 text-sm">
+                    {% if avatar.reddit_password_encrypted or avatar.refresh_token_encrypted %}
+                    <span class="text-green-400">✓</span><span class="text-gray-300">Credentials configured</span>
+                    {% else %}
+                    <span class="text-red-400">✗</span><span class="text-gray-400">Credentials missing (password or OAuth token)</span>
+                    {% endif %}
+                </div>
+                <div class="flex items-center gap-2 text-sm">
+                    {% if avatar.proxy_url_encrypted %}
+                    <span class="text-green-400">✓</span><span class="text-gray-300">Proxy configured</span>
+                    {% else %}
+                    <span class="text-red-400">✗</span><span class="text-gray-400">Proxy not configured</span>
+                    {% endif %}
+                </div>
+                <div class="flex items-center gap-2 text-sm">
+                    {% if avatar.user_agent_string %}
+                    <span class="text-green-400">✓</span><span class="text-gray-300">User-Agent: <code class="text-[11px] text-gray-500">{{ avatar.user_agent_string[:60] }}{% if avatar.user_agent_string|length > 60 %}...{% endif %}</code></span>
+                    {% else %}
+                    <span class="text-red-400">✗</span><span class="text-gray-400">User-Agent not set</span>
+                    {% endif %}
+                </div>
+                <div class="flex items-center gap-2 text-sm">
+                    {% if avatar.posting_mode == 'auto' %}
+                    <span class="text-green-400">✓</span><span class="text-gray-300">Posting mode: auto</span>
+                    {% else %}
+                    <span class="text-gray-400">○</span><span class="text-gray-400">Posting mode: disabled</span>
+                    {% endif %}
+                </div>
+                <div class="flex items-center gap-2 text-sm">
+                    {% if not avatar.is_frozen %}
+                    <span class="text-green-400">✓</span><span class="text-gray-300">Not frozen</span>
+                    {% else %}
+                    <span class="text-red-400">✗</span><span class="text-gray-400">Frozen: {{ avatar.freeze_reason or 'no reason' }}</span>
+                    {% endif %}
+                </div>
+                <div class="flex items-center gap-2 text-sm">
+                    {% if avatar.warming_phase > 0 %}
+                    <span class="text-green-400">✓</span><span class="text-gray-300">Phase {{ avatar.warming_phase }} (eligible)</span>
+                    {% else %}
+                    <span class="text-red-400">✗</span><span class="text-gray-400">Phase 0 (Mentor) — excluded from posting</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <h4 class="text-sm font-medium text-gray-300 mb-3">Controls</h4>
+            <div class="flex flex-wrap gap-3">
+                {% if avatar.posting_mode == 'auto' %}
+                <form method="post" action="/admin/avatars/{{ avatar.id }}/posting-mode" class="inline">
+                    <input type="hidden" name="mode" value="disabled">
+                    <button type="submit" class="px-3 py-2 rounded-lg text-sm font-medium bg-red-900/50 text-red-300 border border-red-700 hover:bg-red-800/50 transition-colors">
+                        ⏸ Disable Posting
+                    </button>
+                </form>
+                {% else %}
+                <form method="post" action="/admin/avatars/{{ avatar.id }}/posting-mode" class="inline">
+                    <input type="hidden" name="mode" value="auto">
+                    <button type="submit" class="px-3 py-2 rounded-lg text-sm font-medium bg-green-900/50 text-green-300 border border-green-700 hover:bg-green-800/50 transition-colors">
+                        ▶ Enable Auto-Posting
+                    </button>
+                </form>
+                {% endif %}
+
+                {% if avatar.consecutive_post_failures > 0 %}
+                <form method="post" action="/admin/avatars/{{ avatar.id }}/reset-posting-failures" class="inline">
+                    <button type="submit" class="px-3 py-2 rounded-lg text-sm font-medium bg-amber-900/50 text-amber-300 border border-amber-700 hover:bg-amber-800/50 transition-colors">
+                        🔄 Reset Failures ({{ avatar.consecutive_post_failures }})
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Posting Configuration Form -->
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-6">
+            <h3 class="text-lg font-semibold text-white mb-4">Configuration</h3>
+            <form method="post" action="/admin/avatars/{{ avatar.id }}/posting-config" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Reddit Password (encrypted)</label>
+                    <input type="password" name="reddit_password" placeholder="{% if avatar.reddit_password_encrypted %}••••••••{% else %}Enter Reddit password{% endif %}"
+                           class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                    <p class="text-[11px] text-gray-500 mt-1">Leave blank to keep current. Stored encrypted (Fernet AES-128-CBC).</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Proxy URL</label>
+                    <input type="text" name="proxy_url" placeholder="{% if avatar.proxy_url_encrypted %}••••••••{% else %}socks5://user:pass@host:port{% endif %}"
+                           class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                    <p class="text-[11px] text-gray-500 mt-1">Format: socks5://user:pass@host:port or http://user:pass@host:port</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">User-Agent</label>
+                    <input type="text" name="user_agent" value="{{ avatar.user_agent_string or '' }}"
+                           placeholder="web:ramp:v0.2.0 (by /u/username)"
+                           class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Timezone</label>
+                    <input type="text" name="declared_timezone" value="{{ avatar.declared_timezone or 'America/New_York' }}"
+                           class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                </div>
+                <button type="submit" class="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-500 transition-colors">
+                    Save Configuration
+                </button>
+            </form>
         </div>
 
     </div>
@@ -1631,7 +1838,7 @@
     };
     const VALID_TABS = new Set([
         "workflow", "overview", "profile-safety", "performance", "billing",
-        "content", "strategy", "actions"
+        "content", "posting", "strategy", "actions"
     ]);
 
     function readHashTab() {

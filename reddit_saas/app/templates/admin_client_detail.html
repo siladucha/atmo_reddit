@@ -105,6 +105,20 @@
             <textarea name="icp_profiles" rows="3"
                       class="w-full bg-slate-night border border-slate-600 text-white rounded-lg px-3 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">{{ client.icp_profiles or '' }}</textarea>
         </div>
+
+        <!-- Autopilot Toggle -->
+        <div class="border border-slate-600 rounded-lg p-4 bg-slate-night/50">
+            <label class="flex items-center gap-3 cursor-pointer">
+                <input type="checkbox" name="autopilot_enabled" value="true"
+                       {% if client.autopilot_enabled %}checked{% endif %}
+                       class="w-5 h-5 rounded border-slate-500 bg-slate-700 text-amber-500 focus:ring-amber-500 focus:ring-offset-0">
+                <div>
+                    <span class="text-sm font-medium text-amber-400">⚡ Autopilot Mode</span>
+                    <p class="text-xs text-gray-500 mt-0.5">Generated drafts are auto-approved without human review. Posting happens automatically for avatars with proxy + UA configured.</p>
+                </div>
+            </label>
+        </div>
+
         <button type="submit"
                 class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors">
             Save Changes

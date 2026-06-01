@@ -43,7 +43,6 @@
                 {% if is_superuser %}
                 <a href="/admin-page" class="hover:text-gray-900 {% block nav_admin %}{% endblock %}">AI Costs</a>
                 <a href="/admin/" class="hover:text-gray-900 {% block nav_admin_panel %}{% endblock %}">🛡️ Admin</a>
-                <a href="/settings" class="hover:text-gray-900 {% block nav_settings %}{% endblock %}">⚙️ Settings</a>
                 {% endif %}
                 {% endif %}
                 <span class="text-gray-300">|</span>
@@ -70,7 +69,11 @@
         {% block content %}{% endblock %}
     </main>
     <footer class="max-w-7xl mx-auto px-4 py-4 text-center text-xs text-gray-400 border-t mt-8">
-        RAMP v0.1.0 · <a href="/guide" class="text-blue-500 hover:underline">User Guide</a>
+        RAMP v{{ app_version }} · {{ app_env }}
+        {% if posting_disabled is defined and posting_disabled() %}
+        · <span class="text-amber-500" title="Posting disabled at environment level">🚫 posting off</span>
+        {% endif %}
+        · <a href="/guide" class="text-blue-500 hover:underline">User Guide</a>
     </footer>
     <script>
         function exportToJson(endpoint) {

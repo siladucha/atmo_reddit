@@ -169,6 +169,13 @@
                 <span class="text-xl">📡</span>
                 <span class="sidebar-app-name text-white font-semibold text-lg">RAMP</span>
             </div>
+            <div class="sidebar-app-name mt-0.5 text-[10px] font-mono text-gray-500 pl-7">v{{ app_version }}
+                {% if posting_disabled is defined and posting_disabled() %}
+                · <span class="text-amber-400">🚫 posting off</span>
+                {% else %}
+                · <span class="text-emerald-400">✓ posting on</span>
+                {% endif %}
+            </div>
 
             {# User card — hidden on collapsed tablet sidebar via sidebar-admin-badge #}
             <div class="sidebar-admin-badge mt-3 pt-3 border-t border-slate-700/60">
@@ -468,8 +475,11 @@
             {% endif %}
         </nav>
 
-        <!-- Logout link -->
+        <!-- Version + Logout -->
         <div class="px-3 py-4 border-t border-slate-700">
+            <div class="px-3 pb-2 text-[10px] text-gray-500 font-mono">
+                v{{ app_version }}{% if posting_disabled is defined and posting_disabled() %} · <span class="text-amber-400">🚫 posting off</span>{% endif %}
+            </div>
             <a href="/logout"
                class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-slate-700 transition-colors">
                 <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

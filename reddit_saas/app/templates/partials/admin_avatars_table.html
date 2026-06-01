@@ -32,6 +32,7 @@
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">AI Cost</th>
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Health</th>
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">CQS</th>
+            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Posting</th>
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Actions</th>
         </tr>
     </thead>
@@ -168,6 +169,23 @@
                     {% endif %}
                 {% else %}
                 <span class="text-[10px] text-gray-600">—</span>
+                {% endif %}
+            </td>
+            <td class="px-4 py-2">
+                {% if a.posting_mode == 'auto' %}
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-900/50 text-green-400 border border-green-800">AUTO</span>
+                {% else %}
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-700 text-gray-400 border border-slate-600">OFF</span>
+                {% endif %}
+                {% if a.consecutive_post_failures >= 3 %}
+                <div class="text-[10px] text-red-400 mt-0.5">⚠ {{ a.consecutive_post_failures }} fails</div>
+                {% elif a.last_posted_at %}
+                <div class="text-[10px] text-gray-500 mt-0.5">{{ a.last_posted_at.strftime('%d/%m %H:%M') }}</div>
+                {% endif %}
+                {% if not a.has_proxy or not a.has_credentials %}
+                <div class="text-[10px] text-amber-400 mt-0.5">
+                    {% if not a.has_credentials %}🔑{% endif %}{% if not a.has_proxy %}🌐{% endif %} missing
+                </div>
                 {% endif %}
             </td>
             <td class="px-4 py-2">

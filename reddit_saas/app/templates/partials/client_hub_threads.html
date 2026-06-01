@@ -25,12 +25,14 @@
         <th class="py-2">Subreddit</th>
         <th class="py-2">Tag</th>
         <th class="py-2">Score</th>
+        <th class="py-2">Avatar</th>
+        <th class="py-2">Posted</th>
         <th class="py-2">Link</th>
       </tr>
     </thead>
     <tbody class="divide-y divide-gray-100">
       {% for t in threads %}
-      <tr>
+      <tr class="{% if t.age_days and t.age_days > 7 %}opacity-50{% endif %}">
         <td class="py-2">{{ t.title }}</td>
         <td class="py-2 text-gray-500">r/{{ t.subreddit }}</td>
         <td class="py-2">
@@ -42,6 +44,25 @@
           </span>
         </td>
         <td class="py-2">{{ t.composite or '—' }}</td>
+        <td class="py-2">
+          {% if t.assigned_avatar %}
+          <span class="text-xs px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-medium">u/{{ t.assigned_avatar }}</span>
+          {% else %}
+          <span class="text-xs text-gray-400">—</span>
+          {% endif %}
+        </td>
+        <td class="py-2 whitespace-nowrap">
+          {% if t.reddit_created_at %}
+          <span class="text-xs {% if t.age_days and t.age_days > 7 %}text-red-600 font-medium{% elif t.age_days and t.age_days > 2 %}text-amber-600{% else %}text-gray-500{% endif %}"
+                title="{{ t.reddit_created_at }}">
+            {% if t.age_days == 0 %}today{% elif t.age_days == 1 %}1d ago{% else %}{{ t.age_days }}d ago{% endif %}
+          </span>
+          {% elif t.created_at %}
+          <span class="text-xs text-gray-400" title="Scraped: {{ t.created_at }}">~{{ t.created_at[:10] }}</span>
+          {% else %}
+          <span class="text-xs text-gray-400">—</span>
+          {% endif %}
+        </td>
         <td class="py-2">
           {% if t.url %}<a href="{{ t.url }}" target="_blank" rel="noopener" class="text-blue-600 hover:underline">Reddit ↗</a>{% endif %}
         </td>

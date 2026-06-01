@@ -67,7 +67,7 @@
       <!-- WHAT: The comment to post -->
       <div class="p-4">
         <div class="text-xs font-medium text-gray-500 mb-1">💬 Comment to post:</div>
-        <div class="bg-gray-50 border rounded p-3 text-sm text-gray-800 leading-relaxed font-mono select-all">{{ item.draft.edited_draft or item.ai_draft }}</div>
+        <div id="display-text-{{ item.draft.id }}" class="bg-gray-50 border rounded p-3 text-sm text-gray-800 leading-relaxed font-mono select-all">{{ item.draft.edited_draft or item.ai_draft }}</div>
         <div class="flex items-center gap-3 mt-2 text-xs text-gray-400">
           <span>{{ (item.draft.edited_draft or item.ai_draft or '')|wordcount }} words</span>
           <span>{{ (item.draft.edited_draft or item.ai_draft or '')|length }} chars</span>
@@ -89,11 +89,16 @@
 
       <!-- Inline Edit -->
       <div class="px-4 py-3 border-t">
-        <form hx-post="/review/{{ item.draft.id }}/edit" hx-target="#draft-{{ item.draft.id }}" hx-swap="outerHTML" class="flex gap-2">
+        <form hx-post="/review/{{ item.draft.id }}/edit"
+              hx-target="#edit-status-{{ item.draft.id }}"
+              hx-swap="innerHTML"
+              hx-on::after-request="if(event.detail.successful && event.detail.xhr.responseText.includes('Saved')){var d=document.getElementById('display-text-{{ item.draft.id }}');if(d)d.textContent=this.querySelector('textarea').value;}"
+              class="flex gap-2">
           <textarea name="edited_text" rows="2" class="flex-1 px-3 py-2 border rounded text-sm resize-none"
               placeholder="Edit before approving...">{{ item.draft.edited_draft or item.ai_draft or '' }}</textarea>
           <button type="submit" class="px-3 py-1.5 bg-blue-100 text-blue-700 text-sm rounded hover:bg-blue-200 self-end">Save</button>
         </form>
+        <span id="edit-status-{{ item.draft.id }}" class="text-xs mt-1 block"></span>
       </div>
       {% elif item.draft.status == 'approved' %}
       <div class="px-4 py-3 border-t bg-green-50 flex items-center gap-2">

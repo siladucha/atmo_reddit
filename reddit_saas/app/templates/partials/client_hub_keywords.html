@@ -10,7 +10,7 @@
   {% endif %}
 
   <!-- Summary Stats -->
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
     <div class="bg-white rounded-lg shadow p-3 border border-gray-100">
       <p class="text-xs text-gray-500 uppercase tracking-wider">Total Keywords</p>
       <p class="text-xl font-bold text-gray-900 mt-1">{{ keywords|length }}</p>
@@ -26,6 +26,10 @@
     <div class="bg-white rounded-lg shadow p-3 border border-gray-100">
       <p class="text-xs text-gray-500 uppercase tracking-wider">Low Priority</p>
       <p class="text-xl font-bold text-green-600 mt-1">{{ keywords_by_priority.low|length }}</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-3 border border-gray-100">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Competitors</p>
+      <p class="text-xl font-bold text-purple-600 mt-1">{{ keywords_by_priority.competitor|length if keywords_by_priority.competitor else 0 }}</p>
     </div>
   </div>
 
@@ -50,6 +54,7 @@
             <span class="px-2 py-0.5 rounded-full text-xs font-medium
               {% if kw.priority == 'high' %}bg-red-100 text-red-700
               {% elif kw.priority == 'medium' %}bg-amber-100 text-amber-700
+              {% elif kw.priority == 'competitor' %}bg-purple-100 text-purple-700
               {% else %}bg-green-100 text-green-700{% endif %}">
               {{ kw.priority|upper }}
             </span>
@@ -66,6 +71,7 @@
                   <option value="high" {% if kw.priority == 'high' %}selected{% endif %}>HIGH</option>
                   <option value="medium" {% if kw.priority == 'medium' %}selected{% endif %}>MEDIUM</option>
                   <option value="low" {% if kw.priority == 'low' %}selected{% endif %}>LOW</option>
+                  <option value="competitor" {% if kw.priority == 'competitor' %}selected{% endif %}>COMPETITOR</option>
                 </select>
                 <button type="submit" class="text-indigo-600 hover:text-indigo-800 text-xs font-medium">Update</button>
               </form>
@@ -111,6 +117,7 @@
           <option value="high">HIGH</option>
           <option value="medium" selected>MEDIUM</option>
           <option value="low">LOW</option>
+          <option value="competitor">COMPETITOR</option>
         </select>
       </div>
       <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">
@@ -121,6 +128,7 @@
       <strong>HIGH</strong> — core brand terms, must-engage threads.
       <strong>MEDIUM</strong> — relevant industry topics.
       <strong>LOW</strong> — broad awareness, nice-to-have.
+      <strong>COMPETITOR</strong> — competitor brand names to monitor (threads mentioning competitors are flagged for engagement).
     </p>
   </div>
 </div>
