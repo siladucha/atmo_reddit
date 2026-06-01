@@ -24,6 +24,8 @@ from app.models.avatar_rental import AvatarRental
 from app.models.user_client_assignment import UserClientAssignment
 from app.models.strategy_document import StrategyDocument
 from app.models.epg_slot import EPGSlot
+from app.models.reddit_app import RedditApp
+from app.models.posting_event import PostingEvent
 
 __all__ = [
     "User",
@@ -54,4 +56,6 @@ __all__ = [
     "UserClientAssignment",
     "StrategyDocument",
     "EPGSlot",
+    "RedditApp",
+    "PostingEvent",
 ]

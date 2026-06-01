@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://postgres:postgres@localhost:5432/reddit_saas"
     redis_url: str = "redis://localhost:6379/0"
     app_env: str = "production"
+    posting_disabled: bool = False  # env-level kill switch (cannot be toggled from admin UI)
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

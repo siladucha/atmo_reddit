@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, Text, Boolean, Integer, DateTime, Numeric, func
+from sqlalchemy import String, Text, Boolean, Integer, DateTime, Numeric, ForeignKey, func
 from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -84,5 +84,26 @@ class Avatar(Base):
     # Subreddit presence scan
     presence_last_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     presence_scan_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    # --- Automated Posting ---
+    # Proxy & fingerprint
+    proxy_url_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    user_agent_string: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    declared_timezone: Mapped[str] = mapped_column(String(50), default="America/New_York", server_default="America/New_York")
+
+    # Posting control
+    posting_mode: Mapped[str] = mapped_column(String(20), default="disabled", server_default="disabled")  # auto | disabled
+    reddit_app_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("reddit_apps.id"), nullable=True
+    )
+
+    # Auth credentials (encrypted — Fernet AES-128-CBC)
+    refresh_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reddit_password_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Posting state
+    last_posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_posted_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    consecutive_post_failures: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
