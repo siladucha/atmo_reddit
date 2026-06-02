@@ -142,18 +142,20 @@
             <!-- Edit drawer (hidden) -->
             <div data-edit-drawer class="hidden border-t border-slate-700 p-3 bg-slate-900/40">
                 <form hx-post="/review/{{ item.draft_id }}/edit"
-                      hx-target="find .dc-edit-status"
+                      hx-target="#dc-edit-status-{{ item.draft_id }}"
                       hx-swap="innerHTML"
-                      class="flex gap-2 items-end">
+                      class="space-y-2">
                     <textarea name="edited_text" rows="3"
-                              class="flex-1 px-3 py-2 bg-slate-night border border-slate-600 text-gray-200 rounded text-sm resize-none focus:outline-none focus:border-indigo-500">{{ item.comment_text }}</textarea>
-                    <div class="flex flex-col gap-1">
-                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded text-xs">Save & Approve</button>
-                        <button type="button" onclick="this.closest('[data-edit-drawer]').classList.add('hidden')"
-                                class="text-gray-500 hover:text-white px-3 py-1.5 rounded text-xs">Cancel</button>
+                              class="w-full px-3 py-2 bg-slate-night border border-slate-600 text-gray-200 rounded text-sm resize-none focus:outline-none focus:border-indigo-500">{{ item.comment_text }}</textarea>
+                    <div class="flex items-center justify-between">
+                        <span id="dc-edit-status-{{ item.draft_id }}" class="text-xs"></span>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="this.closest('[data-edit-drawer]').classList.add('hidden')"
+                                    class="text-gray-500 hover:text-white px-3 py-1.5 rounded text-xs">Cancel</button>
+                            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded text-xs font-medium">Save</button>
+                        </div>
                     </div>
                 </form>
-                <span class="dc-edit-status text-xs mt-1 block"></span>
             </div>
         </div>
         {% endfor %}
@@ -205,7 +207,7 @@
                         <span class="text-[10px] uppercase tracking-wider text-gray-500 font-medium">Comment to post</span>
                         <button onclick="var t=this.closest('[data-copy-area]').querySelector('[data-copy-text]').innerText;navigator.clipboard.writeText(t).then(function(){this.textContent='\u2713 Copied';setTimeout(function(){this.textContent='\uD83D\uDCCB Copy'}.bind(this),1500)}.bind(this))"
                                 class="text-[11px] text-gray-500 hover:text-indigo-400 transition-colors px-2 py-0.5 rounded bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50">
-                            �� Copy
+                            📋 Copy
                         </button>
                     </div>
                     <div data-copy-text class="text-sm text-gray-100 leading-relaxed whitespace-pre-wrap bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2.5 select-all">{{ item.comment_text }}</div>
@@ -262,14 +264,20 @@
             <!-- Edit drawer (hidden) -->
             <div data-edit-drawer class="hidden border-t border-slate-700 p-3 bg-slate-900/40">
                 <form hx-post="/review/{{ item.draft_id }}/edit"
-                      hx-target="find .dc-edit-status"
+                      hx-target="#dc-edit-status-{{ item.draft_id }}"
                       hx-swap="innerHTML"
-                      class="flex gap-2 items-end">
+                      class="space-y-2">
                     <textarea name="edited_text" rows="2"
-                              class="flex-1 px-3 py-2 bg-slate-night border border-slate-600 text-gray-200 rounded text-sm resize-none focus:outline-none focus:border-indigo-500">{{ item.comment_text }}</textarea>
-                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded text-xs">Save</button>
+                              class="w-full px-3 py-2 bg-slate-night border border-slate-600 text-gray-200 rounded text-sm resize-none focus:outline-none focus:border-indigo-500">{{ item.comment_text }}</textarea>
+                    <div class="flex items-center justify-between">
+                        <span id="dc-edit-status-{{ item.draft_id }}" class="text-xs"></span>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="this.closest('[data-edit-drawer]').classList.add('hidden')"
+                                    class="text-gray-500 hover:text-white px-3 py-1.5 rounded text-xs">Cancel</button>
+                            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded text-xs font-medium">Save</button>
+                        </div>
+                    </div>
                 </form>
-                <span class="dc-edit-status text-xs mt-1 block"></span>
             </div>
         </div>
         {% endfor %}

@@ -4,16 +4,20 @@ Built to scale to hundreds of avatars without N+1 queries on client
 lookups. Used by the /avatars-page route and its HTMX partials.
 """
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, case, literal
 from sqlalchemy.orm import Session
 
 from app.models.avatar import Avatar
 from app.models.client import Client
+from app.models.comment_draft import CommentDraft
+
+logger = logging.getLogger(__name__)
 
 
 PAGE_SIZE_GRID = 24
@@ -414,6 +418,160 @@ def _is_cqs_stale(cqs_checked_at: datetime | None) -> bool:
         return False  # Never checked — show as "—", not stale
     age = datetime.now(timezone.utc) - cqs_checked_at
     return age > timedelta(days=14)
+
+
+# --- Batched health metrics (eliminates N+1 queries) ---
+
+MAX_BRAND_RATIO = 0.3  # mirror from safety.py
+
+
+def _format_relative_time(when: datetime | None, now: datetime) -> str | None:
+    """Format `when` as a relative-time string (e.g. '5 min ago')."""
+    if not when:
+        return None
+    delta = now - when
+    seconds = int(delta.total_seconds())
+    if seconds < 60:
+        return "just now"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes} min ago"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours}h ago"
+    days = hours // 24
+    if days < 30:
+        return f"{days}d ago"
+    months = days // 30
+    if months < 12:
+        return f"{months}mo ago"
+    years = days // 365
+    return f"{years}y ago"
+
+
+def _health_status_to_color(health_status: str | None) -> str:
+    if health_status == "healthy":
+        return "green"
+    elif health_status == "limited":
+        return "yellow"
+    elif health_status in ("shadowbanned", "suspended"):
+        return "red"
+    return "grey"
+
+
+def batch_get_health_for_list(db: Session, avatars: list[Avatar]) -> dict[str, dict]:
+    """Batch-compute health metrics for a list of avatars in 1 DB query.
+
+    Returns a dict keyed by avatar.id (str) with the same shape as
+    get_avatar_health() from safety.py, minus the expensive
+    check_promotion_eligibility call (not needed on list views).
+
+    Instead of N × 2 COUNT queries, runs a single GROUP BY.
+    """
+    if not avatars:
+        return {}
+
+    now = datetime.now(timezone.utc)
+    week_start = now - timedelta(days=7)
+
+    avatar_ids = [a.id for a in avatars]
+
+    # Single query: count week_comments and week_professional per avatar
+    try:
+        rows = (
+            db.query(
+                CommentDraft.avatar_id,
+                func.count(CommentDraft.id).label("week_comments"),
+                func.sum(
+                    case(
+                        (CommentDraft.type == "professional", literal(1)),
+                        else_=literal(0),
+                    )
+                ).label("week_professional"),
+            )
+            .filter(
+                CommentDraft.avatar_id.in_(avatar_ids),
+                CommentDraft.status.in_(["approved", "posted"]),
+                CommentDraft.created_at >= week_start,
+            )
+            .group_by(CommentDraft.avatar_id)
+            .all()
+        )
+        stats_by_id = {
+            str(r.avatar_id): {
+                "week_comments": r.week_comments or 0,
+                "week_professional": int(r.week_professional or 0),
+            }
+            for r in rows
+        }
+    except Exception as e:
+        logger.error(f"batch_get_health_for_list DB error: {e}")
+        stats_by_id = {}
+
+    # Build health dict per avatar from in-memory data + batch stats
+    result: dict[str, dict] = {}
+    phase_labels = {
+        0: "Mentor",
+        1: "Credibility Building",
+        2: "Content Seeding",
+        3: "Brand Integration",
+    }
+
+    for avatar in avatars:
+        aid = str(avatar.id)
+        stats = stats_by_id.get(aid, {"week_comments": 0, "week_professional": 0})
+        week_comments = stats["week_comments"]
+        week_professional = stats["week_professional"]
+        brand_ratio = week_professional / week_comments if week_comments > 0 else 0
+        account_age = (now - avatar.created_at).days if avatar.created_at else 0
+
+        checked_at = avatar.reddit_status_checked_at
+        reddit_status_stale = bool(checked_at and (now - checked_at) > timedelta(hours=24))
+
+        karma_discrepancy = False
+        if avatar.reddit_status == "active" and avatar.karma_comment > 0:
+            diff = abs(avatar.reddit_karma_comment - avatar.karma_comment)
+            if diff / max(avatar.karma_comment, 1) > 0.1:
+                karma_discrepancy = True
+
+        reddit_account_age_days = None
+        if avatar.reddit_account_created:
+            reddit_account_age_days = (now - avatar.reddit_account_created).days
+
+        result[aid] = {
+            "id": aid,
+            "username": avatar.reddit_username,
+            "active": avatar.active,
+            "shadowbanned": avatar.is_shadowbanned,
+            "account_age_days": account_age,
+            "warming_phase": avatar.warming_phase,
+            "phase_label": phase_labels.get(avatar.warming_phase, "Unknown"),
+            "phase_progress": {},  # Skip on list view — too expensive per avatar
+            "phase_eligible_for_next": False,  # Skip on list view
+            "karma_comment": avatar.karma_comment,
+            "karma_post": avatar.karma_post,
+            "week_comments": week_comments,
+            "week_professional": week_professional,
+            "brand_ratio": round(brand_ratio, 2),
+            "brand_ratio_ok": brand_ratio <= MAX_BRAND_RATIO,
+            "last_health_check": avatar.last_health_check.isoformat() if avatar.last_health_check else None,
+            "health_status": avatar.health_status or "unknown",
+            "health_color": _health_status_to_color(avatar.health_status),
+            "health_check_relative": _format_relative_time(avatar.last_health_check, now) or "Never checked",
+            # Reddit status cache
+            "reddit_status": avatar.reddit_status,
+            "reddit_karma_comment": avatar.reddit_karma_comment,
+            "reddit_karma_post": avatar.reddit_karma_post,
+            "reddit_account_created": avatar.reddit_account_created,
+            "reddit_account_age_days": reddit_account_age_days,
+            "reddit_icon_url": avatar.reddit_icon_url,
+            "reddit_status_checked_at": avatar.reddit_status_checked_at,
+            "reddit_status_checked_relative": _format_relative_time(checked_at, now),
+            "reddit_status_stale": reddit_status_stale,
+            "karma_discrepancy": karma_discrepancy,
+        }
+
+    return result
 
 
 def build_avatar_view(

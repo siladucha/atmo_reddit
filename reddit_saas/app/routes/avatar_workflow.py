@@ -389,6 +389,7 @@ def workflow_generate_all(
     """Generate all planned EPG slots for this avatar today.
 
     Returns the full workflow panel (refreshed).
+    Does NOT rebuild the plan — use the Rebuild button for that.
     """
     from app.services.epg import build_daily_epg
     from app.services.epg_executor import generate_all_planned_slots
@@ -408,8 +409,53 @@ def workflow_generate_all(
         details={"generated": generated},
     )
 
-    # Reload EPG and drafts for display
-    epg = build_daily_epg(db, avatar, client)
+    # Show current state WITHOUT rebuilding the plan.
+    # build_daily_epg would delete "planned" slots and create new ones,
+    # which causes slot accumulation when generation fails (skipped don't
+    # count toward budget, so new planned slots keep being created).
+    # Just load the existing EPG slots for display.
+    from app.models.epg_slot import EPGSlot
+    from app.services.epg import EPGResult, _get_daily_budget
+    from app.services.epg_executor import get_budget_used_today
+    from datetime import date
+
+    today = date.today()
+    existing_slots = (
+        db.query(EPGSlot)
+        .filter(
+            EPGSlot.avatar_id == avatar.id,
+            EPGSlot.plan_date == today,
+        )
+        .order_by(EPGSlot.scheduled_at.asc().nullslast())
+        .all()
+    )
+
+    # Build a minimal EPGResult for display
+    epg = EPGResult(avatar)
+    epg.daily_budget = _get_daily_budget(avatar)
+    epg.used_today = get_budget_used_today(db, avatar.id, today)
+    epg.remaining = max(0, epg.daily_budget - epg.used_today)
+
+    for slot in existing_slots:
+        slot_dict = {
+            "slot_id": str(slot.id),
+            "subreddit": slot.subreddit,
+            "title": slot.thread_title,
+            "ups": slot.thread_ups or 0,
+            "scheduled_at": slot.scheduled_at.isoformat() if slot.scheduled_at else None,
+            "status": slot.status,
+            "draft_id": str(slot.draft_id) if slot.draft_id else None,
+        }
+        if slot.slot_type == "hobby":
+            slot_dict["hobby_post_id"] = str(slot.hobby_post_id) if slot.hobby_post_id else None
+            slot_dict["post_id"] = None
+            slot_dict["comment_type"] = "hobby"
+            epg.hobby_slots.append(slot_dict)
+        else:
+            slot_dict["thread_id"] = str(slot.thread_id) if slot.thread_id else None
+            slot_dict["comment_type"] = "professional"
+            epg.business_slots.append(slot_dict)
+
     pending_drafts, approved_drafts, posted_drafts = _get_today_drafts(db, avatar)
 
     return templates.TemplateResponse(

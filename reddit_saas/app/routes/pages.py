@@ -1435,11 +1435,22 @@ def threads_list(client_id: UUID, request: Request, tag: str | None = None, db: 
 
 def _build_results_context(db: Session, page, is_admin: bool):
     """Convert an AvatarPage into the {avatars, groups, ...} context for templates."""
-    from app.services.avatars_query import build_avatar_view
-    from app.services.safety import get_avatar_health
+    from app.services.avatars_query import build_avatar_view, batch_get_health_for_list
+
+    # Collect all avatars across items + groups for a single batch health query
+    all_avatars_set: dict[str, object] = {}
+    for a in page.items:
+        all_avatars_set[str(a.id)] = a
+    for g in page.groups:
+        for a in g.avatars:
+            all_avatars_set[str(a.id)] = a
+
+    all_avatars = list(all_avatars_set.values())
+    health_by_id = batch_get_health_for_list(db, all_avatars)
 
     def _to_view(a):
-        return build_avatar_view(a, get_avatar_health(db, a), page.client_by_id)
+        health = health_by_id.get(str(a.id), {})
+        return build_avatar_view(a, health, page.client_by_id)
 
     flat = [_to_view(a) for a in page.items]
 

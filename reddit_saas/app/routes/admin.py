@@ -2089,7 +2089,6 @@ def admin_avatars(
         VIEW_OPTIONS,
         list_avatars_page,
     )
-    from app.services.safety import get_avatar_health
     from app.services.avatars_query import build_avatar_view
     from app.services import karma_tracker
 
@@ -2156,10 +2155,18 @@ def admin_avatars(
         )
         ai_costs_by_avatar = {str(r.avatar_id): {"calls": r.calls, "cost": float(r.cost)} for r in cost_rows}
 
+    # Batch health metrics for all visible avatars (1 query instead of N×5)
+    from app.services.avatars_query import batch_get_health_for_list
+    all_visible_avatars = list(avatar_page.items)
+    for g in avatar_page.groups:
+        all_visible_avatars.extend(g.avatars)
+    health_by_id = batch_get_health_for_list(db, all_visible_avatars)
+
     def _to_view(a):
+        health = health_by_id.get(str(a.id), {})
         view_dict = build_avatar_view(
             a,
-            get_avatar_health(db, a),
+            health,
             avatar_page.client_by_id,
             top_subreddits=top_by_avatar.get(str(a.id), []),
         )
@@ -2227,7 +2234,6 @@ def admin_avatars_check_visible(
     )
     from app.services.reddit_status import check_all_reddit_statuses
     from app.services.reddit_freshness import reddit_status_manual_batch_limit
-    from app.services.safety import get_avatar_health
     from app.services import karma_tracker
 
     f = AvatarFilter(q=q.strip(), status=status, client_id=client_id, pool=pool, sort=sort,
@@ -2244,10 +2250,17 @@ def admin_avatars_check_visible(
         visible_ids.extend(a.id for a in g.avatars)
     top_by_avatar = karma_tracker.top_subreddits_for_avatars(db, visible_ids, limit=3)
 
+    # Batch health metrics
+    from app.services.avatars_query import batch_get_health_for_list
+    all_visible = list(page_data.items)
+    for g in page_data.groups:
+        all_visible.extend(g.avatars)
+    health_by_id = batch_get_health_for_list(db, all_visible)
+
     def _to_view(a):
         return build_avatar_view(
             a,
-            get_avatar_health(db, a),
+            health_by_id.get(str(a.id), {}),
             page_data.client_by_id,
             top_subreddits=top_by_avatar.get(str(a.id), []),
         )
@@ -7810,13 +7823,13 @@ def admin_avatar_posting_config(
     db: Session = Depends(get_db),
 ):
     """Save posting configuration (credentials, proxy, user-agent, timezone)."""
-    from app.services.encryption import FieldEncryptor
+    from app.services.encryption import get_encryptor
 
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
         raise HTTPException(status_code=404, detail="Avatar not found")
 
-    encryptor = FieldEncryptor()
+    encryptor = get_encryptor()
     changes = []
 
     if reddit_password.strip():

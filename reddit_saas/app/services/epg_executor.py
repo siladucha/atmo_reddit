@@ -109,12 +109,12 @@ Rules:
 - No brand mentions, no marketing, no self-promotion
 - Match the tone of the subreddit
 - Never use em-dashes (—)
+- IMPORTANT: Output ONLY valid JSON, no extra text
 
 Previous comments (avoid repetition):
 {chr(10).join(f'- {c[:80]}' for c in prev_comments[:5])}
 
-Output JSON:
-{{"comment": "the exact comment text"}}"""
+Respond with a JSON object: {{"comment": "your comment text here"}}"""
 
         user_prompt = f"""Subreddit: r/{hobby_post.subreddit}
 Post title: {hobby_post.post_title}
@@ -123,15 +123,29 @@ Upvotes: {hobby_post.post_ups or 0}"""
 
         gen_model = get_config("llm_scoring_model") or get_config("llm_generation_model")
 
-        result = call_llm_json(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            model=gen_model,
-            temperature=0.85,
-            max_tokens=300,
-        )
+        # Retry once on parse failure — Gemini Flash occasionally returns non-JSON
+        last_error = None
+        for attempt in range(2):
+            try:
+                result = call_llm_json(
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    model=gen_model,
+                    temperature=0.85,
+                    max_tokens=300,
+                )
+                last_error = None
+                break
+            except ValueError as ve:
+                last_error = ve
+                if attempt == 0:
+                    logger.warning(f"EPG hobby LLM parse error (attempt 1), retrying: {ve}")
+                    continue
+
+        if last_error:
+            raise last_error
 
         log_ai_usage(
             db, None, "hobby_comment_epg", result,
@@ -389,7 +403,9 @@ def sync_slot_status(db: Session, draft_id: uuid.UUID, new_status: str) -> None:
 def get_budget_used_today(db: Session, avatar_id: uuid.UUID, plan_date: date | None = None) -> int:
     """Count slots that consumed budget today.
 
-    Consumed = generated OR approved OR posted (not planned, not expired, not skipped).
+    Consumed = generated OR approved OR posted (not planned, not skipped).
+    Skipped slots are NOT counted — they represent failed attempts that can be retried
+    by rebuilding the EPG plan.
     """
     from sqlalchemy import func as sa_func
 

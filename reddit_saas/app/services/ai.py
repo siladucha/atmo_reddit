@@ -187,6 +187,15 @@ def call_llm_json(
             extracted = content.split("```json")[1].split("```")[0].strip()
         elif "```" in content:
             extracted = content.split("```")[1].split("```")[0].strip()
+        else:
+            # Gemini often prepends prose like "Here is the JSON response:"
+            # Try to find the first { ... } block
+            import re
+            json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', content)
+            if json_match:
+                extracted = json_match.group(0)
+            else:
+                extracted = ""
 
         if not extracted or not extracted.strip():
             raise ValueError(
