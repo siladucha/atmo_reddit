@@ -1,0 +1,148 @@
+{# Day View — shows Date → Client → Avatar → Posts #}
+
+{# Top Summary Bar #}
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+  <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+    <div class="text-2xl font-bold text-green-400">{{ day.published }}</div>
+    <div class="text-xs text-slate-400 mt-1">Published</div>
+  </div>
+  {% if day.is_today %}
+  <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+    <div class="text-2xl font-bold text-blue-400">{{ day.scheduled }}</div>
+    <div class="text-xs text-slate-400 mt-1">Scheduled</div>
+  </div>
+  <div class="bg-slate-800 rounded-xl p-4 border border-indigo-700/50">
+    <div class="text-2xl font-bold text-indigo-300">{{ day.expected_eod }}</div>
+    <div class="text-xs text-slate-400 mt-1">Expected EOD</div>
+  </div>
+  {% elif day.is_tomorrow %}
+  <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+    <div class="text-2xl font-bold text-blue-400">{{ day.scheduled }}</div>
+    <div class="text-xs text-slate-400 mt-1">Scheduled</div>
+  </div>
+  <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+    <div class="text-xs text-slate-500">Planned windows only</div>
+  </div>
+  {% else %}
+  <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+    <div class="text-2xl font-bold text-slate-400">—</div>
+    <div class="text-xs text-slate-500 mt-1">Completed day</div>
+  </div>
+  {% endif %}
+  <div class="bg-slate-800 rounded-xl p-4 border {% if day.failed > 0 %}border-red-700/50{% else %}border-slate-700{% endif %}">
+    <div class="text-2xl font-bold {% if day.failed > 0 %}text-red-400{% else %}text-slate-500{% endif %}">{{ day.failed }}</div>
+    <div class="text-xs text-slate-400 mt-1">Failed</div>
+  </div>
+</div>
+
+{# No schedule message (for tomorrow when nothing is planned) #}
+{% if day.no_schedule_message %}
+<div class="text-center py-12">
+  <svg class="mx-auto h-10 w-10 text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
+  </svg>
+  <p class="text-slate-400 text-sm">{{ day.no_schedule_message }}</p>
+  <p class="text-slate-600 text-xs mt-1">The pipeline generates tomorrow's schedule during the morning run (08:00)</p>
+</div>
+{% elif not day.clients %}
+<div class="text-center py-12">
+  <p class="text-slate-500 text-sm">No posting activity for {{ day.date }}</p>
+</div>
+{% else %}
+
+{# Client → Avatar Breakdown #}
+{% for client in day.clients %}
+<div class="mb-5 bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
+  {# Client Header #}
+  <div class="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <span class="text-sm font-semibold text-white">{{ client.client_name }}</span>
+    </div>
+    <div class="flex items-center gap-3 text-xs">
+      <span class="text-green-400">Published: <b>{{ client.published }}</b></span>
+      {% if day.is_today or day.is_tomorrow %}
+      <span class="text-blue-400">Scheduled: <b>{{ client.scheduled }}</b></span>
+      {% endif %}
+      {% if day.is_today %}
+      <span class="text-indigo-300">Expected: <b>{{ client.expected_today }}</b></span>
+      {% endif %}
+      {% if client.failed > 0 %}
+      <span class="text-red-400">Failed: <b>{{ client.failed }}</b></span>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Avatar Rows #}
+  <div class="divide-y divide-slate-700/50">
+    {% for avatar in client.avatars %}
+    <div class="px-4 py-2.5 flex items-center gap-4 hover:bg-slate-800/80 transition-colors">
+      {# Avatar name + phase #}
+      <div class="flex items-center gap-2 min-w-[180px]">
+        <div class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold
+          {% if not avatar.is_healthy %}bg-red-900 text-red-300{% else %}bg-slate-600 text-slate-300{% endif %}">
+          {{ avatar.reddit_username[0] | upper }}
+        </div>
+        <span class="text-sm text-slate-200 font-medium">u/{{ avatar.reddit_username }}</span>
+        <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400">P{{ avatar.warming_phase }}</span>
+      </div>
+
+      {# Published / Limit #}
+      <div class="text-xs text-slate-300 min-w-[80px]">
+        <span class="{% if avatar.published >= avatar.daily_limit and avatar.daily_limit > 0 %}text-green-400{% endif %}">{{ avatar.published }}/{{ avatar.daily_limit }}</span>
+        <span class="text-slate-500 ml-0.5">posted</span>
+      </div>
+
+      {# Scheduled #}
+      {% if day.is_today or day.is_tomorrow %}
+      <div class="text-xs min-w-[70px]">
+        {% if avatar.scheduled > 0 %}
+        <span class="text-blue-400">{{ avatar.scheduled }} scheduled</span>
+        {% else %}
+        <span class="text-slate-600">—</span>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {# Next slot #}
+      {% if (day.is_today or day.is_tomorrow) and avatar.next_slot_time %}
+      <div class="text-xs text-slate-400">
+        Next: <span class="text-slate-200 font-mono">{{ avatar.next_slot_time }}</span>
+      </div>
+      {% endif %}
+
+      {# Health indicator #}
+      {% if not avatar.is_healthy %}
+      <span class="text-[10px] px-1.5 py-0.5 rounded bg-red-900/50 text-red-300 border border-red-700/50" title="{{ avatar.health_note }}">
+        {{ avatar.health_note[:20] }}
+      </span>
+      {% endif %}
+
+      {# Failed #}
+      {% if avatar.failed > 0 %}
+      <span class="text-[10px] px-1.5 py-0.5 rounded bg-red-900/50 text-red-300">{{ avatar.failed }} failed</span>
+      {% endif %}
+
+      {# Skipped with reasons #}
+      {% if avatar.skipped > 0 %}
+      <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/50 text-amber-300">{{ avatar.skipped }} skipped</span>
+      {% endif %}
+    </div>
+    {# Issues row — show reasons if any #}
+    {% if avatar.issues %}
+    <div class="px-4 pb-2 -mt-1">
+      {% for issue in avatar.issues[:3] %}
+      <div class="text-[10px] text-red-400/80 pl-7 flex items-start gap-1">
+        <span class="text-red-500 mt-0.5">⚠</span>
+        <span>{{ issue }}</span>
+      </div>
+      {% endfor %}
+      {% if avatar.issues | length > 3 %}
+      <div class="text-[10px] text-slate-500 pl-7">+{{ avatar.issues | length - 3 }} more</div>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+{% endif %}

@@ -1,0 +1,273 @@
+<!-- Portfolio Decision Record Drill-Down — HTMX partial -->
+<div id="portfolio-decision-panel" class="space-y-6">
+
+    <!-- Back navigation -->
+    <div class="flex items-center justify-between">
+        <button class="text-sm text-indigo-400 hover:text-indigo-300"
+                hx-get="/admin/avatars/{{ avatar.id }}/portfolio"
+                hx-target="#portfolio-summary-panel"
+                hx-swap="innerHTML">
+            ← Back to Summary
+        </button>
+        <span class="text-sm text-gray-500 font-mono">{{ decision_date }}</span>
+    </div>
+
+    {% if not decision_record %}
+    <div class="bg-gray-800 rounded-lg border border-gray-700 p-8 text-center">
+        <p class="text-gray-400">No decision record found for {{ decision_date }}.</p>
+        <p class="text-xs text-gray-500 mt-2">The portfolio pipeline may not have run on this date.</p>
+    </div>
+    {% else %}
+
+    <!-- Decision Summary -->
+    <div class="bg-gray-800 rounded-lg border border-gray-700 p-5">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide">Decision Summary</h3>
+            {% if decision_record.zero_day %}
+            <span class="px-2 py-0.5 rounded text-xs font-medium bg-amber-900/50 text-amber-400 border border-amber-700">Zero-Day</span>
+            {% else %}
+            <span class="px-2 py-0.5 rounded text-xs font-medium bg-green-900/50 text-green-400 border border-green-700">Active</span>
+            {% endif %}
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div>
+                <p class="text-lg font-bold text-white">{{ decision_record.metrics.get('opportunities_scanned', 0) }}</p>
+                <p class="text-xs text-gray-500">Scanned</p>
+            </div>
+            <div>
+                <p class="text-lg font-bold text-green-400">{{ selected_count }}</p>
+                <p class="text-xs text-gray-500">Selected</p>
+            </div>
+            <div>
+                <p class="text-lg font-bold text-red-400">{{ rejected_count }}</p>
+                <p class="text-xs text-gray-500">Rejected</p>
+            </div>
+            <div>
+                <p class="text-lg font-bold text-indigo-400 font-mono">{{ "%.2f"|format(decision_record.metrics.get('diversification', 0)) }}</p>
+                <p class="text-xs text-gray-500">Diversification</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- All Evaluated Opportunities Ranked by Composite -->
+    <div class="bg-gray-800 rounded-lg border border-gray-700 p-5">
+        <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Opportunities Ranked by Composite Score</h3>
+        {% if opportunities %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+                <thead>
+                    <tr class="border-b border-gray-700 text-xs text-gray-500 uppercase">
+                        <th class="px-2 py-2">#</th>
+                        <th class="px-2 py-2">Subreddit</th>
+                        <th class="px-2 py-2">Type</th>
+                        <th class="px-2 py-2 text-center">Composite</th>
+                        <th class="px-2 py-2 text-center">Risk</th>
+                        <th class="px-2 py-2 text-center">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-700/50">
+                    {% for opp in opportunities %}
+                    <tr class="{% if opp.status == 'selected' %}bg-green-900/10{% elif opp.status == 'rejected' %}bg-red-900/5{% endif %}">
+                        <td class="px-2 py-2 text-gray-500 font-mono text-xs">{{ loop.index }}</td>
+                        <td class="px-2 py-2 text-gray-300">r/{{ opp.subreddit }}</td>
+                        <td class="px-2 py-2 text-gray-400 text-xs">{{ opp.opportunity_type }}</td>
+                        <td class="px-2 py-2 text-center font-mono font-bold
+                            {% if opp.composite_score >= 70 %}text-green-400
+                            {% elif opp.composite_score >= 50 %}text-amber-400
+                            {% else %}text-gray-400{% endif %}">
+                            {{ opp.composite_score }}
+                        </td>
+                        <td class="px-2 py-2 text-center font-mono
+                            {% if opp.risk_score >= 70 %}text-red-400
+                            {% elif opp.risk_score >= 50 %}text-amber-400
+                            {% else %}text-green-400{% endif %}">
+                            {{ opp.risk_score }}
+                        </td>
+                        <td class="px-2 py-2 text-center">
+                            <span class="text-xs px-1.5 py-0.5 rounded
+                                {% if opp.status == 'selected' %}bg-green-900/50 text-green-400
+                                {% elif opp.status == 'executed' %}bg-blue-900/50 text-blue-400
+                                {% elif opp.status == 'rejected' %}bg-red-900/50 text-red-400
+                                {% else %}bg-gray-700 text-gray-400{% endif %}">
+                                {{ opp.status }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-500">No opportunities evaluated on this date.</p>
+        {% endif %}
+    </div>
+
+    <!-- Risk Breakdown for Top 10 -->
+    <div class="bg-gray-800 rounded-lg border border-gray-700 p-5">
+        <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Risk Breakdown — Top 10</h3>
+        {% if top_10_opportunities %}
+        <div class="space-y-2">
+            {% for opp in top_10_opportunities %}
+            <div class="flex items-center gap-3">
+                <span class="text-xs text-gray-500 w-6 text-right font-mono">{{ loop.index }}</span>
+                <span class="text-sm text-gray-300 w-32 truncate">r/{{ opp.subreddit }}</span>
+                <div class="flex-1">
+                    <div class="w-full bg-gray-700 rounded-full h-2">
+                        <div class="h-2 rounded-full
+                            {% if opp.risk_score >= 70 %}bg-red-500
+                            {% elif opp.risk_score >= 50 %}bg-amber-500
+                            {% else %}bg-green-500{% endif %}"
+                            style="width: {{ opp.risk_score }}%"></div>
+                    </div>
+                </div>
+                <span class="text-xs font-mono w-8 text-right
+                    {% if opp.risk_score >= 70 %}text-red-400
+                    {% elif opp.risk_score >= 50 %}text-amber-400
+                    {% else %}text-green-400{% endif %}">{{ opp.risk_score }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-500">No opportunities to display.</p>
+        {% endif %}
+    </div>
+
+    <!-- Allocation Reasoning -->
+    <div class="bg-gray-800 rounded-lg border border-gray-700 p-5">
+        <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Allocation Reasoning</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Portfolio Allocation Applied -->
+            <div>
+                <p class="text-xs text-gray-500 mb-2 uppercase">Categories Applied</p>
+                {% if decision_record.portfolio_allocation and decision_record.portfolio_allocation.categories %}
+                <div class="space-y-1">
+                    {% for cat, pct in decision_record.portfolio_allocation.categories.items() %}
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-300 capitalize">{{ cat.replace('_', ' ') }}</span>
+                        <span class="text-gray-400 font-mono">{{ pct }}%</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-sm text-gray-500">N/A</p>
+                {% endif %}
+            </div>
+            <!-- Budget -->
+            <div>
+                <p class="text-xs text-gray-500 mb-2 uppercase">Budget</p>
+                <div class="space-y-1 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-300">Available</span>
+                        <span class="text-gray-400 font-mono">{{ decision_record.budget_available.get('max_total_actions', '?') }} actions</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-300">Consumed</span>
+                        <span class="text-gray-400 font-mono">{{ decision_record.budget_consumed.get('total', 0) }} actions</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-300">Risk Level</span>
+                        <span class="text-gray-400 font-mono">{{ decision_record.budget_available.get('risk_level', '?') }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Excluded Opportunities with Reasons -->
+    <div class="bg-gray-800 rounded-lg border border-gray-700 p-5">
+        <details>
+            <summary class="text-sm font-medium text-gray-400 uppercase tracking-wide cursor-pointer hover:text-gray-300">
+                Excluded Opportunities ({{ rejected_opportunities|length }})
+            </summary>
+            {% if rejected_opportunities %}
+            <div class="mt-3 space-y-2 max-h-64 overflow-y-auto">
+                {% for opp in rejected_opportunities %}
+                <div class="flex items-center justify-between bg-gray-900/50 rounded p-2 border border-gray-700/30">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="text-xs text-gray-500 font-mono">{{ opp.composite_score }}</span>
+                        <span class="text-sm text-gray-400 truncate">r/{{ opp.subreddit }}</span>
+                    </div>
+                    <span class="text-xs text-red-400/80 truncate max-w-[200px]" title="{{ opp.rejection_reason or 'Risk threshold exceeded' }}">
+                        {{ opp.rejection_reason or 'Risk threshold exceeded' }}
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-500 mt-3">No opportunities were excluded.</p>
+            {% endif %}
+        </details>
+    </div>
+
+    <!-- Full Decision Chain (expandable) -->
+    <div class="bg-gray-800 rounded-lg border border-gray-700 p-5">
+        <details>
+            <summary class="text-sm font-medium text-gray-400 uppercase tracking-wide cursor-pointer hover:text-gray-300">
+                Full Decision Chain
+            </summary>
+            <div class="mt-4 space-y-4">
+                <!-- Avatar State -->
+                <div>
+                    <p class="text-xs text-gray-500 uppercase mb-1">Avatar State at Decision Time</p>
+                    <div class="bg-gray-900/50 rounded p-3 border border-gray-700/30">
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                            <span class="text-gray-400">Karma: <span class="text-gray-200 font-mono">{{ decision_record.avatar_state.get('karma', '?') }}</span></span>
+                            <span class="text-gray-400">Phase: <span class="text-gray-200 font-mono">{{ decision_record.avatar_state.get('phase', '?') }}</span></span>
+                            <span class="text-gray-400">Health: <span class="text-gray-200 font-mono">{{ decision_record.avatar_state.get('health', '?') }}</span></span>
+                            <span class="text-gray-400">Days since post: <span class="text-gray-200 font-mono">{{ decision_record.avatar_state.get('days_since_post', '?') }}</span></span>
+                            <span class="text-gray-400">Posts today: <span class="text-gray-200 font-mono">{{ decision_record.avatar_state.get('posts_today', '?') }}</span></span>
+                            <span class="text-gray-400">Risk tolerance: <span class="text-gray-200 font-mono">{{ decision_record.avatar_state.get('risk_tolerance', '?') }}</span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Market State -->
+                <div>
+                    <p class="text-xs text-gray-500 uppercase mb-1">Market State</p>
+                    <div class="bg-gray-900/50 rounded p-3 border border-gray-700/30">
+                        <div class="flex flex-wrap gap-3 text-xs">
+                            <span class="text-gray-400">Temperature:
+                                <span class="font-mono
+                                    {% if decision_record.market_state.get('temperature') == 'hot' %}text-red-400
+                                    {% elif decision_record.market_state.get('temperature') == 'warm' %}text-amber-400
+                                    {% else %}text-blue-400{% endif %}">
+                                    {{ decision_record.market_state.get('temperature', '?') }}
+                                </span>
+                            </span>
+                            <span class="text-gray-400">Avg Competition: <span class="text-gray-200 font-mono">{{ decision_record.market_state.get('avg_competition', '?') }}</span></span>
+                        </div>
+                        {% if decision_record.market_state.get('trending_topics') %}
+                        <div class="mt-2 flex flex-wrap gap-1">
+                            {% for topic in decision_record.market_state.get('trending_topics', [])[:5] %}
+                            <span class="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">{{ topic }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Community States -->
+                {% if decision_record.community_states %}
+                <div>
+                    <p class="text-xs text-gray-500 uppercase mb-1">Community States</p>
+                    <div class="bg-gray-900/50 rounded p-3 border border-gray-700/30 max-h-40 overflow-y-auto">
+                        <div class="space-y-1 text-xs">
+                            {% for sub, state in decision_record.community_states.items() %}
+                            <div class="flex items-center justify-between">
+                                <span class="text-gray-300">r/{{ sub }}</span>
+                                <div class="flex gap-3 text-gray-500">
+                                    <span>Activity: {{ state.get('activity_24h', '?') }}</span>
+                                    {% if state.get('trending') %}<span class="text-amber-400">🔥 trending</span>{% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </details>
+    </div>
+
+    {% endif %}
+</div>

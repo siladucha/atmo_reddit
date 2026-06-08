@@ -1,0 +1,136 @@
+<!-- Portfolio Zero-Day Report — HTMX partial -->
+<div id="portfolio-zero-day-panel" class="space-y-6">
+
+    <!-- Back navigation -->
+    <div>
+        <button class="text-sm text-indigo-400 hover:text-indigo-300"
+                hx-get="/admin/avatars/{{ avatar.id }}/portfolio"
+                hx-target="#portfolio-summary-panel"
+                hx-swap="innerHTML">
+            ← Back to Summary
+        </button>
+    </div>
+
+    {% if not zero_day_report %}
+    <div class="bg-gray-800 rounded-lg border border-gray-700 p-8 text-center">
+        <p class="text-green-400 text-lg">✓ No Zero-Day Report</p>
+        <p class="text-sm text-gray-500 mt-2">This avatar has actions planned for today. No zero-day report exists.</p>
+    </div>
+    {% else %}
+
+    <!-- Reason Code Highlight -->
+    <div class="bg-amber-900/20 border border-amber-700 rounded-lg p-6">
+        <div class="flex items-center gap-4">
+            <div class="flex-shrink-0">
+                <span class="text-4xl">
+                    {% if zero_day_report.reason_code == 'market_cold' %}🥶
+                    {% elif zero_day_report.reason_code == 'risk_too_high' %}🛡️
+                    {% elif zero_day_report.reason_code == 'return_too_low' %}📉
+                    {% elif zero_day_report.reason_code == 'market_scarcity' %}🏜️
+                    {% elif zero_day_report.reason_code == 'avatar_state_unfavorable' %}⚡
+                    {% else %}⚠️{% endif %}
+                </span>
+            </div>
+            <div>
+                <p class="text-lg font-semibold text-amber-300">{{ zero_day_report.reason_code.replace('_', ' ').title() }}</p>
+                <p class="text-sm text-amber-200/70 mt-1">{{ zero_day_report.report_date }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="bg-gray-800 rounded-lg border border-gray-700 p-5">
+        <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-3">Summary</h3>
+        <p class="text-sm text-gray-300 leading-relaxed">{{ report_content.get('summary', 'No summary available.') }}</p>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div class="bg-gray-800 rounded-lg border border-gray-700 p-4 text-center">
+            <p class="text-2xl font-bold text-white font-mono">{{ report_content.get('opportunities_scanned', 0) }}</p>
+            <p class="text-xs text-gray-500 mt-1">Opportunities Scanned</p>
+        </div>
+        <div class="bg-gray-800 rounded-lg border border-gray-700 p-4 text-center">
+            <p class="text-2xl font-bold font-mono
+                {% if report_content.get('avg_risk', 0) >= 70 %}text-red-400
+                {% elif report_content.get('avg_risk', 0) >= 50 %}text-amber-400
+                {% else %}text-green-400{% endif %}">
+                {{ report_content.get('avg_risk', 0) }}
+            </p>
+            <p class="text-xs text-gray-500 mt-1">Avg Risk Score</p>
+        </div>
+        <div class="bg-gray-800 rounded-lg border border-gray-700 p-4 text-center">
+            <p class="text-2xl font-bold font-mono
+                {% if report_content.get('highest_return', 0) >= 50 %}text-green-400
+                {% elif report_content.get('highest_return', 0) >= 30 %}text-amber-400
+                {% else %}text-red-400{% endif %}">
+                {{ report_content.get('highest_return', 0) }}
+            </p>
+            <p class="text-xs text-gray-500 mt-1">Highest Return Found</p>
+        </div>
+    </div>
+
+    <!-- Top Rejections -->
+    <div class="bg-gray-800 rounded-lg border border-gray-700 p-5">
+        <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Top Rejections</h3>
+        {% set rejections = report_content.get('top_rejections', []) %}
+        {% if rejections %}
+        <div class="space-y-2">
+            {% for rejection in rejections %}
+            <div class="flex items-start gap-3 bg-gray-900/50 rounded p-3 border border-gray-700/30">
+                <span class="text-red-400 mt-0.5">✗</span>
+                <div class="min-w-0">
+                    {% if rejection is mapping %}
+                    <p class="text-sm text-gray-300">{{ rejection.get('subreddit', 'Unknown') }}</p>
+                    <p class="text-xs text-gray-500 mt-0.5">{{ rejection.get('reason', 'No reason provided') }}</p>
+                    {% else %}
+                    <p class="text-sm text-gray-300">{{ rejection }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-500">No specific rejections recorded.</p>
+        {% endif %}
+    </div>
+
+    <!-- Actionable Recommendations -->
+    <div class="bg-gray-800 rounded-lg border border-gray-700 p-5">
+        <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Recommendations</h3>
+        {% set recommendations = zero_day_report.recommendations if zero_day_report.recommendations is iterable and zero_day_report.recommendations is not mapping else [] %}
+        {% if recommendations %}
+        <div class="space-y-3">
+            {% for rec in recommendations %}
+            <div class="flex items-start gap-3 bg-indigo-900/10 rounded-lg p-3 border border-indigo-700/30">
+                <span class="text-indigo-400 text-lg flex-shrink-0">
+                    {% if rec is mapping %}
+                        {% if rec.get('type') == 'add_new_subreddits' %}📌
+                        {% elif rec.get('type') == 'adjust_risk_threshold' %}🎚️
+                        {% elif rec.get('type') == 'change_strategy_focus' %}🔄
+                        {% elif rec.get('type') == 'wait_for_better_timing' %}⏳
+                        {% elif rec.get('type') == 'review_avatar_health' %}🩺
+                        {% else %}💡{% endif %}
+                    {% else %}💡{% endif %}
+                </span>
+                <div>
+                    {% if rec is mapping %}
+                    <p class="text-sm text-gray-200 font-medium capitalize">{{ rec.get('type', 'suggestion').replace('_', ' ') }}</p>
+                    <p class="text-xs text-gray-400 mt-0.5">{{ rec.get('description', '') }}</p>
+                    {% if rec.get('suggested_value') %}
+                    <p class="text-xs text-indigo-400 mt-1 font-mono">Suggested: {{ rec.suggested_value }}</p>
+                    {% endif %}
+                    {% else %}
+                    <p class="text-sm text-gray-200">{{ rec }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-500">No recommendations available.</p>
+        {% endif %}
+    </div>
+
+    {% endif %}
+</div>

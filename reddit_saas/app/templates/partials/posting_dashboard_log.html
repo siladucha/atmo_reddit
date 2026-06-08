@@ -1,0 +1,41 @@
+{# Posting Log — secondary raw event list #}
+{% if not log_rows %}
+<p class="text-slate-500 text-sm py-4">No posting events yet.</p>
+{% else %}
+<div class="overflow-x-auto">
+  <table class="w-full text-xs text-slate-300">
+    <thead>
+      <tr class="border-b border-slate-700 text-slate-500">
+        <th class="text-left py-2 px-2">Avatar</th>
+        <th class="text-left py-2 px-2">Outcome</th>
+        <th class="text-left py-2 px-2">Time</th>
+        <th class="text-left py-2 px-2">Duration</th>
+        <th class="text-left py-2 px-2">Link</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in log_rows %}
+      <tr class="border-b border-slate-800/50">
+        <td class="py-1.5 px-2 text-slate-200">{{ row.avatar }}</td>
+        <td class="py-1.5 px-2">
+          <span class="px-1.5 py-0.5 rounded text-[10px] font-medium
+            {% if row.outcome == 'success' %}bg-green-900/50 text-green-300
+            {% elif row.outcome == 'failure' %}bg-red-900/50 text-red-300
+            {% else %}bg-slate-700 text-slate-400{% endif %}"
+            {% if row.error %}title="{{ row.error }}"{% endif %}>
+            {{ row.outcome }}
+          </span>
+        </td>
+        <td class="py-1.5 px-2 text-slate-400 font-mono">{{ row.posted_at }}</td>
+        <td class="py-1.5 px-2 text-slate-400">{% if row.duration_ms %}{{ row.duration_ms }}ms{% else %}—{% endif %}</td>
+        <td class="py-1.5 px-2">
+          {% if row.url %}
+          <a href="{{ row.url }}" target="_blank" class="text-indigo-400 hover:text-indigo-300">view ↗</a>
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}

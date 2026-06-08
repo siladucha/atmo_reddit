@@ -1,0 +1,78 @@
+{% extends "admin_base.html" %}
+{% block title %}Posting Dashboard{% endblock %}
+{% block content %}
+<div class="space-y-6">
+  <div class="flex items-center justify-between">
+    <h1 class="text-xl font-semibold text-white">Posting Calendar</h1>
+    <span class="text-xs text-slate-500">Auto-refreshes every 60s</span>
+  </div>
+
+  {# Day Navigation Tabs #}
+  {% set today = now_jerusalem_date %}
+  <div class="flex items-center gap-2 border-b border-slate-700 pb-2">
+    <button hx-get="/admin/posting-dashboard/day?target_date={{ (today - timedelta(days=1)).isoformat() }}"
+            hx-target="#day-content"
+            hx-swap="innerHTML"
+            id="tab-yesterday"
+            class="px-4 py-2 text-sm rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
+      Yesterday
+    </button>
+    <button hx-get="/admin/posting-dashboard/day?target_date={{ today.isoformat() }}"
+            hx-target="#day-content"
+            hx-swap="innerHTML"
+            id="tab-today"
+            class="px-4 py-2 text-sm rounded-t-lg border-b-2 border-indigo-500 text-white font-medium">
+      Today
+    </button>
+    <button hx-get="/admin/posting-dashboard/day?target_date={{ (today + timedelta(days=1)).isoformat() }}"
+            hx-target="#day-content"
+            hx-swap="innerHTML"
+            id="tab-tomorrow"
+            class="px-4 py-2 text-sm rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
+      Tomorrow
+    </button>
+  </div>
+
+  {# Day Content — lazy-loaded, auto-refresh for today #}
+  <div id="day-content"
+       hx-get="/admin/posting-dashboard/day"
+       hx-trigger="load, every 60s"
+       hx-swap="innerHTML">
+    <div class="animate-pulse space-y-4">
+      <div class="h-16 bg-slate-800 rounded-xl"></div>
+      <div class="h-32 bg-slate-800 rounded-xl"></div>
+      <div class="h-32 bg-slate-800 rounded-xl"></div>
+    </div>
+  </div>
+
+  {# Posting Log — secondary, collapsed by default #}
+  <details class="group">
+    <summary class="cursor-pointer text-sm text-slate-400 hover:text-slate-200 py-2 flex items-center gap-2 select-none">
+      <svg class="w-4 h-4 group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+      </svg>
+      Posting Log (raw events)
+    </summary>
+    <div hx-get="/admin/posting-dashboard/posting-log"
+         hx-trigger="revealed"
+         hx-swap="innerHTML"
+         class="mt-2">
+      <div class="animate-pulse h-32 bg-slate-800 rounded-xl"></div>
+    </div>
+  </details>
+</div>
+
+<script>
+// Tab switching highlight
+document.querySelectorAll('[id^="tab-"]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[id^="tab-"]').forEach(t => {
+      t.classList.remove('border-indigo-500', 'text-white', 'font-medium');
+      t.classList.add('border-transparent', 'text-slate-400');
+    });
+    btn.classList.remove('border-transparent', 'text-slate-400');
+    btn.classList.add('border-indigo-500', 'text-white', 'font-medium');
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,45 @@
+<!-- Portfolio Health — System-wide panel loaded via GET /admin/dashboard/portfolio-health -->
+<div id="portfolio-health-panel" class="p-5">
+    <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">📊 Portfolio Health</h3>
+
+    <!-- Summary Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+        <div class="bg-gray-900/50 rounded-lg p-3 border border-gray-700/50 text-center">
+            <p class="text-2xl font-bold text-white font-mono">{{ total_actions_today }}</p>
+            <p class="text-xs text-gray-500 mt-1">Actions Planned Today</p>
+        </div>
+        <div class="bg-gray-900/50 rounded-lg p-3 border border-gray-700/50 text-center">
+            <p class="text-2xl font-bold font-mono {% if zero_day_avatars_today > 0 %}text-amber-400{% else %}text-green-400{% endif %}">{{ zero_day_avatars_today }}</p>
+            <p class="text-xs text-gray-500 mt-1">Zero-Day Avatars Today</p>
+        </div>
+        <div class="bg-gray-900/50 rounded-lg p-3 border border-gray-700/50 text-center">
+            <p class="text-2xl font-bold font-mono {% if avg_roa and avg_roa > 2 %}text-green-400{% elif avg_roa and avg_roa > 0 %}text-amber-400{% else %}text-gray-400{% endif %}">{{ "%.1f"|format(avg_roa or 0) }}</p>
+            <p class="text-xs text-gray-500 mt-1">Avg ROA (7d)</p>
+        </div>
+        <div class="bg-gray-900/50 rounded-lg p-3 border border-gray-700/50 text-center">
+            <p class="text-2xl font-bold font-mono {% if alerts|length > 0 %}text-red-400{% else %}text-green-400{% endif %}">{{ alerts|length }}</p>
+            <p class="text-xs text-gray-500 mt-1">Active Alerts</p>
+        </div>
+    </div>
+
+    <!-- Alerts -->
+    {% if alerts %}
+    <div class="space-y-2">
+        {% for alert in alerts %}
+        <div class="flex items-center gap-3 bg-red-900/20 border border-red-800/50 rounded-lg px-3 py-2">
+            <span class="text-red-400 text-sm">⚠️</span>
+            <div class="min-w-0 flex-1">
+                <span class="text-sm text-gray-300">{{ alert.avatar_name }}</span>
+                <span class="text-xs text-gray-500 ml-2">—</span>
+                <span class="text-xs text-red-300 ml-2">{{ alert.reason }}</span>
+            </div>
+            <div class="text-xs font-mono text-gray-500">
+                {% if alert.metric_value is not none %}{{ "%.0f"|format(alert.metric_value) }}%{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-xs text-gray-500">No active alerts. All avatars operating within normal parameters.</p>
+    {% endif %}
+</div>

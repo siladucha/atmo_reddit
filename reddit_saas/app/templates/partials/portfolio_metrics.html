@@ -1,0 +1,92 @@
+<!-- Portfolio Metrics — HTMX partial loaded via GET /admin/avatars/{id}/portfolio/metrics -->
+<div id="portfolio-metrics-panel" class="space-y-6">
+
+    <div class="bg-gray-800 rounded-lg border border-gray-700 p-5">
+        <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-4">Performance Metrics</h3>
+
+        {% if metrics_data %}
+        <div class="space-y-4">
+            <!-- Return on Attention -->
+            <div class="bg-gray-900/50 rounded-lg p-3 border border-gray-700/50">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm text-gray-300">Return on Attention</span>
+                    <span class="text-sm font-mono font-bold {% if metrics_data.roa_current and metrics_data.roa_current > 2 %}text-green-400{% elif metrics_data.roa_current and metrics_data.roa_current > 0 %}text-amber-400{% else %}text-gray-400{% endif %}">
+                        {{ "%.1f"|format(metrics_data.roa_current or 0) }}
+                        {% if metrics_data.roa_trend == 'up' %}<span class="text-green-400">↑</span>
+                        {% elif metrics_data.roa_trend == 'down' %}<span class="text-red-400">↓</span>
+                        {% else %}<span class="text-gray-500">→</span>{% endif %}
+                    </span>
+                </div>
+                <div class="flex items-center gap-3 text-xs text-gray-500">
+                    <span>7d: <span class="font-mono text-gray-400">{{ "%.1f"|format(metrics_data.roa_7d or 0) }}</span></span>
+                    <span>14d: <span class="font-mono text-gray-400">{{ "%.1f"|format(metrics_data.roa_14d or 0) }}</span></span>
+                    <span>30d: <span class="font-mono text-gray-400">{{ "%.1f"|format(metrics_data.roa_30d or 0) }}</span></span>
+                </div>
+            </div>
+
+            <!-- Risk-Adjusted Return -->
+            <div class="bg-gray-900/50 rounded-lg p-3 border border-gray-700/50">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm text-gray-300">Risk-Adjusted Return</span>
+                    <span class="text-sm font-mono font-bold {% if metrics_data.rar_current and metrics_data.rar_current > 0.05 %}text-green-400{% elif metrics_data.rar_current and metrics_data.rar_current > 0 %}text-amber-400{% else %}text-gray-400{% endif %}">
+                        {{ "%.2f"|format(metrics_data.rar_current or 0) }}
+                        {% if metrics_data.rar_trend == 'up' %}<span class="text-green-400">↑</span>
+                        {% elif metrics_data.rar_trend == 'down' %}<span class="text-red-400">↓</span>
+                        {% else %}<span class="text-gray-500">→</span>{% endif %}
+                    </span>
+                </div>
+                <div class="flex items-center gap-3 text-xs text-gray-500">
+                    <span>7d: <span class="font-mono text-gray-400">{{ "%.2f"|format(metrics_data.rar_7d or 0) }}</span></span>
+                    <span>14d: <span class="font-mono text-gray-400">{{ "%.2f"|format(metrics_data.rar_14d or 0) }}</span></span>
+                    <span>30d: <span class="font-mono text-gray-400">{{ "%.2f"|format(metrics_data.rar_30d or 0) }}</span></span>
+                </div>
+            </div>
+
+            <!-- Diversification Score -->
+            <div class="bg-gray-900/50 rounded-lg p-3 border border-gray-700/50">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm text-gray-300">Diversification</span>
+                    <span class="text-sm font-mono font-bold {% if metrics_data.diversification_current and metrics_data.diversification_current > 1.5 %}text-green-400{% elif metrics_data.diversification_current and metrics_data.diversification_current > 0.5 %}text-amber-400{% else %}text-gray-400{% endif %}">
+                        {{ "%.2f"|format(metrics_data.diversification_current or 0) }}
+                        {% if metrics_data.diversification_trend == 'up' %}<span class="text-green-400">↑</span>
+                        {% elif metrics_data.diversification_trend == 'down' %}<span class="text-red-400">↓</span>
+                        {% else %}<span class="text-gray-500">→</span>{% endif %}
+                    </span>
+                </div>
+                <p class="text-xs text-gray-500">Shannon entropy of action distribution across subreddits</p>
+            </div>
+
+            <!-- Decision Accuracy -->
+            <div class="bg-gray-900/50 rounded-lg p-3 border border-gray-700/50">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm text-gray-300">Decision Accuracy</span>
+                    <span class="text-sm font-mono font-bold {% if metrics_data.accuracy_current and metrics_data.accuracy_current >= 70 %}text-green-400{% elif metrics_data.accuracy_current and metrics_data.accuracy_current >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">
+                        {{ "%.0f"|format(metrics_data.accuracy_current or 0) }}%
+                        {% if metrics_data.accuracy_trend == 'up' %}<span class="text-green-400">↑</span>
+                        {% elif metrics_data.accuracy_trend == 'down' %}<span class="text-red-400">↓</span>
+                        {% else %}<span class="text-gray-500">→</span>{% endif %}
+                    </span>
+                </div>
+                <p class="text-xs text-gray-500">Percentage of actions with positive karma return</p>
+            </div>
+
+            <!-- Zero-Day Rate -->
+            <div class="bg-gray-900/50 rounded-lg p-3 border border-gray-700/50">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm text-gray-300">Zero-Day Rate</span>
+                    <span class="text-sm font-mono font-bold {% if metrics_data.zdr_current and metrics_data.zdr_current > 50 %}text-red-400{% elif metrics_data.zdr_current and metrics_data.zdr_current > 25 %}text-amber-400{% else %}text-green-400{% endif %}">
+                        {{ "%.0f"|format(metrics_data.zdr_current or 0) }}%
+                        {% if metrics_data.zdr_trend == 'up' %}<span class="text-red-400">↑</span>
+                        {% elif metrics_data.zdr_trend == 'down' %}<span class="text-green-400">↓</span>
+                        {% else %}<span class="text-gray-500">→</span>{% endif %}
+                    </span>
+                </div>
+                <p class="text-xs text-gray-500">Percentage of zero-action days in last 30 days</p>
+            </div>
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-500">No performance metrics available yet. Metrics are computed daily at 01:00.</p>
+        {% endif %}
+    </div>
+
+</div>

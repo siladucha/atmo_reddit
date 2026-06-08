@@ -1,0 +1,58 @@
+<!-- Client Return Weights — HTMX form loaded via GET /admin/clients/{id}/return-weights -->
+<div id="return-weights-form" class="bg-gray-800 rounded-lg border border-gray-700 p-5">
+    <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wide mb-1">Return Weights Configuration</h3>
+    <p class="text-xs text-gray-500 mb-4">Configure how Expected Return is computed for this client's avatars. Values are normalized to sum=100 during computation.</p>
+
+    {% if success_message %}
+    <div class="bg-green-900/30 border border-green-700 rounded-lg px-3 py-2 mb-4">
+        <p class="text-sm text-green-300">✓ {{ success_message }}</p>
+    </div>
+    {% endif %}
+
+    {% if error_message %}
+    <div class="bg-red-900/30 border border-red-700 rounded-lg px-3 py-2 mb-4">
+        <p class="text-sm text-red-300">✗ {{ error_message }}</p>
+    </div>
+    {% endif %}
+
+    <form hx-post="/admin/clients/{{ client.id }}/return-weights"
+          hx-target="#return-weights-form"
+          hx-swap="outerHTML">
+
+        <div class="space-y-3">
+            <div class="flex items-center justify-between">
+                <label class="text-sm text-gray-300 w-40">Karma</label>
+                <input type="number" name="karma" value="{{ weights.karma }}" min="0" step="1"
+                       class="w-24 bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm text-white font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+            </div>
+            <div class="flex items-center justify-between">
+                <label class="text-sm text-gray-300 w-40">Trust</label>
+                <input type="number" name="trust" value="{{ weights.trust }}" min="0" step="1"
+                       class="w-24 bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm text-white font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+            </div>
+            <div class="flex items-center justify-between">
+                <label class="text-sm text-gray-300 w-40">Visibility</label>
+                <input type="number" name="visibility" value="{{ weights.visibility }}" min="0" step="1"
+                       class="w-24 bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm text-white font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+            </div>
+            <div class="flex items-center justify-between">
+                <label class="text-sm text-gray-300 w-40">Influence</label>
+                <input type="number" name="influence" value="{{ weights.influence }}" min="0" step="1"
+                       class="w-24 bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm text-white font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+            </div>
+            <div class="flex items-center justify-between">
+                <label class="text-sm text-gray-300 w-40">Strategic Value</label>
+                <input type="number" name="strategic_value" value="{{ weights.strategic_value }}" min="0" step="1"
+                       class="w-24 bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm text-white font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+            </div>
+        </div>
+
+        <div class="flex items-center justify-between mt-4 pt-3 border-t border-gray-700">
+            <p class="text-xs text-gray-500">Current sum: <span class="font-mono text-gray-400">{{ weights.karma + weights.trust + weights.visibility + weights.influence + weights.strategic_value }}</span> (normalized to 100 at runtime)</p>
+            <button type="submit"
+                    class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded transition-colors">
+                Save Weights
+            </button>
+        </div>
+    </form>
+</div>
