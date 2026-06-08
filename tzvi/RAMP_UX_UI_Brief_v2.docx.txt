@@ -1,0 +1,474 @@
+﻿█████████████████████████████████████████████████████████████████
+RAMP
+Client-Facing UX & UI Brief — v2
+█████████████████████████████████████████████████████████████████
+For: UX/UI Design Session
+Date: May 2026 · Revised · Confidential
+________________
+
+
+01 · What We Are Designing
+This brief covers the client-facing product experience only — what a paying client sees when they log in to RAMP. It does not cover admin or partner views. The goal is a clean, confident, insight-driven interface that makes clients feel in control of a system that is working hard on their behalf — without exposing the complexity underneath.
+
+
+Core Design Principle
+	The client should never feel like they are operating a tool. They should feel like they are reviewing and approving the work of a highly capable team. Show only what matters. Surface prescriptive recommendations. Make progress undeniable.
+	
+
+⚡ Every screen must earn its place. If the client does not act on a piece of information, it should not be on that screen.
+
+
+02 · Who the Client Is
+Two primary personas. Both are potential champions — the person who bought RAMP internally and will use it to report progress upward.
+
+
+Persona A — Marketing Manager / Head of Demand Gen
+Attribute
+	Description
+	Typical titles
+	Marketing Manager, Head of Demand Gen, VP Marketing, Growth Lead
+	Technical level
+	Medium-high. Comfortable with SaaS dashboards, analytics tools, CRM. Reddit-specific knowledge varies — may be unfamiliar with Reddit culture and community dynamics.
+	What they care about
+	Is the system making progress? Are the avatars earning credibility? Do the comments sound like a real expert — not a generic GPT reply? What can I show my CEO at the next review?
+	What they fear
+	Avatars producing low-quality, generic comments that damage the brand. Zero karma growth. Spending budget for months with nothing to show. Reddit community calling out fake accounts.
+	What they want to avoid
+	Ongoing feedback loops with no visible learning curve. Repeating the same guidance to the system more than twice. Being told to wait without any evidence of progress.
+	Time budget
+	15-30 minutes per week maximum. Review on mobile between meetings. Download the report 10 minutes before the exec presentation.
+	
+
+Persona B — Product Marketing Manager / Head of Product Marketing
+Attribute
+	Description
+	Typical titles
+	Product Marketing Manager, Head of PMM, Content Strategist, Brand Manager
+	Technical level
+	Medium-high. Deep ownership of tone of voice, messaging frameworks, competitive positioning. Will scrutinize every word the avatars produce.
+	What they care about
+	Are the avatars actually embodying the brand voice? Do they understand our ICP the way we do? Are they contributing meaningfully to industry conversations — not just participating? Are we appearing in the right discussions?
+	What they fear
+	Avatars saying something off-brand, factually wrong, or tone-deaf. Low-quality comments reflecting badly on the brand even if no one connects them. The system failing to learn from their feedback.
+	What they want to avoid
+	Generic AI output that ignores the briefing. Having to correct the same mistakes repeatedly. A black box they cannot influence or improve.
+	Time budget
+	More engaged than Persona A. Will spend 30-60 minutes per week reviewing content quality and editing drafts. They are the tone of voice gatekeeper.
+	
+
+⚡ Persona B is the most valuable champion for retention. If they believe the system is learning and improving, they will defend the budget internally. If they feel it is producing generic output that ignores their guidance, they will kill the contract.
+
+
+03 · Client Onboarding Flow
+The onboarding wizard is the most important first impression. It must feel like a smart intake conversation with a senior strategist — not a form. Conversational, AI-assisted, adaptive. Target completion time: 20-25 minutes. Progress bar visible throughout.
+
+
+Design Intent
+	Every question the client answers trains the AI. The quality of their answers directly determines the quality of the avatars. Make this feel like an investment, not a task. The more they put in, the better the output.
+	
+
+STEP 1
+3 min
+	Company Intelligence — Auto-Build the Profile
+* Client inputs: company URL (required)
+* System automatically scrapes: website, LinkedIn company page, product pages, About page, blog, G2/Capterra if present
+* AI synthesises: company name, product description, value proposition, key differentiators, industry, company size, founding year
+* Output displayed as an editable card: client reviews and corrects inline — not a form, an editable summary
+* If multiple products, services, or use cases are detected: prompt client to prioritise them (drag-to-rank, max 3)
+* Client can also input LinkedIn URL manually if website alone is insufficient
+⚡ System should feel like it already knows them. The auto-build is the first wow moment.
+	
+
+STEP 2
+3 min
+	The Problem You Solve
+* Conversational prompts — not form fields:
+* What does your best customer say their life was like before using you?
+* What does your product do that your top 2-3 competitors cannot?
+* Name your 2-3 main competitors (autocomplete from known list + free text)
+* Free-text answers processed by AI to extract pain language, positioning claims, and competitor differentiators
+* Client can edit the AI summary before proceeding
+	
+
+STEP 3
+4 min
+	Your Buyer — ICP Definition
+* B2B / B2C toggle — prominent, top of section. If B2C: hide company size, job title, vertical fields; simplify to demographic + interest profile only
+* Primary ICP (required): job title(s) — multi-select with free text, seniority level, day-to-day frustration, what they search for before finding you
+* Optional vertical/industry filter: specific industries this ICP is most concentrated in (multi-select)
+* Adjacent ICP (optional): same structure as primary. Clearly labelled secondary.
+* For each ICP: "What question do they ask Google, Reddit, or ChatGPT right before they find you?" — this becomes a core keyword seed
+* Company size range: SMB / Mid-market / Enterprise / All (B2B only)
+⚡ Two ICPs maximum. More than two creates unfocused avatar strategy.
+	
+
+STEP 4
+5 min
+	Voice, Tone & Guardrails
+* Document upload zone: drag-and-drop, supports PDF, DOCX, TXT, MD. Accepts: tone of voice guides, brand books, messaging frameworks, product one-pagers, sample content
+* Upload is optional but strongly encouraged — progress indicator while AI processes
+* Structured guardrail questions (required):
+*   What 3 things should your brand NEVER be associated with on Reddit?
+*   Any claims you legally cannot make? (regulated industries: add a note)
+*   Is there a brand, person, or publication whose communication style you admire?
+* TONE CALIBRATION — after upload and answers are processed:
+*   System generates 5 sample sentences that might resemble the brand voice in a Reddit context
+*   Client rates each sentence 1-5: 1 = "nothing like us", 5 = "exactly this"
+*   If 3 or more sentences rated 4+: proceed. Otherwise: regenerate new sentences and repeat.
+*   This loop continues until the quality bar is met — client cannot skip it
+*   Sentences that scored 4-5 become few-shot anchors for the AI generation model
+⚡ The tone calibration loop is the most important quality gate in onboarding. Do not let clients rush past it.
+⚡ Maximum 3 loops before offering an onboarding call CTA (see Step 6).
+	
+
+STEP 5
+4 min
+	Keywords & Subreddit Map
+* Prompt: "What topics do you want to appear in when your buyers are discussing them?"
+* AI suggests keywords based on ICP answers and company profile — client confirms or removes each
+* Client can add custom keywords — autocomplete from Reddit keyword database
+* System generates ranked subreddit suggestions with rationale per subreddit: size, audience match, moderation strictness, competitor presence
+* Client promotes or rejects each suggested subreddit — explanations shown per subreddit for unfamiliar ones
+* Subreddit limit indicator: clearly shown based on their plan tier ("You have X subreddit slots on your plan")
+* If client wants more subreddits than their plan allows: upsell tooltip appears inline — not a popup, not blocking
+	
+
+↑ UPSELL: Subreddit limit reached — inline tooltip: "Add 5 more subreddits for $99/month. Unlock more coverage as your avatars grow." Non-blocking. Client can dismiss and proceed with current selection.
+
+
+STEP 6
+3 min
+	Review & Quality Gate
+* System displays generated outputs: Company Profile, ICP(s), Voice Profile, Keyword Map, Subreddit Map
+* Each section is editable inline — client can refine before activating
+* Quality score calculated across all sections (internal, not shown to client as a number)
+* If quality is sufficient: "Activate" CTA button — "Start Building Your Presence"
+* If quality is too low (thin brief, vague answers, no tone calibration passed): specific incomplete fields highlighted. Cannot activate until resolved.
+* If client has failed tone calibration 3+ times or brief quality remains low after corrections: display CTA — "Book a 30-minute onboarding call with our team" — this is not a failure state, it is a premium service moment
+⚡ The quality gate protects avatar performance. A poorly briefed avatar reflects on us, not just the client.
+⚡ The onboarding call CTA should feel like an upgrade, not a warning.
+	
+
+⚠ SAFETY: Never activate avatars on a thin brief. A generic avatar is worse than no avatar — it produces low-quality output that erodes trust and produces no karma growth.
+
+
+Post-Onboarding: Avatar Allocation
+Once the client completes onboarding successfully, avatar allocation happens behind the scenes. The client never sees this process.
+
+
+* Confirmation screen shown immediately: "Your setup is complete. We are now configuring your avatars."
+* Timeline message: "Check back in 24-48 hours — your avatars will be ready and active."
+* Email confirmation sent automatically with what to expect and when.
+* First login after activation: guided tour overlay pointing to the review queue and avatar screen.
+
+
+⚡ The 24-48 hour gap is real — avatar assignment, proxy allocation, browser profile setup, and initial strategy generation take time. Set this expectation clearly. Do not let clients log in to an empty system and think something is broken.
+
+
+04 · Main Client Dashboard — Screen Architecture
+Every screen follows the same editorial principle: show only what matters, surface prescriptive recommendations, make progress undeniable. No vanity metrics. No data for the sake of data.
+
+
+Home / Overview Screen
+The first screen after login. Must be readable in under 30 seconds. Global time-frame selector at the top (Last 30 days / Last 60 days / Last 90 days / All time) — applies to all numbers on this screen.
+
+
+Element
+	Content
+	Notes
+	Time-frame selector
+	Last 30d / 60d / 90d / All time — pill tabs, top of screen
+	Applies globally to all numbers on this screen
+	3 headline numbers
+	Comments posted, Total upvotes earned, Subreddits active in — for the selected period
+	Large font, one line each. No tables. No charts on this screen.
+	Generate Report button
+	Prominent button: "Download Report (PDF)" — always visible
+	Downloads auto-generated white-labeled PDF for selected period
+	Avatar activity strip
+	Horizontal row of avatar cards with dropdown. Each shows: name, karma tier, last active, upvote velocity for period. Click through to full avatar screen.
+	Avatar cards, not a table. Quick scan of fleet health.
+	Momentum Events feed
+	Real-time: breakout comments, phase accelerations, competitor alerts, content recommendations
+	Most important section. Scrollable. Always visible.
+	Share of voice widget
+	My brand vs. competitor(s) — simple bar or number with trend arrow
+	Growth+ only. Seed/Starter see a locked state with upsell tooltip.
+	Pending approvals CTA
+	Number of drafts waiting. Clickable. Urgent if >5 pending.
+	Always visible. Big if there are pending items.
+	
+
+↑ UPSELL: Share of voice widget on Seed/Starter: greyed out with tooltip — "Competitor tracking is available on Growth plan and above. Upgrade to unlock."
+⚠ SAFETY: If no activity has been generated in 7+ days: show a banner — "Your avatars have been quiet. Check the review queue — there may be drafts waiting for your approval." Never let clients think nothing is happening without knowing why.
+
+
+Review Queue Screen
+The primary action screen. Where clients spend the most time. Must be fast, clear, and satisfying to use. Every approval teaches the system.
+
+
+* Each draft card shows: avatar persona (name + one-line bio), target subreddit, original post excerpt, AI-generated comment, strategic rationale ("why this thread, why now")
+* Actions per card: Approve, Edit then Approve, Regenerate, Skip
+* Inline editing: client edits the comment text directly. On save, edit is captured for the self-learning loop
+* Regenerate: client can add a note explaining what was wrong before regenerating — this note feeds directly into the next draft prompt
+* Filter bar: by avatar, by subreddit, by phase, by date
+* Batch approve: visible once 3+ items are checked — "Approve selected (X)"
+* Empty state: "Nothing to review right now. Your avatars are active — new drafts will appear here as opportunities are found."
+
+
+⚡ Every edit the client makes is a training signal. Make this feel rewarding — show a small "Got it — we will remember this" confirmation on save. Do not just silently save.
+⚠ SAFETY: If a draft contains a brand mention and the avatar is in Phase 1 or 2: block approval with a red banner — "This comment mentions [Brand]. Your avatar is still building credibility in this subreddit. Brand mentions are unlocked in Phase 3. Edit to remove the mention or wait for phase progression."
+
+
+Avatars Screen
+A card-based view of the client's avatar fleet. Time-frame selector inherited from home screen.
+
+
+What Clients See Per Avatar Card
+Field
+	Display
+	Notes
+	Name + illustration
+	Avatar name + consistent illustrated persona image
+	Never a real photo. Consistent illustration style.
+	Bio
+	One-sentence professional summary: "Senior security engineer, 8 years in enterprise SaaS"
+	Client-facing only — not the Reddit username
+	Karma tier
+	Newcomer / Building / Established / Authority
+	Maps to raw karma ranges internally. Never show the raw number.
+	Current phase
+	Phase 1 / 2 / 3 with progress indicator and days to next phase
+	Colour coded: Phase 1 grey, Phase 2 orange, Phase 3 green
+	Upvote velocity
+	Upvotes earned in selected time period
+	Trend arrow vs. previous period
+	Shadowbanned
+	Yes / No — prominent red badge if shadowbanned
+	Immediate visibility. Link to what this means and what we are doing about it.
+	Active subreddits
+	Top 3 subreddits this avatar is active in for the period
+	Clickable to subreddit detail
+	Last active
+	X days ago
+	If >7 days: amber warning
+	
+
+What Is Hidden from Clients (Internal Only)
+* Reddit username and credentials
+* Raw karma number
+* Proxy and browser profile details
+* AI cost per avatar
+* Confidence score and survival rate (internal operational metrics)
+* Phase eligibility calculation details
+
+
+⚠ SAFETY: Shadowban badge must be immediately visible — red, prominent, above the fold on the card. Client must not discover a shadowban by wondering why nothing is posting. Include a tooltip: "This avatar has been flagged by Reddit. We have automatically paused it and are investigating. No action needed from you."
+
+
+Insights Screen
+Progress, trends, and prescriptive recommendations. Where the client finds ammunition for their internal reporting and next-step decisions.
+
+
+Share of Voice
+* Line chart: my brand vs. up to 3 competitors in target subreddits, over selected time period
+* Baseline anchored to Day 1 — delta always visible. "You started at 0%. You are now at X% of tracked conversations."
+* Growth and Scale plans only
+↑ UPSELL: Seed/Starter: locked state — "See how your brand compares to competitors. Available on Growth plan." Inline, non-blocking.
+
+
+Top Performing Content
+* List of avatar comments with highest upvotes in the selected period
+* Each item shows: subreddit, comment excerpt, upvote count, link to the live Reddit thread
+* Available on all tiers — this is core proof of work
+
+
+High-Intent Thread Appearances
+* Threads where your avatars appeared in buying-signal, comparison, or recommendation discussions
+* "Your avatar appeared in 4 threads this month where buyers were comparing tools like yours"
+* Available from Phase 2 onwards — empty state before that with explanation
+
+
+Content Recommendations
+* Data-driven article or post briefs: "This topic has 12 active threads this month with no authoritative answer. Publishing a guide and citing it through your avatars would be high-impact."
+* Each recommendation shows: topic, estimated thread volume, suggested angle, estimated impact
+* CTA per recommendation: "Download brief" — produces a 1-page content brief PDF
+↑ UPSELL: Below each recommendation: "Want us to write this for you? Add Content Production from $599/month." Subtle, contextual. Not a popup.
+
+
+Subreddit Performance
+* Table: subreddit name, avatar activity in period, upvote rate, phase of active avatar(s) in that sub
+* If client is at their subreddit limit and new subs are being surfaced: inline upsell appears
+↑ UPSELL: At subreddit limit: "We found 3 more subreddits where your ICP is active. Add 5 subreddit slots for $99/month to unlock them." Or: "Upgrade to Growth plan to remove the subreddit limit."
+
+
+Monthly Report Download
+* Prominent "Download Report" button — available on all tiers
+* Seed/Starter: standard template, monthly only
+* Growth: bi-weekly, includes share of voice, branded with client logo
+* Scale: weekly, full white-label, includes competitor digest
+* Report design: executive summary (3 headline metrics) + supporting data. Max 2 pages. Designed to be forwarded to a CMO unchanged.
+⚡ The report is the champion's most important tool. It must open with progress, not process. "This month, your brand appeared in X high-intent discussions. Your avatars earned Y upvotes. Competitor share of voice moved from A% to B%."
+
+
+Settings Screen
+Minimal. Rarely visited. All configuration that matters is set during onboarding — this is for ongoing refinement only.
+
+
+* Keywords: add/remove. System shows which subreddits each keyword is being monitored in.
+* Subreddits: view current list. "Request to add" button — triggers upsell flow if at plan limit.
+* Brand guardrails: update the topics, claims, or language the system must never use.
+* Voice feedback: "Our recent comments didn't feel right — here's what to change" — free text, captured as training signal.
+* Notification preferences: email digest frequency, Slack webhook (Growth+ only).
+* Team: invite additional read-only viewers to the workspace.
+* Plan & billing: current plan, usage against limits, upgrade CTA.
+
+
+↑ UPSELL: Plan & billing section: show current tier limits vs. usage. If approaching any limit (avatars, subreddits, actions): "You are at 80% of your monthly action limit. Upgrade to Growth for 2.5x more actions." Contextual and data-driven — not generic upgrade pressure.
+
+
+05 · Safety Mechanisms — Non-Negotiable
+Safety rules must be technically enforced, not just displayed. The client cannot override them. The system prevents harmful actions regardless of what the client requests or approves.
+
+
+Mechanism
+	Trigger
+	Client Sees
+	System Does
+	Brand mention block
+	Avatar in Phase 1 or 2 approves a comment containing brand mention
+	Red banner on approval attempt: "Brand mention blocked — avatar not yet eligible in this subreddit."
+	Blocks posting. Returns draft to queue with flag.
+	Shadowban auto-pause
+	Avatar shadowban detected
+	Red badge on avatar card. Banner on home screen. Email notification.
+	Immediately pauses all activity for that avatar. Logs event. Notifies admin.
+	Budget cap warning
+	Client approaching monthly AI action limit
+	Amber banner: "You have used 80% of your monthly action allowance."
+	No action yet — warning only.
+	Budget cap enforcement
+	Client hits monthly AI action limit
+	Red banner: "Monthly limit reached. Non-critical actions paused until next cycle."
+	Pauses generation and posting. Health checks and monitoring continue.
+	Thin brief block
+	Onboarding quality score too low
+	Specific fields highlighted in red. Cannot activate.
+	Blocks avatar allocation until resolved.
+	Inactivity alert
+	No approvals from client in 7+ days
+	Banner: "Drafts are waiting for your review. Unapproved content delays your avatar's progress."
+	No automatic posting. Everything waits for human approval.
+	Phase guardrail
+	Draft contains content not permitted at current phase
+	Specific warning on draft card with explanation.
+	Flags draft — does not block but requires explicit override with warning acknowledged.
+	Posting rate protection
+	Avatar approaching Reddit posting limit for account age
+	No client-facing message — internal only.
+	Automatically throttles posting queue. Paces distribution across the day.
+	Low-karma brand mention block
+	Draft contains a brand mention and avatar karma is below the subreddit-specific threshold for Phase 3 eligibility
+	Red banner on approval attempt: “Brand mention blocked — [Avatar name] has not yet earned enough credibility in r/[subreddit] to mention your brand. This protects your reputation. The mention will unlock at Phase 3.”
+	Blocks posting. Strips brand mention from draft and returns to queue with flag. Client must edit before re-approving.
+	Low-karma competitor attack block
+	Draft contains negative or comparative language targeting a named competitor AND avatar karma is below the credibility threshold for that subreddit
+	Red banner: “Competitor mention blocked — [Avatar name] does not yet have the standing in this community to criticise [Competitor]. A low-credibility attack backfires and risks the avatar. This will unlock when karma threshold is reached.”
+	Blocks posting. Rewrites competitor reference to neutral comparative language and returns to queue. Client can approve the neutralised version or edit further. Direct attacks are never permitted regardless of karma level.
+	
+
+⚠ SAFETY: Safety mechanisms must be aggressive and technically enforced. A client approving content that triggers a safety rule must be stopped — not warned and allowed to proceed. The system is the last line of defense for the avatar's credibility.
+
+
+06 · Upsell Placement — Present but Not Pushy
+Upsell touchpoints should feel like helpful nudges from a system that knows what you need — not a sales page. Context is everything. An upsell that appears at the right moment (when the client just hit a limit, or just saw a recommendation they cannot act on) converts. An upsell that appears everywhere annoys.
+
+
+Upsell
+	Where It Appears
+	Trigger
+	Tone
+	Extra subreddits ($99/mo)
+	Subreddit selector (onboarding) + Insights > Subreddit performance
+	Client at subreddit limit + new subs being surfaced
+	Helpful: "We found more subs for you."
+	Competitor monitoring / share of voice
+	Home screen widget (locked) + Insights screen (locked)
+	Seed/Starter viewing the locked widget
+	Informational: "See how you compare."
+	Avatar expansion ($199/mo)
+	Avatars screen + Settings > Plan
+	Client has all avatars active and a high-volume subreddit list
+	Data-driven: "Your avatars are active across X subs. More avatars = more coverage."
+	Silver/Gold avatar ($199-499 one-time)
+	Avatars screen — shown when a new avatar is being allocated
+	New client onboarding or avatar request
+	Value-framed: "Start with credibility already built."
+	Content production ($599+/mo)
+	Insights > Content recommendations
+	After each content recommendation card
+	Contextual: "Want us to write this for you?"
+	Plan upgrade
+	Settings > Plan + any locked feature
+	Approaching any plan limit
+	Data-driven: "You are at X% of your limit."
+	Managed service
+	First login email + Settings > Plan (subtle)
+	Early in lifecycle, before client feels overwhelmed
+	Trust-based: "Let our team handle everything."
+	
+
+⚡ Never show more than one upsell on a screen at the same time. If multiple upsell triggers are active, prioritise the one most directly related to what the client is currently doing.
+
+
+07 · Visual Design Direction
+Attribute
+	Direction
+	Overall tone
+	Confident, expert, slightly dark. Not corporate grey. Not consumer-playful. Feels like a premium B2B intelligence tool.
+	Color palette
+	Dark backgrounds (#1A1A2E) with orange accent (#FF6B35). White text on dark. Light grey (#F5F5F5) for cards and content areas. Red for safety/warnings. Amber for upsells and soft warnings.
+	Typography
+	Clean sans-serif (Inter or similar). Bold for numbers and headlines, regular for body. Never decorative. Number display should be large and confident.
+	Avatar representation
+	Illustrated persona cards — consistent style, professional but human. Not stock photo. Not cartoon. Think editorial illustration.
+	Data visualisation
+	Minimal. Simple line charts and large single-number displays. No pie charts. No 3D. Trend arrows for direction.
+	Loading states
+	Skeleton screens, not spinners. Feels faster, more professional.
+	Empty states
+	Encouraging and specific. "Your avatars are warming up. First comments will appear here within 24 hours." Never a generic empty illustration.
+	Safety states
+	Red banners — clear, specific, actionable. Never vague. Always explain what happened and what to do.
+	Upsell states
+	Amber/warm tones. Subtle. Icon + one line of text. Dismissable.
+	Mobile
+	Fully responsive. Review queue must work on mobile — clients approve content between meetings. Home screen must be scannable on a phone screen.
+	
+
+08 · Screens to Design — Minimum Viable UI
+1. Onboarding wizard — 6 steps, progress bar, document upload zone, tone calibration loop, quality gate, post-activation confirmation
+2. Home / Overview dashboard — time-frame selector, 3 headline numbers, avatar strip, momentum feed, report download button
+3. Review queue — draft cards with inline editing, regenerate with note, batch approve, filter bar, phase guardrail warning state
+4. Avatars screen — persona cards, phase + karma tier + shadowban status, upvote velocity, time-frame selector
+5. Insights screen — share of voice chart, top content list, high-intent appearances, content recommendations, subreddit performance table, report download
+6. Settings screen — keywords, subreddits, guardrails, voice feedback, notifications, team, plan & billing
+7. Empty states — per screen, pre-activation, and post-activation with no data yet
+8. Safety states — phase block, shadowban, budget cap, thin brief block
+9. Upsell states — locked features, limit reached, contextual recommendations
+10. Mobile layout — review queue and home screen minimum
+
+
+09 · What We Are NOT Designing
+The following are internal/admin views that already exist or will be built separately. Excluded from this design pass:
+
+
+* Super admin dashboard (Max — all clients, pipeline controls, system health, AI cost tracking)
+* Partner view (Tzvi — same as admin with billing management)
+* Pipeline controls and queue management
+* Avatar credential management
+* Agency master workspace (Phase 2+)
+* White-label configuration UI (Phase 2+)
+
+
+RAMP — UX/UI Brief v2 · Confidential · May 2026
