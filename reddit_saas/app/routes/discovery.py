@@ -12,6 +12,8 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
+from fastapi.templating import Jinja2Templates
+
 from app.database import get_db
 from app.dependencies.permissions import require_platform_admin
 from app.models.discovery_hypothesis import DiscoveryHypothesis
@@ -27,6 +29,7 @@ from app.tasks.discovery import research_hypotheses_task
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin/discovery", tags=["discovery"])
+templates = Jinja2Templates(directory="app/templates")
 
 
 # --- Pages ---
@@ -44,7 +47,7 @@ def discovery_list(
     sessions, total = SessionManager.list_sessions(db, page=page, per_page=25, status_filter=status)
     total_pages = (total + 24) // 25
 
-    return request.app.state.templates.TemplateResponse(
+    return templates.TemplateResponse(
         "admin_discovery.html",
         {
             "request": request,
@@ -73,7 +76,7 @@ def discovery_new(
     # Support pre-filling client dropdown via query param
     default_client_id = client_id.strip() if client_id else ""
 
-    return request.app.state.templates.TemplateResponse(
+    return templates.TemplateResponse(
         "admin_discovery_new.html",
         {
             "request": request,
@@ -96,7 +99,7 @@ def discovery_create(
     """Create session + extract entities → redirect to session page."""
     # Validate brief length
     if len(client_brief.strip()) < 50:
-        return request.app.state.templates.TemplateResponse(
+        return templates.TemplateResponse(
             "partials/discovery_brief_form.html",
             {
                 "request": request,
@@ -124,7 +127,7 @@ def discovery_create(
     except Exception as e:
         db.rollback()
         logger.error(f"Entity extraction failed: {e}")
-        return request.app.state.templates.TemplateResponse(
+        return templates.TemplateResponse(
             "partials/discovery_brief_form.html",
             {
                 "request": request,
@@ -157,7 +160,7 @@ def discovery_session_page(
 
     current_step = SessionManager.get_current_step(session)
 
-    return request.app.state.templates.TemplateResponse(
+    return templates.TemplateResponse(
         "admin_discovery_session.html",
         {
             "request": request,
@@ -202,7 +205,7 @@ def confirm_entities(
         raise HTTPException(status_code=500, detail=f"Hypothesis formation failed: {e}")
 
     # Return hypotheses partial
-    return request.app.state.templates.TemplateResponse(
+    return templates.TemplateResponse(
         "partials/discovery_hypotheses.html",
         {
             "request": request,
@@ -239,7 +242,7 @@ def trigger_research(
     research_hypotheses_task.delay(str(session_id), hypothesis_ids)
 
     # Return progress partial
-    return request.app.state.templates.TemplateResponse(
+    return templates.TemplateResponse(
         "partials/discovery_research_progress.html",
         {
             "request": request,
@@ -275,7 +278,7 @@ def research_progress(
 
     if all_done:
         # Research complete — return results partial
-        return request.app.state.templates.TemplateResponse(
+        return templates.TemplateResponse(
             "partials/discovery_results.html",
             {
                 "request": request,
@@ -285,7 +288,7 @@ def research_progress(
         )
 
     # Still in progress — return progress partial (will be polled again)
-    return request.app.state.templates.TemplateResponse(
+    return templates.TemplateResponse(
         "partials/discovery_research_progress.html",
         {
             "request": request,
@@ -323,7 +326,7 @@ def decide_hypotheses(
         if h.iteration_number == session.current_iteration
     ]
 
-    return request.app.state.templates.TemplateResponse(
+    return templates.TemplateResponse(
         "partials/discovery_results.html",
         {
             "request": request,
@@ -358,7 +361,7 @@ def generate_report(
         logger.error(f"Report generation failed: {e}")
         raise HTTPException(status_code=500, detail=f"Report generation failed: {e}")
 
-    return request.app.state.templates.TemplateResponse(
+    return templates.TemplateResponse(
         "partials/discovery_report.html",
         {
             "request": request,
@@ -385,7 +388,7 @@ def export_report(
 
     report = sorted(session.reports, key=lambda r: r.report_version, reverse=True)[0]
 
-    return request.app.state.templates.TemplateResponse(
+    return templates.TemplateResponse(
         "partials/discovery_report_export.html",
         {
             "request": request,
@@ -503,7 +506,7 @@ def add_entity(
     # Re-fetch session with updated entities
     session = SessionManager.get_session(db, session_id)
 
-    return request.app.state.templates.TemplateResponse(
+    return templates.TemplateResponse(
         "partials/discovery_entities.html",
         {
             "request": request,
@@ -534,7 +537,7 @@ def remove_entity(
         db.commit()
 
     session = SessionManager.get_session(db, session_id)
-    return request.app.state.templates.TemplateResponse(
+    return templates.TemplateResponse(
         "partials/discovery_entities.html",
         {
             "request": request,
