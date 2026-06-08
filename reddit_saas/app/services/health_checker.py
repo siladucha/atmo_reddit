@@ -6,7 +6,7 @@ Performs visibility-based health checks on Reddit avatars by:
 3. Classifying health status based on visibility ratio
 """
 
-import logging
+from app.logging_config import get_logger
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -32,7 +32,7 @@ from app.services.reddit import get_reddit_client
 from app.services.sanitize import ensure_username_bare
 from app.services.settings import get_setting
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass

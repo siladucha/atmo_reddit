@@ -5,7 +5,7 @@ Separates strategy (what to write) from execution (how to write it).
 """
 
 import json
-import logging
+from app.logging_config import get_logger
 
 from sqlalchemy.orm import Session
 
@@ -16,7 +16,7 @@ from app.models.post_draft import PostDraft
 from app.services.ai import call_llm, call_llm_json, log_ai_usage
 from app.schemas.llm_outputs import PostBriefOutput, PostWriterOutput
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # --- Brief Generator Prompt ---

@@ -13,7 +13,7 @@ Usage:
 
 import hashlib
 import ipaddress
-import logging
+from app.logging_config import get_logger
 import re
 from dataclasses import dataclass
 
@@ -24,7 +24,7 @@ from app.models.avatar import Avatar
 from app.models.epg_slot import EPGSlot
 from app.models.posting_event import PostingEvent
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass

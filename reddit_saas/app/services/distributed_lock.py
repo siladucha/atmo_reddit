@@ -7,7 +7,7 @@ release it.
 Also provides a generic DistributedLock for arbitrary keys (used by posting).
 """
 
-import logging
+from app.logging_config import get_logger
 import socket
 import time
 
@@ -15,7 +15,7 @@ import redis
 
 from app.config import get_settings
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Lua script for atomic lock release — only releases if value matches
 _RELEASE_SCRIPT = """

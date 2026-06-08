@@ -53,6 +53,7 @@ class TodayRecommendation:
     next_gate_pct: int  # 0-100
     days_in_phase: int
     phase_badge: PhaseBadge
+    phase_expected: int | None  # Expected days for current phase (None for phase 3/mentor)
 
 
 def _count_hobby_today(db: Session, avatar: Avatar, now: datetime) -> int:
@@ -266,6 +267,8 @@ def compute_today_recommendation(
 
     badge = _phase_badge(avatar, days_in_phase, blocker, eligible)
 
+    phase_expected = PHASE_EXPECTED_DURATION_DAYS.get(avatar.warming_phase)
+
     return TodayRecommendation(
         imperative=imperative,
         blocker=blocker,
@@ -278,4 +281,5 @@ def compute_today_recommendation(
         next_gate_pct=gate_pct,
         days_in_phase=days_in_phase,
         phase_badge=badge,
+        phase_expected=phase_expected,
     )

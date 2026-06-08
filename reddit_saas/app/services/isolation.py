@@ -5,7 +5,7 @@ tenant-owned entities are accessible by a given client. Used by the generation
 service, persona selection, and query scoping layer.
 """
 
-import logging
+from app.logging_config import get_logger
 
 from sqlalchemy import or_, func
 from sqlalchemy.orm import Session
@@ -14,7 +14,7 @@ from app.models.avatar import Avatar
 from app.models.avatar_rental import AvatarRental
 from app.models.client import Client
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _avatar_accessible_by_client(db: Session, avatar: Avatar, client: Client) -> bool:

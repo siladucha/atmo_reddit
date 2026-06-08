@@ -13,7 +13,7 @@ Usage:
     )
 """
 
-import logging
+from app.logging_config import get_logger
 import secrets
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.models.avatar import Avatar
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # --- Constants ---
 

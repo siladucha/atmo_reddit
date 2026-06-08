@@ -10,9 +10,9 @@ Rules:
 """
 
 import re
-import logging
+from app.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Valid Reddit subreddit: 3-21 chars, alphanumeric + underscores
 _SUBREDDIT_PATTERN = re.compile(r"^[A-Za-z0-9_]{2,21}$")

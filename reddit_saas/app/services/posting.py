@@ -19,7 +19,7 @@ Usage:
 """
 
 import hashlib
-import logging
+from app.logging_config import get_logger
 import time
 import uuid
 from datetime import datetime, timezone
@@ -44,7 +44,7 @@ from app.services.praw_factory import (
     resolve_proxy_ip,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class PostingRefused(Exception):

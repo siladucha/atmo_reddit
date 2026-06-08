@@ -11,7 +11,7 @@ engagement *technique* rotates. Think of it as a skilled communicator
 choosing different rhetorical tools while staying true to their character.
 """
 
-import logging
+from app.logging_config import get_logger
 from collections import Counter
 
 from sqlalchemy.orm import Session
@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from app.models.avatar import Avatar
 from app.models.comment_draft import CommentDraft
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # All available approaches (from generation prompt)
 ALL_APPROACHES = [

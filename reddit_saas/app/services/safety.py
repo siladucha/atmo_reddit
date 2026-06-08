@@ -4,7 +4,7 @@ Protects avatars from bans by enforcing Reddit-safe behavior patterns.
 One banned avatar must never compromise others.
 """
 
-import logging
+from app.logging_config import get_logger
 from datetime import datetime, timezone, timedelta
 
 from sqlalchemy.orm import Session
@@ -18,7 +18,7 @@ from app.models.audit import AuditLog
 from app.services.phase import PhasePolicy, PhaseEvaluator
 from app.services.phase_types import PolicyStatus
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # --- Rate Limits ---

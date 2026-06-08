@@ -10,9 +10,9 @@ all Markdown-significant characters and normalizes Unicode to ASCII equivalents.
 """
 
 import re
-import logging
+from app.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def sanitize_for_reddit(text: str) -> str:

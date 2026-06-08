@@ -1,6 +1,6 @@
 """System settings service — read/write settings from DB."""
 
-import logging
+from app.logging_config import get_logger
 import uuid
 
 from sqlalchemy.orm import Session
@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.settings import SystemSetting
 from app.services import audit as audit_service
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # Default settings registry — every key has value, secret flag, description,
@@ -400,6 +400,49 @@ DEFAULTS: dict[str, dict] = {
         "desc": "Maximum automated posts per avatar per day (safety ceiling). Effective cap = min(phase_limit, this value).",
         "group": "posting",
     },
+    # --- EPG 2.0 (Attention Portfolio Manager) ---
+    "epg2_enabled": {
+        "value": "true",
+        "secret": False,
+        "desc": "Enable EPG 2.0 Attention Portfolio Manager. When false, uses legacy build_daily_epg().",
+        "group": "epg",
+    },
+    "epg2_min_opportunities": {
+        "value": "10",
+        "secret": False,
+        "desc": "Minimum opportunities to find before allocation (below this triggers market_scarcity).",
+        "group": "epg",
+    },
+    "epg2_max_opportunities": {
+        "value": "50",
+        "secret": False,
+        "desc": "Maximum opportunities to evaluate per avatar per daily run.",
+        "group": "epg",
+    },
+    "epg2_min_return_threshold": {
+        "value": "20",
+        "secret": False,
+        "desc": "Minimum Expected_Return_Score (0-100) for an opportunity to be considered viable.",
+        "group": "epg",
+    },
+    "epg2_subreddit_max_share": {
+        "value": "40",
+        "secret": False,
+        "desc": "Maximum percentage of daily actions allocated to a single subreddit (diversification cap).",
+        "group": "epg",
+    },
+    "epg2_zero_day_alert_threshold": {
+        "value": "50",
+        "secret": False,
+        "desc": "Zero-day rate percentage (14-day window) above which an admin alert is generated.",
+        "group": "epg",
+    },
+    "epg2_decision_retention_days": {
+        "value": "90",
+        "secret": False,
+        "desc": "Number of days to retain full decision records before archival (metadata kept, details pruned).",
+        "group": "epg",
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -456,21 +499,66 @@ HEALTH_CHECK_VALIDATORS: dict[str, tuple[callable, str]] = {
     ),
 }
 
+# ---------------------------------------------------------------------------
+# EPG 2.0 setting validators
+# ---------------------------------------------------------------------------
+
+EPG2_VALIDATORS: dict[str, tuple[callable, str]] = {
+    "epg2_enabled": (
+        lambda v: v.lower() in ("true", "false", "0", "1"),
+        "Must be 'true' or 'false'",
+    ),
+    "epg2_min_opportunities": (
+        lambda v: 1 <= int(v) <= 100,
+        "Must be an integer between 1 and 100",
+    ),
+    "epg2_max_opportunities": (
+        lambda v: 1 <= int(v) <= 200,
+        "Must be an integer between 1 and 200",
+    ),
+    "epg2_min_return_threshold": (
+        lambda v: 0 <= int(v) <= 100,
+        "Must be an integer between 0 and 100",
+    ),
+    "epg2_subreddit_max_share": (
+        lambda v: 1 <= int(v) <= 100,
+        "Must be an integer between 1 and 100 (percentage)",
+    ),
+    "epg2_zero_day_alert_threshold": (
+        lambda v: 1 <= int(v) <= 100,
+        "Must be an integer between 1 and 100 (percentage)",
+    ),
+    "epg2_decision_retention_days": (
+        lambda v: int(v) >= 1,
+        "Must be an integer >= 1",
+    ),
+}
+
 
 def validate_setting(key: str, value: str) -> tuple[bool, str]:
     """Validate a setting value against known constraints.
 
     Returns (is_valid, error_message). If valid, error_message is empty.
     """
-    if key not in HEALTH_CHECK_VALIDATORS:
+    # Check health check validators
+    if key in HEALTH_CHECK_VALIDATORS:
+        validator_fn, error_msg = HEALTH_CHECK_VALIDATORS[key]
+        try:
+            if not validator_fn(value):
+                return False, f"{key}: {error_msg}"
+        except (ValueError, TypeError):
+            return False, f"{key}: {error_msg}"
         return True, ""
 
-    validator_fn, error_msg = HEALTH_CHECK_VALIDATORS[key]
-    try:
-        if not validator_fn(value):
+    # Check EPG 2.0 validators
+    if key in EPG2_VALIDATORS:
+        validator_fn, error_msg = EPG2_VALIDATORS[key]
+        try:
+            if not validator_fn(value):
+                return False, f"{key}: {error_msg}"
+        except (ValueError, TypeError):
             return False, f"{key}: {error_msg}"
-    except (ValueError, TypeError):
-        return False, f"{key}: {error_msg}"
+        return True, ""
 
     return True, ""
 

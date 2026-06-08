@@ -5,7 +5,7 @@ edit record capture, few-shot example selection, correction pattern extraction,
 and prompt injection formatting.
 """
 
-import logging
+from app.logging_config import get_logger
 import re
 from collections import Counter
 from datetime import datetime, timedelta, timezone
@@ -19,7 +19,7 @@ from app.models.correction_pattern import CorrectionPattern
 from app.models.edit_record import EditRecord
 from app.models.thread import RedditThread
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def compute_edit_summary(ai_draft: str, edited_draft: str) -> str | None:

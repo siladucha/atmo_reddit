@@ -8,7 +8,7 @@ Two outputs:
 2. Growth opportunities — threads good for avatar karma building (no LLM needed)
 """
 
-import logging
+from app.logging_config import get_logger
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from app.models.client import Client
 from app.models.thread import RedditThread
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass

@@ -5,12 +5,12 @@ Uses a Redis sorted set as a sliding window counter to track requests
 per minute across all Celery workers.
 """
 
-import logging
+from app.logging_config import get_logger
 import time
 
 import redis
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ScrapeRateLimiter:

@@ -1558,7 +1558,7 @@ def get_ai_costs_by_operation(db: Session, days: int | None = None) -> list[dict
 
     # Map operations to pipeline stages
     stage_map = {
-        "scoring": "Discovery",
+        "scoring": "Scoring",
         "generation": "Content",
         "persona_select": "Content",
         "editing": "Content",
@@ -1566,6 +1566,7 @@ def get_ai_costs_by_operation(db: Session, days: int | None = None) -> list[dict
         "post_topic": "Posts",
         "post_brief": "Posts",
         "post_generation": "Posts",
+        "discovery": "Discovery",
     }
 
     total_cost = sum(float(r.cost) for r in rows) or 1.0
@@ -1702,6 +1703,7 @@ def get_ai_costs_daily_timeline(db: Session, days: int = 14) -> list[dict]:
             "persona_select": entry["ops"].get("persona_select", {}).get("cost", 0),
             "editing": entry["ops"].get("editing", {}).get("cost", 0),
             "hobby_comment": entry["ops"].get("hobby_comment", {}).get("cost", 0),
+            "discovery": entry["ops"].get("discovery", {}).get("cost", 0),
         })
 
     return result

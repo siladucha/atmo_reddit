@@ -5,7 +5,7 @@ Full JSON schema in prompt ensures structured, high-quality output.
 Includes subreddit affinity, forecast, weekly cadence, and client questions.
 """
 
-import logging
+from app.logging_config import get_logger
 import time
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -19,7 +19,7 @@ from app.models.strategy_document import StrategyDocument
 from app.services.ai import call_llm_json, log_ai_usage
 from app.services.transparency import record_activity_event
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Default to Haiku for strategy — good quality, 10x cheaper than Sonnet
 STRATEGY_MODEL_SETTING = "llm_strategy_model"
@@ -219,13 +219,23 @@ class StrategyEngine:
         }
 
     def generate_strategy(
-        self, db: Session, avatar: Avatar, client: Client | None = None
+        self, db: Session, avatar: Avatar, client: Client | None = None,
+        discovery_context: dict | None = None,
     ) -> StrategyDocument:
         """Generate strategy using structured prompt with full JSON schema.
 
         Uses Haiku/Flash by default (llm_scoring_model setting).
         Injects real subreddit affinity data.
         Validates output structure.
+
+        Args:
+            db: SQLAlchemy database session.
+            avatar: Avatar to generate strategy for.
+            client: Optional client for brand context injection.
+            discovery_context: Optional dict from Discovery Engine handoff
+                (prepare_handoff_context). When provided, injects validated
+                hypotheses, recommended communities, entry points, and
+                competitive landscape into the strategy prompt.
         """
         start_time = time.time()
 
@@ -312,6 +322,11 @@ class StrategyEngine:
             brand_ratio=round(brand_ratio * 100, 1),
         )
 
+        # --- Inject Discovery context if present ---
+        if discovery_context:
+            discovery_section = self._build_discovery_prompt_section(discovery_context)
+            prompt = prompt + "\n\n" + discovery_section
+
         messages = [{"role": "user", "content": prompt}]
 
         # --- Call LLM with retry ---
@@ -381,7 +396,7 @@ class StrategyEngine:
             forecast.update({k: v for k, v in llm_forecast.items() if v is not None})
 
         # --- Render markdown from structured data ---
-        document_md = self._render_strategy_md(data, avatar, client, forecast)
+        document_md = self._render_strategy_md(data, avatar, client, forecast, discovery_context=discovery_context)
 
         # --- Save ---
         prev = self.get_current_strategy(db, avatar.id)
@@ -443,7 +458,56 @@ class StrategyEngine:
 
         return strategy_doc
 
-    def _render_strategy_md(self, data: dict, avatar: Avatar, client: Client | None, forecast: dict) -> str:
+    def _build_discovery_prompt_section(self, discovery_context: dict) -> str:
+        """Build an additional prompt section from Discovery Engine findings.
+
+        Injects validated hypotheses, recommended communities, entry points,
+        and competitive landscape into the strategy generation prompt so the
+        LLM can ground its recommendations in Discovery data.
+        """
+        parts = []
+        parts.append("## Discovery Engine Findings (validated data — use to ground your strategy)")
+        parts.append("")
+
+        # Confirmed hypotheses
+        hypotheses = discovery_context.get("confirmed_hypotheses", [])
+        if hypotheses:
+            parts.append("**Confirmed Hypotheses:**")
+            for h in hypotheses:
+                statement = h.get("statement", "")
+                confidence = h.get("confidence_score", 0)
+                parts.append(f"- [{confidence}% confidence] {statement}")
+            parts.append("")
+
+        # Recommended communities
+        communities = discovery_context.get("recommended_communities", [])
+        if communities:
+            parts.append("**Recommended Communities (from Reddit research):**")
+            for c in communities:
+                name = c.get("subreddit_name", "")
+                relevance = c.get("relevance_score", 0)
+                approach = c.get("suggested_engagement_approach", "")
+                parts.append(f"- {name} (relevance: {relevance}%) — approach: {approach}")
+            parts.append("")
+
+        # Entry points
+        entry_points = discovery_context.get("entry_points", [])
+        if entry_points:
+            parts.append(f"**Entry Points:** {', '.join(entry_points)}")
+            parts.append("")
+
+        # Competitive landscape
+        landscape = discovery_context.get("competitive_landscape", "")
+        if landscape:
+            parts.append(f"**Competitive Landscape:** {landscape[:1000]}")
+            parts.append("")
+
+        parts.append("IMPORTANT: Prioritize subreddits from the recommended communities list above. ")
+        parts.append("Your strategy should reflect these validated findings — explain in the summary why these communities and approaches were selected.")
+
+        return "\n".join(parts)
+
+    def _render_strategy_md(self, data: dict, avatar: Avatar, client: Client | None, forecast: dict, discovery_context: dict | None = None) -> str:
         """Render structured JSON into readable markdown for display."""
         lines = []
         lines.append(f"# Strategy: u/{avatar.reddit_username}")
@@ -526,6 +590,46 @@ class StrategyEngine:
             for q in questions:
                 lines.append(f"- {q}")
             lines.append("")
+
+        # Based on Discovery section (when strategy grounded in Discovery data)
+        if discovery_context:
+            lines.append("## Based on Discovery")
+            lines.append("")
+            lines.append("This strategy is grounded in validated Discovery Engine findings:")
+            lines.append("")
+
+            # Confirmed hypotheses
+            hypotheses = discovery_context.get("confirmed_hypotheses", [])
+            if hypotheses:
+                lines.append("**Validated hypotheses:**")
+                for h in hypotheses:
+                    statement = h.get("statement", "")
+                    confidence = h.get("confidence_score", 0)
+                    lines.append(f"- {statement} (confidence: {confidence}%)")
+                lines.append("")
+
+            # Recommended communities with rationale
+            communities = discovery_context.get("recommended_communities", [])
+            if communities:
+                lines.append("**Why these subreddits were chosen:**")
+                for c in communities:
+                    name = c.get("subreddit_name", "")
+                    relevance = c.get("relevance_score", 0)
+                    approach = c.get("suggested_engagement_approach", "")
+                    lines.append(f"- **{name}** (relevance: {relevance}%) — {approach}")
+                lines.append("")
+
+            # Entry points
+            entry_points = discovery_context.get("entry_points", [])
+            if entry_points:
+                lines.append(f"**Entry points:** {', '.join(entry_points)}")
+                lines.append("")
+
+            # Competitive landscape
+            landscape = discovery_context.get("competitive_landscape", "")
+            if landscape:
+                lines.append(f"**Competitive landscape:** {landscape[:500]}")
+                lines.append("")
 
         return "\n".join(lines)
 

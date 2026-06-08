@@ -6,7 +6,7 @@ fallback to alternative model on total primary failure.
 """
 
 import json
-import logging
+from app.logging_config import get_logger
 import time
 import uuid
 from decimal import Decimal
@@ -24,7 +24,7 @@ from app.services.ai import call_llm_json, ai_trigger_context
 from app.services.learning_loop import get_recent_edits
 from app.services.settings import get_setting
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class AnalysisError(Exception):

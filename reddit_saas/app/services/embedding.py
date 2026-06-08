@@ -12,7 +12,7 @@ Storage: pgvector extension in PostgreSQL (no separate vector DB needed).
 """
 
 import hashlib
-import logging
+from app.logging_config import get_logger
 from typing import Optional
 
 import httpx
@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_config
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Embedding dimensions by model
 DIMENSIONS = {

@@ -5,7 +5,7 @@ stale counts, processing speed, waiting list, ETA, and rate limiter
 utilization.
 """
 
-import logging
+from app.logging_config import get_logger
 from datetime import datetime, timedelta, timezone
 
 import redis
@@ -18,7 +18,7 @@ from app.models.subreddit import Subreddit, ClientSubredditAssignment
 from app.services.distributed_lock import ScrapeDistributedLock
 from app.services.rate_limiter import ScrapeRateLimiter
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def get_queue_depth(db: Session) -> int:

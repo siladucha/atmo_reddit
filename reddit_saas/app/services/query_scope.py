@@ -19,7 +19,7 @@ Usage:
 """
 
 import inspect
-import logging
+from app.logging_config import get_logger
 import uuid
 
 from sqlalchemy import select, or_, func
@@ -27,7 +27,7 @@ from sqlalchemy import select, or_, func
 from app.config import get_settings
 from app.models.user_role import UserRole
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SecurityError(Exception):

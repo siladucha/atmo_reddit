@@ -13,7 +13,7 @@ already exists (deduplication). Returns a summary of created/skipped/errors.
 import csv
 import io
 import json
-import logging
+from app.logging_config import get_logger
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.models.avatar import Avatar
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Fields included in CSV export/import (order matters for CSV columns)
 CSV_FIELDS = [

@@ -6,7 +6,7 @@ staleness detection for presence data freshness, and scanning avatar presence
 via PRAW.
 """
 
-import logging
+from app.logging_config import get_logger
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -16,7 +16,7 @@ from app.models.avatar import Avatar
 from app.models.avatar_subreddit_presence import AvatarSubredditPresence
 from app.services.sanitize import ensure_username_bare
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Threshold for considering presence data stale (7 days)
 PRESENCE_STALE_DAYS = 7

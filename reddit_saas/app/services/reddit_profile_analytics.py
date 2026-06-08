@@ -11,7 +11,7 @@ Fetches comprehensive profile analytics for an avatar from Reddit:
 Used by the admin avatar detail page "Profile Analytics" button.
 """
 
-import logging
+from app.logging_config import get_logger
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -23,7 +23,7 @@ from app.models.avatar import Avatar
 from app.services.reddit import get_reddit_client
 from app.services.sanitize import ensure_username_bare
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass

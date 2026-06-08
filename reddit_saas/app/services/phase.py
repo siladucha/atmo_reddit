@@ -9,7 +9,7 @@ Also contains PhaseEvaluator for eligibility gate checks (promotion/demotion).
 
 from __future__ import annotations
 
-import logging
+from app.logging_config import get_logger
 import re
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -32,7 +32,7 @@ from app.services.phase_types import (
 )
 from app.services.sanitize import clean_subreddit_list, get_avatar_hobby_subreddits
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # --- Phase Policy Constants ---
 MAX_COMMENTS_PER_DAY_PHASE1 = 3

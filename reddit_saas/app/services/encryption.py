@@ -11,13 +11,13 @@ Usage:
     plaintext = enc.decrypt(ciphertext)
 """
 
-import logging
+from app.logging_config import get_logger
 import os
 from functools import lru_cache
 
 from cryptography.fernet import Fernet, InvalidToken
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class FieldEncryptor:

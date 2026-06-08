@@ -4,13 +4,13 @@ Prevents approval of drafts that contain brand mentions when the avatar
 is still in Phase 1 or Phase 2 (credibility building).
 """
 
-import logging
+from app.logging_config import get_logger
 
 from app.models.avatar import Avatar
 from app.models.client import Client
 from app.models.comment_draft import CommentDraft
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def check_safety_blocks(

@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-import logging
+from app.logging_config import get_logger
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.config import get_config
 from app.models.user import User
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Algorithm is a fixed constant, not a user-configurable setting

@@ -16,7 +16,7 @@ Usage:
     reddit.submission(id="abc123").reply("Hello!")
 """
 
-import logging
+from app.logging_config import get_logger
 from typing import TYPE_CHECKING
 
 import praw
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from app.models.reddit_app import RedditApp
     from app.services.encryption import FieldEncryptor
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Timeouts for Reddit API calls through proxy
 CONNECT_TIMEOUT = 30  # seconds

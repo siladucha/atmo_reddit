@@ -4,7 +4,7 @@ Built to scale to hundreds of avatars without N+1 queries on client
 lookups. Used by the /avatars-page route and its HTMX partials.
 """
 
-import logging
+from app.logging_config import get_logger
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -17,7 +17,7 @@ from app.models.avatar import Avatar
 from app.models.client import Client
 from app.models.comment_draft import CommentDraft
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 PAGE_SIZE_GRID = 24
@@ -223,7 +223,11 @@ def _scope_for_viewer(query, viewer_client_id):
 
 
 def get_status_counts(db: Session, viewer_client_id) -> dict:
-    """Aggregate counts (in-scope, ignoring filters) — used in stats bar."""
+    """Aggregate counts (in-scope, ignoring filters) — used in stats bar.
+
+    'active' here means reddit_status='active' (Reddit account healthy).
+    'total' counts all avatars in scope.
+    """
     q = db.query(Avatar.reddit_status, func.count(Avatar.id))
     q = _scope_for_viewer(q, viewer_client_id)
     rows = q.group_by(Avatar.reddit_status).all()

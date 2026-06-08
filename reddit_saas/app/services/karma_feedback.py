@@ -11,7 +11,7 @@ by one phase.
 
 from __future__ import annotations
 
-import logging
+from app.logging_config import get_logger
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
@@ -23,7 +23,7 @@ from app.models.comment_draft import CommentDraft
 from app.models.thread import RedditThread
 from app.services.transparency import record_activity_event
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # If average score of recent posted comments drops below this, trigger demotion
 KARMA_DROP_THRESHOLD = -2

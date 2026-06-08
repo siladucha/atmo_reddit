@@ -1,11 +1,13 @@
 """AI service — wrapper around LiteLLM for all LLM calls.
 
-Handles model routing, token tracking, cost calculation, and logging.
+Handles model routing, token tracking, cost calculation, logging,
+and automatic model fallback on provider errors.
 """
 
 import json
+import re
 import time
-import logging
+from app.logging_config import get_logger
 from contextvars import ContextVar
 from decimal import Decimal
 
@@ -16,7 +18,7 @@ from sqlalchemy.orm import Session
 from app.config import get_config
 from app.models.ai_usage import AIUsageLog
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Disable LiteLLM's verbose logging
 litellm.set_verbose = False
@@ -28,6 +30,8 @@ ai_trigger_context: ContextVar[str | None] = ContextVar("ai_trigger_context", de
 # Cost per 1M tokens (update as prices change)
 MODEL_COSTS = {
     "anthropic/claude-sonnet-4-20250514": {"input": 3.00, "output": 15.00},
+    "anthropic/claude-sonnet-4-6": {"input": 3.00, "output": 15.00},
+    "anthropic/claude-haiku-4-5": {"input": 1.00, "output": 5.00},
     "anthropic/claude-3-5-haiku-20241022": {"input": 0.80, "output": 4.00},
     "gemini/gemini-2.0-flash": {"input": 0.075, "output": 0.30},
     "gemini/gemini-2.5-flash-lite": {"input": 0.0, "output": 0.0},  # Free tier
@@ -36,6 +40,24 @@ MODEL_COSTS = {
     "bedrock/anthropic.claude-sonnet-4-20250514-v1:0": {"input": 3.00, "output": 15.00},
     "bedrock/anthropic.claude-3-5-haiku-20241022-v1:0": {"input": 0.80, "output": 4.00},
 }
+
+# Fallback model chain: if primary model fails, try these in order.
+# Key = model prefix or exact model name, Value = ordered list of fallbacks.
+MODEL_FALLBACK_CHAIN = {
+    "gemini/gemini-2.5-flash": ["gemini/gemini-2.5-flash-lite", "anthropic/claude-haiku-4-5"],
+    "gemini/gemini-2.5-flash-lite": ["gemini/gemini-2.5-flash", "anthropic/claude-haiku-4-5"],
+    "gemini/": ["gemini/gemini-2.5-flash-lite", "anthropic/claude-haiku-4-5"],  # prefix fallback
+}
+
+# Errors that trigger automatic model fallback
+_FALLBACK_EXCEPTIONS = (
+    litellm.exceptions.RateLimitError,
+    litellm.exceptions.AuthenticationError,
+    litellm.exceptions.NotFoundError,
+    litellm.exceptions.ServiceUnavailableError,
+    litellm.exceptions.InternalServerError,
+    litellm.exceptions.Timeout,
+)
 
 
 def call_llm(
@@ -46,6 +68,10 @@ def call_llm(
     response_format: dict | None = None,
 ) -> dict:
     """Make an LLM call and return the response with usage metadata.
+
+    Automatic fallback: if the primary model fails with a provider error
+    (404, 429, 500, 503, timeout, auth), tries fallback models from
+    MODEL_FALLBACK_CHAIN, then finally the generation model (Sonnet).
 
     Args:
         messages: List of message dicts [{"role": "system", "content": "..."}, ...]
@@ -85,24 +111,38 @@ def call_llm(
         total_prompt_chars, "json" if response_format else "text",
     )
 
-    # Call with automatic fallback: if primary model fails (rate limit, auth),
-    # fall back to generation model (Anthropic Sonnet)
-    try:
-        response = litellm.completion(**kwargs)
-    except (litellm.exceptions.RateLimitError, litellm.exceptions.AuthenticationError) as e:
-        fallback_model = get_config("llm_generation_model")
-        if model != fallback_model:
-            logger.warning(
-                "LLM_FALLBACK | model=%s failed (%s), falling back to %s",
-                model, type(e).__name__, fallback_model,
-            )
-            kwargs["model"] = fallback_model
-            kwargs["api_key"] = _resolve_api_key(fallback_model)
-            model = fallback_model
-            start = time.time()  # reset timer
+    # Attempt call with fallback chain on provider errors
+    response = None
+    last_error = None
+
+    # Build ordered list of models to try: [primary, ...fallbacks, generation_model]
+    models_to_try = [model] + _get_fallback_chain(model)
+
+    for attempt_model in models_to_try:
+        try:
+            kwargs["model"] = attempt_model
+            kwargs["api_key"] = _resolve_api_key(attempt_model)
+            if attempt_model != model:
+                start = time.time()  # reset timer for fallback
             response = litellm.completion(**kwargs)
-        else:
+            model = attempt_model  # track which model actually succeeded
+            last_error = None
+            break
+        except _FALLBACK_EXCEPTIONS as e:
+            last_error = e
+            logger.warning(
+                "LLM_FALLBACK | model=%s failed (%s: %s)",
+                attempt_model, type(e).__name__, str(e)[:150],
+            )
+            continue
+        except Exception:
+            # Non-retryable error (e.g. bad request, content filter) — don't fallback
             raise
+
+    if response is None:
+        # All models exhausted — re-raise the last provider error
+        logger.error("LLM_ALL_MODELS_FAILED | tried=%s | last_error=%s", models_to_try, last_error)
+        raise last_error  # type: ignore[misc]
 
     duration_ms = int((time.time() - start) * 1000)
     content = response.choices[0].message.content or ""
@@ -146,6 +186,10 @@ def call_llm_json(
 ) -> dict:
     """Make an LLM call expecting JSON output. Parses the response.
 
+    Robust JSON extraction: handles raw JSON, markdown code blocks,
+    prose-wrapped JSON (common with Gemini), and nested objects.
+    Retries once with a different model on parse failure.
+
     Args:
         messages: List of message dicts.
         model: Model identifier.
@@ -158,6 +202,7 @@ def call_llm_json(
         cost_usd, duration_ms, model
 
     Raises:
+        ValueError: If JSON cannot be extracted after all retries.
         ValidationError: If schema is provided and the LLM response fails validation.
     """
     result = call_llm(
@@ -178,38 +223,34 @@ def call_llm_json(
             f"output_tokens={result.get('output_tokens', '?')})"
         )
 
-    try:
-        data = json.loads(content)
-    except json.JSONDecodeError:
-        # Try to extract JSON from markdown code blocks
-        extracted = content
-        if "```json" in content:
-            extracted = content.split("```json")[1].split("```")[0].strip()
-        elif "```" in content:
-            extracted = content.split("```")[1].split("```")[0].strip()
-        else:
-            # Gemini often prepends prose like "Here is the JSON response:"
-            # Try to find the first { ... } block
-            import re
-            json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', content)
-            if json_match:
-                extracted = json_match.group(0)
-            else:
-                extracted = ""
+    # Attempt to parse JSON from the response
+    data = _extract_json(content)
 
-        if not extracted or not extracted.strip():
-            raise ValueError(
-                f"LLM returned non-JSON response (model={result.get('model', 'unknown')}, "
-                f"content_preview={content[:200]!r})"
+    if data is None:
+        # First parse failed — retry with a fallback model (different provider)
+        retry_model = _get_json_retry_model(result.get("model", model or ""))
+        if retry_model:
+            logger.warning(
+                "LLM_JSON_PARSE_FAILED | model=%s | retrying with %s | content_preview=%s",
+                result.get("model"), retry_model, repr(content[:150]),
             )
+            result = call_llm(
+                messages=messages,
+                model=retry_model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_format={"type": "json_object"},
+            )
+            content = result["content"]
+            if content and content.strip():
+                data = _extract_json(content)
 
-        try:
-            data = json.loads(extracted)
-        except json.JSONDecodeError as inner_e:
-            raise ValueError(
-                f"LLM returned unparseable response (model={result.get('model', 'unknown')}, "
-                f"error={inner_e}, content_preview={content[:200]!r})"
-            ) from inner_e
+    if data is None:
+        raise ValueError(
+            f"LLM returned non-JSON response after retry "
+            f"(model={result.get('model', 'unknown')}, "
+            f"content_preview={content[:200]!r})"
+        )
 
     # Validate against schema if provided
     if schema is not None:
@@ -218,6 +259,132 @@ def call_llm_json(
 
     result["data"] = data
     return result
+
+
+def _extract_json(content: str) -> dict | None:
+    """Extract JSON object from LLM response content.
+
+    Handles multiple formats:
+    1. Pure JSON string
+    2. Markdown code blocks (```json ... ``` or ``` ... ```)
+    3. Prose-wrapped JSON (e.g. "Here is the JSON response: {...}")
+    4. JSON with trailing commas or minor syntax issues
+
+    Returns parsed dict or None if extraction failed.
+    """
+    if not content or not content.strip():
+        return None
+
+    text = content.strip()
+
+    # 1. Try direct JSON parse (most common case)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # 2. Extract from markdown code blocks
+    if "```json" in text:
+        block = text.split("```json", 1)[1]
+        if "```" in block:
+            block = block.split("```", 1)[0]
+        block = block.strip()
+        try:
+            return json.loads(block)
+        except json.JSONDecodeError:
+            pass
+
+    if "```" in text:
+        parts = text.split("```")
+        if len(parts) >= 3:
+            block = parts[1].strip()
+            # Remove optional language hint on first line
+            if block and block.split("\n")[0].isalpha():
+                block = "\n".join(block.split("\n")[1:])
+            try:
+                return json.loads(block.strip())
+            except json.JSONDecodeError:
+                pass
+
+    # 3. Find the outermost { ... } block (greedy — handles nested objects)
+    brace_start = text.find("{")
+    if brace_start != -1:
+        # Find matching closing brace
+        depth = 0
+        for i in range(brace_start, len(text)):
+            if text[i] == "{":
+                depth += 1
+            elif text[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    candidate = text[brace_start:i + 1]
+                    try:
+                        return json.loads(candidate)
+                    except json.JSONDecodeError:
+                        # Try fixing trailing commas
+                        fixed = re.sub(r',\s*([}\]])', r'\1', candidate)
+                        try:
+                            return json.loads(fixed)
+                        except json.JSONDecodeError:
+                            pass
+                    break
+
+    # 4. Last resort: find any JSON-like pattern with regex
+    json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text)
+    if json_match:
+        try:
+            return json.loads(json_match.group(0))
+        except json.JSONDecodeError:
+            pass
+
+    return None
+
+
+def _get_fallback_chain(model: str) -> list[str]:
+    """Get ordered fallback models for a given model.
+
+    Returns deduplicated list (excludes the primary model itself).
+    Always ends with the generation model as ultimate fallback.
+    """
+    fallbacks = []
+
+    # Check exact match first, then prefix match
+    if model in MODEL_FALLBACK_CHAIN:
+        fallbacks = list(MODEL_FALLBACK_CHAIN[model])
+    else:
+        # Try prefix match (e.g. "gemini/" catches any gemini model)
+        for prefix, chain in MODEL_FALLBACK_CHAIN.items():
+            if prefix.endswith("/") and model.startswith(prefix):
+                fallbacks = list(chain)
+                break
+
+    # Always add generation model as ultimate fallback
+    try:
+        generation_model = get_config("llm_generation_model")
+        if generation_model and generation_model not in fallbacks:
+            fallbacks.append(generation_model)
+    except Exception:
+        # DB unavailable — use hardcoded Sonnet as last resort
+        ultimate = "anthropic/claude-sonnet-4-20250514"
+        if ultimate not in fallbacks:
+            fallbacks.append(ultimate)
+
+    # Remove the primary model from fallbacks
+    fallbacks = [m for m in fallbacks if m != model]
+    return fallbacks
+
+
+def _get_json_retry_model(failed_model: str) -> str | None:
+    """Get a different-provider model for JSON retry.
+
+    If Gemini failed to produce valid JSON, retry with Haiku (cheaper than Sonnet).
+    If Anthropic failed, retry with Gemini Flash Lite.
+    """
+    if failed_model.startswith("gemini/"):
+        return "anthropic/claude-haiku-4-5"
+    elif failed_model.startswith("anthropic/"):
+        return "gemini/gemini-2.5-flash-lite"
+    return None
 
 
 def log_ai_usage(

@@ -7,7 +7,7 @@ Isolated from `services/reddit.py` (scraping) by single-responsibility:
 this module only reads account metadata, never scrapes content.
 """
 
-import logging
+from app.logging_config import get_logger
 import time
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
@@ -20,7 +20,7 @@ from app.models.avatar import Avatar
 from app.services.reddit import get_reddit_client
 from app.services.sanitize import ensure_username_bare
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 STATUS_ACTIVE = "active"

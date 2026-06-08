@@ -1,6 +1,6 @@
 """Learning Loop service — store human edits and retrieve for few-shot injection."""
 
-import logging
+from app.logging_config import get_logger
 import uuid
 
 from sqlalchemy import select
@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models.analysis_edit import AnalysisEditRecord
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _truncate(value: object, max_len: int = 50) -> str:

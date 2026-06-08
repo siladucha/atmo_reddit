@@ -11,7 +11,7 @@ Refactored for shared subreddit registry: scoring writes to ThreadScore
 (per-client) instead of directly on RedditThread.
 """
 
-import logging
+from app.logging_config import get_logger
 import uuid
 
 from sqlalchemy import and_
@@ -25,7 +25,7 @@ from app.models.thread_score import ThreadScore
 from app.services.ai import call_llm_json, log_ai_usage
 from app.schemas.llm_outputs import ScoringOutput, BatchScoringOutput
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 SCORING_PROMPT = """You are a content analyst expert and online discussions thread Classifier.
 

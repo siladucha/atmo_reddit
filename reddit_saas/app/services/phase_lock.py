@@ -7,13 +7,13 @@ for atomic release to ensure only the lock owner can release it.
 Follows the same pattern as ScrapeDistributedLock in distributed_lock.py.
 """
 
-import logging
+from app.logging_config import get_logger
 import time
 from uuid import uuid4
 
 import redis
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Lua script for atomic lock release — only releases if value matches
 _RELEASE_SCRIPT = """

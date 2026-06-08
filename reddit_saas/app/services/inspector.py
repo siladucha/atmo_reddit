@@ -5,7 +5,7 @@ Each check returns detail items (specific records) for drill-down in the UI.
 
 from __future__ import annotations
 
-import logging
+from app.logging_config import get_logger
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import asc, func
@@ -18,7 +18,7 @@ from app.models.comment_draft import CommentDraft
 from app.models.scrape_log import ScrapeLog
 from app.models.thread import RedditThread
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------

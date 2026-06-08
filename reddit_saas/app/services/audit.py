@@ -83,6 +83,7 @@ def query_audit_logs(
     search: str | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
+    exclude_actions: list[str] | None = None,
 ) -> tuple[list[AuditLog], int]:
     """Query audit log entries with pagination and optional filters.
 
@@ -97,6 +98,8 @@ def query_audit_logs(
         search: Free-text search in details JSONB (case-insensitive).
         date_from: Include only entries created at or after this datetime.
         date_to: Include only entries created at or before this datetime.
+        exclude_actions: List of action names to exclude from results
+            (e.g. automated high-frequency actions).
 
     Returns:
         A tuple of (entries, total_count) where entries is the paginated list
@@ -112,6 +115,8 @@ def query_audit_logs(
         query = query.filter(AuditLog.action == action)
     if entity_type is not None:
         query = query.filter(AuditLog.entity_type == entity_type)
+    if exclude_actions:
+        query = query.filter(AuditLog.action.notin_(exclude_actions))
     if search:
         # Search across action, entity_type, and details JSONB (case-insensitive)
         from sqlalchemy import cast, String as SAString, or_

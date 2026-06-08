@@ -6,7 +6,7 @@ for the 9 pipeline nodes displayed on the Admin Dashboard.
 
 from __future__ import annotations
 
-import logging
+from app.logging_config import get_logger
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -20,7 +20,7 @@ from app.models.ai_usage import AIUsageLog
 from app.models.comment_draft import CommentDraft
 from app.models.scrape_log import ScrapeLog
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class NodeState(str, Enum):

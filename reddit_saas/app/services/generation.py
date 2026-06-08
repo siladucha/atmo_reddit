@@ -5,7 +5,7 @@ Uses prompts adapted from Ori's PoC.
 """
 
 import json
-import logging
+from app.logging_config import get_logger
 
 from sqlalchemy.orm import Session
 
@@ -17,7 +17,7 @@ from app.models.comment_draft import CommentDraft
 from app.services.ai import call_llm, call_llm_json, log_ai_usage
 from app.schemas.llm_outputs import CommentOutput
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # --- Persona Selection ---

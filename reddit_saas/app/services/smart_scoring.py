@@ -17,7 +17,7 @@ Flow:
 This reduces scoring calls from 300+/day to 10-30/day per avatar.
 """
 
-import logging
+from app.logging_config import get_logger
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
@@ -38,7 +38,7 @@ from app.services.phase import (
     MAX_COMMENTS_PER_DAY_PHASE3,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # How many threads to score per remaining budget slot.
 # budget_remaining × MULTIPLIER = threads to score.

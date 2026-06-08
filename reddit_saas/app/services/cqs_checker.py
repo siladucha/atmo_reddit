@@ -12,7 +12,7 @@ Flow:
 Called during "Refresh Reddit Data" if the avatar has a post in r/WhatIsMyCQS.
 """
 
-import logging
+from app.logging_config import get_logger
 import re
 import time
 from datetime import datetime, timezone, timedelta
@@ -23,7 +23,7 @@ from app.models.avatar import Avatar
 from app.services.reddit import get_reddit_client
 from app.services.sanitize import ensure_username_bare
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Valid CQS levels as returned by the bot
 VALID_CQS_LEVELS = {"lowest", "low", "moderate", "high", "highest"}

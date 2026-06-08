@@ -10,7 +10,7 @@ Example: client_viewer can approve drafts only if the client has
 
 from __future__ import annotations
 
-import logging
+from app.logging_config import get_logger
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -22,7 +22,7 @@ from app.models.user import User
 from app.models.client import Client
 from app.models.user_role import UserRole
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def can_approve_drafts(user: User, client: Client) -> bool:

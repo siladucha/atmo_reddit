@@ -11,7 +11,7 @@ Computes a composite risk score (0-100) based on multiple signals:
 The risk score drives the Decision Center's prioritization and prescriptive actions.
 """
 
-import logging
+from app.logging_config import get_logger
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
@@ -24,7 +24,7 @@ from app.models.comment_draft import CommentDraft
 from app.models.activity_event import ActivityEvent
 from app.models.avatar_subreddit_presence import AvatarSubredditPresence
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass

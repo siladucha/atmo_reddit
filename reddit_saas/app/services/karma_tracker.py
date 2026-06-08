@@ -16,7 +16,7 @@ the avatar's own posted comments (Req 3.2).
 
 from __future__ import annotations
 
-import logging
+from app.logging_config import get_logger
 import time
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -33,7 +33,7 @@ from app.models.subreddit_karma import SubredditKarma
 from app.models.thread import RedditThread
 from app.services.sanitize import clean_subreddit_list, ensure_username_bare
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _classify_subreddit(avatar: Avatar, subreddit_name: str) -> str:

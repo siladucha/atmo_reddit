@@ -4,7 +4,7 @@ Handles detection and management of locked/removed/archived Reddit threads.
 Prevents wasting LLM resources on threads that can no longer receive comments.
 """
 
-import logging
+from app.logging_config import get_logger
 from datetime import datetime, timezone, timedelta
 
 from sqlalchemy.orm import Session
@@ -13,7 +13,7 @@ from app.models.thread import RedditThread
 from app.models.comment_draft import CommentDraft
 from app.services.reddit import check_thread_liveness
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Threads older than this threshold get a liveness check before generation
 STALE_THREAD_HOURS = 12

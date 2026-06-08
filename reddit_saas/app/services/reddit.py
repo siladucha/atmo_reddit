@@ -8,7 +8,7 @@ the global rate limiter (Redis sliding window, 30 RPM default).
 """
 
 import json
-import logging
+from app.logging_config import get_logger
 import time
 from datetime import datetime, timezone, timedelta
 
@@ -23,7 +23,7 @@ from prawcore.exceptions import (
 
 from app.config import get_config
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Global rate limiter instance (lazy-initialized)
 _global_rate_limiter = None

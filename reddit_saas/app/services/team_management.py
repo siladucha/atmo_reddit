@@ -10,7 +10,7 @@ Rules:
 - client_manager and below: CANNOT manage users at all
 """
 
-import logging
+from app.logging_config import get_logger
 import uuid
 
 from fastapi import HTTPException
@@ -18,7 +18,7 @@ from fastapi import HTTPException
 from app.models.user import User
 from app.models.user_role import UserRole
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Roles that a client_admin is allowed to create/edit/deactivate
 _CLIENT_ADMIN_MANAGEABLE_ROLES = frozenset({

@@ -6,7 +6,7 @@ their `max_avatars` plan limit before allowing avatar creation or assignment.
 Platform admins (owner/partner) bypass the limit check entirely.
 """
 
-import logging
+from app.logging_config import get_logger
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -16,7 +16,7 @@ from app.models.client import Client
 from app.models.user import User
 from app.models.user_role import UserRole
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def count_client_avatars(db: Session, client_id) -> int:
