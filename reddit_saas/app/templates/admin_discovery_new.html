@@ -1,0 +1,75 @@
+{% extends "admin_base.html" %}
+{% block title %}New Discovery — RAMP{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <div class="mb-6">
+        <a href="/admin/discovery" class="text-gray-400 hover:text-gray-300 text-sm">← Back to Discovery</a>
+        <h1 class="text-2xl font-bold text-white mt-2">New Discovery Session</h1>
+        <p class="text-gray-400 text-sm mt-1">
+            Describe the client and their goals. The system will research Reddit's ecosystem
+            to find opportunities, risks, and communities relevant to their business.
+        </p>
+    </div>
+
+    <form method="post" action="/admin/discovery/new" class="space-y-6">
+        <!-- Prospect name -->
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">Client / Prospect Name</label>
+            <input type="text" name="prospect_name" value="{{ prospect_name or '' }}"
+                   maxlength="200" placeholder="e.g. Acme Corp, NeuroYoga, XM Cyber"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+        </div>
+
+        <!-- Link to existing client (optional) -->
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">Link to Existing Client <span class="text-gray-500">(optional)</span></label>
+            <select name="client_id"
+                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-indigo-500">
+                <option value="">— New prospect (no existing client) —</option>
+                {% for c in clients %}
+                <option value="{{ c.id }}" {% if default_client_id and (c.id | string) == default_client_id %}selected{% endif %}>{{ c.client_name }} ({{ c.brand_name }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Client Brief -->
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">
+                Tell us about the client and what they want to achieve
+            </label>
+            <textarea name="client_brief" rows="10" maxlength="5000" required
+                      placeholder="Describe the business: what they do, who their customers are, what problems they solve, what they want to achieve on Reddit. The more detail, the better the research."
+                      class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y"
+                      oninput="document.getElementById('char-count').textContent = this.value.length">{{ client_brief or '' }}</textarea>
+            <div class="flex justify-between mt-1">
+                <span class="text-xs text-gray-500">Minimum 50 characters</span>
+                <span class="text-xs text-gray-500"><span id="char-count">0</span> / 5000</span>
+            </div>
+        </div>
+
+        {% if error %}
+        <div class="bg-red-900/30 border border-red-700 rounded-lg px-4 py-3 text-red-300 text-sm">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Submit -->
+        <div class="flex gap-3">
+            <button type="submit"
+                    class="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors font-medium">
+                Start Discovery →
+            </button>
+            <a href="/admin/discovery"
+               class="px-6 py-2.5 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors">
+                Cancel
+            </a>
+        </div>
+
+        <p class="text-xs text-gray-500">
+            After submitting, the system will extract business entities and begin forming
+            hypotheses about Reddit relevance. Estimated AI cost: ~$0.07 per session.
+        </p>
+    </form>
+</div>
+{% endblock %}

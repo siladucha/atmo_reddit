@@ -1,0 +1,207 @@
+<!-- Discovery: Research results — confirm/reject hypotheses -->
+<div>
+    <h2 class="text-lg font-semibold text-white mb-2">Research Results — Iteration {{ session.current_iteration }}</h2>
+    <p class="text-gray-400 text-sm mb-4">
+        Review findings and confirm or reject each hypothesis. Confirmed hypotheses enter the Visibility Report.
+    </p>
+
+    <form method="post" action="/admin/discovery/{{ session.id }}/decide">
+        <div class="space-y-4 mb-6">
+            {% for h in hypotheses %}
+            <div class="bg-gray-900/50 border rounded-lg p-4
+                {% if h.status == 'confirmed' %}border-green-700 bg-green-900/10
+                {% elif h.status == 'rejected' %}border-red-700 opacity-60
+                {% else %}border-gray-700{% endif %}">
+
+                <!-- Header -->
+                <div class="flex items-start justify-between gap-3 mb-3">
+                    <div class="flex-1">
+                        <p class="text-white text-sm font-medium">{{ h.statement }}</p>
+                        <div class="flex items-center gap-2 mt-1 flex-wrap">
+                            <span class="px-2 py-0.5 bg-gray-700 text-gray-300 text-xs rounded">{{ h.category }}</span>
+                            {% if h.classification == 'fact' %}
+                            <span class="px-2 py-0.5 bg-blue-800 text-blue-200 text-xs rounded font-medium">FACT</span>
+                            {% elif h.classification == 'choice' %}
+                            <span class="px-2 py-0.5 bg-amber-800 text-amber-200 text-xs rounded font-medium">CHOICE</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <!-- Confidence score with delta -->
+                    <div class="text-right flex-shrink-0">
+                        <div class="text-xl font-bold font-mono
+                            {% if h.confidence_score >= 70 %}text-green-400
+                            {% elif h.confidence_score >= 40 %}text-amber-400
+                            {% else %}text-red-400{% endif %}">
+                            {{ h.confidence_score }}
+                        </div>
+                        <div class="text-xs font-mono
+                            {% if h.confidence_delta > 0 %}text-green-400
+                            {% elif h.confidence_delta < 0 %}text-red-400
+                            {% else %}text-gray-500{% endif %}">
+                            {% if h.confidence_delta > 0 %}+{{ h.confidence_delta }}{% elif h.confidence_delta < 0 %}{{ h.confidence_delta }}{% else %}—{% endif %} from 50
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Confidence bar with delta indicator -->
+                <div class="mb-3">
+                    <div class="w-full h-2 bg-gray-700 rounded-full overflow-hidden relative">
+                        <!-- Initial 50 mark -->
+                        <div class="absolute top-0 bottom-0 w-px bg-gray-500" style="left: 50%"></div>
+                        <div class="h-full rounded-full transition-all
+                            {% if h.confidence_score >= 70 %}bg-green-500
+                            {% elif h.confidence_score >= 40 %}bg-amber-500
+                            {% else %}bg-red-500{% endif %}"
+                             style="width: {{ h.confidence_score }}%"></div>
+                    </div>
+                </div>
+
+                <!-- Reddit signals table -->
+                {% if h.reddit_signals and h.reddit_signals.get('subreddits') %}
+                <div class="mb-3 overflow-x-auto">
+                    <table class="w-full text-xs">
+                        <thead>
+                            <tr class="border-b border-gray-700">
+                                <th class="py-1.5 pr-3 text-left text-gray-500 font-medium">Subreddit</th>
+                                <th class="py-1.5 px-2 text-right text-gray-500 font-medium">Subscribers</th>
+                                <th class="py-1.5 px-2 text-right text-gray-500 font-medium">Posts/30d</th>
+                                <th class="py-1.5 px-2 text-right text-gray-500 font-medium">Engagement</th>
+                                <th class="py-1.5 pl-2 text-right text-gray-500 font-medium">Relevance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for sub in h.reddit_signals.subreddits %}
+                            <tr class="border-b border-gray-800/50">
+                                <td class="py-1.5 pr-3 text-indigo-400 font-medium">{{ sub.name }}</td>
+                                <td class="py-1.5 px-2 text-right text-gray-300 font-mono">{{ '{:,}'.format(sub.subscribers|int) if sub.subscribers else '—' }}</td>
+                                <td class="py-1.5 px-2 text-right text-gray-300 font-mono">{{ sub.posts_30d if sub.posts_30d else '—' }}</td>
+                                <td class="py-1.5 px-2 text-right text-gray-300 font-mono">{{ '%.1f' | format(sub.avg_engagement|float) if sub.avg_engagement else '—' }}</td>
+                                <td class="py-1.5 pl-2 text-right">
+                                    <span class="px-1.5 py-0.5 rounded text-xs font-mono
+                                        {% if sub.relevance_score >= 70 %}text-green-400
+                                        {% elif sub.relevance_score >= 40 %}text-amber-400
+                                        {% else %}text-gray-400{% endif %}">
+                                        {{ sub.relevance_score }}/100
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <div class="text-xs text-gray-500 mt-1.5">
+                        {{ h.reddit_signals.get('total_posts_found', 0) }} posts found ·
+                        avg engagement {{ h.reddit_signals.get('avg_engagement_overall', 0) }}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- No signal warning -->
+                {% if h.reddit_signals and h.reddit_signals.get('no_signal') %}
+                <div class="mb-3 p-3 bg-gray-700 border border-gray-600 rounded-lg">
+                    <div class="flex items-start gap-2">
+                        <span class="text-gray-400 text-sm">⚠</span>
+                        <div>
+                            <p class="text-gray-400 text-xs font-medium">
+                                No Signal — {{ h.reddit_signals.no_signal.get('cause', 'unknown') | replace('_', ' ') | title }}
+                            </p>
+                            <p class="text-gray-500 text-xs mt-0.5">{{ h.reddit_signals.no_signal.get('explanation', 'No relevant Reddit signal found') }}</p>
+                            {% if h.reddit_signals.no_signal.get('suggestions') %}
+                            <div class="mt-1.5 flex flex-wrap gap-1">
+                                {% for sug in h.reddit_signals.no_signal.suggestions %}
+                                <span class="px-2 py-0.5 bg-gray-800 text-gray-400 text-xs rounded">💡 {{ sug }}</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Confidence reasoning -->
+                {% if h.provenance and h.provenance.get('confidence_reasoning') %}
+                <details class="mb-3">
+                    <summary class="text-xs text-gray-500 cursor-pointer hover:text-gray-400">Scoring reasoning</summary>
+                    <p class="text-xs text-gray-400 mt-1 pl-3 border-l border-gray-700">{{ h.provenance.confidence_reasoning }}</p>
+                </details>
+                {% endif %}
+
+                <!-- Decision buttons (only for undecided hypotheses in active sessions) -->
+                {% if session.status == 'in_progress' and h.status == 'proposed' %}
+                <div class="flex items-center gap-3 mt-3 pt-3 border-t border-gray-700">
+                    <input type="hidden" name="hypothesis_ids" value="{{ h.id }}">
+                    <div class="flex items-center gap-4">
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" name="decision_{{ h.id }}" value="confirm"
+                                   class="text-green-600 focus:ring-green-500 bg-gray-800 border-gray-600">
+                            <span class="text-sm text-green-300">Confirm</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" name="decision_{{ h.id }}" value="reject"
+                                   class="text-red-600 focus:ring-red-500 bg-gray-800 border-gray-600"
+                                   onchange="document.getElementById('reject-field-{{ h.id }}').classList.remove('hidden')">
+                            <span class="text-sm text-red-300">Reject</span>
+                        </label>
+                    </div>
+                    <!-- Rejection reason field (shown when reject selected) -->
+                    <div id="reject-field-{{ h.id }}" class="hidden flex-1">
+                        <input type="text" name="reject_reason_{{ h.id }}"
+                               minlength="10" maxlength="500"
+                               placeholder="Rejection reason (min 10 chars)"
+                               class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white placeholder-gray-500">
+                    </div>
+                </div>
+                {% elif h.status == 'confirmed' %}
+                <div class="mt-2 text-xs text-green-400">✓ Confirmed</div>
+                {% elif h.status == 'rejected' %}
+                <div class="mt-2 text-xs text-red-400">✗ Rejected{% if h.rejection_reason %}: {{ h.rejection_reason }}{% endif %}</div>
+                {% elif h.status == 'research_failed' %}
+                <div class="mt-2 text-xs text-amber-400">⚠ Research failed — retry or skip</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Submit decisions button -->
+        {% set undecided = hypotheses | selectattr('status', 'equalto', 'proposed') | list | length %}
+        {% if undecided > 0 and session.status == 'in_progress' %}
+        <div class="mb-4">
+            <button type="submit"
+                    hx-post="/admin/discovery/{{ session.id }}/decide"
+                    hx-target="#discovery-content"
+                    hx-swap="innerHTML"
+                    class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 text-sm font-medium transition-colors">
+                Submit Decisions
+            </button>
+        </div>
+        {% endif %}
+    </form>
+
+    <!-- Actions -->
+    <div class="flex items-center justify-between pt-4 border-t border-gray-700">
+        <div class="text-xs text-gray-500">
+            {% set confirmed_count = hypotheses | selectattr('status', 'equalto', 'confirmed') | list | length %}
+            {% set rejected_count = hypotheses | selectattr('status', 'equalto', 'rejected') | list | length %}
+            {{ confirmed_count }} confirmed · {{ rejected_count }} rejected
+        </div>
+        <div class="flex gap-2">
+            {% if can_generate_report %}
+            <button hx-post="/admin/discovery/{{ session.id }}/report"
+                    hx-target="#discovery-content"
+                    hx-swap="innerHTML"
+                    class="px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-600 text-sm font-medium transition-colors">
+                📄 Generate Report
+            </button>
+            {% endif %}
+            {% if not is_max_iterations %}
+            <button hx-post="/admin/discovery/{{ session.id }}/entities"
+                    hx-target="#discovery-content"
+                    hx-swap="innerHTML"
+                    class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 text-sm font-medium transition-colors">
+                Next Iteration →
+            </button>
+            {% else %}
+            <span class="text-xs text-amber-400 self-center">Final iteration reached</span>
+            {% endif %}
+        </div>
+    </div>
+</div>

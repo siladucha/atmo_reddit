@@ -1,0 +1,63 @@
+<!-- Discovery: Hypotheses formed, ready for research -->
+<div>
+    <h2 class="text-lg font-semibold text-white mb-2">Hypotheses — Iteration {{ session.current_iteration }}</h2>
+    <p class="text-gray-400 text-sm mb-4">
+        The system generated these testable hypotheses. Click "Start Research" to validate them against real Reddit data.
+    </p>
+
+    <div class="space-y-3 mb-6">
+        {% for h in hypotheses %}
+        <div class="bg-gray-900/50 border border-gray-700 rounded-lg p-4">
+            <div class="flex items-start justify-between gap-3">
+                <div class="flex-1">
+                    <p class="text-white text-sm">{{ h.statement }}</p>
+                    <div class="flex items-center gap-2 mt-2 flex-wrap">
+                        <!-- Category badge -->
+                        <span class="px-2 py-0.5 bg-gray-700 text-gray-300 text-xs rounded">{{ h.category }}</span>
+                        <!-- Fact/Choice classification badge -->
+                        {% if h.classification == 'fact' %}
+                        <span class="px-2 py-0.5 bg-blue-800 text-blue-200 text-xs rounded font-medium">FACT</span>
+                        {% elif h.classification == 'choice' %}
+                        <span class="px-2 py-0.5 bg-amber-800 text-amber-200 text-xs rounded font-medium">CHOICE</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <!-- Initial confidence (always 50%) -->
+                <div class="flex-shrink-0 text-right">
+                    <span class="text-sm font-mono text-gray-400">{{ h.confidence_score }}</span>
+                </div>
+            </div>
+
+            <!-- Confidence bar (initial 50%) -->
+            <div class="mt-3">
+                <div class="w-full h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full transition-all
+                        {% if h.confidence_score >= 70 %}bg-green-500
+                        {% elif h.confidence_score >= 40 %}bg-amber-500
+                        {% else %}bg-red-500{% endif %}"
+                         style="width: {{ h.confidence_score }}%"></div>
+                </div>
+            </div>
+
+            {% if h.provenance and h.provenance.get('search_terms') %}
+            <div class="mt-2 flex gap-1 flex-wrap">
+                {% for term in h.provenance.search_terms %}
+                <span class="px-2 py-0.5 bg-gray-800 text-gray-400 text-xs rounded">{{ term }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Trigger research -->
+    <div class="flex items-center justify-between">
+        <span class="text-xs text-gray-500">{{ hypotheses | length }} hypotheses to research</span>
+        <button hx-post="/admin/discovery/{{ session.id }}/research"
+                hx-target="#discovery-content"
+                hx-swap="innerHTML"
+                class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 text-sm font-medium transition-colors">
+            🔍 Start Research
+        </button>
+    </div>
+</div>

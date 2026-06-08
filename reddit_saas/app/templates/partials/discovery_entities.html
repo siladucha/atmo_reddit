@@ -1,0 +1,69 @@
+<!-- Discovery: Entity review step -->
+<div>
+    <h2 class="text-lg font-semibold text-white mb-2">Extracted Entities</h2>
+    <p class="text-gray-400 text-sm mb-4">
+        The system identified these business concepts from the brief. Review, add, or remove before proceeding.
+    </p>
+
+    <!-- Entity groups -->
+    {% set categories = {'product': 'Products', 'audience': 'Audiences', 'problem': 'Problems', 'industry': 'Industries', 'competitor': 'Competitors', 'use_case': 'Use Cases'} %}
+
+    <div class="space-y-3 mb-6">
+        {% for cat, label in categories.items() %}
+        {% set cat_entities = session.entities | selectattr('category', 'equalto', cat) | list %}
+        {% if cat_entities %}
+        <div>
+            <span class="text-xs font-medium text-gray-500 uppercase">{{ label }}</span>
+            <div class="flex flex-wrap gap-2 mt-1">
+                {% for entity in cat_entities %}
+                <span class="inline-flex items-center gap-1 px-3 py-1 bg-gray-700 text-gray-200 rounded-full text-sm">
+                    {{ entity.name }}
+                    {% if entity.source == 'operator_added' %}
+                    <span class="text-xs text-indigo-400">+</span>
+                    {% endif %}
+                    <button hx-delete="/admin/discovery/{{ session.id }}/entities/{{ entity.id }}"
+                            hx-target="#discovery-content"
+                            hx-swap="innerHTML"
+                            class="ml-1 text-gray-500 hover:text-red-400 text-xs">×</button>
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+
+    <!-- Add entity form -->
+    <div class="flex gap-2 mb-6 p-3 bg-gray-900/50 rounded-lg">
+        <input type="text" id="new-entity-name" placeholder="Entity name" maxlength="200"
+               class="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-white placeholder-gray-500">
+        <select id="new-entity-category"
+                class="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-white">
+            <option value="product">Product</option>
+            <option value="audience">Audience</option>
+            <option value="problem">Problem</option>
+            <option value="industry">Industry</option>
+            <option value="competitor">Competitor</option>
+            <option value="use_case">Use Case</option>
+        </select>
+        <button hx-post="/admin/discovery/{{ session.id }}/entities/add"
+                hx-target="#discovery-content"
+                hx-swap="innerHTML"
+                hx-include="#new-entity-name, #new-entity-category"
+                hx-vals='js:{name: document.getElementById("new-entity-name").value, category: document.getElementById("new-entity-category").value}'
+                class="px-3 py-1.5 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 text-sm">
+            Add
+        </button>
+    </div>
+
+    <div class="flex items-center justify-between">
+        <span class="text-xs text-gray-500">{{ session.entities | list | length }} entities (max 30)</span>
+        <!-- Confirm → form hypotheses -->
+        <button hx-post="/admin/discovery/{{ session.id }}/entities"
+                hx-target="#discovery-content"
+                hx-swap="innerHTML"
+                class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 text-sm font-medium">
+            Confirm Entities → Form Hypotheses
+        </button>
+    </div>
+</div>

@@ -1,0 +1,129 @@
+{% extends "admin_base.html" %}
+{% block title %}Discovery — RAMP{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> / <span class="text-white">Discovery</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-white">Discovery</h1>
+            <p class="text-gray-400 text-sm mt-1">Reddit ecosystem research sessions</p>
+        </div>
+        <a href="/admin/discovery/new"
+           class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors text-sm font-medium">
+            + New Discovery
+        </a>
+    </div>
+
+    <!-- Status filter pills -->
+    <div class="flex gap-2 mb-4">
+        <a href="/admin/discovery"
+           class="px-3 py-1 rounded-full text-xs font-medium transition-colors {{ 'bg-indigo-600 text-white' if not status_filter else 'bg-gray-700 text-gray-300 hover:bg-gray-600' }}">
+            All
+        </a>
+        <a href="/admin/discovery?status=in_progress"
+           class="px-3 py-1 rounded-full text-xs font-medium transition-colors {{ 'bg-indigo-600 text-white' if status_filter == 'in_progress' else 'bg-gray-700 text-gray-300 hover:bg-gray-600' }}">
+            In Progress
+        </a>
+        <a href="/admin/discovery?status=completed"
+           class="px-3 py-1 rounded-full text-xs font-medium transition-colors {{ 'bg-indigo-600 text-white' if status_filter == 'completed' else 'bg-gray-700 text-gray-300 hover:bg-gray-600' }}">
+            Completed
+        </a>
+        <a href="/admin/discovery?status=abandoned"
+           class="px-3 py-1 rounded-full text-xs font-medium transition-colors {{ 'bg-indigo-600 text-white' if status_filter == 'abandoned' else 'bg-gray-700 text-gray-300 hover:bg-gray-600' }}">
+            Abandoned
+        </a>
+    </div>
+
+    <!-- Sessions table -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+        {% if sessions %}
+        <table class="w-full text-sm text-left">
+            <thead>
+                <tr class="border-b border-slate-700">
+                    <th class="px-4 py-3 text-xs font-medium text-gray-400 uppercase">Client / Prospect</th>
+                    <th class="px-4 py-3 text-xs font-medium text-gray-400 uppercase">Status</th>
+                    <th class="px-4 py-3 text-xs font-medium text-gray-400 uppercase">Iterations</th>
+                    <th class="px-4 py-3 text-xs font-medium text-gray-400 uppercase">Operator</th>
+                    <th class="px-4 py-3 text-xs font-medium text-gray-400 uppercase">Created</th>
+                    <th class="px-4 py-3 text-xs font-medium text-gray-400 uppercase">AI Cost</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in sessions %}
+                <tr class="border-b border-slate-700 hover:bg-slate-700/30">
+                    <td class="px-4 py-3">
+                        <a href="/admin/discovery/{{ s.id }}" class="text-indigo-400 hover:text-indigo-300 font-medium">
+                            {{ s.prospect_name or 'Linked Client' }}
+                        </a>
+                        {% if s.client_id %}
+                        <span class="ml-2 px-2 py-0.5 bg-blue-900/30 text-blue-300 text-xs rounded">linked</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if s.status == 'in_progress' %}
+                        <span class="px-2 py-0.5 bg-amber-900/30 text-amber-300 text-xs rounded-full font-medium">In Progress</span>
+                        {% elif s.status == 'completed' %}
+                        <span class="px-2 py-0.5 bg-green-900/30 text-green-300 text-xs rounded-full font-medium">Completed</span>
+                        {% else %}
+                        <span class="px-2 py-0.5 bg-gray-700 text-gray-400 text-xs rounded-full font-medium">Abandoned</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-gray-300 font-mono text-xs">{{ s.current_iteration }} / 5</td>
+                    <td class="px-4 py-3 text-gray-400 text-xs">
+                        {{ s.operator.full_name or s.operator.email if s.operator else '—' }}
+                    </td>
+                    <td class="px-4 py-3 text-gray-500 text-xs font-mono">{{ s.created_at.strftime('%b %d, %H:%M') }}</td>
+                    <td class="px-4 py-3 text-gray-400 text-xs font-mono">${{ '%.2f' | format(s.total_ai_cost_usd|float) }}</td>
+                    <td class="px-4 py-3 text-right">
+                        <a href="/admin/discovery/{{ s.id }}"
+                           class="text-indigo-400 hover:text-indigo-300 text-sm">
+                            {{ 'View' if s.status != 'in_progress' else 'Continue →' }}
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Pagination -->
+        {% if total_pages > 1 %}
+        <div class="flex items-center justify-between px-4 py-3 border-t border-slate-700">
+            <span class="text-gray-400 text-sm">Page {{ page }} of {{ total_pages }} · {{ total }} sessions total</span>
+            <div class="flex gap-1">
+                {% if page > 1 %}
+                <a href="/admin/discovery?page={{ page - 1 }}{{ '&status=' + status_filter if status_filter else '' }}"
+                   class="px-3 py-1 bg-dark-steel border border-slate-700 rounded text-sm text-gray-400 hover:text-white hover:border-slate-500">Previous</a>
+                {% endif %}
+                {% for p in range(1, total_pages + 1) %}
+                <a href="/admin/discovery?page={{ p }}{{ '&status=' + status_filter if status_filter else '' }}"
+                   class="px-3 py-1 rounded text-sm {{ 'bg-indigo-600 text-white' if p == page else 'text-gray-400 hover:bg-gray-700' }}">
+                    {{ p }}
+                </a>
+                {% endfor %}
+                {% if page < total_pages %}
+                <a href="/admin/discovery?page={{ page + 1 }}{{ '&status=' + status_filter if status_filter else '' }}"
+                   class="px-3 py-1 bg-dark-steel border border-slate-700 rounded text-sm text-gray-400 hover:text-white hover:border-slate-500">Next</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="p-12 text-center">
+            <div class="text-4xl mb-3">🧭</div>
+            <p class="text-gray-400 mb-4">No Discovery sessions yet.</p>
+            <a href="/admin/discovery/new"
+               class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 text-sm">
+                Start First Discovery
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

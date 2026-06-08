@@ -1,0 +1,119 @@
+<!-- Discovery: Generated Visibility Report -->
+{% set report = session.reports | sort(attribute='report_version', reverse=True) | first %}
+{% set content = report.content if report else {} %}
+
+<div>
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h2 class="text-lg font-semibold text-white">Visibility Report</h2>
+            <span class="text-xs text-gray-500">v{{ report.report_version }} · Generated {{ report.generated_at.strftime('%b %d, %H:%M') if report else '' }}</span>
+        </div>
+        <div class="flex gap-2">
+            <a href="/admin/discovery/{{ session.id }}/report/export" target="_blank"
+               class="px-3 py-1.5 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 text-sm">
+                🖨 Export / Print
+            </a>
+            <button hx-post="/admin/discovery/{{ session.id }}/handoff"
+                    hx-confirm="Create strategy from this Discovery? This will set up the client and subreddits."
+                    class="px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-600 text-sm font-medium">
+                🚀 Create Strategy →
+            </button>
+        </div>
+    </div>
+
+    <!-- Executive Summary -->
+    {% if content.get('executive_summary') %}
+    <div class="mb-6">
+        <h3 class="text-sm font-medium text-gray-400 uppercase mb-2">Executive Summary</h3>
+        <div class="text-gray-200 text-sm leading-relaxed whitespace-pre-line">{{ content.executive_summary }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Communities -->
+    {% if content.get('communities') %}
+    <div class="mb-6">
+        <h3 class="text-sm font-medium text-gray-400 uppercase mb-2">Recommended Communities ({{ content.communities | length }})</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {% for comm in content.communities %}
+            <div class="bg-gray-900/50 border border-gray-700 rounded-lg p-3">
+                <div class="flex items-center justify-between">
+                    <span class="text-white text-sm font-medium">{{ comm.name }}</span>
+                    <span class="text-xs {% if comm.relevance >= 70 %}text-green-400{% elif comm.relevance >= 40 %}text-amber-400{% else %}text-gray-400{% endif %}">
+                        {{ comm.relevance }}/100
+                    </span>
+                </div>
+                <div class="text-xs text-gray-500 mt-1">
+                    {{ comm.subscribers|int if comm.subscribers else '?' }} subscribers · ~{{ comm.daily_posts }} posts/day
+                </div>
+                {% if comm.approach %}
+                <p class="text-xs text-gray-400 mt-1">{{ comm.approach }}</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Visibility Outcomes -->
+    {% if content.get('visibility_outcomes') %}
+    <div class="mb-6">
+        <h3 class="text-sm font-medium text-gray-400 uppercase mb-2">Predicted Outcomes</h3>
+        <div class="space-y-2">
+            {% for outcome in content.visibility_outcomes %}
+            <div class="flex items-start gap-3 p-3 bg-gray-900/50 rounded-lg">
+                <span class="px-2 py-0.5 rounded text-xs font-medium
+                    {% if outcome.probability == 'high' %}bg-green-900/50 text-green-300
+                    {% elif outcome.probability == 'medium' %}bg-amber-900/50 text-amber-300
+                    {% else %}bg-gray-700 text-gray-400{% endif %}">
+                    {{ outcome.probability }}
+                </span>
+                <div>
+                    <span class="text-white text-sm capitalize">{{ outcome.type }}</span>
+                    <p class="text-xs text-gray-400 mt-0.5">{{ outcome.reasoning }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Demand Assessment -->
+    {% if content.get('demand_assessment') %}
+    <details class="mb-4">
+        <summary class="text-sm font-medium text-gray-400 cursor-pointer hover:text-gray-300">Demand Assessment</summary>
+        <div class="text-gray-300 text-sm mt-2 pl-3 border-l border-gray-700 whitespace-pre-line">{{ content.demand_assessment }}</div>
+    </details>
+    {% endif %}
+
+    <!-- Competitive Landscape -->
+    {% if content.get('competitive_landscape') %}
+    <details class="mb-4">
+        <summary class="text-sm font-medium text-gray-400 cursor-pointer hover:text-gray-300">Competitive Landscape</summary>
+        <div class="text-gray-300 text-sm mt-2 pl-3 border-l border-gray-700 whitespace-pre-line">{{ content.competitive_landscape }}</div>
+    </details>
+    {% endif %}
+
+    <!-- Risks -->
+    {% if content.get('risks_and_limitations') %}
+    <details class="mb-4">
+        <summary class="text-sm font-medium text-gray-400 cursor-pointer hover:text-gray-300">Risks & Limitations</summary>
+        <div class="text-gray-300 text-sm mt-2 pl-3 border-l border-gray-700 whitespace-pre-line">{{ content.risks_and_limitations }}</div>
+    </details>
+    {% endif %}
+
+    <!-- Operator notes -->
+    <div class="mt-6 pt-4 border-t border-gray-700">
+        <label class="text-xs text-gray-500 uppercase mb-1 block">Operator Notes (visible in export)</label>
+        <form hx-post="/admin/discovery/{{ session.id }}/report/edit"
+              hx-target="#notes-status"
+              hx-swap="innerHTML">
+            <textarea name="operator_notes" rows="3" maxlength="5000"
+                      class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm text-gray-300 resize-y"
+                      placeholder="Add notes for the client report...">{{ report.operator_notes or '' }}</textarea>
+            <div class="flex items-center gap-2 mt-2">
+                <button type="submit" class="px-3 py-1 bg-gray-700 text-gray-300 rounded text-xs hover:bg-gray-600">Save Notes</button>
+                <span id="notes-status" class="text-xs text-gray-500"></span>
+            </div>
+        </form>
+    </div>
+</div>

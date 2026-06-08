@@ -1,0 +1,44 @@
+<!-- Discovery: Research in progress (HTMX auto-refresh) -->
+<div hx-get="/admin/discovery/{{ session.id }}/progress"
+     hx-target="#discovery-content"
+     hx-swap="innerHTML"
+     hx-trigger="every 2s">
+
+    <h2 class="text-lg font-semibold text-white mb-2">Researching Reddit...</h2>
+    <p class="text-gray-400 text-sm mb-4">
+        Searching subreddits and analyzing engagement patterns. This may take up to 2 minutes.
+    </p>
+
+    <div class="space-y-3">
+        {% set progress = session.session_metadata.get('research_progress', {}) if session.session_metadata else {} %}
+        {% for h in hypotheses %}
+        {% set status = progress.get(h.id|string, 'queued') %}
+        <div class="flex items-center gap-3 p-3 bg-gray-900/50 rounded-lg">
+            <!-- Status indicator -->
+            {% if status == 'complete' %}
+            <div class="w-5 h-5 rounded-full bg-green-600 flex items-center justify-center text-xs text-white">✓</div>
+            {% elif status == 'researching' %}
+            <div class="w-5 h-5 rounded-full bg-indigo-600 animate-pulse"></div>
+            {% else %}
+            <div class="w-5 h-5 rounded-full bg-gray-700"></div>
+            {% endif %}
+
+            <!-- Hypothesis text -->
+            <div class="flex-1">
+                <p class="text-gray-300 text-sm truncate">{{ h.statement[:100] }}{% if h.statement|length > 100 %}...{% endif %}</p>
+                <span class="text-xs text-gray-500">
+                    {% if status == 'complete' %}Done
+                    {% elif status == 'researching' %}Searching Reddit...
+                    {% else %}Queued
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="mt-4 flex items-center gap-2 text-xs text-gray-500">
+        <div class="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></div>
+        Research in progress — this page updates automatically
+    </div>
+</div>

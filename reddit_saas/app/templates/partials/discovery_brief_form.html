@@ -1,0 +1,94 @@
+<!-- Discovery: Client brief form (new session) -->
+<div>
+    <h2 class="text-lg font-semibold text-white mb-2">New Discovery Session</h2>
+    <p class="text-gray-400 text-sm mb-4">
+        Describe the client's business, product, audience, and goals. The system will extract key entities and form testable hypotheses about their Reddit ecosystem relevance.
+    </p>
+
+    {% if error %}
+    <div class="mb-4 p-3 bg-red-900/20 border border-red-800 rounded-lg text-sm text-red-300">
+        ⚠ {{ error }}
+    </div>
+    {% endif %}
+
+    <form hx-post="/admin/discovery/new"
+          hx-target="#discovery-content"
+          hx-swap="innerHTML"
+          class="space-y-4">
+
+        <!-- Client/Prospect name -->
+        <div>
+            <label for="prospect_name" class="block text-sm font-medium text-gray-300 mb-1">Client / Prospect Name</label>
+            <input type="text" id="prospect_name" name="prospect_name"
+                   value="{{ prospect_name or '' }}"
+                   maxlength="200"
+                   placeholder="e.g. NeuroYoga, XM Cyber, Acme Corp"
+                   class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors">
+        </div>
+
+        <!-- Optional client dropdown -->
+        {% if clients %}
+        <div>
+            <label for="client_id" class="block text-sm font-medium text-gray-300 mb-1">
+                Link to Existing Client <span class="text-gray-500 font-normal">(optional)</span>
+            </label>
+            <select id="client_id" name="client_id"
+                    class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors">
+                <option value="">— None (prospect only) —</option>
+                {% for client in clients %}
+                <option value="{{ client.id }}" {% if client_id == client.id|string %}selected{% endif %}>
+                    {{ client.client_name }}{% if client.brand_name %} ({{ client.brand_name }}){% endif %}
+                </option>
+                {% endfor %}
+            </select>
+            <p class="text-xs text-gray-500 mt-1">Link to skip creating a new client on handoff.</p>
+        </div>
+        {% endif %}
+
+        <!-- Client brief textarea -->
+        <div>
+            <label for="client_brief" class="block text-sm font-medium text-gray-300 mb-1">Client Brief</label>
+            <textarea id="client_brief" name="client_brief"
+                      rows="10"
+                      maxlength="5000"
+                      placeholder="Describe the client's business, product/service, target audience, industry, competitors, and what visibility outcomes they want from Reddit..."
+                      class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-sm text-white placeholder-gray-500 resize-y focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+                      oninput="updateCharCount(this)">{{ client_brief or '' }}</textarea>
+            <div class="flex items-center justify-between mt-1">
+                <p class="text-xs text-gray-500">Minimum 50 characters. Include: business description, products, target audience, industry, competitors.</p>
+                <span id="brief-char-count" class="text-xs font-mono text-gray-500">
+                    <span id="brief-current-count">{{ (client_brief or '')|length }}</span> / 5000
+                </span>
+            </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="flex items-center justify-between pt-2">
+            <a href="/admin/discovery" class="text-gray-400 hover:text-gray-300 text-sm">← Cancel</a>
+            <button type="submit"
+                    class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 text-sm font-medium transition-colors">
+                Extract Entities →
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+function updateCharCount(textarea) {
+    var count = textarea.value.length;
+    var display = document.getElementById('brief-current-count');
+    if (display) {
+        display.textContent = count;
+        display.parentElement.className = count > 4500
+            ? 'text-xs font-mono text-amber-400'
+            : count >= 5000
+            ? 'text-xs font-mono text-red-400'
+            : 'text-xs font-mono text-gray-500';
+    }
+}
+// Initialize count on load
+(function() {
+    var ta = document.getElementById('client_brief');
+    if (ta) updateCharCount(ta);
+})();
+</script>
