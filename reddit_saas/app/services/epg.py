@@ -13,7 +13,7 @@ Key principles:
 - Scored-first: professional slots prefer threads already scored as "engage"
 """
 
-import logging
+from app.logging_config import get_logger
 import random
 import uuid
 from collections import defaultdict
@@ -38,7 +38,7 @@ from app.services.phase import (
 )
 from app.services.sanitize import get_avatar_hobby_subreddits
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # --- Timing ---
@@ -436,7 +436,7 @@ def build_daily_epg(
         result.message = "Mentor avatars excluded from EPG"
         return result
 
-    if getattr(avatar, "pool", "b2b") not in ("b2b", "b2c"):
+    if getattr(avatar, "pool", "b2b") not in ("b2b", "b2c", "warm"):
         result.status = "excluded"
         result.message = f"Avatar pool '{avatar.pool}' excluded from EPG"
         return result

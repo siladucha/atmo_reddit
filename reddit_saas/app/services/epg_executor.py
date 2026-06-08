@@ -7,7 +7,7 @@ Key principle: generate_epg_slot() takes a slot_id and produces a CommentDraft.
 It doesn't decide WHAT to generate — that's EPG's job. It only executes.
 """
 
-import logging
+from app.logging_config import get_logger
 import uuid
 from datetime import date, datetime, timezone
 
@@ -20,7 +20,7 @@ from app.models.epg_slot import EPGSlot
 from app.models.hobby import HobbySubreddit
 from app.models.thread import RedditThread
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def generate_epg_slot(db: Session, slot_id: uuid.UUID) -> CommentDraft | None:
@@ -123,29 +123,16 @@ Upvotes: {hobby_post.post_ups or 0}"""
 
         gen_model = get_config("llm_scoring_model") or get_config("llm_generation_model")
 
-        # Retry once on parse failure — Gemini Flash occasionally returns non-JSON
-        last_error = None
-        for attempt in range(2):
-            try:
-                result = call_llm_json(
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    model=gen_model,
-                    temperature=0.85,
-                    max_tokens=300,
-                )
-                last_error = None
-                break
-            except ValueError as ve:
-                last_error = ve
-                if attempt == 0:
-                    logger.warning(f"EPG hobby LLM parse error (attempt 1), retrying: {ve}")
-                    continue
-
-        if last_error:
-            raise last_error
+        # call_llm_json handles retries and model fallback internally
+        result = call_llm_json(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            model=gen_model,
+            temperature=0.85,
+            max_tokens=300,
+        )
 
         log_ai_usage(
             db, None, "hobby_comment_epg", result,
@@ -196,6 +183,9 @@ Upvotes: {hobby_post.post_ups or 0}"""
 
         db.commit()
         db.refresh(draft)
+
+        # Audit: log successful generation for pipeline transparency
+        _log_slot_generated(db, slot, avatar, hobby_post.subreddit)
 
         logger.info(
             "EPG hobby slot generated: avatar=%s sub=r/%s slot=%s status=%s",
@@ -327,6 +317,9 @@ def _generate_professional_slot(db: Session, slot: EPGSlot, avatar: Avatar) -> C
 
         db.commit()
 
+        # Audit: log successful generation for pipeline transparency
+        _log_slot_generated(db, slot, avatar, thread.subreddit)
+
         logger.info(
             "EPG pro slot generated: avatar=%s sub=r/%s thread='%s' slot=%s status=%s",
             avatar.reddit_username, thread.subreddit, thread.post_title[:40], slot.id, slot.status,
@@ -403,21 +396,25 @@ def sync_slot_status(db: Session, draft_id: uuid.UUID, new_status: str) -> None:
 def get_budget_used_today(db: Session, avatar_id: uuid.UUID, plan_date: date | None = None) -> int:
     """Count slots that consumed budget today.
 
-    Consumed = generated OR approved OR posted (not planned, not skipped).
-    Skipped slots are NOT counted — they represent failed attempts that can be retried
-    by rebuilding the EPG plan.
+    Budget is consumed by:
+    - generated, approved, posted — successful generation
+    - skipped WITH draft_id — generation succeeded but posting failed (still counts as slot used)
+    - skipped WITHOUT draft_id but with generation_error — a failed LLM attempt (counts to prevent infinite retry loops)
+
+    Only 'planned' slots are free (not yet attempted).
     """
     from sqlalchemy import func as sa_func
 
     if plan_date is None:
         plan_date = date.today()
 
+    # Count all non-planned slots (everything that was attempted)
     count = (
         db.query(sa_func.count(EPGSlot.id))
         .filter(
             EPGSlot.avatar_id == avatar_id,
             EPGSlot.plan_date == plan_date,
-            EPGSlot.status.in_(["generated", "approved", "posted"]),
+            EPGSlot.status != "planned",
         )
         .scalar()
     )
@@ -435,6 +432,15 @@ def _skip_slot(db: Session, slot: EPGSlot, reason: str) -> None:
     if "generation_error" in reason or "error" in reason.lower():
         try:
             from app.services.audit import log_system_action
+
+            # Resolve avatar username for searchability in audit logs
+            avatar_username = None
+            try:
+                avatar = db.query(Avatar).filter(Avatar.id == slot.avatar_id).first()
+                avatar_username = avatar.reddit_username if avatar else None
+            except Exception:
+                pass
+
             log_system_action(
                 db=db,
                 action="generation_error",
@@ -444,6 +450,7 @@ def _skip_slot(db: Session, slot: EPGSlot, reason: str) -> None:
                 details={
                     "slot_id": str(slot.id),
                     "avatar_id": str(slot.avatar_id),
+                    "avatar_username": avatar_username,
                     "thread_id": str(slot.thread_id) if slot.thread_id else None,
                     "reason": reason,
                 },
@@ -462,3 +469,27 @@ def _should_auto_approve(db: Session, client_id: uuid.UUID | None) -> bool:
         return bool(client and client.autopilot_enabled)
     except Exception:
         return False
+
+
+def _log_slot_generated(db: Session, slot: EPGSlot, avatar: Avatar, subreddit: str) -> None:
+    """Log successful slot generation to audit for pipeline transparency."""
+    try:
+        from app.services.audit import log_system_action
+        log_system_action(
+            db=db,
+            action="epg_slot_generated",
+            entity_type="epg_slot",
+            entity_id=slot.id,
+            client_id=slot.client_id,
+            details={
+                "slot_id": str(slot.id),
+                "avatar_id": str(slot.avatar_id),
+                "avatar_username": avatar.reddit_username,
+                "subreddit": subreddit,
+                "slot_type": slot.slot_type,
+                "status": slot.status,  # "generated" or "approved" (autopilot)
+                "plan_date": str(slot.plan_date),
+            },
+        )
+    except Exception:
+        pass  # Non-critical — don't fail generation on audit error
