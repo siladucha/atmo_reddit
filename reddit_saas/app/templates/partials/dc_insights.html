@@ -67,10 +67,13 @@
                     {% elif factor.severity == 'high' %}text-amber-400
                     {% elif factor.severity == 'medium' %}text-yellow-400
                     {% else %}text-green-400{% endif %}">
-                    {{ factor.score|int }}
+                    {{ (10 - (factor.score / 10)|int)|int }}/10
                 </span>
             </div>
             {% endfor %}
+            <div class="mt-2 text-[10px] text-gray-600 border-t border-slate-700/50 pt-2">
+                Sub-scores are rated 0–10 (higher = healthier). The overall score is the weighted average across all factors: shadowban risk (×3), CQS level (×2), removal rate (×2), karma diversity (×1), and posting frequency (×1).
+            </div>
         </div>
     </div>
 

@@ -234,11 +234,12 @@
                     <b>Pipeline</b> = master switch for all AI tasks (scoring + generation).<br>
                     <b>Generation</b> = only comment generation (scoring still runs so you see thread scores).<br>
                     <b>Scraping</b> = Reddit data collection.<br>
+                    <b>Posting</b> = automated posting of approved drafts to Reddit.<br>
                     <div class="mt-1 text-gray-400">Use these to pause the system during maintenance or if something goes wrong. Changes take effect immediately.</div>
                 </div>
             </div>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <!-- Scraping (1st in pipeline) -->
             <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
                 <div class="flex items-center justify-between mb-2">
@@ -351,6 +352,44 @@
                         hx-swap="outerHTML"
                         class="w-full px-3 py-1.5 text-xs rounded bg-emerald-600/80 hover:bg-emerald-600 text-white transition-colors">
                     ▶ Resume ③
+                </button>
+                {% endif %}
+            </div>
+
+            <!-- Auto-Posting (4th — last mile) -->
+            <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-sm text-gray-400">④ Posting</span>
+                        <div class="tooltip-container">
+                            <span class="tooltip-trigger text-gray-600 hover:text-gray-400">
+                                <svg class="w-3 h-3 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </span>
+                            <div class="tooltip-content">Automated posting of approved comments to Reddit via PRAW. Runs every 5 min. Requires approved drafts + avatar proxy + credentials configured.</div>
+                        </div>
+                    </div>
+                    {% if auto_posting_enabled %}
+                    <span class="px-2 py-0.5 text-xs rounded-full bg-emerald-500/20 text-emerald-400">ON</span>
+                    {% else %}
+                    <span class="px-2 py-0.5 text-xs rounded-full bg-red-500/20 text-red-400">OFF</span>
+                    {% endif %}
+                </div>
+                <div class="text-[10px] text-gray-600 mb-2">Posts approved EPG slots automatically</div>
+                {% if auto_posting_enabled %}
+                <button hx-post="/admin/inspector/action/toggle-posting?enabled=false"
+                        hx-target="#inspector-content"
+                        hx-swap="outerHTML"
+                        hx-confirm="Pause auto-posting? Approved drafts will stop being posted to Reddit."
+                        class="w-full px-3 py-1.5 text-xs rounded bg-red-600/80 hover:bg-red-600 text-white transition-colors">
+                    ⏸ Pause
+                </button>
+                {% else %}
+                <button hx-post="/admin/inspector/action/toggle-posting?enabled=true"
+                        hx-target="#inspector-content"
+                        hx-swap="outerHTML"
+                        hx-confirm="Enable auto-posting? Approved drafts will be posted to Reddit automatically."
+                        class="w-full px-3 py-1.5 text-xs rounded bg-emerald-600/80 hover:bg-emerald-600 text-white transition-colors">
+                    ▶ Resume
                 </button>
                 {% endif %}
             </div>

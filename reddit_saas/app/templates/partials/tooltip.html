@@ -1,0 +1,34 @@
+{#
+  Reusable tooltip macro — inline hover help text with accessible markup.
+
+  Usage:
+    {% from "partials/tooltip.html" import tooltip %}
+    {{ tooltip("Comment Quality Score — measures engagement quality") }}
+    {{ tooltip("Priority 1 (highest urgency)", icon="P1") }}
+
+  Parameters:
+    - text: The tooltip explanation text displayed on hover
+    - icon: The trigger icon/label (default "ⓘ")
+
+  Differences from block_tooltip.html:
+    - Macro-based (import + call) vs include-based (set + include)
+    - Customizable icon parameter
+    - Slightly different styling (bg-slate-700 popup) for visual distinction
+    - Full ARIA accessibility (aria-label, role="tooltip", aria-describedby)
+
+  Styles are in admin_base.html under ".tooltip-macro-*" classes.
+#}
+
+{% macro tooltip(text, icon="ⓘ") %}
+<span class="tooltip-macro-wrapper">
+    <span class="tooltip-macro-trigger"
+          tabindex="0"
+          aria-label="{{ text }}">
+        {{ icon }}
+    </span>
+    <span class="tooltip-macro-popup"
+          role="tooltip">
+        {{ text }}
+    </span>
+</span>
+{% endmacro %}

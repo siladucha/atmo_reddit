@@ -110,8 +110,26 @@
                 <h2 class="font-semibold text-white text-sm uppercase tracking-wide">Hobby Subreddits</h2>
                 <p class="text-xs text-gray-500 mt-1">For karma building. Comma-separated, without r/ prefix.</p>
             </div>
-            <input type="text" name="hobby_subreddits" value="{{ hobby_subreddits_str }}"
-                class="w-full px-3 py-2 text-sm bg-slate-night border border-slate-600 text-gray-200 rounded focus:outline-none focus:border-indigo-500">
+            <input type="text" name="hobby_subreddits" id="hobby-subs-input" value="{{ hobby_subreddits_str }}"
+                class="w-full px-3 py-2 text-sm bg-slate-night border border-slate-600 text-gray-200 rounded focus:outline-none focus:border-indigo-500"
+                placeholder="yoga, meditation, mindfulness">
+
+            {% if system_subreddits %}
+            <div>
+                <p class="text-xs text-gray-500 mb-2">Quick add from active subreddits:</p>
+                <div class="flex flex-wrap gap-1.5" id="subreddit-picker">
+                    {% for sub in system_subreddits %}
+                    <button type="button"
+                            data-sub="{{ sub }}"
+                            onclick="toggleSubreddit(this)"
+                            class="sub-pill px-2 py-0.5 rounded text-xs border transition-colors
+                                   border-slate-600 text-gray-400 hover:border-indigo-500 hover:text-indigo-300">
+                        r/{{ sub }}
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         <!-- Submit -->
@@ -146,6 +164,46 @@
         tabs.forEach((tab) => {
             tab.addEventListener("click", () => activateTab(tab.dataset.avatarTab));
         });
+
+        // Highlight already-selected subreddits in picker
+        syncPickerState();
     });
+
+    function getSubsList() {
+        const input = document.getElementById("hobby-subs-input");
+        return input.value.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+    }
+
+    function setSubsList(subs) {
+        document.getElementById("hobby-subs-input").value = subs.join(", ");
+    }
+
+    function toggleSubreddit(btn) {
+        const sub = btn.dataset.sub.toLowerCase();
+        let subs = getSubsList();
+
+        if (subs.includes(sub)) {
+            subs = subs.filter(s => s !== sub);
+            btn.classList.remove("border-indigo-500", "text-indigo-300", "bg-indigo-900/30");
+            btn.classList.add("border-slate-600", "text-gray-400");
+        } else {
+            subs.push(sub);
+            btn.classList.add("border-indigo-500", "text-indigo-300", "bg-indigo-900/30");
+            btn.classList.remove("border-slate-600", "text-gray-400");
+        }
+
+        setSubsList(subs);
+    }
+
+    function syncPickerState() {
+        const subs = getSubsList();
+        document.querySelectorAll("#subreddit-picker button").forEach(btn => {
+            const sub = btn.dataset.sub.toLowerCase();
+            if (subs.includes(sub)) {
+                btn.classList.add("border-indigo-500", "text-indigo-300", "bg-indigo-900/30");
+                btn.classList.remove("border-slate-600", "text-gray-400");
+            }
+        });
+    }
 </script>
 {% endblock %}

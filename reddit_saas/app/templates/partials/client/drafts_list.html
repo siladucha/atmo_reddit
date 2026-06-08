@@ -1,9 +1,9 @@
-<!-- Draft cards partial — loaded via HTMX -->
+<!-- Draft cards partial — loaded via HTMX. Status-aware rendering. -->
 {% if drafts %}
 {% for draft in drafts %}
 <div id="draft-{{ draft.id }}" class="surface" style="padding:var(--space-3);position:relative;">
-    <!-- Safety block banner -->
-    {% if draft.safety_block %}
+    <!-- Safety block banner (pending only) -->
+    {% if status == 'pending' and draft.safety_block %}
     <div style="background:var(--color-red);color:#fff;font-size:var(--text-small);font-weight:500;padding:8px 12px;border-radius:var(--radius-card) var(--radius-card) 0 0;margin:-24px -24px 16px -24px;">
         🚫 {{ draft.safety_block.message }}
     </div>
@@ -24,7 +24,9 @@
             <a href="https://reddit.com/r/{{ draft.subreddit_name }}" target="_blank" rel="noopener" style="padding:2px 8px;border-radius:var(--radius-pill);background:var(--color-surface-alt);color:var(--color-muted);font-size:var(--text-micro);text-decoration:none;" onmouseover="this.style.color='var(--color-white)'" onmouseout="this.style.color='var(--color-muted)'">r/{{ draft.subreddit_name }}</a>
             {% endif %}
         </div>
-        <span class="text-small">{{ draft.created_at_relative }}</span>
+        <span class="text-small" style="color:var(--color-muted);">
+            {% if status == 'posted' and draft.posted_at %}posted {{ draft.posted_at }}{% else %}{{ draft.created_at_relative }}{% endif %}
+        </span>
     </div>
 
     <!-- Thread context -->
@@ -39,16 +41,27 @@
         {% endif %}
     </div>
 
-    <!-- Comment draft text (editable area) -->
-    <div style="background:var(--color-surface-alt);border-radius:8px;padding:12px 16px;margin-bottom:12px;border:1px solid var(--color-border);">
-        {% if can_review and not draft.safety_block %}
+    <!-- Comment text -->
+    <div style="background:var(--color-surface-alt);border-radius:8px;padding:12px 16px;margin-bottom:12px;border:1px solid var(--color-border);position:relative;">
+        {% if status == 'pending' and can_review and not draft.safety_block %}
+        <!-- Editable for pending -->
         <div id="text-{{ draft.id }}"
              contenteditable="true"
              style="color:var(--color-white);font-size:var(--text-body);line-height:1.6;outline:none;min-height:60px;"
              onfocus="this.parentElement.style.borderColor='var(--color-orange)';document.getElementById('edit-btn-{{ draft.id }}').style.display='inline-flex'"
              onblur="this.parentElement.style.borderColor='var(--color-border)'">{{ draft.comment_text }}</div>
         {% else %}
-        <p style="color:var(--color-white);font-size:var(--text-body);line-height:1.6;">{{ draft.comment_text }}</p>
+        <!-- Read-only for approved/posted -->
+        <p id="copytext-{{ draft.id }}" style="color:var(--color-white);font-size:var(--text-body);line-height:1.6;white-space:pre-wrap;">{{ draft.comment_text }}</p>
+        {% if status == 'approved' %}
+        <!-- Copy button for approved tab -->
+        <button onclick="copyText('{{ draft.id }}')" id="copybtn-{{ draft.id }}"
+                style="position:absolute;top:8px;right:8px;padding:4px 10px;border-radius:var(--radius-input);background:var(--color-surface-alt);border:1px solid var(--color-border);color:var(--color-muted);font-size:var(--text-micro);cursor:pointer;"
+                onmouseover="this.style.color='var(--color-white)';this.style.borderColor='var(--color-orange)'"
+                onmouseout="this.style.color='var(--color-muted)';this.style.borderColor='var(--color-border)'">
+            📋 Copy
+        </button>
+        {% endif %}
         {% endif %}
     </div>
 
@@ -56,33 +69,112 @@
     <p class="text-small" style="margin-bottom:12px;color:var(--color-muted);">Approach: <span style="color:var(--color-white);">{{ draft.comment_approach | replace("_", " ") }}</span></p>
     {% endif %}
 
-    <!-- Action buttons -->
-    {% if can_review and not draft.safety_block %}
+    <!-- === PENDING ACTIONS === -->
+    {% if status == 'pending' and can_review and not draft.safety_block %}
     <div style="display:flex;align-items:center;gap:8px;">
-        <!-- Approve -->
         <button onclick="approveDraft('{{ client_id }}', '{{ draft.id }}')"
                 style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius-input);background:var(--color-green);color:#fff;font-size:var(--text-small);font-weight:600;border:none;cursor:pointer;min-height:36px;">
             ✓ Approve
         </button>
-        <!-- Edit & Approve (hidden until text is edited) -->
         <button id="edit-btn-{{ draft.id }}"
                 onclick="editAndApprove('{{ client_id }}', '{{ draft.id }}')"
                 style="display:none;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius-input);background:transparent;color:var(--color-orange);font-size:var(--text-small);font-weight:600;border:2px solid var(--color-orange);cursor:pointer;min-height:36px;">
             ✎ Save &amp; Approve
         </button>
-        <!-- Skip -->
         <button onclick="skipDraft('{{ client_id }}', '{{ draft.id }}')"
                 style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius-input);background:transparent;color:var(--color-muted);font-size:var(--text-small);font-weight:500;border:1px solid var(--color-border);cursor:pointer;min-height:36px;">
             Skip
         </button>
     </div>
-    {% elif draft.safety_block %}
+    {% elif status == 'pending' and draft.safety_block %}
     <p style="font-size:var(--text-small);color:var(--color-red);">Edit the comment to remove the brand mention before approving.</p>
+    {% endif %}
+
+    <!-- === APPROVED (READY TO POST) ACTIONS === -->
+    {% if status == 'approved' and can_review %}
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <button onclick="markPosted('{{ client_id }}', '{{ draft.id }}')"
+                style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius-input);background:#7c3aed;color:#fff;font-size:var(--text-small);font-weight:600;border:none;cursor:pointer;min-height:36px;">
+            📤 Mark as Posted
+        </button>
+        {% if draft.thread_url %}
+        <a href="{{ draft.thread_url }}" target="_blank" rel="noopener"
+           style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius-input);background:transparent;color:var(--color-muted);font-size:var(--text-small);font-weight:500;border:1px solid var(--color-border);text-decoration:none;min-height:36px;"
+           onmouseover="this.style.color='var(--color-white)'" onmouseout="this.style.color='var(--color-muted)'">
+            Open Thread ↗
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- === POSTED — show Reddit link === -->
+    {% if status == 'posted' and draft.reddit_comment_url %}
+    <div style="margin-top:4px;">
+        <a href="{{ draft.reddit_comment_url }}" target="_blank" rel="noopener"
+           style="font-size:var(--text-small);color:#818cf8;text-decoration:none;"
+           onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+            View on Reddit ↗
+        </a>
+    </div>
     {% endif %}
 </div>
 {% endfor %}
 
 <script>
+function copyText(draftId) {
+    const el = document.getElementById('copytext-' + draftId);
+    const text = el.innerText;
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copybtn-' + draftId);
+        btn.textContent = '✓ Copied';
+        btn.style.color = 'var(--color-green)';
+        btn.style.borderColor = 'var(--color-green)';
+        setTimeout(() => {
+            btn.textContent = '📋 Copy';
+            btn.style.color = 'var(--color-muted)';
+            btn.style.borderColor = 'var(--color-border)';
+        }, 2000);
+    });
+}
+
+function markPosted(clientId, draftId) {
+    const card = document.getElementById('draft-' + draftId);
+    card.style.opacity = '0.5';
+    card.style.pointerEvents = 'none';
+
+    fetch('/clients/' + clientId + '/drafts/' + draftId + '/mark-posted', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'reddit_url='
+    })
+    .then(r => {
+        if (r.ok) {
+            card.style.transition = 'all 300ms ease';
+            card.style.maxHeight = '0';
+            card.style.overflow = 'hidden';
+            card.style.padding = '0';
+            card.style.margin = '0';
+            card.style.opacity = '0';
+            setTimeout(() => card.remove(), 350);
+        } else {
+            return r.json().then(data => {
+                alert(data.message || 'Could not mark as posted');
+                card.style.opacity = '1';
+                card.style.pointerEvents = 'auto';
+            }).catch(() => {
+                alert('Could not mark as posted. Please try again.');
+                card.style.opacity = '1';
+                card.style.pointerEvents = 'auto';
+            });
+        }
+    })
+    .catch(() => {
+        alert('Network error. Please try again.');
+        card.style.opacity = '1';
+        card.style.pointerEvents = 'auto';
+    });
+}
+
 function approveDraft(clientId, draftId) {
     const card = document.getElementById('draft-' + draftId);
     card.style.opacity = '0.5';
@@ -98,12 +190,21 @@ function approveDraft(clientId, draftId) {
                 card.style.opacity = '0';
                 setTimeout(() => card.remove(), 350);
             } else {
-                r.json().then(data => {
+                return r.json().then(data => {
                     alert(data.message || 'Cannot approve — safety block active');
+                    card.style.opacity = '1';
+                    card.style.pointerEvents = 'auto';
+                }).catch(() => {
+                    alert('Could not approve. Please try again.');
                     card.style.opacity = '1';
                     card.style.pointerEvents = 'auto';
                 });
             }
+        })
+        .catch(() => {
+            alert('Network error. Please try again.');
+            card.style.opacity = '1';
+            card.style.pointerEvents = 'auto';
         });
 }
 
@@ -125,6 +226,11 @@ function skipDraft(clientId, draftId) {
                 card.style.opacity = '1';
                 card.style.pointerEvents = 'auto';
             }
+        })
+        .catch(() => {
+            alert('Network error. Please try again.');
+            card.style.opacity = '1';
+            card.style.pointerEvents = 'auto';
         });
 }
 
@@ -150,12 +256,21 @@ function editAndApprove(clientId, draftId) {
             card.style.opacity = '0';
             setTimeout(() => card.remove(), 350);
         } else {
-            r.json().then(data => {
+            return r.json().then(data => {
                 alert(data.message || 'Cannot approve — safety block active');
+                card.style.opacity = '1';
+                card.style.pointerEvents = 'auto';
+            }).catch(() => {
+                alert('Could not save. Please try again.');
                 card.style.opacity = '1';
                 card.style.pointerEvents = 'auto';
             });
         }
+    })
+    .catch(() => {
+        alert('Network error. Please try again.');
+        card.style.opacity = '1';
+        card.style.pointerEvents = 'auto';
     });
 }
 </script>
@@ -163,11 +278,21 @@ function editAndApprove(clientId, draftId) {
 {% else %}
 <!-- Empty state -->
 <div class="surface" style="padding:var(--space-5);text-align:center;">
+    {% if status == 'pending' %}
     <p style="font-size:24px;margin-bottom:var(--space-2);">✓</p>
     <p style="color:var(--color-white);font-weight:500;margin-bottom:8px;">All caught up</p>
     <p class="text-small">No drafts waiting for review. New ones appear as the AI finds relevant threads.</p>
     {% if last_draft_at %}
     <p class="text-small" style="margin-top:8px;">Last draft appeared: {{ last_draft_at }}</p>
+    {% endif %}
+    {% elif status == 'approved' %}
+    <p style="font-size:24px;margin-bottom:var(--space-2);">📋</p>
+    <p style="color:var(--color-white);font-weight:500;margin-bottom:8px;">Nothing waiting to post</p>
+    <p class="text-small">Approve drafts from the Pending tab — they'll appear here ready to post.</p>
+    {% elif status == 'posted' %}
+    <p style="font-size:24px;margin-bottom:var(--space-2);">📊</p>
+    <p style="color:var(--color-white);font-weight:500;margin-bottom:8px;">No posted comments yet</p>
+    <p class="text-small">Once you post comments and mark them, they'll show up here.</p>
     {% endif %}
 </div>
 {% endif %}

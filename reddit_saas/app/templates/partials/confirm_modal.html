@@ -1,0 +1,178 @@
+{#
+  Shared Confirmation Modal — gates destructive actions with explicit user confirmation.
+
+  Usage:
+    {% include "partials/confirm_modal.html" %}
+
+  Required variables (set before include):
+    modal_id      — unique DOM id for the modal (e.g., "delete-all-modal")
+    modal_title   — heading text (e.g., "Delete All Logs")
+    modal_message — body text (e.g., "Are you sure you want to delete all 1,787 entries?")
+    action_url    — form action URL (e.g., "/admin/audit-logs/delete-all")
+
+  Optional variables:
+    confirm_text  — confirm button label (default: "Confirm")
+    cancel_text   — cancel button label (default: "Cancel")
+    method        — HTTP method (default: "post"). If not "post", a hidden _method field is added.
+    confirm_class — extra classes for confirm button (default: "bg-red-600 hover:bg-red-700")
+    extra_fields  — HTML string of hidden inputs to include in the form
+
+  Features:
+    - Dark theme styled (bg-slate-800, border-slate-700, text-white)
+    - HTMX-compatible: form uses standard POST (works with or without HTMX)
+    - Closes on: cancel click, Escape key, backdrop click
+    - Accessible: role="dialog", aria-modal="true", aria-labelledby, aria-describedby
+    - Focus trap: Tab cycles within modal while open
+#}
+
+{% set _confirm_text = confirm_text | default("Confirm") %}
+{% set _cancel_text = cancel_text | default("Cancel") %}
+{% set _method = method | default("post") %}
+{% set _confirm_class = confirm_class | default("bg-red-600 hover:bg-red-700") %}
+
+<!-- Modal Backdrop + Container -->
+<div id="{{ modal_id }}"
+     class="fixed inset-0 z-[9999] hidden items-center justify-center"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="{{ modal_id }}-title"
+     aria-describedby="{{ modal_id }}-message">
+
+  <!-- Backdrop -->
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+       data-confirm-backdrop="{{ modal_id }}"></div>
+
+  <!-- Modal Panel -->
+  <div class="relative w-full max-w-md mx-4 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-6 z-10"
+       data-confirm-panel="{{ modal_id }}">
+
+    <!-- Header -->
+    <div class="flex items-start gap-3 mb-4">
+      <div class="flex-shrink-0 w-10 h-10 rounded-full bg-red-900/40 flex items-center justify-center">
+        <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+        </svg>
+      </div>
+      <div class="flex-1 min-w-0">
+        <h3 id="{{ modal_id }}-title" class="text-lg font-semibold text-white leading-tight">
+          {{ modal_title }}
+        </h3>
+      </div>
+    </div>
+
+    <!-- Message -->
+    <p id="{{ modal_id }}-message" class="text-sm text-gray-300 leading-relaxed mb-6 pl-[52px]">
+      {{ modal_message }}
+    </p>
+
+    <!-- Actions -->
+    <form method="post" action="{{ action_url }}" class="flex items-center justify-end gap-3">
+      {% if _method != "post" %}
+      <input type="hidden" name="_method" value="{{ _method }}">
+      {% endif %}
+      {% if extra_fields is defined and extra_fields %}
+      {{ extra_fields | safe }}
+      {% endif %}
+
+      <button type="button"
+              class="px-4 py-2 text-sm font-medium text-gray-300 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-slate-500"
+              data-confirm-cancel="{{ modal_id }}">
+        {{ _cancel_text }}
+      </button>
+
+      <button type="submit"
+              class="px-4 py-2 text-sm font-medium text-white {{ _confirm_class }} rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
+              data-confirm-submit="{{ modal_id }}">
+        {{ _confirm_text }}
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Script (self-contained, idempotent) -->
+<script>
+(function() {
+  const modalId = '{{ modal_id }}';
+  const modal = document.getElementById(modalId);
+  if (!modal || modal.dataset.initialized) return;
+  modal.dataset.initialized = 'true';
+
+  // Elements
+  const backdrop = modal.querySelector('[data-confirm-backdrop="{{ modal_id }}"]');
+  const cancelBtn = modal.querySelector('[data-confirm-cancel="{{ modal_id }}"]');
+  const panel = modal.querySelector('[data-confirm-panel="{{ modal_id }}"]');
+
+  // Open modal
+  function openModal() {
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.style.overflow = 'hidden';
+    // Focus the cancel button by default (safe action)
+    setTimeout(function() {
+      if (cancelBtn) cancelBtn.focus();
+    }, 50);
+  }
+
+  // Close modal
+  function closeModal() {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.body.style.overflow = '';
+    // Return focus to trigger element
+    const trigger = document.querySelector('[data-confirm-trigger="' + modalId + '"]');
+    if (trigger) trigger.focus();
+  }
+
+  // Close on backdrop click
+  if (backdrop) {
+    backdrop.addEventListener('click', closeModal);
+  }
+
+  // Close on cancel button
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', closeModal);
+  }
+
+  // Close on Escape key
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+      closeModal();
+    }
+  });
+
+  // Focus trap within modal
+  modal.addEventListener('keydown', function(e) {
+    if (e.key !== 'Tab') return;
+    const focusable = panel.querySelectorAll(
+      'button:not([disabled]), [href], input:not([type="hidden"]), textarea, select, [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  });
+
+  // Expose open function globally for trigger buttons
+  window['openConfirmModal_' + modalId.replace(/-/g, '_')] = openModal;
+
+  // Auto-bind trigger buttons with data-confirm-trigger attribute
+  document.querySelectorAll('[data-confirm-trigger="' + modalId + '"]').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      openModal();
+    });
+  });
+})();
+</script>

@@ -1,0 +1,305 @@
+{# Review Queue Item Partial — renders a single draft card.
+   Expects `item` dict with keys: draft, thread, avatar, score, karma_summary (optional)
+   Expects parent template imports: tooltip macro, status, now_utc variables #}
+{% from "partials/tooltip.html" import tooltip %}
+
+<div id="comment-{{ item.draft.id }}" class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden flex">
+    <!-- Color stripe by client -->
+    <div class="w-1 shrink-0 {% if loop is defined and loop.index % 2 == 0 %}bg-indigo-600{% else %}bg-cyan-600{% endif %}"></div>
+    <div class="flex-1 min-w-0">
+    <!-- Header -->
+    <div class="px-3 py-2 border-b border-slate-700 bg-slate-800 flex justify-between items-center">
+        <div class="min-w-0">
+            <div class="text-sm font-medium text-white truncate">
+                {% if item.thread and item.thread.is_locked %}
+                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/50 text-red-400 border border-red-800 mr-1.5" title="Thread is locked — comments cannot be posted">🔒 LOCKED</span>
+                {% endif %}
+                {{ item.thread.post_title if item.thread else 'Unknown thread' }}
+            </div>
+            <div class="text-[11px] text-gray-400 flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                <span title="Subreddit where the thread was posted">r/{{ item.thread.subreddit if item.thread else '?' }}</span>
+                {% if item.thread and item.thread.type == 'hobby' %}
+                <span class="px-1 py-0.5 rounded text-[10px] bg-purple-900/40 text-purple-300 border border-purple-700/50" title="Hobby subreddit — used for karma building, no brand mentions allowed">hob</span>
+                {% endif %}
+                <span title="Avatar assigned to generate this comment">· u/{{ item.avatar.reddit_username if item.avatar else '?' }}</span>
+                <span title="Engagement mode: how the AI decided to engage (reply to post, reply to comment, etc.)">· {{ item.draft.engagement_mode or 'unknown' }}</span>
+                {% if item.draft.comment_approach %}<span title="Rhetorical approach used (reframe_drop, contrarian, cynical_deconstruction, etc.). Rotated for diversity.">· {{ item.draft.comment_approach }}</span>{% endif %}
+                {% if item.draft.perspective_push and item.draft.perspective_push != 'undetected' %}
+                <span class="{% if item.draft.perspective_push == 'hard' %}text-red-400{% elif item.draft.perspective_push == 'medium' %}text-amber-400{% else %}text-green-400{% endif %}" title="{% if item.draft.perspective_push == 'hard' %}Aggressive engagement strategy{% elif item.draft.perspective_push == 'medium' %}Moderate engagement strategy{% else %}Subtle engagement strategy{% endif %}">· push:{{ item.draft.perspective_push }}</span>
+                {% endif %}
+                {% if item.thread %}
+                <span class="text-gray-500" title="">│</span>
+                <span class="inline-flex items-center" title="Post upvotes">⬆{{ item.thread.ups or item.thread.score or 0 }}</span>
+                <span class="inline-flex items-center" title="Comments on post">💬{{ item.thread.comment_count or 0 }}</span>
+                {% if item.thread.author %}<span title="Post author" class="text-gray-500">by {{ item.thread.author }}</span>{% endif %}
+                {% endif %}
+                {% if item.thread %}
+                <span class="text-gray-500" title="">│</span>
+                {% set thread_date = item.thread.reddit_created_at or item.thread.created_at %}
+                {% if thread_date %}
+                {% set thread_age_hours = ((now_utc - thread_date).total_seconds() / 3600)|int %}
+                <span class="{% if thread_age_hours > 168 %}text-red-400{% elif thread_age_hours > 48 %}text-amber-400{% else %}text-gray-400{% endif %}" title="Thread posted {{ thread_date.strftime('%b %d, %H:%M UTC') }}. Age: {{ thread_age_hours }}h. Red = >7 days (risky to reply).">
+                    📅 {% if thread_age_hours < 24 %}{{ thread_age_hours }}h ago{% elif thread_age_hours < 168 %}{{ (thread_age_hours / 24)|int }}d ago{% else %}{{ (thread_age_hours / 24)|int }}d ago ⚠{% endif %}
+                </span>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0 ml-2">
+            {% if item.score and item.score.alert %}
+            <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/50 text-red-400" title="Requires immediate attention">ALERT</span>
+            {% endif %}
+            {% if item.score %}
+            <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-700 text-gray-300" title="Composite score (R:relevance Q:quality S:strategic). Higher = more relevant thread for this client. Scored by Gemini Flash.">{{ item.score.composite or 0 }}</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Original post preview (truncated) -->
+    {% if item.thread and item.thread.post_body %}
+    <div class="px-3 py-2 border-b border-slate-700 bg-slate-900/40">
+        <div class="text-xs text-gray-400">{{ item.thread.post_body[:150] }}{% if item.thread.post_body|length > 150 %}…{% endif %}</div>
+    </div>
+    {% endif %}
+
+    <!-- Comment to (parent comment) -->
+    {% if item.draft.comment_to and item.draft.comment_to != 'post' %}
+    <div class="px-3 py-1.5 border-b border-slate-700 bg-amber-900/10">
+        <div class="text-[11px] text-amber-400">↩ {{ item.draft.comment_to[:120] }}{% if item.draft.comment_to|length > 120 %}…{% endif %}</div>
+    </div>
+    {% endif %}
+
+    <!-- AI Draft — copy-ready text -->
+    <div class="px-3 py-2 relative group/copy">
+        <div class="flex items-center justify-between mb-1.5">
+            <span class="text-[10px] uppercase tracking-wider text-gray-500 font-medium">Comment text</span>
+            <button onclick="var t=this.closest('.group\\/copy').querySelector('[data-copy-text]').innerText;var a=document.createElement('textarea');a.value=t;a.style.position='fixed';a.style.opacity='0';document.body.appendChild(a);a.select();document.execCommand('copy');document.body.removeChild(a);this.textContent='✓ Copied';setTimeout(()=>this.textContent='📋 Copy',1500)"
+                    class="text-[11px] text-gray-500 hover:text-indigo-400 transition-colors px-2 py-0.5 rounded bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50">
+                📋 Copy
+            </button>
+        </div>
+        <div data-copy-text class="text-sm text-gray-100 leading-relaxed whitespace-pre-wrap bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2.5 select-all">{{ item.draft.edited_draft or item.draft.ai_draft or '(empty)' }}</div>
+    </div>
+
+    <!-- Reddit link (all statuses) -->
+    {% if item.draft.reddit_comment_url or (item.thread and item.thread.url) %}
+    <div class="px-3 py-1.5 border-t border-slate-700/50 flex items-center gap-3">
+        {% if item.draft.reddit_comment_url %}
+        <a href="{{ item.draft.reddit_comment_url }}" target="_blank" rel="noopener"
+           class="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+            View comment on Reddit
+        </a>
+        {% endif %}
+        {% if item.thread and item.thread.url %}
+        <a href="{{ item.thread.url }}" target="_blank" rel="noopener"
+           class="inline-flex items-center gap-1 text-xs {% if item.draft.reddit_comment_url %}text-gray-500 hover:text-gray-400{% else %}text-indigo-400 hover:text-indigo-300{% endif %} transition-colors">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+            Open thread on Reddit
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Actions (status-dependent) -->
+    {% if status == 'pending' %}
+    <div id="action-panel-{{ item.draft.id }}" class="px-3 py-2 border-t border-slate-700 bg-slate-800/50 flex items-center gap-2">
+        <button hx-post="/review/{{ item.draft.id }}/approve" hx-target="#action-panel-{{ item.draft.id }}" hx-swap="outerHTML"
+                class="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-xs font-medium">
+            ✓ Approve
+        </button>
+        <button hx-post="/review/{{ item.draft.id }}/reject" hx-target="#action-panel-{{ item.draft.id }}" hx-swap="outerHTML"
+                class="text-gray-500 hover:text-red-400 px-2 py-1 rounded text-xs transition-colors" title="Reject">
+            ✗
+        </button>
+        <button onclick="document.getElementById('edit-{{ item.draft.id }}').classList.toggle('hidden')"
+                class="text-gray-500 hover:text-indigo-400 px-2 py-1 rounded text-xs transition-colors" title="Edit">
+            ✎
+        </button>
+        <button onclick="document.getElementById('status-change-{{ item.draft.id }}').classList.toggle('hidden')"
+                class="text-gray-500 hover:text-amber-400 px-2 py-1 rounded text-xs transition-colors" title="Change Status">
+            ↕
+        </button>
+        {% if item.thread %}
+        <a href="{{ item.thread.url }}" target="_blank" rel="noopener" class="text-[11px] text-indigo-400 hover:text-indigo-300 ml-auto">Reddit ↗</a>
+        {% endif %}
+    </div>
+    <!-- Hidden edit form -->
+    <div id="edit-{{ item.draft.id }}" class="hidden px-3 py-2 border-t border-slate-700">
+        <form hx-post="/review/{{ item.draft.id }}/edit" hx-target="#edit-status-{{ item.draft.id }}" hx-swap="innerHTML"
+              class="flex gap-2 items-end">
+            <textarea name="edited_text" rows="2"
+                      class="flex-1 px-2 py-1.5 bg-slate-night border border-slate-600 text-gray-200 rounded text-sm resize-none focus:outline-none focus:border-indigo-500"
+                      placeholder="Edit…">{{ item.draft.edited_draft or item.draft.ai_draft or '' }}</textarea>
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded text-xs">Save</button>
+        </form>
+        <span id="edit-status-{{ item.draft.id }}" class="text-xs"></span>
+    </div>
+    <!-- Direct status override -->
+    <div id="status-change-{{ item.draft.id }}" class="hidden px-3 py-2 border-t border-slate-700">
+        <form hx-post="/review/{{ item.draft.id }}/set-status"
+              hx-target="#status-change-{{ item.draft.id }}"
+              hx-swap="innerHTML"
+              class="flex flex-wrap gap-2 items-end">
+            <select name="new_status" class="bg-slate-700 border border-slate-600 text-gray-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-indigo-500">
+                <option value="posted">📤 Posted (skip approve)</option>
+                <option value="approved">✓ Approved</option>
+                <option value="rejected">✗ Rejected</option>
+            </select>
+            <input type="text" name="reason" placeholder="Reason (optional)"
+                   class="flex-1 min-w-[150px] px-2 py-1 bg-slate-night border border-slate-600 text-gray-200 rounded text-xs focus:outline-none focus:border-indigo-500">
+            <button type="submit" class="bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded text-xs">Apply</button>
+        </form>
+    </div>
+    {% elif status == 'approved' %}
+    <div class="px-4 py-3 border-t border-slate-700 bg-slate-800/50">
+        <form hx-post="/review/{{ item.draft.id }}/posted" hx-target="#actions-{{ item.draft.id }}" hx-swap="innerHTML"
+              class="flex flex-wrap gap-2 items-center">
+            <input type="url" name="reddit_comment_url" placeholder="Paste Reddit comment URL (optional)"
+                   class="flex-1 min-w-[200px] px-3 py-1.5 bg-slate-night border border-slate-600 text-gray-200 rounded text-sm focus:outline-none focus:border-indigo-500">
+            <button type="submit"
+                    class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded text-sm font-medium">
+                📤 Mark as Posted
+            </button>
+        </form>
+        <span id="actions-{{ item.draft.id }}" class="text-sm mt-1"></span>
+        <!-- Status change controls -->
+        <div id="status-change-{{ item.draft.id }}" class="mt-2 pt-2 border-t border-slate-700/50">
+            <details class="group">
+                <summary class="text-[11px] text-gray-500 hover:text-gray-300 cursor-pointer select-none">
+                    ↕ Change status…
+                </summary>
+                <form hx-post="/review/{{ item.draft.id }}/set-status"
+                      hx-target="#status-change-{{ item.draft.id }}"
+                      hx-swap="innerHTML"
+                      class="mt-2 flex flex-wrap gap-2 items-end">
+                    <select name="new_status" class="bg-slate-700 border border-slate-600 text-gray-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-indigo-500">
+                        <option value="pending">↩ Pending</option>
+                        <option value="rejected">✗ Rejected</option>
+                    </select>
+                    <input type="text" name="reason" placeholder="Reason (required for backward)"
+                           class="flex-1 min-w-[150px] px-2 py-1 bg-slate-night border border-slate-600 text-gray-200 rounded text-xs focus:outline-none focus:border-indigo-500">
+                    <button type="submit" class="bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded text-xs">Apply</button>
+                </form>
+            </details>
+        </div>
+    </div>
+    {% elif status == 'posted' %}
+    <!-- Karma tracking for posted comments -->
+    <div class="px-4 py-3 border-t border-slate-700 bg-slate-800/50">
+        <div class="flex flex-wrap gap-3 items-center">
+            <!-- Current score display -->
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-500 uppercase tracking-wider">Karma:</span>
+                <span id="karma-display-{{ item.draft.id }}">
+                {% if item.draft.reddit_score is not none %}
+                    {% if item.draft.reddit_score > 0 %}
+                    <span class="text-green-400 font-medium text-sm">↑ {{ item.draft.reddit_score }}</span>
+                    {% elif item.draft.reddit_score < 0 %}
+                    <span class="text-red-400 font-medium text-sm">↓ {{ item.draft.reddit_score }}</span>
+                    {% else %}
+                    <span class="text-gray-400 font-medium text-sm">· 0</span>
+                    {% endif %}
+                {% else %}
+                    <span class="text-gray-600 text-sm italic">not tracked</span>
+                {% endif %}
+                </span>
+            </div>
+
+            <!-- Check Karma Now button -->
+            <button hx-post="/review/{{ item.draft.id }}/check-karma"
+                    hx-target="#karma-display-{{ item.draft.id }}"
+                    hx-swap="innerHTML"
+                    hx-indicator="#karma-spinner-{{ item.draft.id }}"
+                    class="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-gray-300 border border-slate-600 rounded text-xs font-medium">
+                🔄 Check Now
+            </button>
+            <span id="karma-spinner-{{ item.draft.id }}" class="htmx-indicator text-xs text-gray-500">checking…</span>
+
+            <!-- Avatar phase indicator -->
+            {% if item.avatar %}
+            <span class="mx-1 h-4 w-px bg-slate-600"></span>
+            <div class="flex items-center gap-1">
+                <span class="text-xs text-gray-500">Phase:</span>
+                <span class="px-1.5 py-0.5 rounded text-xs font-mono
+                    {% if item.avatar.warming_phase == 1 %}bg-blue-900/50 text-blue-300 border border-blue-700
+                    {% elif item.avatar.warming_phase == 2 %}bg-amber-900/50 text-amber-300 border border-amber-700
+                    {% else %}bg-green-900/50 text-green-300 border border-green-700{% endif %}"
+                    title="Priority {{ item.avatar.warming_phase }}">
+                    P{{ item.avatar.warming_phase }}
+                </span>
+            </div>
+            {% endif %}
+
+            <!-- Posted time -->
+            {% if item.draft.posted_at %}
+            <span class="mx-1 h-4 w-px bg-slate-600"></span>
+            <span class="text-xs text-gray-500">Posted: {{ item.draft.posted_at.strftime('%b %d, %H:%M') }}</span>
+            {% endif %}
+
+            <span id="score-result-{{ item.draft.id }}" class="text-sm ml-auto"></span>
+        </div>
+
+        <!-- Status change controls -->
+        <div id="status-change-{{ item.draft.id }}" class="mt-2 pt-2 border-t border-slate-700/50">
+            <details class="group">
+                <summary class="text-[11px] text-gray-500 hover:text-gray-300 cursor-pointer select-none">
+                    ↕ Change status…
+                </summary>
+                <form hx-post="/review/{{ item.draft.id }}/set-status"
+                      hx-target="#status-change-{{ item.draft.id }}"
+                      hx-swap="innerHTML"
+                      class="mt-2 flex flex-wrap gap-2 items-end">
+                    <select name="new_status" class="bg-slate-700 border border-slate-600 text-gray-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-indigo-500">
+                        <option value="pending">↩ Pending</option>
+                        <option value="approved">✓ Approved</option>
+                        <option value="rejected">✗ Rejected</option>
+                    </select>
+                    <input type="text" name="reason" placeholder="Reason (required for backward)"
+                           class="flex-1 min-w-[150px] px-2 py-1 bg-slate-night border border-slate-600 text-gray-200 rounded text-xs focus:outline-none focus:border-indigo-500">
+                    <button type="submit" class="bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded text-xs">Apply</button>
+                </form>
+            </details>
+        </div>
+
+        <!-- Karma risk warning -->
+        {% if item.karma_summary and item.karma_summary.at_risk %}
+        <div class="mt-2 px-3 py-1.5 bg-red-900/30 border border-red-800 rounded text-xs text-red-300">
+            ⚠ Avatar karma at risk — avg score: {{ item.karma_summary.avg_score }}
+            ({{ item.karma_summary.negative_count }} negative / {{ item.karma_summary.scored_count }} scored).
+            Phase demotion may trigger.
+        </div>
+        {% endif %}
+
+        <!-- Last checked info -->
+        {% if item.draft.last_karma_check_at %}
+        <div class="mt-1 text-xs text-gray-600">
+            Last checked: {{ item.draft.last_karma_check_at.strftime('%b %d, %H:%M') }}
+        </div>
+        {% endif %}
+    </div>
+    {% elif status == 'rejected' %}
+    <!-- Status change controls for rejected -->
+    <div id="status-change-{{ item.draft.id }}" class="px-4 py-3 border-t border-slate-700 bg-slate-800/50">
+        <details class="group">
+            <summary class="text-[11px] text-gray-500 hover:text-gray-300 cursor-pointer select-none">
+                ↕ Change status…
+            </summary>
+            <form hx-post="/review/{{ item.draft.id }}/set-status"
+                  hx-target="#status-change-{{ item.draft.id }}"
+                  hx-swap="innerHTML"
+                  class="mt-2 flex flex-wrap gap-2 items-end">
+                <select name="new_status" class="bg-slate-700 border border-slate-600 text-gray-300 text-xs rounded px-2 py-1 focus:outline-none focus:border-indigo-500">
+                    <option value="pending">↩ Pending</option>
+                    <option value="approved">✓ Approved</option>
+                    <option value="posted">📤 Posted</option>
+                </select>
+                <input type="text" name="reason" placeholder="Reason (optional)"
+                       class="flex-1 min-w-[150px] px-2 py-1 bg-slate-night border border-slate-600 text-gray-200 rounded text-xs focus:outline-none focus:border-indigo-500">
+                <button type="submit" class="bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded text-xs">Apply</button>
+            </form>
+        </details>
+    </div>
+    {% endif %}
+</div><!-- /flex-1 -->
+</div><!-- /flex card -->

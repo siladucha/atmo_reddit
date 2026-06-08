@@ -90,7 +90,7 @@
     <!-- Current Strategy Content -->
     <div class="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
         
-        <!-- Questions for Client — prominent card -->
+        <!-- Questions to Define Strategy — prominent card -->
         {% if strategy_questions %}
         <div class="mx-0 border-b border-amber-600/30 bg-gradient-to-r from-amber-950/40 via-amber-900/20 to-slate-800">
             <div class="px-4 py-3">
@@ -100,7 +100,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
                     </span>
-                    <h3 class="text-xs font-semibold text-amber-300 uppercase tracking-wider">Questions for Client</h3>
+                    <h3 class="text-xs font-semibold text-amber-300 uppercase tracking-wider">Questions to Define Strategy</h3>
                     <span class="ml-auto px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30">
                         {{ strategy_questions|length }} unanswered
                     </span>
@@ -116,7 +116,7 @@
                     {% endfor %}
                 </div>
                 <div class="mt-3 pl-7">
-                    <p class="text-[10px] text-gray-500 italic">Discuss with client to refine next strategy iteration</p>
+                    <p class="text-[10px] text-gray-500 italic">Discuss with client to refine strategy and generate next iteration</p>
                 </div>
             </div>
         </div>
@@ -125,27 +125,42 @@
         <!-- Goals -->
         {% if current_strategy.goals %}
         <div class="px-4 py-3 border-b border-slate-700">
-            <h3 class="text-xs font-medium text-indigo-400 uppercase tracking-wider mb-2">Goals (30 days)</h3>
-            <div class="space-y-1.5">
-                {% for goal in current_strategy.goals %}
-                <div class="flex items-start gap-2">
-                    <span class="text-green-400 text-xs mt-0.5">●</span>
-                    <div class="text-sm text-gray-300">
-                        {{ goal.objective if goal is mapping else goal }}
-                        {% if goal is mapping and goal.target %}
-                        <span class="text-xs text-gray-500 ml-1">→ {{ goal.target }}</span>
+            <h3 class="text-xs font-medium text-indigo-400 uppercase tracking-wider mb-1">Goals (30 days)</h3>
+            <p class="text-[10px] text-gray-500 mb-3">Measurable targets for this avatar's first 30 days. The AI uses these to calibrate comment volume and engagement intensity.</p>
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-[10px] text-gray-500 uppercase tracking-wider">
+                        <th class="text-left pb-2 pr-3">Metric</th>
+                        <th class="text-right pb-2 pr-3">Target</th>
+                        <th class="text-left pb-2">Description</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-700/50">
+                    {% for goal in current_strategy.goals %}
+                    <tr>
+                        {% if goal is mapping and goal.metric %}
+                        <td class="py-1.5 pr-3 text-gray-300 font-medium whitespace-nowrap">{{ goal.metric | replace('_', ' ') | title }}</td>
+                        <td class="py-1.5 pr-3 text-right text-white font-mono">{{ goal.target }}</td>
+                        <td class="py-1.5 text-xs text-gray-500">{{ goal.description or '' }}</td>
+                        {% elif goal is mapping and goal.objective %}
+                        <td class="py-1.5 pr-3 text-gray-300 font-medium">{{ goal.objective }}</td>
+                        <td class="py-1.5 pr-3 text-right text-white font-mono">{{ goal.target or '—' }}</td>
+                        <td class="py-1.5 text-xs text-gray-500">{{ goal.description or '' }}</td>
+                        {% else %}
+                        <td class="py-1.5 pr-3 text-gray-300" colspan="3">{{ goal }}</td>
                         {% endif %}
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
         {% endif %}
 
         <!-- Subreddit Priorities -->
         {% if current_strategy.subreddit_priorities %}
         <div class="px-4 py-3 border-b border-slate-700">
-            <h3 class="text-xs font-medium text-indigo-400 uppercase tracking-wider mb-2">Subreddit Priorities</h3>
+            <h3 class="text-xs font-medium text-indigo-400 uppercase tracking-wider mb-1">Subreddit Priorities</h3>
+            <p class="text-[10px] text-gray-500 mb-2">Where this avatar should focus. AI selects threads from these subreddits in priority order.</p>
             <div class="space-y-1">
                 {% for sub in current_strategy.subreddit_priorities %}
                 <div class="flex items-center justify-between">
@@ -178,7 +193,8 @@
         <!-- Tone Guidelines -->
         {% if current_strategy.tone_guidelines %}
         <div class="px-4 py-3 border-b border-slate-700">
-            <h3 class="text-xs font-medium text-indigo-400 uppercase tracking-wider mb-2">Tone</h3>
+            <h3 class="text-xs font-medium text-indigo-400 uppercase tracking-wider mb-1">Tone</h3>
+            <p class="text-[10px] text-gray-500 mb-2">Voice personality settings injected into every comment generation. Controls formality, humor level, and expertise depth.</p>
             <div class="flex flex-wrap gap-2">
                 {% if current_strategy.tone_guidelines is mapping %}
                 {% if current_strategy.tone_guidelines.formality %}
@@ -203,7 +219,8 @@
         <!-- Hook Inventory -->
         {% if current_strategy.hook_inventory %}
         <div class="px-4 py-3 border-b border-slate-700">
-            <h3 class="text-xs font-medium text-indigo-400 uppercase tracking-wider mb-2">Hook (Hill I Die On)</h3>
+            <h3 class="text-xs font-medium text-indigo-400 uppercase tracking-wider mb-1">Hook (Hill I Die On)</h3>
+            <p class="text-[10px] text-gray-500 mb-2">The avatar's signature opinion or expertise angle. Naturally woven into comments to build recognizable personality.</p>
             {% if current_strategy.hook_inventory is mapping %}
             <div class="text-sm text-gray-300 italic">"{{ current_strategy.hook_inventory.primary or current_strategy.hook_inventory.primary_hook or avatar.hill_i_die_on or '(not set)' }}"</div>
             {% if current_strategy.hook_inventory.target_usage_percent or current_strategy.hook_inventory.usage_target_percent %}
@@ -221,7 +238,8 @@
         <!-- Cadence Rules -->
         {% if current_strategy.cadence_rules %}
         <div class="px-4 py-3 border-b border-slate-700">
-            <h3 class="text-xs font-medium text-indigo-400 uppercase tracking-wider mb-2">Cadence</h3>
+            <h3 class="text-xs font-medium text-indigo-400 uppercase tracking-wider mb-1">Cadence</h3>
+            <p class="text-[10px] text-gray-500 mb-2">Weekly posting schedule. Ramps up gradually to avoid Reddit detection. Professional vs hobby ratio shifts per phase.</p>
             {% if current_strategy.cadence_rules is sequence and current_strategy.cadence_rules is not mapping %}
             <!-- Weekly cadence table -->
             <div class="overflow-x-auto">
@@ -347,12 +365,17 @@
             </form>
         </details>
 
-        <!-- Metadata footer -->
-        <div class="px-4 py-2 bg-slate-900/50 border-t border-slate-700 flex items-center justify-between text-[10px] text-gray-600">
-            <span>Model: {{ current_strategy.model_used or 'unknown' }}</span>
-            <span>{{ current_strategy.input_tokens or 0 }} in / {{ current_strategy.output_tokens or 0 }} out tokens</span>
-            <span>{{ current_strategy.generation_duration_ms or 0 }}ms</span>
-        </div>
+        <!-- Metadata footer (collapsed by default) -->
+        <details class="border-t border-slate-700">
+            <summary class="px-4 py-2 bg-slate-900/50 text-[10px] text-gray-500 cursor-pointer hover:text-gray-400 select-none">
+                Technical Details
+            </summary>
+            <div class="px-4 py-2 bg-slate-900/50 flex items-center justify-between text-[10px] text-gray-600">
+                <span>Model: {{ current_strategy.model_used or 'unknown' }}</span>
+                <span>{{ current_strategy.input_tokens or 0 }} in / {{ current_strategy.output_tokens or 0 }} out tokens</span>
+                <span>{{ current_strategy.generation_duration_ms or 0 }}ms</span>
+            </div>
+        </details>
     </div>
 
     {% else %}
@@ -405,6 +428,14 @@
                             👁 View
                         </button>
                         {% if not doc.is_current %}
+                        <!-- Diff button -->
+                        <button hx-get="/admin/avatars/{{ avatar.id }}/strategy/{{ doc.id }}/diff"
+                                hx-target="#strategy-preview-{{ doc.version }}"
+                                hx-swap="innerHTML"
+                                class="px-2 py-0.5 text-[10px] font-medium rounded bg-slate-700 hover:bg-amber-700/60 text-gray-300 hover:text-amber-200 border border-slate-600 hover:border-amber-600/50 transition-colors"
+                                title="Show diff vs current version">
+                            ⇄ Diff
+                        </button>
                         <button hx-post="/admin/avatars/{{ avatar.id }}/strategy/{{ doc.id }}/activate"
                                 hx-target="#strategy-panel-content"
                                 hx-swap="innerHTML"

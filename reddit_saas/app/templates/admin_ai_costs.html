@@ -68,8 +68,8 @@
 
     <!-- Pipeline Stages (always visible — key overview) -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
-        {% set stage_icons = {"Discovery": "🔍", "Content": "✍️", "Hobby": "🌿", "Posts": "📝", "Other": "⚙️"} %}
-        {% set stage_colors = {"Discovery": "bg-blue-600", "Content": "bg-purple-600", "Hobby": "bg-amber-600", "Posts": "bg-rose-600", "Other": "bg-gray-600"} %}
+        {% set stage_icons = {"Discovery": "🧭", "Scoring": "🔍", "Content": "✍️", "Hobby": "🌿", "Posts": "📝", "Other": "⚙️"} %}
+        {% set stage_colors = {"Discovery": "bg-teal-600", "Scoring": "bg-blue-600", "Content": "bg-purple-600", "Hobby": "bg-amber-600", "Posts": "bg-rose-600", "Other": "bg-gray-600"} %}
         {% set total_stage_cost = by_stage | sum(attribute='cost') or 1 %}
         <div class="flex h-7 rounded-lg overflow-hidden mb-3">
             {% for s in by_stage %}{% if s.cost > 0 %}
@@ -223,7 +223,8 @@
         "editing": "Polishes the generated comment (removes AI-ness).",
         "hobby_comment": "Generates hobby comments for karma warming (no brand).",
         "strategy_generation": "Creates strategic document for avatar (tone, goals, approach).",
-        "scoring_batch": "Batch scoring — multiple posts in one prompt (experimental)."
+        "scoring_batch": "Batch scoring — multiple posts in one prompt (experimental).",
+        "discovery": "Discovery Engine: entity extraction, hypothesis formation, report generation."
     } %}
     <details class="cost-section bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
         <summary class="px-4 py-3 border-b border-slate-700 flex items-center justify-between hover:bg-slate-700/30">
@@ -250,6 +251,7 @@
                                 {% elif row.operation == 'persona_select' %}bg-indigo-900/50 text-indigo-400
                                 {% elif row.operation == 'editing' %}bg-cyan-900/50 text-cyan-400
                                 {% elif row.operation == 'hobby_comment' %}bg-amber-900/50 text-amber-400
+                                {% elif row.operation == 'discovery' %}bg-teal-900/50 text-teal-400
                                 {% else %}bg-slate-700 text-gray-400{% endif %}">{{ row.operation }}</span>
                             <span class="text-gray-600 text-xs cursor-help">ⓘ</span>
                             <span class="op-tip-text">{{ op_descriptions.get(row.operation, row.operation) }}</span>
@@ -327,6 +329,7 @@
                 <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-indigo-600"></span>Persona</span>
                 <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-cyan-600"></span>Edit</span>
                 <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-amber-600"></span>Hobby</span>
+                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-teal-600"></span>Discovery</span>
             </div>
             {% set max_daily = namespace(val=0.01) %}
             {% for day in timeline %}{% if day.total > max_daily.val %}{% set max_daily.val = day.total %}{% endif %}{% endfor %}
@@ -340,6 +343,7 @@
                         {% if day.persona_select > 0 %}<div class="bg-indigo-600 h-full" style="width:{{ (day.persona_select / max_daily.val * 100)|round(1) }}%"></div>{% endif %}
                         {% if day.editing > 0 %}<div class="bg-cyan-600 h-full" style="width:{{ (day.editing / max_daily.val * 100)|round(1) }}%"></div>{% endif %}
                         {% if day.hobby_comment > 0 %}<div class="bg-amber-600 h-full" style="width:{{ (day.hobby_comment / max_daily.val * 100)|round(1) }}%"></div>{% endif %}
+                        {% if day.discovery > 0 %}<div class="bg-teal-600 h-full" style="width:{{ (day.discovery / max_daily.val * 100)|round(1) }}%"></div>{% endif %}
                     </div>
                     <span class="text-[10px] font-mono text-gray-500 w-12 text-right">${{ "%.3f"|format(day.total) }}</span>
                 </div>
@@ -392,6 +396,7 @@
                                 {% elif call.operation == 'persona_select' %}bg-indigo-900/50 text-indigo-400
                                 {% elif call.operation == 'editing' %}bg-cyan-900/50 text-cyan-400
                                 {% elif call.operation == 'hobby_comment' %}bg-amber-900/50 text-amber-400
+                                {% elif call.operation == 'discovery' %}bg-teal-900/50 text-teal-400
                                 {% else %}bg-slate-700 text-gray-400{% endif %}">{{ call.operation }}</span>
                         </td>
                         <td class="px-3 py-1 max-w-[180px]">

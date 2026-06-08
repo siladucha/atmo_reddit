@@ -79,6 +79,59 @@
             visibility: visible;
         }
 
+        /* ----- Tooltip macro (partials/tooltip.html) ----- */
+        .tooltip-macro-wrapper {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            margin-left: 0.25rem;
+            vertical-align: middle;
+        }
+        .tooltip-macro-trigger {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            line-height: 1;
+            color: #64748b;
+            cursor: help;
+            transition: color 0.15s;
+        }
+        .tooltip-macro-trigger:hover,
+        .tooltip-macro-trigger:focus {
+            color: #818cf8;
+        }
+        .tooltip-macro-popup {
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            min-width: 180px;
+            max-width: 280px;
+            width: max-content;
+            padding: 8px 12px;
+            border-radius: 6px;
+            background: #334155;
+            border: 1px solid #475569;
+            color: #e2e8f0;
+            font-size: 12px;
+            line-height: 1.5;
+            font-weight: 400;
+            white-space: normal;
+            text-align: left;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+            z-index: 100;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity 0.15s, visibility 0.15s;
+        }
+        .tooltip-macro-trigger:hover + .tooltip-macro-popup,
+        .tooltip-macro-trigger:focus + .tooltip-macro-popup {
+            opacity: 1;
+            visibility: visible;
+        }
+
         /* ----- Responsive sidebar ----- */
         /* Mobile (< 768px): sidebar hidden by default, slides in via hamburger */
         @media (max-width: 767px) {
@@ -270,6 +323,13 @@
                 </svg>
                 <span class="sidebar-label">Dashboard</span>
             </a>
+
+            <a href="/admin/discovery"
+               class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
+                      {% if active_nav == 'discovery' %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">
+                <span class="w-5 h-5 flex-shrink-0 flex items-center justify-center text-base">🔍</span>
+                <span class="sidebar-label">Discovery</span>
+            </a>
             {% elif role in ('client_admin', 'client_manager') %}
             <div class="sidebar-group-label px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">My Campaign</div>
 
@@ -323,7 +383,20 @@
                 </svg>
                 <span class="sidebar-label">Activity</span>
             </a>
+            {% endif %}
 
+            {% if is_owner or is_partner or is_avatar_mgr %}
+            <a href="/admin/posting-dashboard"
+               class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
+                      {% if active_nav == 'posting-dashboard' %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z"/>
+                </svg>
+                <span class="sidebar-label">Posting Dashboard</span>
+            </a>
+            {% endif %}
+
+            {% if is_platform_admin %}
             <a href="/admin/users"
                class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
                       {% if active_nav == 'users' %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">
@@ -547,6 +620,45 @@
             document.body.removeChild(a);
         }
     </script>
+
+    <!-- Unsaved changes detection -->
+    <script>
+    (function() {
+        var dirty = false;
+
+        function markDirty() { dirty = true; }
+        function markClean() { dirty = false; }
+
+        // Track changes on forms with data-track-changes attribute
+        document.addEventListener('input', function(e) {
+            if (e.target.closest('form[data-track-changes]')) markDirty();
+        });
+        document.addEventListener('change', function(e) {
+            if (e.target.closest('form[data-track-changes]')) markDirty();
+        });
+
+        // Reset dirty flag on successful form submission
+        document.addEventListener('submit', function(e) {
+            if (e.target.matches('form[data-track-changes]')) markClean();
+        });
+
+        // Skip beforeunload for HTMX requests
+        document.body.addEventListener('htmx:beforeRequest', function() {
+            markClean();
+        });
+
+        // Warn on page navigation when form is dirty
+        window.addEventListener('beforeunload', function(e) {
+            if (dirty) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+    })();
+    </script>
+
+    <!-- Searchable dropdown enhancement for selects with data-searchable -->
+    <script src="/static/js/searchable-dropdown.js"></script>
 
     {% block extra_scripts %}{% endblock %}
 </body>

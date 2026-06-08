@@ -55,6 +55,12 @@
 
     <!-- Activity Sparkline (CSS-based bar chart) -->
     <div class="mb-4">
+        {% if not sparkline_data or sparkline_data|sum == 0 %}
+        <!-- Empty state: no activity recorded -->
+        <div class="flex items-center justify-center h-12 rounded-lg border border-dashed border-slate-600 bg-slate-800/30">
+            <p class="text-xs text-gray-500 italic">No activity recorded yet — waiting for pipeline data</p>
+        </div>
+        {% else %}
         <div class="flex items-end gap-px h-12" aria-label="Activity sparkline last 24 hours">
             {% set max_val = sparkline_data|max if sparkline_data|max > 0 else 1 %}
             {% for val in sparkline_data %}
@@ -69,6 +75,7 @@
             </div>
             {% endfor %}
         </div>
+        {% endif %}
         <!-- Hour labels -->
         <div class="flex justify-between mt-1">
             <span class="text-[9px] text-gray-600">1 hour</span>

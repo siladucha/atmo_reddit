@@ -23,14 +23,14 @@
         <div>
             <h1 class="text-2xl font-semibold text-white">Avatars</h1>
             <p class="text-sm text-gray-400 mt-1">
-                {{ page_obj.total_in_scope }} total ·
-                <span class="text-green-400" title="Avatars with active=true in our system (can be assigned to pipelines)">{{ page_obj.counts.active }} active</span> ·
-                <span class="text-red-400" title="Avatars with Reddit-suspended accounts (cannot post)">{{ page_obj.counts.suspended }} suspended</span> ·
-                <span class="text-amber-400" title="Avatars not checked in 14+ days — health status unknown">{{ page_obj.counts.stale }} stale</span>
+                {{ page_obj.counts.total }} total ·
+                <span class="text-green-400" title="Reddit account active (healthy, can post)">{{ page_obj.counts.active }} active on Reddit</span> ·
+                <span class="text-red-400" title="Reddit account suspended (cannot post)">{{ page_obj.counts.suspended }} suspended</span> ·
+                <span class="text-amber-400" title="Not checked in 24+ hours">{{ page_obj.counts.stale }} stale</span>
             </p>
         </div>
         <div class="flex gap-2">
-            <div class="relative">
+            <div class="relative" id="import-export-dropdown-container">
                 <button type="button" onclick="this.nextElementSibling.classList.toggle('hidden')"
                         class="bg-slate-700 hover:bg-slate-600 text-gray-300 px-3 py-2 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -39,6 +39,7 @@
                     Import / Export
                 </button>
                 <div class="hidden absolute right-0 mt-1 w-52 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 py-1"
+                     id="import-export-dropdown-menu"
                      onclick="this.classList.add('hidden')">
                     <a href="/admin/avatars/export-csv{% if f.client_id %}?client_id={{ f.client_id }}{% endif %}"
                        class="block px-4 py-2 text-sm text-gray-300 hover:bg-slate-700 hover:text-white">
@@ -53,6 +54,17 @@
                         ⬇ Download Template
                     </a>
                 </div>
+                <script>
+                (function(){
+                    var container = document.getElementById('import-export-dropdown-container');
+                    var menu = document.getElementById('import-export-dropdown-menu');
+                    document.addEventListener('click', function(e) {
+                        if (!container.contains(e.target) && !menu.classList.contains('hidden')) {
+                            menu.classList.add('hidden');
+                        }
+                    });
+                })();
+                </script>
             </div>
             {% if f.client_id and not is_avatar_manager %}
             <button type="button"
@@ -115,7 +127,7 @@
         </label>
 
         {% if not is_avatar_manager %}
-        <select name="client_id" class="text-sm bg-slate-night border border-slate-600 text-gray-200 rounded px-2 py-1.5">
+        <select name="client_id" data-searchable class="text-sm bg-slate-night border border-slate-600 text-gray-200 rounded px-2 py-1.5">
             <option value="">All clients</option>
             {% for c in page_obj.available_clients %}
             <option value="{{ c.id }}" {% if f.client_id == (c.id|string) %}selected{% endif %}>{{ c.client_name }}</option>
@@ -189,4 +201,17 @@
         {% include "partials/admin_avatars_results.html" %}
     </div>
 </div>
+
+{# Close Import/Export dropdown on outside click #}
+<script>
+(function() {
+    document.addEventListener('click', function(e) {
+        var container = document.getElementById('import-export-dropdown-container');
+        var menu = document.getElementById('import-export-dropdown-menu');
+        if (container && menu && !container.contains(e.target)) {
+            menu.classList.add('hidden');
+        }
+    });
+})();
+</script>
 {% endblock %}

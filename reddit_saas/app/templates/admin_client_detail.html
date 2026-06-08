@@ -61,7 +61,7 @@
     {% endif %}
 
     <!-- Edit Form -->
-    <form method="post" action="/admin/clients/{{ client.id }}" class="bg-dark-steel rounded-lg border border-slate-700 p-6 space-y-4 mb-6">
+    <form method="post" action="/admin/clients/{{ client.id }}" class="bg-dark-steel rounded-lg border border-slate-700 p-6 space-y-4 mb-6" data-track-changes>
         <h2 class="text-lg font-medium text-white mb-2">Client Details</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -145,6 +145,70 @@
                 Full Data (.json)
             </a>
         </div>
+    </div>
+
+    <!-- Discovery History -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6 mb-6">
+        <div class="flex justify-between items-center mb-4">
+            <div>
+                <h2 class="text-lg font-medium text-white">Discovery History</h2>
+                <p class="text-xs text-gray-500 mt-1">Reddit ecosystem research sessions for this client.</p>
+            </div>
+            <a href="/admin/discovery/new?client_id={{ client.id }}"
+               class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                Start Discovery
+            </a>
+        </div>
+
+        {% if discovery_sessions %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-400 border-b border-slate-700">
+                        <th class="pb-2 font-medium">Date</th>
+                        <th class="pb-2 font-medium">Status</th>
+                        <th class="pb-2 font-medium">Iterations</th>
+                        <th class="pb-2 font-medium text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-700/50">
+                    {% for session in discovery_sessions %}
+                    <tr class="hover:bg-slate-800/50">
+                        <td class="py-2.5 text-gray-300">
+                            {{ session.created_at.strftime('%b %d, %Y %H:%M') }}
+                        </td>
+                        <td class="py-2.5">
+                            <span class="px-2 py-0.5 rounded text-xs font-medium
+                                {% if session.status == 'completed' %}bg-emerald-900/50 text-emerald-400
+                                {% elif session.status == 'in_progress' %}bg-blue-900/50 text-blue-400
+                                {% elif session.status == 'abandoned' %}bg-red-900/50 text-red-400
+                                {% else %}bg-gray-700 text-gray-300{% endif %}">
+                                {{ session.status | replace('_', ' ') | title }}
+                            </span>
+                        </td>
+                        <td class="py-2.5 text-gray-400">
+                            {{ session.current_iteration }} / 5
+                        </td>
+                        <td class="py-2.5 text-right">
+                            <a href="/admin/discovery/{{ session.id }}"
+                               class="text-indigo-400 hover:text-indigo-300 text-xs font-medium">
+                                {% if session.status == 'completed' and session.reports %}View Report{% else %}Open Session{% endif %} →
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-6">
+            <p class="text-gray-500 text-sm">No Discovery sessions for this client yet.</p>
+            <p class="text-gray-600 text-xs mt-1">Start a discovery session to research Reddit's ecosystem for this client.</p>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Quick Links -->
@@ -258,6 +322,15 @@
              hx-swap="innerHTML">
             <p class="text-gray-500 text-sm py-4">Loading...</p>
         </div>
+    </div>
+
+    <!-- Return Weights Configuration (EPG 2.0) -->
+    <div id="return-weights-container"
+         hx-get="/admin/clients/{{ client.id }}/return-weights"
+         hx-trigger="load"
+         hx-swap="innerHTML"
+         class="mb-6">
+        <p class="text-gray-500 text-sm py-4">Loading return weights…</p>
     </div>
 </div>
 {% endblock %}

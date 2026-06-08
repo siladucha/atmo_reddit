@@ -1,5 +1,6 @@
 {# Dark-themed avatar table — required ctx: rows (list of view dicts) #}
 {# f (AvatarFilter) is available from parent context for sort links #}
+{% from "partials/tooltip.html" import tooltip %}
 {% macro sort_header(label, sort_asc, sort_desc) %}
 {% set current = f.sort if f is defined else 'username' %}
 {% set next_sort = sort_desc if current == sort_asc else sort_asc %}
@@ -26,13 +27,13 @@
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">{{ sort_header('Username', 'username', 'username_desc') }}</th>
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">{{ sort_header('Client', 'client', 'client_desc') }}</th>
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Reddit</th>
-            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">{{ sort_header('Phase', 'phase_asc', 'phase_desc') }}</th>
-            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Pool</th>
+            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">{{ sort_header('Phase', 'phase_asc', 'phase_desc') }} {{ tooltip("Avatar warming phase — determines content strategy restrictions") }}</th>
+            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Pool {{ tooltip("Avatar pool assignment — B2B (client), B2C (self-service), Mentor (high-karma), Warm (pre-warming)") }}</th>
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">{{ sort_header('Karma', 'karma_asc', 'karma_desc') }}</th>
-            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">AI Cost</th>
-            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Health</th>
-            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">CQS</th>
-            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Posting</th>
+            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">AI Cost {{ tooltip("Total AI/LLM API spend for this avatar (scoring + generation + editing)") }}</th>
+            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Health {{ tooltip("Shadowban/suspension detection score — checks if Reddit has restricted this account") }}</th>
+            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">CQS {{ tooltip("Comment Quality Score — Reddit's internal contributor quality rating") }}</th>
+            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Posting {{ tooltip("Automated posting status — AUTO means avatar posts approved comments automatically") }}</th>
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Actions</th>
         </tr>
     </thead>
@@ -56,7 +57,7 @@
                 <span class="ml-1 px-1.5 py-0.5 rounded text-[9px] font-medium
                     {% if a.profile_pct >= 50 %}bg-amber-900/40 text-amber-400 border border-amber-700/50
                     {% else %}bg-red-900/40 text-red-400 border border-red-700/50{% endif %}"
-                    title="Profile {{ a.profile_pct }}% complete">{{ a.profile_pct }}%</span>
+                    title="Profile {{ a.profile_pct }}% complete">{{ a.profile_pct }}%</span>{{ tooltip("Percentage of Reddit profile fields completed") }}
                 {% endif %}
                 {% if a.email_address %}<div class="text-[11px] text-gray-500">{{ a.email_address }}</div>{% endif %}
             </td>
@@ -112,16 +113,16 @@
                 {% endif %}
             </td>
             <td class="px-4 py-2 text-gray-300 font-mono text-xs">
-                <div>{{ (a.reddit_karma_comment or 0) + (a.reddit_karma_post or 0) }}</div>
+                <div title="{{ (a.reddit_karma_comment or 0) + (a.reddit_karma_post or 0) }}">{{ ((a.reddit_karma_comment or 0) + (a.reddit_karma_post or 0)) | humanize_number }}</div>
                 {% if a.top_subreddits %}
-                <div class="mt-1 flex flex-wrap gap-1">
+                <div class="mt-1 flex flex-wrap gap-1 max-h-20 overflow-y-auto">
                     {% for s in a.top_subreddits %}
                     <span class="px-1.5 py-0.5 rounded text-[10px] font-medium border
                           {% if s.type == 'professional' %}bg-indigo-900/40 text-indigo-300 border-indigo-700/60
                           {% elif s.type == 'hobby' %}bg-emerald-900/30 text-emerald-300 border-emerald-700/50
                           {% else %}bg-slate-700 text-gray-300 border-slate-600{% endif %}"
                           title="r/{{ s.subreddit_name }} · {{ s.comment_karma }} comment / {{ s.post_karma }} post">
-                        r/{{ s.subreddit_name }} · {{ s.total_karma }}
+                        r/{{ s.subreddit_name }} · {{ s.total_karma | humanize_number }}
                     </span>
                     {% endfor %}
                 </div>

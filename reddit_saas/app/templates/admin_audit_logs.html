@@ -13,26 +13,13 @@
 <div class="max-w-7xl mx-auto">
     <div class="flex items-center justify-between mb-6">
         <h1 class="text-2xl font-semibold text-white">Audit Logs</h1>
-        <form method="post" action="/admin/audit-logs/delete-all"
-              onsubmit="return confirm('Are you sure you want to delete ALL audit logs? This cannot be undone.');">
-            <!-- Pass current filters so we can delete only filtered set -->
-            <input type="hidden" name="user_id" value="{{ filters.user_id }}">
-            <input type="hidden" name="client_id" value="{{ filters.client_id }}">
-            <input type="hidden" name="action" value="{{ filters.action }}">
-            <input type="hidden" name="entity_type" value="{{ filters.entity_type }}">
-            <input type="hidden" name="search" value="{{ filters.search }}">
-            <input type="hidden" name="date_from" value="{{ filters.date_from }}">
-            <input type="hidden" name="date_to" value="{{ filters.date_to }}">
-            <button type="submit"
-                    class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                🗑️ Delete {% if filters.user_id or filters.client_id or filters.action or filters.entity_type or filters.search or filters.date_from or filters.date_to %}Filtered{% else %}All{% endif %} ({{ pagination.total }})
-            </button>
-        </form>
     </div>
 
     <!-- Filters -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-6">
         <form method="get" action="/admin/audit-logs" class="flex flex-wrap gap-3 items-end">
+            <!-- Preserve exclude_automated state in form -->
+            <input type="hidden" name="exclude_automated" value="{{ 'true' if exclude_automated else 'false' }}">
             <div>
                 <label class="block text-xs text-gray-400 mb-1">User</label>
                 <select name="user_id"
@@ -97,6 +84,26 @@
                 Clear
             </a>
         </form>
+
+        <!-- Hide Automated / Show All toggle -->
+        <div class="mt-3 pt-3 border-t border-slate-700 flex items-center gap-3">
+            {% if exclude_automated %}
+            <a href="/admin/audit-logs?exclude_automated=false&user_id={{ filters.user_id }}&client_id={{ filters.client_id }}&action={{ filters.action }}&entity_type={{ filters.entity_type }}&search={{ filters.search }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}"
+               class="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-900/30 border border-amber-700/50 text-amber-300 rounded-lg text-xs font-medium hover:bg-amber-900/50 transition-colors">
+                <span class="inline-block w-2 h-2 rounded-full bg-amber-400"></span>
+                Automated hidden — Show All
+            </a>
+            {% else %}
+            <a href="/admin/audit-logs?exclude_automated=true&user_id={{ filters.user_id }}&client_id={{ filters.client_id }}&action={{ filters.action }}&entity_type={{ filters.entity_type }}&search={{ filters.search }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}"
+               class="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-700 border border-slate-600 text-gray-300 rounded-lg text-xs font-medium hover:bg-slate-600 transition-colors">
+                <span class="inline-block w-2 h-2 rounded-full bg-gray-500"></span>
+                Showing all — Hide Automated
+            </a>
+            {% endif %}
+            <span class="text-xs text-gray-500">
+                {% if exclude_automated %}Filtering out scrape_completed, karma_tracked, health checks, etc.{% else %}All entries shown including automated pipeline actions{% endif %}
+            </span>
+        </div>
     </div>
 
     <!-- Logs Table -->
@@ -131,15 +138,68 @@
                         </span>
                     </td>
                     <td class="px-4 py-3 text-gray-300">{{ log.entity_type or '—' }}</td>
-                    <td class="px-4 py-3 text-gray-400 font-mono text-xs">
-                        {{ (log.entity_id|string)[:12] if log.entity_id else '—' }}
+                    <td class="px-4 py-3 font-mono text-xs">
+                        {% if log.entity_id and log.entity_type %}
+                            {% set entity_url = none %}
+                            {% if log.entity_type == 'avatar' %}
+                                {% set entity_url = "/admin/avatars/" ~ log.entity_id %}
+                            {% elif log.entity_type == 'client' %}
+                                {% set entity_url = "/admin/clients/" ~ log.entity_id %}
+                            {% elif log.entity_type == 'user' %}
+                                {% set entity_url = "/admin/users/" ~ log.entity_id %}
+                            {% elif log.entity_type == 'thread' %}
+                                {% set entity_url = "/admin/threads/" ~ log.entity_id %}
+                            {% endif %}
+                            {% if entity_url %}
+                            <a href="{{ entity_url }}"
+                               class="text-indigo-400 hover:text-indigo-300 hover:underline"
+                               title="{{ log.entity_id }}">
+                                {{ (log.entity_id|string)[:12] }}…
+                            </a>
+                            {% else %}
+                            <span class="text-gray-400" title="{{ log.entity_id }}">{{ (log.entity_id|string)[:12] }}</span>
+                            {% endif %}
+                        {% elif log.entity_id %}
+                            <span class="text-gray-400" title="{{ log.entity_id }}">{{ (log.entity_id|string)[:12] }}</span>
+                        {% else %}
+                            —
+                        {% endif %}
                     </td>
                     <td class="px-4 py-3 text-gray-400 text-xs max-w-md">
                         {% if log.details %}
-                        <details class="cursor-pointer">
-                            <summary class="text-gray-400 hover:text-gray-200">{{ log.details|tojson|truncate(60) }}</summary>
-                            <pre class="mt-1 text-xs text-gray-500 whitespace-pre-wrap break-all">{{ log.details|tojson(indent=2) }}</pre>
-                        </details>
+                            {% set detail_keys = log.details.keys()|list if log.details is mapping else [] %}
+                            {% if log.details is mapping and detail_keys|length <= 3 %}
+                            {# Short entries: display inline as key-value pairs #}
+                            <span class="space-x-2">
+                                {% for key, val in log.details.items() %}
+                                <span class="inline-flex items-baseline gap-1">
+                                    <span class="text-gray-500">{{ key }}:</span>
+                                    <span class="text-gray-300">{{ val if val is string else val|tojson }}</span>
+                                </span>
+                                {% endfor %}
+                            </span>
+                            {% elif log.details is mapping %}
+                            {# Longer entries: collapsed expandable details #}
+                            <details class="cursor-pointer">
+                                <summary class="text-gray-400 hover:text-gray-200">
+                                    {{ detail_keys|length }} fields — click to expand
+                                </summary>
+                                <dl class="mt-2 space-y-1 pl-2 border-l-2 border-slate-700">
+                                    {% for key, val in log.details.items() %}
+                                    <div class="flex gap-2">
+                                        <dt class="text-gray-500 font-medium shrink-0">{{ key }}:</dt>
+                                        <dd class="text-gray-300 break-all">{{ val if val is string else val|tojson }}</dd>
+                                    </div>
+                                    {% endfor %}
+                                </dl>
+                            </details>
+                            {% else %}
+                            {# Non-dict JSON (array, string, etc.) #}
+                            <details class="cursor-pointer">
+                                <summary class="text-gray-400 hover:text-gray-200">{{ log.details|tojson|truncate(60) }}</summary>
+                                <pre class="mt-1 text-xs text-gray-500 whitespace-pre-wrap break-all">{{ log.details|tojson(indent=2) }}</pre>
+                            </details>
+                            {% endif %}
                         {% else %}
                         —
                         {% endif %}
@@ -155,19 +215,53 @@
         </table>
     </div>
 
-    <!-- Pagination -->
+    <!-- Pagination — always visible when there are multiple pages -->
     {% if pagination.total_pages > 1 %}
-    <div class="flex justify-center gap-2 mt-6">
+    <nav class="flex items-center justify-center gap-1 mt-6" aria-label="Pagination">
         {% if pagination.has_prev %}
-        <a href="/admin/audit-logs?page={{ pagination.page - 1 }}&user_id={{ filters.user_id }}&client_id={{ filters.client_id }}&action={{ filters.action }}&entity_type={{ filters.entity_type }}&search={{ filters.search }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}"
-           class="px-3 py-1 bg-dark-steel border border-slate-700 rounded text-sm text-gray-400 hover:text-white hover:border-slate-500">Previous</a>
+        <a href="/admin/audit-logs?page={{ pagination.page - 1 }}&user_id={{ filters.user_id }}&client_id={{ filters.client_id }}&action={{ filters.action }}&entity_type={{ filters.entity_type }}&search={{ filters.search }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}&exclude_automated={{ 'true' if exclude_automated else 'false' }}"
+           class="px-3 py-1.5 bg-dark-steel border border-slate-700 rounded text-sm text-gray-400 hover:text-white hover:border-slate-500 transition-colors">← Previous</a>
+        {% else %}
+        <span class="px-3 py-1.5 bg-dark-steel border border-slate-700/50 rounded text-sm text-gray-600 cursor-not-allowed">← Previous</span>
         {% endif %}
-        <span class="px-3 py-1 text-sm text-gray-400">Page {{ pagination.page }} of {{ pagination.total_pages }}</span>
+
+        {# Page number links #}
+        {% set start_page = [1, pagination.page - 2]|max %}
+        {% set end_page = [pagination.total_pages, pagination.page + 2]|min %}
+
+        {% if start_page > 1 %}
+        <a href="/admin/audit-logs?page=1&user_id={{ filters.user_id }}&client_id={{ filters.client_id }}&action={{ filters.action }}&entity_type={{ filters.entity_type }}&search={{ filters.search }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}&exclude_automated={{ 'true' if exclude_automated else 'false' }}"
+           class="px-3 py-1.5 bg-dark-steel border border-slate-700 rounded text-sm text-gray-400 hover:text-white hover:border-slate-500 transition-colors">1</a>
+        {% if start_page > 2 %}
+        <span class="px-2 py-1.5 text-sm text-gray-600">…</span>
+        {% endif %}
+        {% endif %}
+
+        {% for p in range(start_page, end_page + 1) %}
+        {% if p == pagination.page %}
+        <span class="px-3 py-1.5 bg-indigo-600 border border-indigo-500 rounded text-sm text-white font-medium">{{ p }}</span>
+        {% else %}
+        <a href="/admin/audit-logs?page={{ p }}&user_id={{ filters.user_id }}&client_id={{ filters.client_id }}&action={{ filters.action }}&entity_type={{ filters.entity_type }}&search={{ filters.search }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}&exclude_automated={{ 'true' if exclude_automated else 'false' }}"
+           class="px-3 py-1.5 bg-dark-steel border border-slate-700 rounded text-sm text-gray-400 hover:text-white hover:border-slate-500 transition-colors">{{ p }}</a>
+        {% endif %}
+        {% endfor %}
+
+        {% if end_page < pagination.total_pages %}
+        {% if end_page < pagination.total_pages - 1 %}
+        <span class="px-2 py-1.5 text-sm text-gray-600">…</span>
+        {% endif %}
+        <a href="/admin/audit-logs?page={{ pagination.total_pages }}&user_id={{ filters.user_id }}&client_id={{ filters.client_id }}&action={{ filters.action }}&entity_type={{ filters.entity_type }}&search={{ filters.search }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}&exclude_automated={{ 'true' if exclude_automated else 'false' }}"
+           class="px-3 py-1.5 bg-dark-steel border border-slate-700 rounded text-sm text-gray-400 hover:text-white hover:border-slate-500 transition-colors">{{ pagination.total_pages }}</a>
+        {% endif %}
+
         {% if pagination.has_next %}
-        <a href="/admin/audit-logs?page={{ pagination.page + 1 }}&user_id={{ filters.user_id }}&client_id={{ filters.client_id }}&action={{ filters.action }}&entity_type={{ filters.entity_type }}&search={{ filters.search }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}"
-           class="px-3 py-1 bg-dark-steel border border-slate-700 rounded text-sm text-gray-400 hover:text-white hover:border-slate-500">Next</a>
+        <a href="/admin/audit-logs?page={{ pagination.page + 1 }}&user_id={{ filters.user_id }}&client_id={{ filters.client_id }}&action={{ filters.action }}&entity_type={{ filters.entity_type }}&search={{ filters.search }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}&exclude_automated={{ 'true' if exclude_automated else 'false' }}"
+           class="px-3 py-1.5 bg-dark-steel border border-slate-700 rounded text-sm text-gray-400 hover:text-white hover:border-slate-500 transition-colors">Next →</a>
+        {% else %}
+        <span class="px-3 py-1.5 bg-dark-steel border border-slate-700/50 rounded text-sm text-gray-600 cursor-not-allowed">Next →</span>
         {% endif %}
-    </div>
+    </nav>
+    <p class="text-center text-xs text-gray-500 mt-2">Page {{ pagination.page }} of {{ pagination.total_pages }} ({{ pagination.total }} entries)</p>
     {% endif %}
 </div>
 {% endblock %}
