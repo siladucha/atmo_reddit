@@ -49,6 +49,10 @@ templates.env.globals["dry_run_enabled"] = is_dry_run_enabled_global
 templates.env.globals["app_version"] = app_version
 templates.env.globals["posting_disabled"] = lambda: _get_settings().posting_disabled
 
+# Register custom Jinja2 filters
+from app.template_filters import register_filters
+register_filters(templates.env)
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1120,6 +1124,7 @@ def admin_client_detail(
     db: Session = Depends(get_db),
 ):
     from app.models.strategy_document import StrategyDocument
+    from app.models.discovery_session import DiscoverySession
 
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
@@ -1163,6 +1168,14 @@ def admin_client_detail(
             "strategy": strat,
         })
 
+    # Query Discovery sessions linked to this client
+    discovery_sessions = (
+        db.query(DiscoverySession)
+        .filter(DiscoverySession.client_id == client_id)
+        .order_by(DiscoverySession.created_at.desc())
+        .all()
+    )
+
     return templates.TemplateResponse(
         name="admin_client_detail.html",
         context={
@@ -1173,6 +1186,7 @@ def admin_client_detail(
             "avatars": avatars,
             "avatars_enriched": avatars_enriched,
             "keywords": keywords,
+            "discovery_sessions": discovery_sessions,
             "error": None,
         },
         request=request,
@@ -1463,7 +1477,8 @@ def admin_client_run_pipeline(
     and respects all safety checks (rate limits, phase policy, budgets).
     """
     import logging
-    logger = logging.getLogger(__name__)
+    from app.logging_config import get_logger
+    logger = get_logger(__name__)
 
     from app.tasks.worker import celery_app
     try:
@@ -2131,6 +2146,10 @@ def admin_avatars(
         avatar_page.filtered_total = len(avatar_page.items)
         avatar_page.total_in_scope = avatar_page.filtered_total
         avatar_page.groups = []
+        # Recompute counts from the same scoped item set so that
+        # active_count ≤ total_count invariant holds (fixes QA bug 2.2).
+        from app.services.avatars_query import _aggregate_group_status
+        avatar_page.counts = _aggregate_group_status(avatar_page.items)
 
     # Batch-fetch top-3 subreddits for all visible avatars (Req 5).
     visible_ids = [a.id for a in avatar_page.items]
@@ -2299,7 +2318,7 @@ def admin_avatars_check_visible(
 def admin_avatar_health_check(
     request: Request,
     avatar_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
     """Trigger manual health check for a single avatar (HTMX endpoint).
@@ -2313,7 +2332,7 @@ def admin_avatar_health_check(
     from app.services.reddit_freshness import is_health_check_fresh
     from app.services.safety import _format_relative_time
 
-    logger = logging.getLogger(__name__)
+    logger = get_logger(__name__)
 
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
@@ -2399,7 +2418,7 @@ def admin_avatar_update_cqs(
     avatar_id: uuid.UUID,
     cqs_level: str = Form(...),
     cqs_notes: str = Form(""),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
     """Update CQS (Contributor Quality Score) for an avatar.
@@ -2409,7 +2428,7 @@ def admin_avatar_update_cqs(
     """
     import logging
 
-    logger = logging.getLogger(__name__)
+    logger = get_logger(__name__)
 
     VALID_CQS_LEVELS = {"lowest", "low", "moderate", "high", "highest"}
 
@@ -3100,6 +3119,16 @@ def admin_avatar_edit_page(
     else:
         hobby_str = ""
 
+    # Load active system subreddits for the picker
+    from app.models.subreddit import Subreddit
+    system_subreddits = (
+        db.query(Subreddit.subreddit_name)
+        .filter(Subreddit.is_active.is_(True))
+        .order_by(Subreddit.subreddit_name.asc())
+        .all()
+    )
+    system_sub_names = [r[0] for r in system_subreddits]
+
     return templates.TemplateResponse(
         name="admin_avatar_edit.html",
         context={
@@ -3107,6 +3136,7 @@ def admin_avatar_edit_page(
             "active_nav": "avatars",
             "avatar": avatar,
             "hobby_subreddits_str": hobby_str,
+            "system_subreddits": system_sub_names,
         },
         request=request,
     )
@@ -3165,7 +3195,7 @@ def admin_avatar_edit_submit(
 def admin_avatar_epg_partial(
     request: Request,
     avatar_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
     """HTMX partial: show today's EPG for an avatar."""
@@ -3193,12 +3223,12 @@ def admin_avatar_epg_partial(
 def admin_avatar_build_epg(
     request: Request,
     avatar_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
     """Build EPG and generate comments for an avatar (manual trigger)."""
     import logging
-    logger = logging.getLogger(__name__)
+    logger = get_logger(__name__)
 
     from app.services.epg import build_daily_epg
 
@@ -3248,7 +3278,7 @@ def admin_avatar_build_epg(
 def admin_avatar_refresh(
     request: Request,
     avatar_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
     """Refresh ALL data for a single avatar in one call:
@@ -3266,7 +3296,7 @@ def admin_avatar_refresh(
     from app.services.health_checker import check_avatar_health
     from app.services.cqs_checker import update_avatar_cqs_from_reddit
 
-    logger = logging.getLogger(__name__)
+    logger = get_logger(__name__)
 
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
@@ -3320,7 +3350,7 @@ def admin_avatar_profile_analytics(
     request: Request,
     avatar_id: uuid.UUID,
     refresh: str = "",
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
     """HTMX endpoint: fetch fresh Reddit profile analytics, save to DB, return HTML.
@@ -3435,7 +3465,7 @@ def admin_avatar_phase_override(
     avatar_id: uuid.UUID,
     target_phase: int = Form(...),
     reason: str = Form(...),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
     """Admin override to set an avatar's warming phase manually."""
@@ -3451,6 +3481,14 @@ def admin_avatar_phase_override(
             status_code=422,
             content={"detail": "target_phase must be 0 (Mentor), 1, 2, or 3"},
         )
+
+    # Validate reason is non-empty after stripping whitespace
+    if not reason.strip():
+        return JSONResponse(
+            status_code=422,
+            content={"detail": "A reason is required for phase override. Please provide a non-empty reason."},
+        )
+    reason = reason.strip()
 
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
@@ -3502,7 +3540,7 @@ def admin_freeze_avatar(
     request: Request,
     avatar_id: uuid.UUID,
     freeze_reason: str = Form(...),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
     """Freeze an avatar — sets is_frozen=True, records reason and timestamp."""
@@ -3531,7 +3569,7 @@ def admin_freeze_avatar(
 def admin_unfreeze_avatar(
     request: Request,
     avatar_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
     """Unfreeze an avatar — clears frozen state."""
@@ -3768,6 +3806,57 @@ def admin_avatar_strategy_preview(
             "request": request,
             "avatar": avatar,
             "doc": strategy,
+        },
+        request=request,
+    )
+
+
+@router.get("/avatars/{avatar_id}/strategy/{strategy_id}/diff", response_class=HTMLResponse)
+def admin_avatar_strategy_diff(
+    request: Request,
+    avatar_id: uuid.UUID,
+    strategy_id: uuid.UUID,
+    current_user: User = Depends(require_avatar_admin),
+    db: Session = Depends(get_db),
+):
+    """HTMX partial: Show visual diff between a strategy version and the current version."""
+    import difflib
+    from app.models.strategy_document import StrategyDocument
+
+    # Get the target version
+    target = db.query(StrategyDocument).filter(
+        StrategyDocument.id == strategy_id,
+        StrategyDocument.avatar_id == avatar_id,
+    ).first()
+    if not target:
+        return HTMLResponse("<div class='text-red-400 text-xs p-2'>Strategy not found</div>", status_code=404)
+
+    # Get the current version to compare against
+    current = db.query(StrategyDocument).filter(
+        StrategyDocument.avatar_id == avatar_id,
+        StrategyDocument.is_current == True,
+    ).first()
+
+    if not current or current.id == target.id:
+        return HTMLResponse("<div class='text-gray-500 text-xs p-2 italic'>This is the current version — nothing to diff against.</div>")
+
+    # Compute line-by-line diff
+    old_lines = (target.document_md or "").splitlines()
+    new_lines = (current.document_md or "").splitlines()
+
+    differ = difflib.unified_diff(old_lines, new_lines, lineterm="", n=2)
+    diff_lines = list(differ)
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+
+    return templates.TemplateResponse(
+        name="partials/strategy_version_diff.html",
+        context={
+            "request": request,
+            "avatar": avatar,
+            "target_version": target.version,
+            "current_version": current.version,
+            "diff_lines": diff_lines,
         },
         request=request,
     )
@@ -4512,6 +4601,21 @@ def admin_ai_costs(
 # Audit logs (6.10)
 # ---------------------------------------------------------------------------
 
+# High-frequency automated actions to hide by default
+AUTOMATED_AUDIT_ACTIONS = [
+    "scrape_completed",
+    "karma_tracked",
+    "health_check_completed",
+    "cqs_check_batch_completed",
+    "profile_analytics_snapshot",
+    "phase_evaluation_completed",
+    "presence_scan_completed",
+    "heartbeat",
+    "system_heartbeat",
+    "queue_tick",
+]
+
+
 @router.get("/audit-logs", response_class=HTMLResponse)
 def admin_audit_logs(
     request: Request,
@@ -4524,6 +4628,7 @@ def admin_audit_logs(
     search: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
+    exclude_automated: str = "true",
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
@@ -4553,6 +4658,10 @@ def admin_audit_logs(
         except ValueError:
             pass
 
+    # Determine whether to exclude automated actions
+    hide_automated = exclude_automated.lower() in ("true", "1", "yes")
+    exclude_actions = AUTOMATED_AUDIT_ACTIONS if hide_automated else None
+
     logs, total = audit_service.query_audit_logs(
         db,
         page=page,
@@ -4564,6 +4673,7 @@ def admin_audit_logs(
         search=search if search else None,
         date_from=filter_date_from,
         date_to=filter_date_to,
+        exclude_actions=exclude_actions,
     )
     pagination = _paginate(page, per_page, total)
 
@@ -4584,6 +4694,7 @@ def admin_audit_logs(
             "clients": clients_list,
             "entity_types": entity_types,
             "actions_list": actions_list,
+            "exclude_automated": hide_automated,
             "filters": {
                 "user_id": user_id or "",
                 "client_id": client_id or "",
@@ -6051,8 +6162,10 @@ def admin_review(
             .first()
         )
         oldest_age_hours = None
+        oldest_draft_date = None
         if oldest_pending and oldest_pending.created_at:
             oldest_age_hours = int((now - oldest_pending.created_at).total_seconds() / 3600)
+            oldest_draft_date = oldest_pending.created_at.strftime('%b %d, %Y')
 
         avg_score = None
         avatar_breakdown = []
@@ -6074,6 +6187,7 @@ def admin_review(
                 "request": request,
                 "active_nav": "review",
                 "drafts": enriched,
+                "thread_groups": [],
                 "status": status,
                 "clients": clients_list,
                 "selected_client": client_id or "",
@@ -6088,6 +6202,7 @@ def admin_review(
                 "stats": {
                     "total_pending": total_pending,
                     "oldest_age_hours": oldest_age_hours,
+                    "oldest_draft_date": oldest_draft_date,
                     "avg_score": avg_score,
                     "showing": len(enriched),
                     "pending_posts": pending_posts_count,
@@ -6254,8 +6369,10 @@ def admin_review(
         .first()
     )
     oldest_age_hours = None
+    oldest_draft_date = None
     if oldest_pending and oldest_pending.created_at:
         oldest_age_hours = int((now - oldest_pending.created_at).total_seconds() / 3600)
+        oldest_draft_date = oldest_pending.created_at.strftime('%b %d, %Y')
 
     avg_score = None
     if enriched:
@@ -6320,12 +6437,40 @@ def admin_review(
     for item in enriched:
         item["is_post"] = False
 
+    # --- Thread grouping ---
+    # Group drafts by thread_id so the template can show "N drafts for this thread"
+    # for threads with multiple drafts. Single-draft threads remain as individual items.
+    from collections import OrderedDict
+
+    thread_groups_map: OrderedDict = OrderedDict()
+    for item in enriched:
+        tid = item["draft"].thread_id
+        if tid is None:
+            # Drafts without thread_id are ungrouped (treated as individual)
+            thread_groups_map[f"_no_thread_{id(item)}"] = {
+                "thread": item["thread"],
+                "drafts": [item],
+                "count": 1,
+            }
+        elif tid in thread_groups_map:
+            thread_groups_map[tid]["drafts"].append(item)
+            thread_groups_map[tid]["count"] += 1
+        else:
+            thread_groups_map[tid] = {
+                "thread": item["thread"],
+                "drafts": [item],
+                "count": 1,
+            }
+
+    thread_groups = list(thread_groups_map.values())
+
     return templates.TemplateResponse(
         name="admin_review.html",
         context={
             "request": request,
             "active_nav": "review",
             "drafts": enriched,
+            "thread_groups": thread_groups,
             "status": status,
             "clients": clients_list,
             "selected_client": client_id or "",
@@ -6340,6 +6485,7 @@ def admin_review(
             "stats": {
                 "total_pending": total_pending,
                 "oldest_age_hours": oldest_age_hours,
+                "oldest_draft_date": oldest_draft_date,
                 "avg_score": avg_score,
                 "showing": len(enriched),
                 "pending_posts": pending_posts_count,
@@ -6543,6 +6689,7 @@ def _inspector_context(db: Session, last_action: dict | None = None) -> dict:
     pipeline_enabled = get_setting(db, "pipeline_enabled").lower() == "true"
     generation_enabled = get_setting(db, "generation_enabled").lower() == "true"
     scrape_enabled = get_setting(db, "scrape_enabled").lower() == "true"
+    auto_posting_enabled = get_setting(db, "auto_posting_enabled").lower() == "true"
 
     # Recommendations
     recommendations = inspector_service.get_recommendations(
@@ -6557,6 +6704,7 @@ def _inspector_context(db: Session, last_action: dict | None = None) -> dict:
         "pipeline_enabled": pipeline_enabled,
         "generation_enabled": generation_enabled,
         "scrape_enabled": scrape_enabled,
+        "auto_posting_enabled": auto_posting_enabled,
         "last_action": last_action,
     }
 
@@ -6654,6 +6802,17 @@ def admin_inspector_action(
         result = inspector_service.action_toggle_scraping(db, is_enabled)
         audit_service.log_action(db=db, user_id=current_user.id, action="toggle_scraping",
                                  entity_type="system", details={"enabled": is_enabled})
+    elif action_id == "toggle-posting":
+        from app.services.settings import set_setting
+        if enabled == "":
+            current = get_setting(db, "auto_posting_enabled").lower() == "true"
+            is_enabled = not current
+        else:
+            is_enabled = enabled.lower() == "true"
+        set_setting(db, "auto_posting_enabled", str(is_enabled).lower())
+        result = {"action": "toggle-posting", "success": True, "message": f"Auto-posting {'enabled' if is_enabled else 'disabled'}", "affected": 1}
+        audit_service.log_action(db=db, user_id=current_user.id, action="toggle_posting",
+                                 entity_type="system", details={"enabled": is_enabled})
     else:
         result = inspector_service.execute_action(db, action_id)
         audit_service.log_action(db=db, user_id=current_user.id, action="inspector_action",
@@ -6706,7 +6865,7 @@ def admin_inspector_export_json(
 def admin_avatar_scan_presence(
     request: Request,
     avatar_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
     """Trigger a manual presence scan for an avatar.
@@ -6798,7 +6957,7 @@ def admin_avatar_presence_partial(
     request: Request,
     avatar_id: uuid.UUID,
     sort_by: str = "comment_count",
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
     """HTMX partial: renders the avatar presence table with sort controls and status.
@@ -7749,7 +7908,7 @@ def admin_avatar_posting_mode(
     request: Request,
     avatar_id: uuid.UUID,
     mode: str = Form(...),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_owner),
     db: Session = Depends(get_db),
 ):
     """Toggle avatar posting mode between 'auto' and 'disabled'."""
@@ -7866,3 +8025,881 @@ def admin_avatar_posting_config(
         )
 
     return RedirectResponse(url=f"/admin/avatars/{avatar_id}#posting-section", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# Portfolio Dashboard — EPG 2.0 Attention Portfolio HTMX Partials
+# ---------------------------------------------------------------------------
+
+
+@router.get("/avatars/{avatar_id}/portfolio", response_class=HTMLResponse)
+def admin_avatar_portfolio_summary(
+    request: Request,
+    avatar_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """HTMX partial: Portfolio summary for an avatar — today's allocation, budget, top opportunities, metrics."""
+    from datetime import date as date_type
+
+    from app.models.decision_record import DecisionRecord
+    from app.models.opportunity import Opportunity as OpportunityModel
+    from app.models.performance_metric import PerformanceMetric
+    from app.models.zero_day_report import ZeroDayReport
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        return HTMLResponse("Avatar not found", status_code=404)
+
+    today = date_type.today()
+
+    # Get today's decision record
+    decision_record = (
+        db.query(DecisionRecord)
+        .filter(DecisionRecord.avatar_id == avatar_id, DecisionRecord.decision_date == today)
+        .first()
+    )
+
+    # Get today's zero-day report
+    zero_day_report = (
+        db.query(ZeroDayReport)
+        .filter(ZeroDayReport.avatar_id == avatar_id, ZeroDayReport.report_date == today)
+        .first()
+    )
+
+    # Get top 3 selected opportunities for today
+    top_opportunities = (
+        db.query(OpportunityModel)
+        .filter(
+            OpportunityModel.avatar_id == avatar_id,
+            OpportunityModel.decision_date == today,
+            OpportunityModel.status.in_(["selected", "executed"]),
+        )
+        .order_by(OpportunityModel.composite_score.desc())
+        .limit(3)
+        .all()
+    )
+
+    # Get latest performance metrics (most recent available)
+    metrics = (
+        db.query(PerformanceMetric)
+        .filter(PerformanceMetric.avatar_id == avatar_id)
+        .order_by(PerformanceMetric.metric_date.desc())
+        .first()
+    )
+
+    # Build allocation data from decision record
+    allocation = None
+    budget_available = None
+    budget_consumed = None
+    if decision_record:
+        alloc_data = decision_record.portfolio_allocation or {}
+        allocation = type("Alloc", (), {
+            "categories": alloc_data.get("categories", {}),
+            "preset": alloc_data.get("preset", "balanced"),
+        })()
+        budget_available = decision_record.budget_available or {}
+        budget_consumed = decision_record.budget_consumed or {}
+
+    return templates.TemplateResponse(
+        request,
+        "partials/portfolio_summary.html",
+        {
+            "avatar": avatar,
+            "today": str(today),
+            "decision_record": decision_record,
+            "zero_day_report": zero_day_report,
+            "top_opportunities": top_opportunities,
+            "metrics": metrics,
+            "allocation": allocation,
+            "budget_available": budget_available,
+            "budget_consumed": budget_consumed,
+        },
+    )
+
+
+@router.get("/avatars/{avatar_id}/portfolio/decision/{decision_date}", response_class=HTMLResponse)
+def admin_avatar_portfolio_decision(
+    request: Request,
+    avatar_id: uuid.UUID,
+    decision_date: str,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """HTMX partial: Decision record drill-down for a specific date."""
+    from datetime import date as date_type
+
+    from app.models.decision_record import DecisionRecord
+    from app.models.opportunity import Opportunity as OpportunityModel
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        return HTMLResponse("Avatar not found", status_code=404)
+
+    # Parse date
+    try:
+        target_date = date_type.fromisoformat(decision_date)
+    except (ValueError, TypeError):
+        return HTMLResponse("Invalid date format. Use YYYY-MM-DD.", status_code=400)
+
+    # Get decision record
+    decision_record = (
+        db.query(DecisionRecord)
+        .filter(DecisionRecord.avatar_id == avatar_id, DecisionRecord.decision_date == target_date)
+        .first()
+    )
+
+    # Get all opportunities for this date, ranked by composite
+    opportunities = (
+        db.query(OpportunityModel)
+        .filter(
+            OpportunityModel.avatar_id == avatar_id,
+            OpportunityModel.decision_date == target_date,
+        )
+        .order_by(OpportunityModel.composite_score.desc())
+        .all()
+    )
+
+    # Separate selected, rejected
+    selected_count = sum(1 for o in opportunities if o.status in ("selected", "executed"))
+    rejected_count = sum(1 for o in opportunities if o.status == "rejected")
+    rejected_opportunities = [o for o in opportunities if o.status == "rejected"]
+    top_10_opportunities = opportunities[:10]
+
+    return templates.TemplateResponse(
+        request,
+        "partials/portfolio_decision.html",
+        {
+            "avatar": avatar,
+            "decision_date": decision_date,
+            "decision_record": decision_record,
+            "opportunities": opportunities,
+            "top_10_opportunities": top_10_opportunities,
+            "rejected_opportunities": rejected_opportunities,
+            "selected_count": selected_count,
+            "rejected_count": rejected_count,
+        },
+    )
+
+
+@router.get("/avatars/{avatar_id}/portfolio/zero-day", response_class=HTMLResponse)
+def admin_avatar_portfolio_zero_day(
+    request: Request,
+    avatar_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """HTMX partial: Zero-day report for today (or most recent)."""
+    from datetime import date as date_type
+
+    from app.models.zero_day_report import ZeroDayReport
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        return HTMLResponse("Avatar not found", status_code=404)
+
+    today = date_type.today()
+
+    # Get today's zero-day report first, fall back to most recent
+    zero_day_report = (
+        db.query(ZeroDayReport)
+        .filter(ZeroDayReport.avatar_id == avatar_id, ZeroDayReport.report_date == today)
+        .first()
+    )
+    if not zero_day_report:
+        zero_day_report = (
+            db.query(ZeroDayReport)
+            .filter(ZeroDayReport.avatar_id == avatar_id)
+            .order_by(ZeroDayReport.report_date.desc())
+            .first()
+        )
+
+    # Extract report_content for template
+    report_content = zero_day_report.report_content if zero_day_report else {}
+
+    return templates.TemplateResponse(
+        request,
+        "partials/portfolio_zero_day.html",
+        {
+            "avatar": avatar,
+            "zero_day_report": zero_day_report,
+            "report_content": report_content,
+        },
+    )
+
+
+@router.get("/dashboard/portfolio-health", response_class=HTMLResponse)
+def admin_portfolio_health(
+    request: Request,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """HTMX partial: System-wide portfolio health panel for admin dashboard."""
+    from datetime import date as date_type, timedelta
+
+    from sqlalchemy import func as sa_func
+
+    from app.models.decision_record import DecisionRecord
+    from app.models.performance_metric import PerformanceMetric
+    from app.models.zero_day_report import ZeroDayReport
+
+    today = date_type.today()
+    seven_days_ago = today - timedelta(days=7)
+    fourteen_days_ago = today - timedelta(days=14)
+
+    # Total actions planned today — sum budget_consumed.total from decision records
+    try:
+        records_today = (
+            db.query(DecisionRecord)
+            .filter(DecisionRecord.decision_date == today)
+            .all()
+        )
+        total_actions_today = sum(
+            (r.budget_consumed or {}).get("total", 0) for r in records_today
+        )
+    except Exception:
+        total_actions_today = 0
+
+    # Zero-day avatars today
+    zero_day_avatars_today = (
+        db.query(sa_func.count(ZeroDayReport.id))
+        .filter(ZeroDayReport.report_date == today)
+        .scalar() or 0
+    )
+
+    # Average ROA across all avatars (7-day rolling)
+    recent_metrics = (
+        db.query(PerformanceMetric)
+        .filter(PerformanceMetric.metric_date >= seven_days_ago)
+        .all()
+    )
+    if recent_metrics:
+        roa_values = [m.return_on_attention for m in recent_metrics if m.return_on_attention is not None]
+        avg_roa = sum(roa_values) / len(roa_values) if roa_values else 0.0
+    else:
+        avg_roa = 0.0
+
+    # Avatars with alerts (low accuracy < 50% over 14d, high zero-day rate > 50% over 14d)
+    alerts = []
+    fourteen_day_metrics = (
+        db.query(PerformanceMetric)
+        .filter(PerformanceMetric.metric_date >= fourteen_days_ago)
+        .all()
+    )
+
+    # Group by avatar
+    avatar_metrics: dict[uuid.UUID, list] = {}
+    for m in fourteen_day_metrics:
+        avatar_metrics.setdefault(m.avatar_id, []).append(m)
+
+    # Check alerts per avatar
+    for aid, metrics_list in avatar_metrics.items():
+        # Average decision accuracy over 14 days
+        acc_values = [m.decision_accuracy for m in metrics_list if m.decision_accuracy is not None]
+        avg_acc = sum(acc_values) / len(acc_values) if acc_values else None
+
+        # Average zero-day rate
+        zdr_values = [m.zero_day_rate for m in metrics_list if m.zero_day_rate is not None]
+        avg_zdr = sum(zdr_values) / len(zdr_values) if zdr_values else None
+
+        # Lookup avatar name
+        avatar = db.query(Avatar).filter(Avatar.id == aid).first()
+        avatar_name = avatar.username if avatar else str(aid)[:8]
+
+        if avg_acc is not None and avg_acc < 50:
+            alerts.append({
+                "avatar_name": avatar_name,
+                "reason": "Low Decision Accuracy (14d avg < 50%)",
+                "metric_value": avg_acc,
+            })
+        if avg_zdr is not None and avg_zdr > 50:
+            alerts.append({
+                "avatar_name": avatar_name,
+                "reason": "High Zero-Day Rate (14d avg > 50%)",
+                "metric_value": avg_zdr,
+            })
+
+    return templates.TemplateResponse(
+        request,
+        "partials/portfolio_health.html",
+        {
+            "total_actions_today": total_actions_today,
+            "zero_day_avatars_today": zero_day_avatars_today,
+            "avg_roa": avg_roa,
+            "alerts": alerts,
+        },
+    )
+
+
+@router.get("/avatars/{avatar_id}/portfolio/metrics", response_class=HTMLResponse)
+def admin_avatar_portfolio_metrics(
+    request: Request,
+    avatar_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """HTMX partial: Performance metrics trends for an avatar (7/14/30 day windows)."""
+    from datetime import date as date_type, timedelta
+
+    from sqlalchemy import func as sa_func
+
+    from app.models.performance_metric import PerformanceMetric
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        return HTMLResponse("Avatar not found", status_code=404)
+
+    today = date_type.today()
+    seven_days_ago = today - timedelta(days=7)
+    fourteen_days_ago = today - timedelta(days=14)
+    thirty_days_ago = today - timedelta(days=30)
+
+    # Get all metrics in 30-day window
+    all_metrics = (
+        db.query(PerformanceMetric)
+        .filter(
+            PerformanceMetric.avatar_id == avatar_id,
+            PerformanceMetric.metric_date >= thirty_days_ago,
+        )
+        .order_by(PerformanceMetric.metric_date.desc())
+        .all()
+    )
+
+    if not all_metrics:
+        return templates.TemplateResponse(
+            request,
+            "partials/portfolio_metrics.html",
+            {"metrics_data": None},
+        )
+
+    # Partition by window
+    m_7d = [m for m in all_metrics if m.metric_date >= seven_days_ago]
+    m_14d = [m for m in all_metrics if m.metric_date >= fourteen_days_ago]
+    m_30d = all_metrics
+
+    def avg(items, attr):
+        vals = [getattr(m, attr) for m in items if getattr(m, attr) is not None]
+        return sum(vals) / len(vals) if vals else 0.0
+
+    def trend(items, attr):
+        """Simple trend: compare most recent half to older half."""
+        vals = [getattr(m, attr) for m in items if getattr(m, attr) is not None]
+        if len(vals) < 2:
+            return "flat"
+        mid = len(vals) // 2
+        recent_avg = sum(vals[:mid]) / mid if mid > 0 else 0
+        older_avg = sum(vals[mid:]) / (len(vals) - mid) if (len(vals) - mid) > 0 else 0
+        if recent_avg > older_avg * 1.1:
+            return "up"
+        elif recent_avg < older_avg * 0.9:
+            return "down"
+        return "flat"
+
+    # Current = most recent metric value
+    current = all_metrics[0] if all_metrics else None
+
+    metrics_data = {
+        "roa_current": current.return_on_attention if current else 0,
+        "roa_7d": avg(m_7d, "return_on_attention"),
+        "roa_14d": avg(m_14d, "return_on_attention"),
+        "roa_30d": avg(m_30d, "return_on_attention"),
+        "roa_trend": trend(m_7d, "return_on_attention"),
+
+        "rar_current": current.risk_adjusted_return if current else 0,
+        "rar_7d": avg(m_7d, "risk_adjusted_return"),
+        "rar_14d": avg(m_14d, "risk_adjusted_return"),
+        "rar_30d": avg(m_30d, "risk_adjusted_return"),
+        "rar_trend": trend(m_7d, "risk_adjusted_return"),
+
+        "diversification_current": current.portfolio_diversification if current else 0,
+        "diversification_trend": trend(m_7d, "portfolio_diversification"),
+
+        "accuracy_current": current.decision_accuracy if current else 0,
+        "accuracy_trend": trend(m_7d, "decision_accuracy"),
+
+        "zdr_current": current.zero_day_rate if current else 0,
+        "zdr_trend": trend(m_7d, "zero_day_rate"),
+    }
+
+    return templates.TemplateResponse(
+        request,
+        "partials/portfolio_metrics.html",
+        {"metrics_data": metrics_data},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Client Return Weights — EPG 2.0 Configuration
+# ---------------------------------------------------------------------------
+
+
+@router.get("/clients/{client_id}/return-weights", response_class=HTMLResponse)
+def admin_client_return_weights_get(
+    request: Request,
+    client_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """HTMX partial: Return weights configuration form for a client."""
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        return HTMLResponse("Client not found", status_code=404)
+
+    # Default weights
+    default_weights = {"karma": 20, "trust": 25, "visibility": 20, "influence": 15, "strategic_value": 20}
+    weights = client.return_weights or default_weights
+
+    # Ensure all keys are present
+    for key in default_weights:
+        if key not in weights:
+            weights[key] = default_weights[key]
+
+    return templates.TemplateResponse(
+        request,
+        "partials/client_return_weights.html",
+        {
+            "client": client,
+            "weights": weights,
+            "success_message": None,
+            "error_message": None,
+        },
+    )
+
+
+@router.post("/clients/{client_id}/return-weights", response_class=HTMLResponse)
+def admin_client_return_weights_post(
+    request: Request,
+    client_id: uuid.UUID,
+    karma: int = Form(...),
+    trust: int = Form(...),
+    visibility: int = Form(...),
+    influence: int = Form(...),
+    strategic_value: int = Form(...),
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Save return weights for a client. Validates non-negative integers."""
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        return HTMLResponse("Client not found", status_code=404)
+
+    # Validation: all non-negative integers
+    error_message = None
+    values = {"karma": karma, "trust": trust, "visibility": visibility, "influence": influence, "strategic_value": strategic_value}
+
+    for name, val in values.items():
+        if val < 0:
+            error_message = f"{name.replace('_', ' ').title()} must be non-negative."
+            break
+
+    if error_message:
+        default_weights = {"karma": 20, "trust": 25, "visibility": 20, "influence": 15, "strategic_value": 20}
+        weights = client.return_weights or default_weights
+        for key in default_weights:
+            if key not in weights:
+                weights[key] = default_weights[key]
+
+        return templates.TemplateResponse(
+            request,
+            "partials/client_return_weights.html",
+            {
+                "client": client,
+                "weights": weights,
+                "success_message": None,
+                "error_message": error_message,
+            },
+        )
+
+    # Save weights to client
+    new_weights = {
+        "karma": karma,
+        "trust": trust,
+        "visibility": visibility,
+        "influence": influence,
+        "strategic_value": strategic_value,
+    }
+    client.return_weights = new_weights
+    db.commit()
+
+    # Audit log
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="update_return_weights",
+        entity_type="client",
+        client_id=client_id,
+        details={"weights": new_weights},
+    )
+
+    return templates.TemplateResponse(
+        request,
+        "partials/client_return_weights.html",
+        {
+            "client": client,
+            "weights": new_weights,
+            "success_message": "Return weights saved successfully.",
+            "error_message": None,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Portfolio Override — Manual Opportunity Exclusion & Re-allocation
+# ---------------------------------------------------------------------------
+
+
+@router.get("/avatars/{avatar_id}/portfolio/override", response_class=HTMLResponse)
+def admin_avatar_portfolio_override_get(
+    request: Request,
+    avatar_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """HTMX partial: Portfolio override form — checklist of today's opportunities."""
+    from datetime import date as date_type
+
+    from app.models.opportunity import Opportunity as OpportunityModel
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        return HTMLResponse("Avatar not found", status_code=404)
+
+    today = date_type.today()
+
+    # Get all opportunities for today (both selected and rejected)
+    opportunities = (
+        db.query(OpportunityModel)
+        .filter(
+            OpportunityModel.avatar_id == avatar_id,
+            OpportunityModel.decision_date == today,
+        )
+        .order_by(OpportunityModel.composite_score.desc())
+        .all()
+    )
+
+    return templates.TemplateResponse(
+        request,
+        "partials/portfolio_override.html",
+        {
+            "avatar": avatar,
+            "today": str(today),
+            "opportunities": opportunities,
+            "success_message": None,
+            "error_message": None,
+        },
+    )
+
+
+@router.post("/avatars/{avatar_id}/portfolio/override", response_class=HTMLResponse)
+async def admin_avatar_portfolio_override_post(
+    request: Request,
+    avatar_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Process portfolio override: exclude checked opportunities, re-run allocation.
+
+    1. Receive list of opportunity IDs to exclude
+    2. Mark those as 'rejected' with reason 'manual_override'
+    3. Re-run allocation engine on remaining viable opportunities
+    4. Remove old EPGSlots for today (only 'planned' ones), create new ones
+    5. Return refreshed portfolio summary
+    """
+    from datetime import date as date_type
+
+    from app.models.epg_slot import EPGSlot
+    from app.models.opportunity import Opportunity as OpportunityModel
+    from app.services.allocation_engine import allocate_portfolio
+    from app.services.portfolio_manager import (
+        AttentionBudget,
+        PortfolioAllocation,
+        ReturnWeights,
+    )
+    from app.services.return_engine import (
+        ExpectedReturn,
+        estimate_returns,
+        get_subreddit_karma_multiplier,
+    )
+    from app.services.risk_engine import RiskAssessment
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        return HTMLResponse("Avatar not found", status_code=404)
+
+    today = date_type.today()
+
+    # Parse excluded IDs from form checkboxes
+    form_data = await request.form()
+    exclude_id_strs = form_data.getlist("exclude_ids")
+
+    exclude_ids: set[uuid.UUID] = set()
+    for id_str in exclude_id_strs:
+        try:
+            exclude_ids.add(uuid.UUID(str(id_str)))
+        except (ValueError, TypeError):
+            pass
+
+    # Get all today's opportunities for this avatar
+    all_opportunities = (
+        db.query(OpportunityModel)
+        .filter(
+            OpportunityModel.avatar_id == avatar_id,
+            OpportunityModel.decision_date == today,
+        )
+        .all()
+    )
+
+    if not all_opportunities:
+        return _render_portfolio_summary_after_override(
+            request, db, avatar, today,
+            error_message="No opportunities found for today.",
+        )
+
+    # Mark excluded opportunities as rejected with manual_override reason
+    for opp in all_opportunities:
+        if opp.id in exclude_ids:
+            opp.status = "rejected"
+            opp.rejection_reason = "manual_override"
+        else:
+            # Reset previously rejected opportunities (except those rejected for other reasons)
+            if opp.status == "rejected" and opp.rejection_reason == "manual_override":
+                opp.status = "evaluated"
+                opp.rejection_reason = None
+
+    # Get viable opportunities (not excluded)
+    viable_opportunities = [opp for opp in all_opportunities if opp.id not in exclude_ids]
+
+    if not viable_opportunities:
+        # All excluded — mark as zero-day override
+        db.flush()
+        # Remove old planned EPGSlots for today
+        db.query(EPGSlot).filter(
+            EPGSlot.avatar_id == avatar_id,
+            EPGSlot.plan_date == today,
+            EPGSlot.status == "planned",
+        ).delete(synchronize_session="fetch")
+        db.commit()
+
+        return _render_portfolio_summary_after_override(
+            request, db, avatar, today,
+            success_message="Override applied. All opportunities excluded — no actions planned.",
+        )
+
+    # Get client for configuration
+    client = None
+    if avatar.client_ids:
+        try:
+            client_id = uuid.UUID(avatar.client_ids[0])
+            client = db.query(Client).filter(Client.id == client_id).first()
+        except (ValueError, TypeError, IndexError):
+            pass
+
+    # Compute budget, weights, and allocation (same as build_portfolio)
+    budget = AttentionBudget.from_avatar(avatar, client)
+    weights = ReturnWeights.from_client(client)
+    allocation = PortfolioAllocation.from_avatar_profile(avatar, client)
+
+    # Build risk assessments and expected returns for viable opportunities
+    risk_assessments: dict[uuid.UUID, RiskAssessment] = {}
+    expected_returns: dict[uuid.UUID, ExpectedReturn] = {}
+
+    for opp in viable_opportunities:
+        # Use existing risk_score from the opportunity record
+        risk_assessments[opp.id] = RiskAssessment(
+            base_score=opp.risk_score,
+            account_age_factor=0,
+            karma_factor=0,
+            frequency_factor=0,
+            moderation_factor=0,
+            content_type_factor=0,
+            health_modifier=0,
+            phase_multiplier=1.0,
+            final_score=opp.risk_score,
+            flags=["high_risk"] if opp.risk_score > 70 else [],
+        )
+
+        # Recompute expected returns
+        sub = opp.subreddit or ""
+        multiplier = get_subreddit_karma_multiplier(db, avatar.id, sub)
+        ret = estimate_returns(opp, avatar, client, weights, multiplier)
+        expected_returns[opp.id] = ret
+        opp.expected_return = ret.to_dict()
+
+    # Run allocation engine
+    allocation_result = allocate_portfolio(
+        viable_opportunities, risk_assessments, expected_returns,
+        budget, allocation, avatar,
+    )
+
+    # Remove old planned EPGSlots for today (keep generated/approved/posted)
+    db.query(EPGSlot).filter(
+        EPGSlot.avatar_id == avatar_id,
+        EPGSlot.plan_date == today,
+        EPGSlot.status == "planned",
+    ).delete(synchronize_session="fetch")
+
+    # Update opportunity statuses
+    selected_ids = {a.opportunity.id for a in allocation_result.selected}
+    for opp in all_opportunities:
+        if opp.id in exclude_ids:
+            opp.status = "rejected"
+            opp.rejection_reason = "manual_override"
+        elif opp.id in selected_ids:
+            opp.status = "selected"
+            opp.rejection_reason = None
+        else:
+            opp.status = "rejected"
+            # Keep existing rejection reasons for non-manual rejections
+            if not opp.rejection_reason:
+                opp.rejection_reason = "not_selected_after_override"
+
+    # Create new EPGSlots from allocation result
+    client_id_val = client.id if client else None
+    if client_id_val is None and avatar.client_ids:
+        try:
+            client_id_val = uuid.UUID(avatar.client_ids[0])
+        except (ValueError, TypeError, IndexError):
+            pass
+
+    for action in allocation_result.selected:
+        opp = action.opportunity
+
+        # Get thread title
+        thread_title = opp.subreddit or ""
+        thread_ups = 0
+        if opp.thread_id:
+            from app.models.thread import RedditThread
+            thread = db.query(RedditThread).filter(
+                RedditThread.id == opp.thread_id
+            ).first()
+            if thread:
+                thread_title = thread.post_title or opp.subreddit or ""
+                thread_ups = thread.ups or 0
+        elif opp.hobby_post_id:
+            from app.models.hobby import HobbySubreddit
+            hobby = db.query(HobbySubreddit).filter(
+                HobbySubreddit.id == opp.hobby_post_id
+            ).first()
+            if hobby:
+                thread_title = hobby.post_title or opp.subreddit or ""
+                thread_ups = hobby.post_ups or 0
+
+        slot = EPGSlot(
+            id=uuid.uuid4(),
+            avatar_id=avatar.id,
+            client_id=client_id_val,
+            plan_date=today,
+            slot_type=action.slot_type,
+            scheduled_at=action.scheduled_at,
+            status="planned",
+            thread_id=opp.thread_id,
+            hobby_post_id=opp.hobby_post_id,
+            subreddit=opp.subreddit,
+            thread_title=thread_title,
+            thread_ups=thread_ups,
+        )
+        db.add(slot)
+
+    # Audit log
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="portfolio_override",
+        entity_type="avatar",
+        entity_id=avatar_id,
+        details={
+            "excluded_count": len(exclude_ids),
+            "excluded_ids": [str(eid) for eid in exclude_ids],
+            "selected_count": len(allocation_result.selected),
+            "date": str(today),
+        },
+    )
+
+    db.commit()
+
+    # Return refreshed portfolio summary
+    return _render_portfolio_summary_after_override(
+        request, db, avatar, today,
+        success_message=f"Override applied. {len(allocation_result.selected)} actions re-allocated ({len(exclude_ids)} excluded).",
+    )
+
+
+def _render_portfolio_summary_after_override(
+    request: Request,
+    db: Session,
+    avatar: Avatar,
+    today,
+    success_message: str | None = None,
+    error_message: str | None = None,
+) -> HTMLResponse:
+    """Helper to render the portfolio summary panel after an override action."""
+    from app.models.decision_record import DecisionRecord
+    from app.models.opportunity import Opportunity as OpportunityModel
+    from app.models.performance_metric import PerformanceMetric
+    from app.models.zero_day_report import ZeroDayReport
+
+    # Get decision record
+    decision_record = (
+        db.query(DecisionRecord)
+        .filter(DecisionRecord.avatar_id == avatar.id, DecisionRecord.decision_date == today)
+        .first()
+    )
+
+    # Get zero-day report
+    zero_day_report = (
+        db.query(ZeroDayReport)
+        .filter(ZeroDayReport.avatar_id == avatar.id, ZeroDayReport.report_date == today)
+        .first()
+    )
+
+    # Get top selected opportunities
+    top_opportunities = (
+        db.query(OpportunityModel)
+        .filter(
+            OpportunityModel.avatar_id == avatar.id,
+            OpportunityModel.decision_date == today,
+            OpportunityModel.status.in_(["selected", "executed"]),
+        )
+        .order_by(OpportunityModel.composite_score.desc())
+        .limit(3)
+        .all()
+    )
+
+    # Get latest metrics
+    metrics = (
+        db.query(PerformanceMetric)
+        .filter(PerformanceMetric.avatar_id == avatar.id)
+        .order_by(PerformanceMetric.metric_date.desc())
+        .first()
+    )
+
+    # Build allocation data
+    allocation = None
+    budget_available = None
+    budget_consumed = None
+    if decision_record:
+        alloc_data = decision_record.portfolio_allocation or {}
+        allocation = type("Alloc", (), {
+            "categories": alloc_data.get("categories", {}),
+            "preset": alloc_data.get("preset", "balanced"),
+        })()
+        budget_available = decision_record.budget_available or {}
+        budget_consumed = decision_record.budget_consumed or {}
+
+    return templates.TemplateResponse(
+        request,
+        "partials/portfolio_summary.html",
+        {
+            "avatar": avatar,
+            "today": str(today),
+            "decision_record": decision_record,
+            "zero_day_report": zero_day_report,
+            "top_opportunities": top_opportunities,
+            "metrics": metrics,
+            "allocation": allocation,
+            "budget_available": budget_available,
+            "budget_consumed": budget_consumed,
+            "success_message": success_message,
+            "error_message": error_message,
+        },
+    )

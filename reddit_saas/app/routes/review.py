@@ -1,4 +1,4 @@
-import logging
+from app.logging_config import get_logger
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -16,7 +16,7 @@ from app.services.access_control import can_approve_drafts
 from app.services.transparency import record_activity_event
 from app.services import audit as audit_service
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter()
 

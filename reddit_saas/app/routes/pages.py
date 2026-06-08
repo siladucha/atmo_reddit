@@ -1,6 +1,6 @@
 """Server-side rendered pages — full UI flow."""
 
-import logging
+from app.logging_config import get_logger
 from datetime import datetime, timezone, timedelta
 from uuid import UUID
 
@@ -26,13 +26,16 @@ from app.services.access_control import can_approve_drafts
 from app.version import __version__ as app_version
 from app.config import get_settings as _get_settings
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 templates.env.globals["app_version"] = app_version
 templates.env.globals["posting_disabled"] = lambda: _get_settings().posting_disabled
 templates.env.globals["app_env"] = _get_settings().app_env
+
+from app.template_filters import register_filters
+register_filters(templates.env)
 
 ALLOWED_TABS = ("overview", "subreddits", "keywords", "avatars", "threads", "review", "reports")
 

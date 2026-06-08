@@ -10,12 +10,12 @@ For now: placeholder that confirms the endpoint is reachable.
 Full implementation comes with the automated-proxy-posting feature.
 """
 
-import logging
+from app.logging_config import get_logger
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/oauth", tags=["oauth"])
 

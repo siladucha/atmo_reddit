@@ -9,7 +9,7 @@ Provides:
 - POST /admin/decision-center/execute-action/{avatar_id} — execute prescriptive action
 """
 
-import logging
+from app.logging_config import get_logger
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -32,7 +32,7 @@ from app.services.risk_prediction import (
     get_decision_queue,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/admin/decision-center")
 templates = Jinja2Templates(directory="app/templates")
@@ -41,6 +41,9 @@ from app.version import __version__ as app_version
 from app.config import get_settings as _get_settings
 templates.env.globals["app_version"] = app_version
 templates.env.globals["posting_disabled"] = lambda: _get_settings().posting_disabled
+
+from app.template_filters import register_filters
+register_filters(templates.env)
 
 
 @router.get("")

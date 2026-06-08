@@ -1,4 +1,4 @@
-import logging
+from app.logging_config import get_logger
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -12,7 +12,7 @@ from app.models.comment_draft import CommentDraft
 from app.models.avatar import Avatar
 from app.models.user import User
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 router = APIRouter()
 
 

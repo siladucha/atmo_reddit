@@ -4,7 +4,7 @@ New dark-themed client-facing portal. Separate from admin panel.
 All routes require client access (RBAC enforced).
 """
 
-import logging
+from app.logging_config import get_logger
 from datetime import datetime, timezone, timedelta
 from uuid import UUID
 
@@ -32,7 +32,7 @@ from app.schemas.client_portal import (
 )
 from app.services.safety_blocks import check_safety_blocks
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(
     dependencies=[Depends(verify_client_access_from_path)],
@@ -43,6 +43,9 @@ from app.version import __version__ as app_version
 from app.config import get_settings as _get_settings
 templates.env.globals["app_version"] = app_version
 templates.env.globals["posting_disabled"] = lambda: _get_settings().posting_disabled
+
+from app.template_filters import register_filters
+register_filters(templates.env)
 
 
 # --- Helpers ---
@@ -220,11 +223,37 @@ def portal_review(
     # Get avatars for filter selector
     avatars_for_filter = (
         db.query(Avatar)
-        .filter(Avatar.client_ids.any(str(client_id)))
+        .filter(
+            Avatar.client_ids.any(str(client_id)),
+            Avatar.active.is_(True),
+            Avatar.is_frozen.is_(False),
+        )
         .order_by(Avatar.reddit_username.asc())
         .all()
     )
     avatar_options = [{"id": str(a.id), "name": a.reddit_username} for a in avatars_for_filter]
+
+    # Count approved (ready to post) and posted
+    approved_count = (
+        db.query(func.count(CommentDraft.id))
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(
+            CommentDraft.status == "approved",
+            Avatar.client_ids.any(str(client_id)),
+        )
+        .scalar()
+    ) or 0
+
+    posted_count = (
+        db.query(func.count(CommentDraft.id))
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(
+            CommentDraft.status == "posted",
+            Avatar.client_ids.any(str(client_id)),
+            CommentDraft.created_at >= datetime.now(timezone.utc) - timedelta(days=30),
+        )
+        .scalar()
+    ) or 0
 
     return _portal_render(
         request,
@@ -234,6 +263,8 @@ def portal_review(
         active_page="review",
         extra_context={
             "pending_count": sidebar["pending_count"],
+            "approved_count": approved_count,
+            "posted_count": posted_count,
             "can_review": can_review,
             "avatar_options": avatar_options,
         },
@@ -833,21 +864,34 @@ def portal_metrics_partial(
 def portal_drafts_partial(
     request: Request,
     client_id: UUID,
+    status: str = "pending",
     avatar_id: str = "",
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Return draft cards list for review queue."""
+    """Return draft cards list for review queue (supports pending/approved/posted tabs)."""
+    valid_statuses = {"pending", "approved", "posted"}
+    if status not in valid_statuses:
+        status = "pending"
+
     query = (
         db.query(CommentDraft)
         .join(Avatar, CommentDraft.avatar_id == Avatar.id)
         .filter(
-            CommentDraft.status == "pending",
+            CommentDraft.status == status,
             Avatar.client_ids.any(str(client_id)),
+            Avatar.active.is_(True),
+            Avatar.is_frozen.is_(False),
         )
     )
     if avatar_id:
         query = query.filter(CommentDraft.avatar_id == avatar_id)
+
+    # For posted tab, limit to last 30 days
+    if status == "posted":
+        query = query.filter(
+            CommentDraft.created_at >= datetime.now(timezone.utc) - timedelta(days=30)
+        )
 
     drafts_raw = query.order_by(CommentDraft.created_at.desc()).limit(50).all()
 
@@ -892,6 +936,13 @@ def portal_drafts_partial(
             (thread_body[:120] + "...") if len(thread_body or "") > 120 else (thread_body or "")
         )
 
+        # Use Reddit's actual post creation date (not when we scraped it)
+        thread_date = None
+        if thread:
+            thread_date = thread.reddit_created_at or thread.created_at
+        elif hobby_post:
+            thread_date = getattr(hobby_post, "reddit_created_at", None) or getattr(hobby_post, "created_at", None)
+
         drafts.append({
             "id": str(d.id),
             "avatar_name": avatar.reddit_username if avatar else "Unknown",
@@ -902,9 +953,11 @@ def portal_drafts_partial(
             "thread_body_excerpt": body_excerpt,
             "comment_text": d.edited_draft or d.ai_draft or "",
             "comment_approach": getattr(d, "comment_approach", None),
-            "created_at_relative": _relative_time(d.created_at),
+            "created_at_relative": _relative_time(thread_date) if thread_date else _relative_time(d.created_at),
             "safety_block": safety_block,
             "is_hobby": d.type == "hobby",
+            "reddit_comment_url": d.reddit_comment_url or "",
+            "posted_at": _relative_time(d.posted_at) if d.posted_at else "",
         })
 
     last_draft_at = None
@@ -927,6 +980,7 @@ def portal_drafts_partial(
             "client_id": str(client_id),
             "last_draft_at": last_draft_at,
             "can_review": user.user_role.can_review,
+            "status": status,
         },
         request=request,
     )
@@ -1045,6 +1099,66 @@ def portal_skip_draft(
     )
 
 
+@router.post("/clients/{client_id}/drafts/{draft_id}/mark-posted")
+def portal_mark_posted(
+    request: Request,
+    client_id: UUID,
+    draft_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    reddit_url: str = Form(""),
+):
+    """Mark an approved draft as posted on Reddit."""
+    if user.user_role == UserRole.client_viewer:
+        raise HTTPException(status_code=403, detail="Viewers cannot mark drafts as posted")
+
+    draft = db.query(CommentDraft).filter(CommentDraft.id == draft_id).first()
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+
+    avatar = db.query(Avatar).filter(Avatar.id == draft.avatar_id).first()
+    if not avatar or str(client_id) not in (avatar.client_ids or []):
+        raise HTTPException(status_code=404, detail="Draft not found")
+
+    if draft.status not in ("approved", "pending"):
+        return JSONResponse(status_code=422, content={"message": "Draft is not in approved state"})
+
+    draft.status = "posted"
+    draft.posted_at = datetime.now(timezone.utc)
+    if reddit_url.strip():
+        draft.reddit_comment_url = reddit_url.strip()
+    db.commit()
+
+    # Audit log
+    try:
+        from app.services.audit import log_action
+        log_action(
+            db=db,
+            user_id=user.id,
+            action="draft_marked_posted",
+            entity_type="comment_draft",
+            entity_id=draft_id,
+            details={
+                "client_id": str(client_id),
+                "avatar": avatar.reddit_username,
+                "reddit_url": reddit_url.strip() or None,
+                "source": "client_portal",
+            },
+        )
+    except Exception as e:
+        logger.warning("Failed to log audit event: %s", e)
+
+    logger.info(
+        "Portal: draft marked posted | draft_id=%s | user=%s | client=%s",
+        draft_id, user.email, client_id,
+    )
+
+    return HTMLResponse(
+        content="",
+        headers={"HX-Trigger": '{"showToast": {"type": "success", "message": "Marked as posted ✓"}}'},
+    )
+
+
 @router.post("/clients/{client_id}/drafts/{draft_id}/edit")
 def portal_edit_draft(
     request: Request,
@@ -1083,8 +1197,12 @@ def portal_edit_draft(
 
     # Capture edit for learning loop (trains AI to write better)
     try:
-        from app.services.learning import capture_edit_record
-        capture_edit_record(db, draft, user_action="edit")
+        from app.services.learning import LearningService
+        thread = db.query(RedditThread).filter(RedditThread.id == draft.thread_id).first() if draft.thread_id else None
+        if thread:
+            learning_status = "approved" if (edited_text.strip() and edited_text.strip() != (draft.ai_draft or "")) else "approved_unchanged"
+            LearningService().capture_edit_record(db=db, draft=draft, thread=thread, status=learning_status)
+            db.commit()
     except Exception as e:
         logger.warning("Failed to capture edit record: %s", e)
 

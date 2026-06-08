@@ -8,7 +8,7 @@ Provides a step-by-step HTMX-driven flow on the avatar detail page:
 5. Approve / Edit / Reject / Mark Posted / Regenerate — all inline
 """
 
-import logging
+from app.logging_config import get_logger
 import time
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -29,7 +29,7 @@ from app.models.thread import RedditThread
 from app.models.thread_score import ThreadScore
 from app.models.user import User
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/admin/avatars/{avatar_id}/pipeline")
 templates = Jinja2Templates(directory="app/templates")
@@ -37,6 +37,9 @@ from app.version import __version__ as app_version
 from app.config import get_settings as _get_settings
 templates.env.globals["app_version"] = app_version
 templates.env.globals["posting_disabled"] = lambda: _get_settings().posting_disabled
+
+from app.template_filters import register_filters
+register_filters(templates.env)
 
 
 # ---------------------------------------------------------------------------

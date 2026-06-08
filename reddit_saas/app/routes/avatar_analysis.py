@@ -1,6 +1,6 @@
 """Avatar behavioral analysis REST endpoint."""
 
-import logging
+from app.logging_config import get_logger
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -20,7 +20,7 @@ from app.schemas.avatar_analysis import (
 from app.services.avatar_analysis import AnalysisError, analyze_avatar
 from app.services.learning_loop import store_edit
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/avatars")
 

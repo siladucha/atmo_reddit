@@ -1,6 +1,6 @@
 """Avatar CRUD and health monitoring routes."""
 
-import logging
+from app.logging_config import get_logger
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,7 +15,7 @@ from app.models.user import User
 from app.models.user_role import UserRole
 from app.services.safety import get_avatar_health, quarantine_avatar
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 router = APIRouter()
 
 

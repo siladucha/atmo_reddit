@@ -1,6 +1,6 @@
 """Pipeline trigger routes — for manual testing and admin control."""
 
-import logging
+from app.logging_config import get_logger
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,7 +12,7 @@ from app.models.user import User
 from app.tasks.scraping import scrape_subreddit_shared, scrape_hobby_subreddits
 from app.tasks.ai_pipeline import score_threads, generate_comments, generate_hobby_comments
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 router = APIRouter()
 
 

@@ -9,7 +9,7 @@ Provides the Workflow tab on the avatar detail page:
 - POST /admin/avatars/{id}/workflow/drafts/{id}/reject  — reject inline
 """
 
-import logging
+from app.logging_config import get_logger
 import uuid
 from datetime import datetime, timezone
 
@@ -29,7 +29,7 @@ from app.models.thread import RedditThread
 from app.models.user import User
 from app.services import audit as audit_service
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/admin/avatars/{avatar_id}/workflow")
 templates = Jinja2Templates(directory="app/templates")
@@ -37,6 +37,9 @@ from app.version import __version__ as app_version
 from app.config import get_settings as _get_settings
 templates.env.globals["app_version"] = app_version
 templates.env.globals["posting_disabled"] = lambda: _get_settings().posting_disabled
+
+from app.template_filters import register_filters
+register_filters(templates.env)
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +110,110 @@ class _HobbyThreadProxy:
             self.url = f"https://www.reddit.com/r/{hobby_post.subreddit}/" if hobby_post.subreddit else ""
 
 
+def _has_approved_strategy(db: Session, avatar: Avatar) -> bool:
+    """Check if the avatar has an approved current strategy document."""
+    from app.models.strategy_document import StrategyDocument
+
+    current_strategy = (
+        db.query(StrategyDocument)
+        .filter(StrategyDocument.avatar_id == avatar.id, StrategyDocument.is_current.is_(True))
+        .first()
+    )
+    return bool(current_strategy and current_strategy.is_approved)
+
+
+def _build_action_items(db: Session, avatar: Avatar) -> list[dict]:
+    """Build list of actionable issues for the Workflow tab.
+
+    Each item: {severity: 'critical'|'warning'|'info', title, description, action_tab}
+    """
+    from app.models.strategy_document import StrategyDocument
+    from datetime import timedelta
+
+    items = []
+
+    # --- Strategy not approved ---
+    current_strategy = (
+        db.query(StrategyDocument)
+        .filter(StrategyDocument.avatar_id == avatar.id, StrategyDocument.is_current.is_(True))
+        .first()
+    )
+    if current_strategy and not current_strategy.is_approved:
+        days_since = (datetime.now(timezone.utc) - current_strategy.generated_at).days if current_strategy.generated_at else 0
+        items.append({
+            "severity": "critical" if days_since > 7 else "warning",
+            "title": "Strategy not approved",
+            "description": f"AI generates without strategic direction ({days_since} days). Approve or regenerate.",
+            "action_tab": "strategy",
+        })
+    elif not current_strategy:
+        items.append({
+            "severity": "warning",
+            "title": "No strategy generated",
+            "description": "Generate a strategy to guide AI comment quality and tone.",
+            "action_tab": "strategy",
+        })
+
+    # --- Phase overdue ---
+    PHASE_DURATIONS = {1: 60, 2: 60, 3: None}  # days per phase (None = no limit)
+    phase_duration = PHASE_DURATIONS.get(avatar.warming_phase)
+    if phase_duration and avatar.phase_changed_at:
+        days_in_phase = (datetime.now(timezone.utc) - avatar.phase_changed_at).days
+        if days_in_phase > phase_duration:
+            items.append({
+                "severity": "warning",
+                "title": f"Phase {avatar.warming_phase} overdue",
+                "description": f"Day {days_in_phase}/{phase_duration} — check if promotion criteria are met.",
+                "action_tab": "overview",
+            })
+
+    # --- CQS lowest ---
+    if avatar.cqs_level == "lowest":
+        items.append({
+            "severity": "critical",
+            "title": "CQS at lowest level",
+            "description": "Reddit rates this account as low quality. Excluded from professional pipeline.",
+            "action_tab": "overview",
+        })
+
+    # --- Frozen ---
+    if avatar.is_frozen:
+        items.append({
+            "severity": "critical",
+            "title": f"Avatar frozen",
+            "description": f"Reason: {avatar.freeze_reason or 'unknown'}. All pipelines paused.",
+            "action_tab": "profile-safety",
+        })
+
+    # --- Health: shadowbanned/suspended ---
+    if avatar.health_status in ("shadowbanned", "suspended"):
+        items.append({
+            "severity": "critical",
+            "title": f"Health: {avatar.health_status}",
+            "description": "This avatar cannot post on Reddit. Investigate or retire.",
+            "action_tab": "overview",
+        })
+
+    # --- Posting: missing proxy/credentials (only if posting_mode=auto) ---
+    if avatar.posting_mode == "auto":
+        if not avatar.proxy_url_encrypted:
+            items.append({
+                "severity": "warning",
+                "title": "No proxy configured",
+                "description": "Auto-posting requires a residential proxy for safety.",
+                "action_tab": "posting",
+            })
+        if not (avatar.reddit_password_encrypted or getattr(avatar, 'refresh_token_encrypted', None)):
+            items.append({
+                "severity": "warning",
+                "title": "No credentials configured",
+                "description": "Auto-posting requires Reddit password or OAuth token.",
+                "action_tab": "posting",
+            })
+
+    return items
+
+
 # ---------------------------------------------------------------------------
 # Main workflow panel
 # ---------------------------------------------------------------------------
@@ -128,6 +235,7 @@ def workflow_panel(
 
     epg = build_daily_epg(db, avatar, client)
     pending_drafts, approved_drafts, posted_drafts = _get_today_drafts(db, avatar)
+    action_items = _build_action_items(db, avatar)
 
     return templates.TemplateResponse(
         name="partials/avatar_workflow.html",
@@ -138,6 +246,9 @@ def workflow_panel(
             "pending_drafts": pending_drafts,
             "approved_drafts": approved_drafts,
             "posted_drafts": posted_drafts,
+            "action_items": action_items,
+            "strategy_approved": _has_approved_strategy(db, avatar),
+            "now_utc": datetime.now(timezone.utc),
         },
         request=request,
     )
@@ -183,6 +294,8 @@ def workflow_rebuild_epg(
             "pending_drafts": pending_drafts,
             "approved_drafts": approved_drafts,
             "posted_drafts": posted_drafts,
+            "strategy_approved": _has_approved_strategy(db, avatar),
+            "now_utc": datetime.now(timezone.utc),
         },
         request=request,
     )
@@ -467,6 +580,8 @@ def workflow_generate_all(
             "pending_drafts": pending_drafts,
             "approved_drafts": approved_drafts,
             "posted_drafts": posted_drafts,
+            "strategy_approved": _has_approved_strategy(db, avatar),
+            "now_utc": datetime.now(timezone.utc),
         },
         request=request,
     )
