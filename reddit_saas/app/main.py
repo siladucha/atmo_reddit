@@ -7,12 +7,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import get_settings, get_config
-from app.logging_config import setup_logging
+from app.logging_config import setup_logging, get_logger
 from app.middleware.auth import AuthMiddleware
 from app.version import __version__
 from app.middleware.errors import ErrorMiddleware
 from app.middleware.security import SecurityHeadersMiddleware, RateLimitMiddleware
-from app.routes import admin, auth, dashboard, review, pipeline, avatars, avatar_analysis, avatar_pipeline, avatar_workflow, clients, pages, dry_run, export, decision_center, portal, oauth
+from app.routes import admin, auth, dashboard, review, pipeline, avatars, avatar_analysis, avatar_pipeline, avatar_workflow, clients, pages, dry_run, export, decision_center, portal, oauth, posting_dashboard, discovery
 from app.services.metrics_collector import (
     get_metrics_collector,
     install_metrics_logging_handler,
@@ -21,7 +21,7 @@ from app.services.metrics_collector import (
 settings = get_settings()
 app_env = get_config("app_env")
 setup_logging(level="DEBUG" if app_env == "development" else "INFO")
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # In-memory metrics collector + logging hook (captures PRAW rate-limit logs
 # emitted in this FastAPI process). Multi-process aggregation happens in
@@ -130,6 +130,8 @@ app.include_router(avatar_workflow.router, tags=["avatar-workflow"])
 app.include_router(dry_run.router, tags=["dry-run"])
 app.include_router(portal.router, tags=["client-portal"])
 app.include_router(pages.router, tags=["pages"])
+app.include_router(posting_dashboard.router, tags=["posting-dashboard"])
+app.include_router(discovery.router, tags=["discovery"])
 app.include_router(export.router, tags=["export"])
 
 

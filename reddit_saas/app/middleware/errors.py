@@ -1,13 +1,13 @@
 """Error handling middleware — catches exceptions and shows friendly pages."""
 
-import logging
+from app.logging_config import get_logger
 import traceback
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import HTMLResponse
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 ERROR_HTML = """
 <!DOCTYPE html>

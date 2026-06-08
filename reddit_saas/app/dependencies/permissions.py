@@ -19,7 +19,7 @@ Usage:
         ...
 """
 
-import logging
+from app.logging_config import get_logger
 import uuid
 
 from fastapi import Depends, HTTPException, Request
@@ -30,7 +30,7 @@ from app.models.client import Client
 from app.models.user import User
 from app.models.user_role import UserRole
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 async def get_current_user(

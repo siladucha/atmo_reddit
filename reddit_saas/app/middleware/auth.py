@@ -14,7 +14,7 @@ field is wrong (needs 'owner' or 'partner' for admin panel access). The /home ro
 checks role.is_admin_level which only matches owner/partner.
 """
 
-import logging
+from app.logging_config import get_logger
 import secrets
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -23,7 +23,7 @@ from starlette.responses import RedirectResponse, Response
 
 from app.services.auth import decode_access_token
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Routes that don't require authentication
 PUBLIC_ROUTES = {

@@ -1,6 +1,6 @@
 """Security middleware — adds protective HTTP headers and rate limiting."""
 
-import logging
+from app.logging_config import get_logger
 import time
 from collections import defaultdict
 
@@ -10,7 +10,7 @@ from starlette.responses import Response, JSONResponse
 
 from app.config import get_config
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):

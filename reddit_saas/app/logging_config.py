@@ -2,6 +2,10 @@
 
 Full observability: all Reddit API calls, LLM calls, user actions,
 and system events are logged for complete audit trail.
+
+Usage in any module:
+    from app.logging_config import get_logger
+    logger = get_logger(__name__)
 """
 
 import os
@@ -58,3 +62,8 @@ def setup_logging(level: str = "INFO") -> None:
     logging.getLogger("multipart").setLevel(logging.WARNING)
     logging.getLogger("passlib").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.INFO)  # Shows Reddit HTTP connections
+
+
+def get_logger(name: str) -> logging.Logger:
+    """Get a named logger. Use as: logger = get_logger(__name__)"""
+    return logging.getLogger(name)
