@@ -14,7 +14,7 @@ Schedule:
 - Rate-limited: 2s delay between Reddit API calls per avatar
 """
 
-import logging
+from app.logging_config import get_logger
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -29,7 +29,7 @@ from app.services.audit import log_system_action
 from app.services.sanitize import ensure_username_bare
 from app.services.transparency import record_activity_event
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # How far back to check karma for posted items
 KARMA_CHECK_WINDOW_DAYS = 7

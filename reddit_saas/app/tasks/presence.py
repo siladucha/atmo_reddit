@@ -1,12 +1,12 @@
 """Celery tasks for avatar subreddit presence scanning."""
 
-import logging
+from app.logging_config import get_logger
 
 from app.database import SessionLocal
 from app.services.audit import log_system_action
 from app.tasks.worker import celery_app
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @celery_app.task(name="scan_avatar_presence", bind=True, max_retries=3)

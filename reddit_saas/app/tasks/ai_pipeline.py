@@ -1,6 +1,6 @@
 """Celery tasks for AI pipeline: scoring, persona selection, comment generation."""
 
-import logging
+from app.logging_config import get_logger
 import uuid
 
 import redis
@@ -19,7 +19,7 @@ from app.services.generation import select_persona, generate_comment, edit_comme
 from app.services.transparency import record_activity_event
 from app.services.ai import ai_trigger_context
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @celery_app.task(name="score_threads", bind=True, max_retries=3)
@@ -64,7 +64,7 @@ def score_threads(self, client_id: str, triggered_by: str = "scheduler"):
                 and not a.is_shadowbanned
                 and a.health_status not in ("shadowbanned", "suspended")
                 and a.warming_phase != 0  # Mentor excluded
-                and getattr(a, "pool", "b2b") in ("b2b", "b2c")  # Only pipeline-eligible pools
+                and getattr(a, "pool", "b2b") in ("b2b", "b2c", "warm")  # Pipeline-eligible pools
             ]
 
             total_scored = 0
@@ -205,7 +205,7 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
                 and a.health_status not in ("shadowbanned", "suspended")
                 and a.cqs_level != "lowest"  # CQS lowest → hobby only, no brand comments
                 and a.warming_phase != 0  # Mentor — excluded from pipelines
-                and getattr(a, "pool", "b2b") in ("b2b", "b2c")  # Only pipeline-eligible pools
+                and getattr(a, "pool", "b2b") in ("b2b", "b2c", "warm")  # Pipeline-eligible pools
             ]
 
             # Log avatars excluded due to health_status
@@ -608,18 +608,61 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
             # see images and would generate nonsensical comments. Revisit when
             # multimodal LLM support is added.
             from sqlalchemy import func as sa_func
-            posts = (
-                db.query(HobbySubreddit)
-                .filter(
-                    HobbySubreddit.avatar_username == avatar.reddit_username,
-                    HobbySubreddit.ai_comment.is_(None),
-                    HobbySubreddit.status == "new",
-                    HobbySubreddit.post_body.isnot(None),
-                    sa_func.length(HobbySubreddit.post_body) > 20,
+
+            # Round-robin across subreddits for diversity (don't let one sub dominate)
+            hobby_sub_names = []
+            raw_subs = avatar.hobby_subreddits or []
+            if isinstance(raw_subs, str):
+                raw_subs = [s.strip() for s in raw_subs.split(",")]
+            for item in raw_subs:
+                if isinstance(item, dict):
+                    name = item.get("subreddit") or item.get("name") or ""
+                else:
+                    name = str(item)
+                name = name.strip().replace("r/", "")
+                if name:
+                    hobby_sub_names.append(name)
+
+            if not hobby_sub_names and avatar.warming_phase == 1:
+                from app.services.sanitize import DEFAULT_PHASE1_HOBBY_SUBREDDITS
+                hobby_sub_names = list(DEFAULT_PHASE1_HOBBY_SUBREDDITS)
+
+            # Distribute max_comments evenly across subreddits
+            posts = []
+            if hobby_sub_names:
+                per_sub_limit = max(2, max_comments // len(hobby_sub_names))
+                for sub_name in hobby_sub_names:
+                    sub_posts = (
+                        db.query(HobbySubreddit)
+                        .filter(
+                            HobbySubreddit.avatar_username == avatar.reddit_username,
+                            HobbySubreddit.subreddit == sub_name,
+                            HobbySubreddit.ai_comment.is_(None),
+                            HobbySubreddit.status == "new",
+                            HobbySubreddit.post_body.isnot(None),
+                            sa_func.length(HobbySubreddit.post_body) > 20,
+                        )
+                        .order_by(HobbySubreddit.scraped_at.desc())
+                        .limit(per_sub_limit)
+                        .all()
+                    )
+                    posts.extend(sub_posts)
+                # Trim to max_comments total
+                posts = posts[:max_comments]
+            else:
+                # Fallback: no subreddit list, use old behavior
+                posts = (
+                    db.query(HobbySubreddit)
+                    .filter(
+                        HobbySubreddit.avatar_username == avatar.reddit_username,
+                        HobbySubreddit.ai_comment.is_(None),
+                        HobbySubreddit.status == "new",
+                        HobbySubreddit.post_body.isnot(None),
+                        sa_func.length(HobbySubreddit.post_body) > 20,
+                    )
+                    .limit(max_comments)
+                    .all()
                 )
-                .limit(max_comments)
-                .all()
-            )
 
             # Get last 20 comments for diversity enforcement
             recent_comments = (
@@ -1007,7 +1050,7 @@ def _select_post_subreddit(
     """Select the best subreddit for a post, preferring subs with established karma."""
     from app.services import karma_tracker
     from app.models.post_draft import PostDraft
-    from datetime import timedelta
+    from datetime import datetime, timedelta, timezone
 
     now = datetime.now(timezone.utc)
 
@@ -1070,7 +1113,7 @@ def evaluate_all_avatar_phases():
                 Avatar.active.is_(True),
                 Avatar.is_shadowbanned.is_(False),
                 Avatar.warming_phase != 0,  # Mentor — not subject to phase evaluation
-                Avatar.pool.in_(["b2b", "b2c"]),  # Only pipeline-eligible pools
+                Avatar.pool.in_(["b2b", "b2c", "warm"]),  # Pipeline-eligible pools
             )
             .all()
         )

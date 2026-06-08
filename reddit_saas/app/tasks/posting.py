@@ -10,7 +10,7 @@ Integration:
 - Redis distributed lock per avatar (prevents concurrent posting)
 """
 
-import logging
+from app.logging_config import get_logger
 import uuid
 from datetime import datetime, timezone
 
@@ -19,7 +19,7 @@ from celery import shared_task
 from app.database import SessionLocal
 from app.services.distributed_lock import DistributedLock
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Lock settings
 POSTING_LOCK_PREFIX = "posting_lock:"

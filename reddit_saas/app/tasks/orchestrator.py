@@ -3,7 +3,7 @@
 Called by Celery Beat on schedule.
 """
 
-import logging
+from app.logging_config import get_logger
 
 from app.tasks.worker import celery_app
 from app.database import SessionLocal
@@ -11,7 +11,7 @@ from app.models.client import Client
 from app.models.avatar import Avatar
 from app.services.audit import log_system_action
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @celery_app.task(name="run_full_pipeline_all_clients")
@@ -85,7 +85,7 @@ def run_hobby_pipeline_all_avatars():
                 Avatar.is_frozen.is_(False),
                 Avatar.health_status.notin_(("shadowbanned", "suspended")),
                 Avatar.warming_phase != 0,  # Mentor — excluded from pipelines
-                Avatar.pool.in_(["b2b", "b2c"]),  # Only pipeline-eligible pools
+                Avatar.pool.in_(["b2b", "b2c", "warm"]),  # Pipeline-eligible pools
             )
             .all()
         )

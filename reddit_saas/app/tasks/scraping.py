@@ -4,7 +4,7 @@ TODO(pipeline-v2): Add scrape freshness gate (R8) — check min_scrape_interval_
 before each subreddit scrape. See Sprint 1, Task 1.2.
 """
 
-import logging
+from app.logging_config import get_logger
 import time
 import uuid
 from datetime import datetime, timezone
@@ -19,7 +19,7 @@ from app.services.audit import log_system_action
 from app.services.reddit import scrape_subreddit, deduplicate_posts
 from app.services.transparency import record_activity_event
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @celery_app.task(name="scrape_professional_subreddits")

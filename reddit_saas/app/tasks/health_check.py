@@ -1,11 +1,11 @@
 """Celery task for periodic avatar health checks (shadowban/suspension detection)."""
 
-import logging
+from app.logging_config import get_logger
 
 from app.tasks.worker import celery_app
 from app.database import SessionLocal
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @celery_app.task(name="health_check_all_avatars", bind=True, max_retries=1)

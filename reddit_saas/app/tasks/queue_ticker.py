@@ -9,7 +9,7 @@ Tasks:
     scrape_single_subreddit: Legacy scrape task (kept for backward compatibility).
 """
 
-import logging
+from app.logging_config import get_logger
 import time
 import uuid
 from datetime import datetime, timezone
@@ -29,7 +29,7 @@ from app.services.settings import get_setting
 from app.services.transparency import record_activity_event
 from app.tasks.worker import celery_app
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Redis key for tick-interval gating
 _LAST_TICK_KEY = "queue_tick:last_run"

@@ -7,7 +7,7 @@ and key operational metrics.
 Designed to be resilient: never raises, always logs something.
 """
 
-import logging
+from app.logging_config import get_logger
 import time
 from datetime import datetime, timezone
 
@@ -16,7 +16,7 @@ import sqlalchemy.exc
 
 from app.tasks.worker import celery_app
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Heartbeat log prefix for easy grep/filtering
 _PREFIX = "HEARTBEAT"

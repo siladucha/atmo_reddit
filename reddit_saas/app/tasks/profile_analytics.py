@@ -7,7 +7,7 @@ because every snapshot uses Reddit API calls.
 
 from __future__ import annotations
 
-import logging
+from app.logging_config import get_logger
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -23,7 +23,7 @@ from app.services.reddit_freshness import (
 )
 from app.tasks.worker import celery_app
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @celery_app.task(name="snapshot_avatar_profile_analytics")

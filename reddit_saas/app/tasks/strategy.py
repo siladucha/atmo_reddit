@@ -8,14 +8,14 @@ Audit events:
   - strategy_generation_failed (unrecoverable error)
 """
 
-import logging
+from app.logging_config import get_logger
 import time
 import uuid
 
 from app.tasks.worker import celery_app
 from app.database import SessionLocal
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @celery_app.task(name="generate_strategy_async", bind=True, max_retries=1)

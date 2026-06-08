@@ -21,6 +21,10 @@ celery_app = Celery(
         "app.tasks.profile_analytics",
         "app.tasks.strategy",
         "app.tasks.posting",
+        "app.tasks.epg",
+        "app.tasks.discovery",
+        "app.tasks.karma_outcomes",
+        "app.tasks.performance_metrics",
     ],
 )
 
@@ -47,10 +51,8 @@ celery_app.conf.update(
             "task": "run_full_pipeline_all_clients",
             "schedule": crontab(hour=14, minute=0),
         },
-        "hobby-pipeline-daily": {
-            "task": "run_hobby_pipeline_all_avatars",
-            "schedule": crontab(hour=10, minute=0),
-        },
+        # "hobby-pipeline-daily" removed: EPG at 08:15/14:15 now handles hobby slots.
+        # Old hobby pipeline created duplicates outside EPG budget control.
         "avatar-visibility-health-check": {
             "task": "health_check_all_avatars",
             "schedule": crontab(hour="7,13", minute=30),  # 30 min before AI pipelines
@@ -82,6 +84,30 @@ celery_app.conf.update(
         "execute-pending-posts": {
             "task": "execute_pending_posts",
             "schedule": 300.0,  # Every 5 minutes — check for approved slots due for posting
+        },
+        "epg-build-generate-morning": {
+            "task": "build_and_generate_epg_all_avatars",
+            "schedule": crontab(hour=8, minute=15),  # After AI pipeline (08:00) scores threads
+        },
+        "epg-build-generate-afternoon": {
+            "task": "build_and_generate_epg_all_avatars",
+            "schedule": crontab(hour=14, minute=15),  # After afternoon pipeline (14:00)
+        },
+        "check-karma-outcomes-4h": {
+            "task": "check_karma_outcomes",
+            "schedule": crontab(hour="12,18", minute=15),  # 4h after EPG runs (08:15, 14:15)
+        },
+        "check-karma-outcomes-28h": {
+            "task": "check_karma_outcomes",
+            "schedule": crontab(hour="0,6", minute=15),  # ~24-28h after EPG runs for next-day checks
+        },
+        "compute-daily-performance-metrics": {
+            "task": "compute_daily_performance_metrics",
+            "schedule": crontab(hour=1, minute=0),  # 01:00 daily — aggregate yesterday's metrics
+        },
+        "archive-old-decision-records": {
+            "task": "archive_old_decision_records",
+            "schedule": crontab(hour=1, minute=30),  # 01:30 daily — prune records > 90 days
         },
     },
     # Broker connection resilience
