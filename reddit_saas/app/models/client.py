@@ -34,6 +34,15 @@ class Client(Base):
     # Autopilot — auto-approve generated drafts without human review
     autopilot_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
+    # EPG 2.0 — Attention Portfolio configuration
+    return_weights: Mapped[dict | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        server_default='{"karma": 20, "trust": 25, "visibility": 20, "influence": 15, "strategic_value": 20}',
+    )
+    brand_mention_cap: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_comments_per_month: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     # Industry classification (for avatar-client matching)
     industry: Mapped[str | None] = mapped_column(String(100), nullable=True)
 

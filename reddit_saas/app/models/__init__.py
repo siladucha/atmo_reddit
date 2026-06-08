@@ -26,6 +26,14 @@ from app.models.strategy_document import StrategyDocument
 from app.models.epg_slot import EPGSlot
 from app.models.reddit_app import RedditApp
 from app.models.posting_event import PostingEvent
+from app.models.discovery_session import DiscoverySession
+from app.models.discovery_entity import DiscoveryEntity
+from app.models.discovery_hypothesis import DiscoveryHypothesis
+from app.models.visibility_report import VisibilityReport
+from app.models.opportunity import Opportunity
+from app.models.decision_record import DecisionRecord
+from app.models.zero_day_report import ZeroDayReport
+from app.models.performance_metric import PerformanceMetric
 
 __all__ = [
     "User",
@@ -58,4 +66,12 @@ __all__ = [
     "EPGSlot",
     "RedditApp",
     "PostingEvent",
+    "DiscoverySession",
+    "DiscoveryEntity",
+    "DiscoveryHypothesis",
+    "VisibilityReport",
+    "Opportunity",
+    "DecisionRecord",
+    "ZeroDayReport",
+    "PerformanceMetric",
 ]
