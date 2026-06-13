@@ -65,6 +65,13 @@ def research_hypotheses_task(self, session_id: str, hypothesis_ids: list[str]):
                 _mark_remaining_failed(db, session, hypothesis_ids, hid, progress)
                 break
 
+            # Check if research was stopped by operator
+            db.refresh(session)
+            meta = session.session_metadata or {}
+            if meta.get("research_stopped_by"):
+                logger.info(f"Research stopped by operator for session {session_id}")
+                break
+
             hypothesis = db.query(DiscoveryHypothesis).filter(
                 DiscoveryHypothesis.id == uuid.UUID(hid)
             ).first()
@@ -175,3 +182,26 @@ def _mark_remaining_failed(
         "research_progress": progress,
     }
     db.commit()
+
+
+@celery_app.task(name="run_continuous_discovery_all")
+def run_continuous_discovery_all_task():
+    """Weekly task: run continuous discovery for all active clients.
+
+    Checks real outcomes against Discovery hypotheses, updates confidence,
+    and flags strategy reviews when environment signals change.
+
+    Schedule: Weekly Sunday 04:00 (low-traffic time).
+    """
+    from app.services.discovery.continuous import run_continuous_discovery_all_clients
+
+    db = SessionLocal()
+    try:
+        results = run_continuous_discovery_all_clients(db)
+        logger.info("run_continuous_discovery_all: %s", results)
+        return results
+    except Exception as e:
+        logger.error("run_continuous_discovery_all failed: %s", e, exc_info=True)
+        return {"status": "error", "error": str(e)}
+    finally:
+        db.close()

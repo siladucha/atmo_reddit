@@ -393,32 +393,44 @@ class SessionManager:
 
         Returns one of: brief, entities, hypotheses, research, results, report
         """
-        if not session.entities:
-            return "brief"
-
         current_hypos = [
             h for h in session.hypotheses
             if h.iteration_number == session.current_iteration
         ]
 
+        # If hypotheses already exist, skip earlier steps regardless of entities state
         if not current_hypos:
+            if not session.entities:
+                return "brief"
             return "entities"
 
-        # Check if research is done
-        researched = [h for h in current_hypos if h.status != "proposed" or h.reddit_signals]
-        if len(researched) < len(current_hypos):
-            # Check if research is in progress
-            progress = (session.session_metadata or {}).get("research_progress", {})
-            if progress:
-                return "research"
-            return "hypotheses"
+        metadata = session.session_metadata or {}
 
-        # Check if all decided
-        decided = [h for h in current_hypos if h.status in ("confirmed", "rejected", "abandoned")]
-        if len(decided) < len(current_hypos):
+        # Check if research was completed/stopped (explicit signals)
+        research_done = (
+            "research_completed_at" in metadata
+            or "research_stopped_by" in metadata
+        )
+
+        if not research_done:
+            # Check if research is still in progress
+            researched = [h for h in current_hypos if h.status != "proposed" or h.reddit_signals]
+            if len(researched) < len(current_hypos):
+                progress = metadata.get("research_progress", {})
+                if progress:
+                    return "research"
+                return "hypotheses"
+
+        # Research is done (completed or stopped). Check if all decided.
+        decided = [h for h in current_hypos if h.status in ("confirmed", "rejected", "abandoned", "research_failed")]
+        undecided = [h for h in current_hypos if h.status == "proposed"]
+
+        # If there are undecided but research is done, show results
+        # (operator needs to confirm/reject the remaining ones)
+        if undecided and not research_done:
             return "results"
 
-        # All decided — ready for next iteration or report
+        # All decided OR research done with some undecided — show results/report
         if session.reports:
             return "report"
 
@@ -428,16 +440,30 @@ class SessionManager:
     def can_generate_report(session: DiscoverySession) -> bool:
         """Check if session has enough data for report generation."""
         confirmed = [h for h in session.hypotheses if h.status == "confirmed"]
+        if len(confirmed) < 1:
+            return False
+
+        # Research must be done (either completed iteration or explicit stop)
+        metadata = session.session_metadata or {}
+        research_done = (
+            "research_completed_at" in metadata
+            or "research_stopped_by" in metadata
+        )
+
+        if research_done:
+            return True
+
+        # Fallback: check if at least one iteration has all hypotheses decided
         has_completed_iteration = any(
             all(
-                h.status in ("confirmed", "rejected", "abandoned")
+                h.status in ("confirmed", "rejected", "abandoned", "research_failed")
                 for h in session.hypotheses
                 if h.iteration_number == i
             )
             for i in range(1, session.current_iteration + 1)
             if any(h.iteration_number == i for h in session.hypotheses)
         )
-        return len(confirmed) >= 1 and has_completed_iteration
+        return has_completed_iteration
 
     @staticmethod
     def is_at_max_iterations(session: DiscoverySession) -> bool:

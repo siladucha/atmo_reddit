@@ -1,0 +1,220 @@
+{% extends "admin_base.html" %}
+{% block title %}Discovery Results — {{ session.prospect_name or 'Session' }}{% endblock %}
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-white">Discovery Results</h1>
+            <p class="text-gray-400 mt-1">
+                {{ session.prospect_name or 'Unnamed Session' }} — 
+                {{ session.status | capitalize }} — 
+                {{ session.created_at.strftime('%Y-%m-%d %H:%M') if session.created_at else 'N/A' }}
+            </p>
+        </div>
+        <div class="flex gap-2">
+            <a href="/admin/discovery/{{ session.id }}/export" 
+               class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded">
+                Export HTML
+            </a>
+            <a href="/admin/discovery/{{ session.id }}/results/json" 
+               class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded">
+                JSON API
+            </a>
+            {% if session.client_id %}
+            <a href="/admin/clients/{{ session.client_id }}" 
+               class="px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white text-sm rounded">
+                → Client
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Session Metadata -->
+    <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+        <h2 class="text-sm font-medium text-gray-300 uppercase mb-3">Session Metadata</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+                <span class="text-gray-500">Status:</span>
+                <span class="text-white ml-1">{{ session.status }}</span>
+            </div>
+            <div>
+                <span class="text-gray-500">Iterations:</span>
+                <span class="text-white ml-1">{{ session.current_iteration }}</span>
+            </div>
+            <div>
+                <span class="text-gray-500">AI Cost:</span>
+                <span class="text-white ml-1">${{ "%.4f"|format(total_ai_cost|float) }}</span>
+            </div>
+            <div>
+                <span class="text-gray-500">Entities:</span>
+                <span class="text-white ml-1">{{ session.entities|length }}</span>
+            </div>
+        </div>
+        <div class="mt-3 text-sm">
+            <span class="text-gray-500">Brief:</span>
+            <p class="text-gray-300 mt-1">{{ session.client_brief[:500] }}</p>
+        </div>
+    </div>
+
+    <!-- Entities by Category -->
+    <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+        <h2 class="text-sm font-medium text-gray-300 uppercase mb-3">Extracted Entities</h2>
+        {% for category, entities in entities_by_category.items() %}
+        <div class="mb-3">
+            <h3 class="text-xs font-medium text-blue-400 uppercase">{{ category }}</h3>
+            <div class="flex flex-wrap gap-2 mt-1">
+                {% for entity in entities %}
+                <span class="px-2 py-0.5 bg-gray-700 text-gray-300 text-xs rounded">
+                    {{ entity.name }}
+                    <span class="text-gray-500 ml-1">({{ entity.source }})</span>
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Hypotheses -->
+    <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+        <h2 class="text-sm font-medium text-gray-300 uppercase mb-3">
+            Hypotheses ({{ confirmed_hypotheses|length }} confirmed / {{ rejected_hypotheses|length }} rejected)
+        </h2>
+        {% for hyp in confirmed_hypotheses %}
+        <div class="border-l-2 border-green-500 pl-3 mb-3">
+            <p class="text-sm text-gray-200">{{ hyp.statement }}</p>
+            <div class="flex gap-4 mt-1 text-xs text-gray-500">
+                <span>Confidence: {{ hyp.confidence_score }}%</span>
+                <span>Category: {{ hyp.category }}</span>
+                {% if hyp.reddit_signals and hyp.reddit_signals.subreddits %}
+                <span>Subreddits: {{ hyp.reddit_signals.subreddits|length }}</span>
+                {% endif %}
+            </div>
+            {% if hyp.reddit_signals and hyp.reddit_signals.subreddits %}
+            <div class="flex flex-wrap gap-1 mt-1">
+                {% for sub in hyp.reddit_signals.subreddits[:5] %}
+                <span class="px-1.5 py-0.5 bg-green-900/30 text-green-400 text-xs rounded">
+                    {{ sub.name }} ({{ sub.posts_30d|default(0) }} posts, {{ sub.avg_engagement|default(0) }} avg)
+                </span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+        {% for hyp in rejected_hypotheses %}
+        <div class="border-l-2 border-red-500 pl-3 mb-3 opacity-60">
+            <p class="text-sm text-gray-400 line-through">{{ hyp.statement }}</p>
+            <span class="text-xs text-gray-500">Rejected: {{ hyp.rejection_reason or 'no reason' }}</span>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Report Content -->
+    {% if report %}
+    <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+        <h2 class="text-sm font-medium text-gray-300 uppercase mb-3">Visibility Report</h2>
+        
+        {% if report_content.executive_summary %}
+        <div class="mb-4">
+            <h3 class="text-xs font-medium text-gray-400 uppercase">Executive Summary</h3>
+            <p class="text-sm text-gray-200 mt-1">{{ report_content.executive_summary }}</p>
+        </div>
+        {% endif %}
+
+        {% if report_content.communities %}
+        <div class="mb-4">
+            <h3 class="text-xs font-medium text-gray-400 uppercase mb-2">Recommended Communities</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs">
+                    <thead class="text-gray-500">
+                        <tr>
+                            <th class="text-left py-1">Subreddit</th>
+                            <th class="text-right">Subscribers</th>
+                            <th class="text-right">Daily Posts</th>
+                            <th class="text-right">Relevance</th>
+                            <th class="text-left">Approach</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-gray-300">
+                        {% for c in report_content.communities %}
+                        <tr class="border-t border-gray-700">
+                            <td class="py-1.5 font-medium text-blue-400">{{ c.name }}</td>
+                            <td class="text-right">{{ c.subscribers|default(0)|int }}</td>
+                            <td class="text-right">{{ c.daily_posts|default(0) }}</td>
+                            <td class="text-right">{{ c.relevance|default(0) }}%</td>
+                            <td>{{ c.approach|default('') }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if report_content.visibility_outcomes %}
+        <div class="mb-4">
+            <h3 class="text-xs font-medium text-gray-400 uppercase mb-2">Visibility Outcomes</h3>
+            {% for outcome in report_content.visibility_outcomes %}
+            <div class="flex items-center gap-2 text-sm mb-1">
+                <span class="px-1.5 py-0.5 text-xs rounded
+                    {% if outcome.probability == 'high' %}bg-green-900/30 text-green-400
+                    {% elif outcome.probability == 'medium' %}bg-amber-900/30 text-amber-400
+                    {% else %}bg-gray-700 text-gray-400{% endif %}">
+                    {{ outcome.probability }}
+                </span>
+                <span class="text-gray-300">{{ outcome.type }}: {{ outcome.reasoning }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="text-xs text-gray-500 mt-3 border-t border-gray-700 pt-2">
+            Generated: {{ report.generated_at.strftime('%Y-%m-%d %H:%M') if report.generated_at else 'N/A' }} |
+            Model: {{ report.model_used or 'N/A' }} |
+            Cost: ${{ "%.4f"|format(report.generation_cost_usd|float) }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- AI Usage Trail -->
+    {% if ai_logs %}
+    <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+        <h2 class="text-sm font-medium text-gray-300 uppercase mb-3">AI Operations Log</h2>
+        <div class="space-y-1 max-h-60 overflow-y-auto">
+            {% for log in ai_logs %}
+            <div class="flex items-center gap-3 text-xs py-1 border-b border-gray-700/50">
+                <span class="text-gray-500 font-mono w-32">{{ log.created_at.strftime('%H:%M:%S') if log.created_at else '' }}</span>
+                <span class="text-blue-400 w-24">{{ log.operation }}</span>
+                <span class="text-gray-400 w-28">{{ log.model[:25] }}</span>
+                <span class="text-gray-500">{{ log.input_tokens }}→{{ log.output_tokens }} tok</span>
+                <span class="text-green-400 ml-auto">${{ "%.4f"|format(log.cost_usd|float) }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Activity Events -->
+    {% if activity_events %}
+    <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+        <h2 class="text-sm font-medium text-gray-300 uppercase mb-3">Activity Trail</h2>
+        <div class="space-y-1 max-h-40 overflow-y-auto">
+            {% for event in activity_events %}
+            <div class="flex gap-3 text-xs py-1">
+                <span class="text-gray-500 font-mono w-32">{{ event.created_at.strftime('%H:%M:%S') if event.created_at else '' }}</span>
+                <span class="text-gray-300">{{ event.message }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Handoff Context (if completed) -->
+    {% if handoff_context %}
+    <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+        <h2 class="text-sm font-medium text-gray-300 uppercase mb-3">Strategy Handoff Context</h2>
+        <pre class="text-xs text-gray-300 bg-gray-900 p-3 rounded overflow-x-auto">{{ handoff_context | tojson(indent=2) }}</pre>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

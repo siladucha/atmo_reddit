@@ -335,3 +335,69 @@ The platform flow becomes: Client → Discovery → Strategy → Persona Design 
 4. IF an EPG slot cannot be traced to either a strategy directive or a specific observation, THEN THE Discovery_Engine SHALL flag it as "unjustified" and require operator approval before the slot can proceed to posting.
 5. THE Discovery_Engine SHALL compute an explainability_coverage metric per avatar per day: the percentage of EPG slots that have complete justification chains (strategy + observation). The target is 90% or above coverage.
 6. WHEN explainability_coverage drops below 80% for an avatar over a 7-day rolling window, THE Discovery_Engine SHALL generate a notification to the operator indicating that the publishing program is operating without sufficient evidence basis and recommending a strategy review.
+
+
+---
+
+## Sprint Requirements (June 2026 — Production Readiness)
+
+### Requirement 23: Shareable Results Page (Sprint 1)
+
+**User Story:** As an operator, I want a stable URL for Discovery results that I can share with Tzvi or a client without requiring them to have admin login, so that the Visibility Report serves as a standalone sales artifact.
+
+#### Acceptance Criteria
+
+1. THE Discovery_Engine SHALL provide a public-accessible route at `/discovery/results/{session_id}` that renders the completed Visibility_Report without requiring authentication.
+2. THE public results page SHALL include a unique access token appended as a query parameter (`?token=<uuid>`) to prevent unauthorized access by guessing session IDs.
+3. WHEN a session has status "completed" and a Visibility_Report exists, THE Discovery_Engine SHALL generate a shareable access token (UUID, stored on the session as `share_token`) and display a "Copy Share Link" button in the admin session view.
+4. THE public results page SHALL render the same branded HTML as the export page but with a "Powered by RAMP" footer and without admin navigation.
+5. IF the share token is invalid or the session has no completed report, THEN THE public results page SHALL return a 404 page with a generic "Report not found" message.
+6. THE share link SHALL remain valid indefinitely unless the operator explicitly revokes it via an admin action.
+
+### Requirement 24: Demo Seed Session (Sprint 1)
+
+**User Story:** As an operator, I want a pre-loaded demo Discovery session that shows instant results without Reddit API calls or LLM processing, so that I can demo the product to prospects in real-time without waiting.
+
+#### Acceptance Criteria
+
+1. THE Discovery_Engine SHALL provide a "Demo Discovery" button on the session list page that creates a pre-seeded session with hardcoded realistic data (entities, hypotheses with confidence scores, Reddit signals, and a generated report) in under 2 seconds.
+2. THE demo session SHALL use a realistic client profile (cybersecurity SaaS B2B company) with 6 entities, 5 hypotheses across 2 iterations, realistic Reddit signals (r/cybersecurity, r/netsec, r/sysadmin subscriber counts and engagement), and a complete Visibility_Report.
+3. THE demo session SHALL be marked with `session_metadata.is_demo = true` and SHALL NOT count toward AI cost metrics or session statistics.
+4. THE demo session SHALL be fully navigable — all steps (entities, hypotheses, results, report, export) SHALL render correctly with the seeded data.
+5. THE Discovery_Engine SHALL allow at most 3 active demo sessions at any time; creating a 4th SHALL delete the oldest demo session.
+
+### Requirement 25: Session Resume Stability (Sprint 1)
+
+**User Story:** As an operator, I want to resume an in-progress Discovery session exactly where I left off even after browser refresh, server restart, or navigation away, so that multi-day research doesn't lose progress.
+
+#### Acceptance Criteria
+
+1. WHEN the operator navigates to an in-progress session URL, THE Discovery_Engine SHALL compute the correct step from persisted DB state (not session/cookie) and render the appropriate partial immediately.
+2. IF research was in progress when the session was interrupted (hypotheses have status "proposed" but research_progress metadata exists), THEN THE Discovery_Engine SHALL detect the incomplete research, mark the Celery task as abandoned, and display a "Research was interrupted. Resume?" button that re-triggers research for hypotheses without reddit_signals.
+3. WHEN the operator has confirmed/rejected all hypotheses in the current iteration but has not yet started the next iteration, THE Discovery_Engine SHALL display a clear choice: "Generate Report" (if eligible) or "Start Next Iteration" (if below max 5).
+4. THE Discovery_Engine SHALL handle the edge case where entities exist but no hypotheses yet — rendering the entity review partial with a "Form Hypotheses" action button.
+
+### Requirement 26: Discovery for Avatar Onboarding (Sprint 3)
+
+**User Story:** As an operator, I want to run Discovery on a Reddit account to produce an Avatar Discovery Profile that maps declared vs observed attributes, so that I can validate avatar quality before assignment.
+
+#### Acceptance Criteria
+
+1. THE Discovery_Engine SHALL provide an "Analyze Avatar" flow accessible from the avatar detail page that accepts a Reddit username and produces an Avatar Discovery Profile within 60 seconds.
+2. THE Avatar Discovery Profile SHALL contain: observed interests (ranked, max 20), active subreddits (with per-sub metrics), expertise areas (max 10, with proficiency level), participation style (frequency, tone, contribution type, depth), and account health indicators.
+3. WHEN the avatar has declared hobby_subreddits or voice_profile_md, THE Discovery_Engine SHALL compare declared attributes against observed Reddit behavior and produce a mismatch report with a deception_risk_score (0-100).
+4. THE Avatar Discovery Profile SHALL be stored as a versioned snapshot linked to the avatar, enabling historical comparison when re-scanned.
+5. THE Discovery_Engine SHALL present a "Niche Fit" score (0-100) indicating how well the avatar's observed behavior aligns with assigned client niches, computed from: subreddit overlap, topic vocabulary match, and engagement pattern similarity.
+
+### Requirement 27: Continuous Discovery and EPG Feed (Sprint 4)
+
+**User Story:** As a platform operator, I want Discovery to continuously monitor Reddit and feed high-value opportunities into EPG, so that avatars react to emerging engagement windows automatically.
+
+#### Acceptance Criteria
+
+1. THE Discovery_Engine SHALL re-scan active avatars' Reddit activity at configurable intervals (default 72h) and detect deltas: new interests, abandoned communities, expertise shifts, participation style changes.
+2. WHEN a significant delta is detected (3+ interest weight shifts > 0.2, or new expertise area, or community abandoned), THE Discovery_Engine SHALL generate a notification to the operator and update the avatar's Discovery Profile.
+3. THE Discovery_Engine SHALL identify emerging opportunities (new trending threads in avatar's niche subreddits that match the client's strategic goals) and inject them into the EPG opportunity pool as pre-scored Opportunity records.
+4. THE Discovery_Engine SHALL maintain attribution records linking recommended EPG actions → reported status → observed Reddit execution → observed outcomes, following the Source of Truth hierarchy (Observed > Reported > Recommended).
+5. THE Discovery_Engine SHALL compute an explainability_coverage metric per avatar: percentage of EPG slots traceable to a Discovery observation or Strategy directive. Target: 90%+.
+6. WHEN explainability_coverage drops below 80% for 7 consecutive days, THE Discovery_Engine SHALL alert the operator recommending a strategy review.

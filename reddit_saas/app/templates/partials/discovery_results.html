@@ -164,7 +164,7 @@
         <!-- Submit decisions button -->
         {% set undecided = hypotheses | selectattr('status', 'equalto', 'proposed') | list | length %}
         {% if undecided > 0 and session.status == 'in_progress' %}
-        <div class="mb-4">
+        <div class="mb-4 flex items-center gap-3">
             <button type="submit"
                     hx-post="/admin/discovery/{{ session.id }}/decide"
                     hx-target="#discovery-content"
@@ -172,6 +172,15 @@
                     class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 text-sm font-medium transition-colors">
                 Submit Decisions
             </button>
+            <button type="button"
+                    hx-post="/admin/discovery/{{ session.id }}/decide"
+                    hx-target="#discovery-content"
+                    hx-swap="innerHTML"
+                    hx-vals='{"confirm_all": "1"}'
+                    class="px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-600 text-sm font-medium transition-colors">
+                ✓ Confirm All ({{ undecided }})
+            </button>
+            <span class="text-xs text-gray-500">{{ undecided }} undecided</span>
         </div>
         {% endif %}
     </form>

@@ -186,6 +186,27 @@ async def extract_entities(
     except Exception as e:
         logger.warning("Failed to log AI usage for entity extraction: %s", e)
 
+    # Persist full prompt/response as artifact (observability requirement)
+    try:
+        from app.services.discovery.artifact_store import store_artifact
+        prompt_text = ENTITY_EXTRACTION_SYSTEM_PROMPT + "\n\n" + ENTITY_EXTRACTION_USER_PROMPT.format(client_brief=client_brief)
+        response_text = str(data)
+        store_artifact(
+            db=db,
+            session_id=session_id,
+            operation="entity_extraction",
+            inputs={"client_brief": client_brief[:2000]},
+            prompt=prompt_text,
+            response=response_text,
+            model=ENTITY_EXTRACTION_MODEL,
+            cost_usd=float(result.get("cost_usd", result.get("cost", 0)) or 0),
+            tokens={"input": result.get("input_tokens", 0), "output": result.get("output_tokens", 0)},
+            outcome="success",
+            result_summary=f"Extracted {len(validated_entities)} entities",
+        )
+    except Exception as e:
+        logger.warning("Failed to store entity extraction artifact: %s", e)
+
     # Update session running total
     try:
         from app.services.discovery.session_manager import update_ai_cost

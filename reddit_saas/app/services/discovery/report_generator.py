@@ -216,6 +216,25 @@ async def generate_visibility_report(
     except Exception as e:
         logger.warning("Failed to log AI usage for report generation: %s", e)
 
+    # Persist full prompt/response as artifact
+    try:
+        from app.services.discovery.artifact_store import store_artifact
+        store_artifact(
+            db=db,
+            session_id=session.id,
+            operation="report_generation",
+            inputs={"hypotheses_confirmed": len([h for h in session.hypotheses if h.status == 'confirmed'])},
+            prompt=str(messages)[:8000] if 'messages' in dir() else "",
+            response=str(result.get("data", result.get("content", "")))[:8000],
+            model=str(result.get("model", REPORT_MODEL)),
+            cost_usd=float(result.get("cost_usd", result.get("cost", 0)) or 0),
+            tokens={"input": result.get("input_tokens", 0), "output": result.get("output_tokens", 0)},
+            outcome="success",
+            result_summary=f"Generated Visibility Report v{version}",
+        )
+    except Exception as e:
+        logger.warning("Failed to store report generation artifact: %s", e)
+
     # Update session running total
     try:
         from app.services.discovery.session_manager import update_ai_cost

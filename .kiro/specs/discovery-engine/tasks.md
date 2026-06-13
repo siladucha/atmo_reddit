@@ -104,3 +104,160 @@ Implementation of the Discovery Engine — a pre-engagement layer that analyzes 
 - Admin UI follows existing dark theme (admin_base.html) with HTMX partials
 - Maximum 5 iterations per session
 - Visibility Report serves as $4K setup fee deliverable
+
+
+---
+
+## Sprint 1: Tzvi Demo Readiness (2 days)
+
+> Priority: Give Tzvi a shareable results URL + instant demo + working resume.
+> Depends on: All core tasks (1-20) already complete.
+
+- [ ] 21. Shareable Results Page
+  - [ ] 21.1. Add `share_token` UUID column to `discovery_sessions` table (nullable, Alembic migration)
+  - [ ] 21.2. Create public route `GET /discovery/results/{session_id}` (no auth) that validates `?token=<share_token>`, returns 404 if invalid
+  - [ ] 21.3. Create `templates/discovery_results_public.html` — branded report view (same content as export, but with RAMP footer, no admin nav, responsive)
+  - [ ] 21.4. Add "Copy Share Link" button to admin session view (`POST /{id}/share` generates token if not exists, returns shareable URL)
+  - [ ] 21.5. Add "Revoke Share" button (`DELETE /{id}/share` nullifies token)
+  - [ ] 21.6. Test: public URL works without auth; invalid token returns 404; revoked token returns 404
+
+- [ ] 22. Demo Seed Session
+  - [ ] 22.1. Create `app/services/discovery/demo_seed.py` — `create_demo_session(db, operator_id)` that inserts realistic pre-seeded data (cybersecurity SaaS client, 6 entities, 5 hypotheses with reddit_signals/confidence, Visibility Report JSONB)
+  - [ ] 22.2. Add "Demo Discovery" button to session list page (`POST /admin/discovery/demo`)
+  - [ ] 22.3. Enforce max 3 demo sessions — delete oldest if over limit
+  - [ ] 22.4. Mark demo sessions with `session_metadata.is_demo = true`; exclude from AI cost aggregation
+  - [ ] 22.5. Verify all session steps render correctly with seeded data (entities, hypotheses, results, report, export)
+
+- [ ] 23. Session Resume Fix
+  - [ ] 23.1. Audit `SessionManager.get_current_step()` — fix edge case where research task died mid-flight (hypotheses with `status=proposed` + stale `research_progress` in metadata older than 5 min)
+  - [ ] 23.2. Add "Research was interrupted — Resume?" banner when stale research detected (HTMX button re-dispatches `research_hypotheses_task` for hypotheses without `reddit_signals`)
+  - [ ] 23.3. Fix edge case: all hypotheses decided + no report yet → display "Generate Report" / "Start Next Iteration" choice clearly
+  - [ ] 23.4. Test: navigate away mid-research → return → see correct state; refresh after entity confirm but before hypothesis → see entity review
+
+- [ ] 24. "Create Strategy" Button Polish
+  - [ ] 24.1. Verify handoff route creates Client (if prospect-only) with correct fields populated from brief + report
+  - [ ] 24.2. After handoff: redirect to client detail page (already implemented — verify it works end-to-end)
+  - [ ] 24.3. Add success toast on client page: "Strategy created from Discovery session"
+
+- [ ] 25. Export HTML Polish
+  - [ ] 25.1. Audit `discovery_report_export.html` — verify all report sections render (exec_summary, demand, communities, activity, entry_points, competitive, outcomes, risks)
+  - [ ] 25.2. Add print-friendly CSS: `@media print` rules, page breaks between sections, hide non-essential UI
+  - [ ] 25.3. Add "Download PDF" instruction text (Ctrl+P / Cmd+P) or integrate html2pdf.js for one-click
+
+## Sprint 2: Platform Hardening (3 days)
+
+> Priority: Cache, cost visibility, state machine robustness, research persistence.
+
+- [ ] 26. Research Result Caching
+  - [ ] 26.1. Create `discovery_cache` table (subreddit_name, search_terms_hash, signals JSONB, fetched_at, ttl_hours default 24)
+  - [ ] 26.2. In `reddit_researcher.py` — check cache before PRAW call; if cache hit < TTL → return cached; else fetch + store
+  - [ ] 26.3. Display cache hit/miss in research progress partial (badge: "cached" vs "live")
+  - [ ] 26.4. Admin setting `discovery_cache_ttl_hours` (default 24) to control staleness
+
+- [ ] 27. AI Cost Panel
+  - [ ] 27.1. On active session page: display per-step cost breakdown (entity extraction: $X, hypothesis N: $X, research: $0, report: $X)
+  - [ ] 27.2. Compute and show estimated remaining cost ("~$0.03 for report generation")
+  - [ ] 27.3. On session list: show total cost per session column
+
+- [ ] 28. State Machine Hardening
+  - [ ] 28.1. Implement explicit `SessionState` enum with valid transitions: `in_progress → completed | abandoned`
+  - [ ] 28.2. Add DB-level CHECK constraint on `status` column
+  - [ ] 28.3. Reject any operation on completed/abandoned sessions (return 409 Conflict)
+  - [ ] 28.4. Add `locked_at` field — lock session during Celery research to prevent concurrent operations
+
+- [ ] 29. Research Persistence & Retry
+  - [ ] 29.1. Store research task_id on session (`session_metadata.celery_task_id`)
+  - [ ] 29.2. On session page load: if task_id exists + hypotheses have no signals → check Celery task state (SUCCESS/FAILURE/PENDING)
+  - [ ] 29.3. If task FAILURE: show "Research failed — Retry" button
+  - [ ] 29.4. If task PENDING > 5 min: show "Research stalled — Retry" with timeout warning
+
+## Sprint 3: Avatar Discovery Profile (4 days)
+
+> Priority: Profile Reddit accounts for avatar onboarding validation.
+
+- [ ] 30. Avatar Discovery Profile Model
+  - [ ] 30.1. Create `app/models/avatar_discovery_profile.py` — AvatarDiscoveryProfile (UUID PK, avatar_id FK, version, observed_interests JSONB, active_subreddits JSONB, expertise_areas JSONB, participation_style JSONB, health_indicators JSONB, deception_risk_score int, niche_fit_score int, scanned_at, profile_data JSONB full snapshot)
+  - [ ] 30.2. Alembic migration with index on (avatar_id, scanned_at DESC)
+
+- [ ] 31. Reddit Account Profiler Service
+  - [ ] 31.1. Create `app/services/discovery/account_profiler.py` — `profile_reddit_account(username, db)`: fetch last 1000 posts/comments via PRAW, extract interests (ranked, confidence weights), active communities (per-sub metrics), expertise areas (vocabulary + karma concentration), participation style (frequency, tone, type, depth)
+  - [ ] 31.2. Use Gemini Flash for interest/expertise classification from post text (batch: send 20 representative posts → get structured output)
+  - [ ] 31.3. Handle insufficient data (< 10 posts) → mark as `insufficient_data`
+  - [ ] 31.4. Handle suspended/deleted accounts → return error
+
+- [ ] 32. Declared vs Observed Comparison
+  - [ ] 32.1. Create `app/services/discovery/deception_detector.py` — `compare_declared_observed(avatar, profile)`: compare `hobby_subreddits` vs observed, `voice_profile_md` vs participation_style, compute deception_risk_score (0-100)
+  - [ ] 32.2. Classification per attribute: confirmed / partial_match / contradicted / unverifiable
+  - [ ] 32.3. Generate mismatch report with specific evidence citations
+
+- [ ] 33. Niche Fit Scoring
+  - [ ] 33.1. Create `app/services/discovery/niche_fit.py` — `compute_niche_fit(avatar, profile, client)`: subreddit overlap (jaccard), topic vocabulary match (keyword intersection), engagement pattern similarity → composite 0-100
+  - [ ] 33.2. Store as `niche_fit_score` on AvatarDiscoveryProfile
+
+- [ ] 34. Avatar Discovery UI
+  - [ ] 34.1. Add "Analyze Reddit Account" button to avatar detail page (Actions tab)
+  - [ ] 34.2. Create `templates/partials/avatar_discovery_profile.html` — observed interests, subreddits, expertise, style, deception score, niche fit
+  - [ ] 34.3. Route: `POST /admin/avatars/{id}/discover` → triggers profiling → `GET /admin/avatars/{id}/discovery-profile` returns partial
+  - [ ] 34.4. Show declared vs observed comparison table with color-coded match status
+
+- [ ] 35. Avatar Discovery Tests
+  - [ ] 35.1. Test profiler with mocked PRAW response (sufficient data, insufficient data, suspended)
+  - [ ] 35.2. Test deception detector (full match, partial, contradiction)
+  - [ ] 35.3. Test niche fit (perfect overlap, zero overlap, partial)
+
+## Sprint 4: Continuous Discovery & EPG Feed (2 weeks)
+
+> Priority: Delta detection, auto-strategy updates, EPG opportunity injection.
+
+- [ ] 36. Periodic Re-scan Task
+  - [ ] 36.1. Create Celery Beat task `rescan_active_avatars` (every 72h configurable) — for each active avatar with a profile, re-run account_profiler, compute delta against last snapshot
+  - [ ] 36.2. Store new version in `avatar_discovery_profiles` with delta_summary JSONB
+  - [ ] 36.3. Configurable via system setting `discovery_rescan_interval_hours` (default 72, min 24, max 168)
+
+- [ ] 37. Delta Detection & Alerts
+  - [ ] 37.1. Create `app/services/discovery/delta_detector.py` — compare current vs previous profile: interest shifts, community migrations, expertise changes, style shifts
+  - [ ] 37.2. Define "significant delta" threshold: 3+ interest weight shifts > 0.2, OR new expertise detected, OR community abandoned (30+ days inactive)
+  - [ ] 37.3. On significant delta: create ActivityEvent (type="discovery_delta") + admin notification
+  - [ ] 37.4. Suggest strategy review when delta contradicts current strategy direction
+
+- [ ] 38. EPG Opportunity Injection
+  - [ ] 38.1. After re-scan: identify threads in avatar's subreddits that match updated profile's top interests + client keywords → create pre-scored Opportunity records for EPG 2.0
+  - [ ] 38.2. Mark opportunities with `source="discovery_continuous"` to distinguish from scoring pipeline
+  - [ ] 38.3. EPG `scan_opportunities()` already reads from Opportunity table — verify integration works
+
+- [ ] 39. Attribution Layer (Source of Truth)
+  - [ ] 39.1. Create `app/models/attribution_record.py` — AttributionRecord (recommended_action_id FK to EPGSlot, reported_status, observed_reddit_entity_id, observed_at, attribution_confidence float, outcome_metrics JSONB)
+  - [ ] 39.2. On EPGSlot.status → "posted": create AttributionRecord with recommended layer
+  - [ ] 39.3. On karma outcome check: update observed layer (actual_karma, is_removed)
+  - [ ] 39.4. Compute attribution_confidence (timing proximity + content similarity + target match)
+
+- [ ] 40. Explainability Coverage Metric
+  - [ ] 40.1. For each EPG slot: check if traceable to Discovery observation OR Strategy directive → compute daily explainability_coverage per avatar
+  - [ ] 40.2. Store in Performance_Metrics table (if < 80% for 7 days → alert)
+  - [ ] 40.3. Display on avatar Portfolio tab
+
+- [ ] 41. Auto-Strategy Suggestion
+  - [ ] 41.1. When continuous discovery detects opportunity cluster in a subreddit not currently assigned to client → suggest "Add r/X to strategy" notification
+  - [ ] 41.2. When zero_day_rate > 50% for 14 days + discovery shows active relevant threads → suggest "Review subreddit assignments"
+  - [ ] 41.3. Log suggestions as ActivityEvents for operator review
+
+## Sprint Dependency Graph
+
+```json
+{
+  "sprints": [
+    {"id": 1, "tasks": [21, 22, 23, 24, 25], "duration": "2 days", "blocker": "none"},
+    {"id": 2, "tasks": [26, 27, 28, 29], "duration": "3 days", "blocker": "Sprint 1"},
+    {"id": 3, "tasks": [30, 31, 32, 33, 34, 35], "duration": "4 days", "blocker": "Sprint 2"},
+    {"id": 4, "tasks": [36, 37, 38, 39, 40, 41], "duration": "2 weeks", "blocker": "Sprint 3"}
+  ]
+}
+```
+
+## Sprint 1 Success Criteria (Tzvi Demo)
+
+- [ ] Tzvi can click "Demo Discovery" → see instant results (no waiting)
+- [ ] Tzvi can copy a share link → open in incognito → see branded report
+- [ ] Tzvi can Cmd+P on export page → get clean PDF
+- [ ] Operator can resume any interrupted session without data loss
+- [ ] "Create Strategy" button works end-to-end (prospect → client → strategy)

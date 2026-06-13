@@ -329,6 +329,25 @@ async def form_hypotheses(
     except Exception as e:
         logger.warning("Failed to log AI usage for hypothesis formation: %s", e)
 
+    # Persist full prompt/response as artifact
+    try:
+        from app.services.discovery.artifact_store import store_artifact
+        store_artifact(
+            db=db,
+            session_id=session.id,
+            operation="hypothesis_formation",
+            inputs={"entities_count": len(entity_names) if 'entity_names' in dir() else 0, "iteration": session.current_iteration},
+            prompt=str(_last_llm_result.get("messages", ""))[:5000],
+            response=str(_last_llm_result.get("data", ""))[:5000],
+            model=str(_last_llm_result.get("model", HYPOTHESIS_MODEL)),
+            cost_usd=float(_last_llm_result.get("cost_usd", _last_llm_result.get("cost", 0)) or 0),
+            tokens={"input": _last_llm_result.get("input_tokens", 0), "output": _last_llm_result.get("output_tokens", 0)},
+            outcome="success",
+            result_summary=f"Formed {len(stored_hypotheses)} hypotheses",
+        )
+    except Exception as e:
+        logger.warning("Failed to store hypothesis formation artifact: %s", e)
+
     # Update session running total
     try:
         from app.services.discovery.session_manager import update_ai_cost
