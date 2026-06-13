@@ -1,0 +1,59 @@
+<!-- GEO Execution History partial -->
+{% if batches %}
+<table class="w-full text-sm text-left">
+    <thead>
+        <tr class="border-b border-slate-700">
+            <th class="px-3 py-2 text-xs font-medium text-gray-400 uppercase">Date</th>
+            <th class="px-3 py-2 text-xs font-medium text-gray-400 uppercase">Trigger</th>
+            <th class="px-3 py-2 text-xs font-medium text-gray-400 uppercase">Status</th>
+            <th class="px-3 py-2 text-xs font-medium text-gray-400 uppercase">Queries</th>
+            <th class="px-3 py-2 text-xs font-medium text-gray-400 uppercase">Success</th>
+            <th class="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for batch in batches %}
+        <tr class="border-b border-slate-700/50 hover:bg-slate-700/20">
+            <td class="px-3 py-2 text-gray-300">{{ batch.started_at.strftime('%b %d, %H:%M') }}</td>
+            <td class="px-3 py-2">
+                <span class="text-xs px-1.5 py-0.5 rounded
+                    {% if batch.triggered_by == 'manual' %}bg-blue-600/20 text-blue-400
+                    {% elif batch.triggered_by == 'scheduler' %}bg-purple-600/20 text-purple-400
+                    {% else %}bg-gray-600/20 text-gray-400{% endif %}">
+                    {{ batch.triggered_by }}
+                </span>
+                {% if batch.is_baseline %}
+                <span class="text-xs px-1.5 py-0.5 bg-amber-600/20 text-amber-400 rounded ml-1">baseline</span>
+                {% endif %}
+            </td>
+            <td class="px-3 py-2">
+                <span class="text-xs font-medium
+                    {% if batch.status == 'completed' %}text-green-400
+                    {% elif batch.status == 'partial' %}text-amber-400
+                    {% elif batch.status == 'failed' %}text-red-400
+                    {% else %}text-blue-400{% endif %}">
+                    {{ batch.status }}
+                </span>
+            </td>
+            <td class="px-3 py-2 text-gray-300">{{ batch.total_queries }}</td>
+            <td class="px-3 py-2 text-gray-300">
+                {% if batch.total_queries > 0 %}
+                {{ batch.successful_queries }}/{{ batch.total_queries }}
+                ({{ ((batch.successful_queries / batch.total_queries) * 100)|round|int }}%)
+                {% else %}—{% endif %}
+            </td>
+            <td class="px-3 py-2 text-right">
+                <button hx-get="/admin/clients/{{ client_id }}/geo/batch/{{ batch.id }}"
+                        hx-target="#batch-detail"
+                        hx-swap="innerHTML"
+                        class="text-xs text-indigo-400 hover:text-indigo-300">
+                    Details →
+                </button>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="text-sm text-gray-500 text-center py-8">No executions yet. Click "Run Now" to start.</p>
+{% endif %}

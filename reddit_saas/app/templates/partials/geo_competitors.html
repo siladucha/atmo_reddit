@@ -1,0 +1,34 @@
+<!-- GEO Competitors list partial -->
+<div class="space-y-2 max-h-96 overflow-y-auto">
+    {% if competitors %}
+        {% for comp in competitors %}
+        <div class="flex items-center justify-between gap-2 p-2 rounded-lg {{ 'bg-slate-700/50' if comp.is_active else 'bg-slate-800/50 opacity-50' }}">
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-gray-200 font-medium">{{ comp.competitor_name }}</p>
+                <div class="flex items-center gap-2 mt-0.5">
+                    {% if comp.competitor_domain %}
+                    <span class="text-xs text-gray-400">{{ comp.competitor_domain }}</span>
+                    {% endif %}
+                    {% if comp.aliases %}
+                    <span class="text-xs text-gray-500">aliases: {{ comp.aliases|join(', ') }}</span>
+                    {% endif %}
+                    {% if not comp.is_active %}
+                    <span class="text-xs text-red-400">inactive</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="flex items-center gap-1">
+                <button hx-post="/admin/clients/{{ client_id }}/geo/competitors/{{ comp.id }}/toggle"
+                        hx-target="#competitors-list"
+                        hx-swap="innerHTML"
+                        class="p-1 text-gray-400 hover:text-white rounded transition-colors"
+                        title="{{ 'Deactivate' if comp.is_active else 'Reactivate' }}">
+                    {% if comp.is_active %}⏸{% else %}▶{% endif %}
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p class="text-sm text-gray-500 text-center py-4">No competitors yet. Add competitors to track.</p>
+    {% endif %}
+</div>

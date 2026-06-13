@@ -1,0 +1,60 @@
+<!-- GEO Batch Detail partial -->
+<div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-white">
+            Batch Results — {{ batch.started_at.strftime('%b %d, %Y %H:%M') }}
+        </h3>
+        <span class="text-xs px-2 py-1 rounded
+            {% if batch.status == 'completed' %}bg-green-600/20 text-green-400
+            {% elif batch.status == 'partial' %}bg-amber-600/20 text-amber-400
+            {% elif batch.status == 'failed' %}bg-red-600/20 text-red-400
+            {% else %}bg-blue-600/20 text-blue-400{% endif %}">
+            {{ batch.status }}
+        </span>
+    </div>
+
+    {% if metrics %}
+    <table class="w-full text-sm text-left">
+        <thead>
+            <tr class="border-b border-slate-700">
+                <th class="px-3 py-2 text-xs font-medium text-gray-400 uppercase">Prompt</th>
+                <th class="px-3 py-2 text-xs font-medium text-gray-400 uppercase">Provider</th>
+                <th class="px-3 py-2 text-xs font-medium text-gray-400 uppercase">Brand Rate</th>
+                <th class="px-3 py-2 text-xs font-medium text-gray-400 uppercase">Runs</th>
+                <th class="px-3 py-2 text-xs font-medium text-gray-400 uppercase">Competitors</th>
+                <th class="px-3 py-2 text-xs font-medium text-gray-400 uppercase">Reddit URLs</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for metric in metrics %}
+            <tr class="border-b border-slate-700/50">
+                <td class="px-3 py-2 text-gray-300 max-w-xs truncate">
+                    {% if metric.prompt_id in prompts_map %}
+                    {{ prompts_map[metric.prompt_id].prompt_text[:60] }}{% if prompts_map[metric.prompt_id].prompt_text|length > 60 %}...{% endif %}
+                    {% else %}(deleted prompt){% endif %}
+                </td>
+                <td class="px-3 py-2 text-gray-400">{{ metric.provider }}</td>
+                <td class="px-3 py-2">
+                    <span class="font-medium
+                        {% if metric.brand_appearance_rate >= 60 %}text-green-400
+                        {% elif metric.brand_appearance_rate >= 30 %}text-amber-400
+                        {% else %}text-red-400{% endif %}">
+                        {{ metric.brand_appearance_rate }}%
+                    </span>
+                    <span class="text-xs text-gray-500">({{ metric.brand_appearances }}/{{ metric.total_runs }})</span>
+                </td>
+                <td class="px-3 py-2 text-gray-400">{{ metric.total_runs }}</td>
+                <td class="px-3 py-2 text-gray-400">
+                    {% if metric.competitor_appearances %}
+                    {{ metric.competitor_appearances|length }} found
+                    {% else %}—{% endif %}
+                </td>
+                <td class="px-3 py-2 text-gray-400">{{ metric.reddit_citation_count }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="text-sm text-gray-500 text-center py-4">No metrics computed for this batch.</p>
+    {% endif %}
+</div>

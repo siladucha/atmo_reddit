@@ -1,0 +1,34 @@
+<!-- GEO Prompts list partial -->
+<div class="space-y-2 max-h-96 overflow-y-auto">
+    {% if prompts %}
+        {% for prompt in prompts %}
+        <div class="flex items-center justify-between gap-2 p-2 rounded-lg {{ 'bg-slate-700/50' if prompt.is_active else 'bg-slate-800/50 opacity-50' }}">
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-gray-200 truncate" title="{{ prompt.prompt_text }}">
+                    {{ prompt.prompt_text[:80] }}{% if prompt.prompt_text|length > 80 %}...{% endif %}
+                </p>
+                <div class="flex items-center gap-2 mt-0.5">
+                    {% if prompt.category %}
+                    <span class="text-xs px-1.5 py-0.5 bg-slate-600 text-gray-300 rounded">{{ prompt.category }}</span>
+                    {% endif %}
+                    <span class="text-xs text-gray-500">{{ prompt.created_at.strftime('%b %d') }}</span>
+                    {% if not prompt.is_active %}
+                    <span class="text-xs text-red-400">inactive</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="flex items-center gap-1">
+                <button hx-post="/admin/clients/{{ client_id }}/geo/prompts/{{ prompt.id }}/toggle"
+                        hx-target="#prompts-list"
+                        hx-swap="innerHTML"
+                        class="p-1 text-gray-400 hover:text-white rounded transition-colors"
+                        title="{{ 'Deactivate' if prompt.is_active else 'Reactivate' }}">
+                    {% if prompt.is_active %}⏸{% else %}▶{% endif %}
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p class="text-sm text-gray-500 text-center py-4">No prompts yet. Add buyer-intent prompts above.</p>
+    {% endif %}
+</div>
