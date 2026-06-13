@@ -1,78 +1,181 @@
 {% extends "admin_base.html" %}
 {% block title %}Posting Dashboard{% endblock %}
 {% block content %}
-<div class="space-y-6">
-  <div class="flex items-center justify-between">
-    <h1 class="text-xl font-semibold text-white">Posting Calendar</h1>
-    <span class="text-xs text-slate-500">Auto-refreshes every 60s</span>
-  </div>
-
-  {# Day Navigation Tabs #}
-  {% set today = now_jerusalem_date %}
-  <div class="flex items-center gap-2 border-b border-slate-700 pb-2">
-    <button hx-get="/admin/posting-dashboard/day?target_date={{ (today - timedelta(days=1)).isoformat() }}"
-            hx-target="#day-content"
-            hx-swap="innerHTML"
-            id="tab-yesterday"
-            class="px-4 py-2 text-sm rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
-      Yesterday
-    </button>
-    <button hx-get="/admin/posting-dashboard/day?target_date={{ today.isoformat() }}"
-            hx-target="#day-content"
-            hx-swap="innerHTML"
-            id="tab-today"
-            class="px-4 py-2 text-sm rounded-t-lg border-b-2 border-indigo-500 text-white font-medium">
-      Today
-    </button>
-    <button hx-get="/admin/posting-dashboard/day?target_date={{ (today + timedelta(days=1)).isoformat() }}"
-            hx-target="#day-content"
-            hx-swap="innerHTML"
-            id="tab-tomorrow"
-            class="px-4 py-2 text-sm rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
-      Tomorrow
-    </button>
-  </div>
-
-  {# Day Content — lazy-loaded, auto-refresh for today #}
-  <div id="day-content"
-       hx-get="/admin/posting-dashboard/day"
-       hx-trigger="load, every 60s"
-       hx-swap="innerHTML">
-    <div class="animate-pulse space-y-4">
-      <div class="h-16 bg-slate-800 rounded-xl"></div>
-      <div class="h-32 bg-slate-800 rounded-xl"></div>
-      <div class="h-32 bg-slate-800 rounded-xl"></div>
+<div class="max-w-7xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-bold text-white">Posting Dashboard</h1>
+        <div class="flex gap-2 items-center">
+            <!-- Time range filter -->
+            <select onchange="window.location.href='/admin/posting?days='+this.value+'&avatar_id={{ avatar_id_filter }}'"
+                    class="bg-gray-700 text-gray-200 text-sm rounded px-2 py-1 border border-gray-600">
+                <option value="1" {{ 'selected' if days == 1 else '' }}>24h</option>
+                <option value="7" {{ 'selected' if days == 7 else '' }}>7 days</option>
+                <option value="14" {{ 'selected' if days == 14 else '' }}>14 days</option>
+                <option value="30" {{ 'selected' if days == 30 else '' }}>30 days</option>
+            </select>
+            <!-- Avatar filter -->
+            <select onchange="window.location.href='/admin/posting?days={{ days }}&avatar_id='+this.value"
+                    class="bg-gray-700 text-gray-200 text-sm rounded px-2 py-1 border border-gray-600">
+                <option value="">All Avatars</option>
+                {% for a in all_avatars %}
+                <option value="{{ a.id }}" {{ 'selected' if avatar_id_filter == a.id|string else '' }}>
+                    {{ a.reddit_username }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
     </div>
-  </div>
 
-  {# Posting Log — secondary, collapsed by default #}
-  <details class="group">
-    <summary class="cursor-pointer text-sm text-slate-400 hover:text-slate-200 py-2 flex items-center gap-2 select-none">
-      <svg class="w-4 h-4 group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-      </svg>
-      Posting Log (raw events)
-    </summary>
-    <div hx-get="/admin/posting-dashboard/posting-log"
-         hx-trigger="revealed"
-         hx-swap="innerHTML"
-         class="mt-2">
-      <div class="animate-pulse h-32 bg-slate-800 rounded-xl"></div>
+    <!-- Summary Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <div class="text-2xl font-bold text-white">{{ total_events }}</div>
+            <div class="text-xs text-gray-400 mt-1">Total Events</div>
+        </div>
+        <div class="bg-gray-800 rounded-lg p-4 border border-green-800">
+            <div class="text-2xl font-bold text-green-400">{{ success_count }}</div>
+            <div class="text-xs text-gray-400 mt-1">Successful</div>
+        </div>
+        <div class="bg-gray-800 rounded-lg p-4 border border-red-800">
+            <div class="text-2xl font-bold text-red-400">{{ failure_count }}</div>
+            <div class="text-xs text-gray-400 mt-1">Failed</div>
+        </div>
+        <div class="bg-gray-800 rounded-lg p-4 border border-amber-800">
+            <div class="text-2xl font-bold text-amber-400">{{ refused_count }}</div>
+            <div class="text-xs text-gray-400 mt-1">Refused/Skipped</div>
+        </div>
+        <div class="bg-gray-800 rounded-lg p-4 border border-blue-800">
+            <div class="text-2xl font-bold text-blue-400">{{ "%.0f"|format(success_rate) }}%</div>
+            <div class="text-xs text-gray-400 mt-1">Success Rate</div>
+        </div>
     </div>
-  </details>
+
+    <!-- Today's EPG Status + Feedback Loop -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <h2 class="text-sm font-medium text-gray-300 uppercase mb-3">Today's Schedule</h2>
+            <div class="grid grid-cols-3 gap-3 text-center">
+                <div>
+                    <div class="text-xl font-bold text-white">{{ slots_today }}</div>
+                    <div class="text-xs text-gray-500">Planned</div>
+                </div>
+                <div>
+                    <div class="text-xl font-bold text-amber-400">{{ slots_approved }}</div>
+                    <div class="text-xs text-gray-500">Approved</div>
+                </div>
+                <div>
+                    <div class="text-xl font-bold text-green-400">{{ slots_posted }}</div>
+                    <div class="text-xs text-gray-500">Posted</div>
+                </div>
+            </div>
+        </div>
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <h2 class="text-sm font-medium text-gray-300 uppercase mb-3">Feedback Loop</h2>
+            <div class="text-center">
+                <div class="text-xl font-bold text-purple-400">{{ snapshots_total }}</div>
+                <div class="text-xs text-gray-500 mt-1">Karma Snapshots Collected</div>
+                <div class="text-xs text-gray-600 mt-2">
+                    Tracks karma at 4h/24h/48h → feeds EPG + Strategy
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Per-Avatar Breakdown -->
+    {% if avatar_breakdown %}
+    <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+        <h2 class="text-sm font-medium text-gray-300 uppercase mb-3">Per-Avatar Performance</h2>
+        <table class="w-full text-sm">
+            <thead class="text-gray-500 border-b border-gray-700">
+                <tr>
+                    <th class="text-left py-2">Avatar</th>
+                    <th class="text-right">Total</th>
+                    <th class="text-right">Success</th>
+                    <th class="text-right">Rate</th>
+                    <th class="text-right">Avg Duration</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in avatar_breakdown %}
+                <tr class="border-b border-gray-700/50 hover:bg-gray-700/30">
+                    <td class="py-2">
+                        <a href="/admin/avatars/{{ row.avatar_id }}" class="text-blue-400 hover:underline">
+                            {{ row.username }}
+                        </a>
+                    </td>
+                    <td class="text-right text-gray-300">{{ row.total }}</td>
+                    <td class="text-right text-green-400">{{ row.success }}</td>
+                    <td class="text-right">
+                        <span class="{% if row.success_rate >= 80 %}text-green-400{% elif row.success_rate >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">
+                            {{ "%.0f"|format(row.success_rate) }}%
+                        </span>
+                    </td>
+                    <td class="text-right text-gray-400">{{ row.avg_duration_ms }}ms</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Recent Events Log -->
+    <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+        <h2 class="text-sm font-medium text-gray-300 uppercase mb-3">Recent Posting Events</h2>
+        {% if recent_events %}
+        <div class="overflow-x-auto max-h-96 overflow-y-auto">
+            <table class="w-full text-xs">
+                <thead class="text-gray-500 border-b border-gray-700 sticky top-0 bg-gray-800">
+                    <tr>
+                        <th class="text-left py-2">Time</th>
+                        <th class="text-left">Avatar</th>
+                        <th class="text-left">Outcome</th>
+                        <th class="text-left">Reddit URL</th>
+                        <th class="text-right">Duration</th>
+                        <th class="text-left">Error</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in recent_events %}
+                    <tr class="border-b border-gray-700/30 hover:bg-gray-700/20">
+                        <td class="py-1.5 text-gray-400 font-mono">
+                            {{ event.posted_at.strftime('%m/%d %H:%M') if event.posted_at else '—' }}
+                        </td>
+                        <td class="text-gray-300">
+                            {% set avatar = avatars_map.get(event.avatar_id) %}
+                            {{ avatar.reddit_username if avatar else event.avatar_id|string|truncate(8) }}
+                        </td>
+                        <td>
+                            <span class="px-1.5 py-0.5 rounded text-xs
+                                {% if event.outcome == 'success' %}bg-green-900/40 text-green-400
+                                {% elif event.outcome == 'failure' %}bg-red-900/40 text-red-400
+                                {% else %}bg-amber-900/40 text-amber-400{% endif %}">
+                                {{ event.outcome }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if event.reddit_comment_url %}
+                            <a href="{{ event.reddit_comment_url }}" target="_blank" class="text-blue-400 hover:underline truncate block max-w-[200px]">
+                                {{ event.reddit_comment_url|truncate(35) }}
+                            </a>
+                            {% else %}
+                            <span class="text-gray-600">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-right text-gray-400">
+                            {{ event.duration_ms or '—' }}ms
+                        </td>
+                        <td class="text-red-400 max-w-[200px] truncate">
+                            {{ event.error_message or '' }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-gray-500 text-center py-4">No posting events in the last {{ days }} days.</p>
+        {% endif %}
+    </div>
 </div>
-
-<script>
-// Tab switching highlight
-document.querySelectorAll('[id^="tab-"]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('[id^="tab-"]').forEach(t => {
-      t.classList.remove('border-indigo-500', 'text-white', 'font-medium');
-      t.classList.add('border-transparent', 'text-slate-400');
-    });
-    btn.classList.remove('border-transparent', 'text-slate-400');
-    btn.classList.add('border-indigo-500', 'text-white', 'font-medium');
-  });
-});
-</script>
 {% endblock %}

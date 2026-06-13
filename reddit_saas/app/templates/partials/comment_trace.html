@@ -1,0 +1,94 @@
+<!-- Comment Full Trace — HTMX partial showing the complete reasoning chain -->
+<!-- Loaded via: hx-get="/admin/drafts/{draft_id}/trace" -->
+
+{% if trace and trace.chain %}
+<div class="space-y-3">
+    <!-- Summary -->
+    <div class="bg-gray-900 rounded p-3 border border-gray-700">
+        <h3 class="text-xs font-medium text-gray-400 uppercase mb-2">Chain Summary</h3>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            {% if trace.summary.discovery_session_id %}
+            <div>
+                <span class="text-gray-500">Discovery:</span>
+                <a href="/admin/discovery/{{ trace.summary.discovery_session_id }}/results" class="text-blue-400 hover:underline ml-1">Session</a>
+            </div>
+            {% endif %}
+            {% if trace.summary.strategy_version %}
+            <div>
+                <span class="text-gray-500">Strategy:</span>
+                <span class="text-white ml-1">v{{ trace.summary.strategy_version }}</span>
+            </div>
+            {% endif %}
+            {% if trace.summary.epg_slot_id %}
+            <div>
+                <span class="text-gray-500">EPG:</span>
+                <span class="text-white ml-1">✓ Slot</span>
+            </div>
+            {% endif %}
+            <div>
+                <span class="text-gray-500">Karma Checks:</span>
+                <span class="text-white ml-1">{{ trace.summary.karma_snapshots }}</span>
+            </div>
+            {% if trace.summary.latest_karma is not none %}
+            <div>
+                <span class="text-gray-500">Latest Karma:</span>
+                <span class="{% if trace.summary.latest_karma > 0 %}text-green-400{% elif trace.summary.latest_karma < 0 %}text-red-400{% else %}text-gray-400{% endif %} ml-1">
+                    {{ trace.summary.latest_karma }}
+                </span>
+            </div>
+            {% endif %}
+            {% if trace.summary.is_deleted %}
+            <div>
+                <span class="text-red-400 font-medium">🗑 DELETED</span>
+            </div>
+            {% endif %}
+            {% if trace.summary.feedback_applied %}
+            <div>
+                <span class="text-purple-400">↺ Feedback Loop Active</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Chain Nodes (chronological) -->
+    <div class="relative pl-4 border-l border-gray-700">
+        {% for node in trace.chain %}
+        <div class="mb-3 relative">
+            <!-- Timeline dot -->
+            <div class="absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2
+                {% if node.layer == 'discovery' %}bg-indigo-500 border-indigo-400
+                {% elif node.layer == 'strategy' %}bg-blue-500 border-blue-400
+                {% elif node.layer == 'epg' %}bg-cyan-500 border-cyan-400
+                {% elif node.layer == 'execution' %}bg-green-500 border-green-400
+                {% elif node.layer == 'outcome' %}bg-amber-500 border-amber-400
+                {% elif node.layer == 'feedback' %}bg-purple-500 border-purple-400
+                {% else %}bg-gray-500 border-gray-400{% endif %}">
+            </div>
+
+            <div class="ml-2">
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-medium uppercase px-1.5 py-0.5 rounded
+                        {% if node.layer == 'discovery' %}bg-indigo-900/40 text-indigo-400
+                        {% elif node.layer == 'strategy' %}bg-blue-900/40 text-blue-400
+                        {% elif node.layer == 'epg' %}bg-cyan-900/40 text-cyan-400
+                        {% elif node.layer == 'execution' %}bg-green-900/40 text-green-400
+                        {% elif node.layer == 'outcome' %}bg-amber-900/40 text-amber-400
+                        {% elif node.layer == 'feedback' %}bg-purple-900/40 text-purple-400
+                        {% else %}bg-gray-700 text-gray-400{% endif %}">
+                        {{ node.layer }}
+                    </span>
+                    <span class="text-[10px] text-gray-500 font-mono">
+                        {{ node.timestamp[:16] if node.timestamp else '' }}
+                    </span>
+                </div>
+                <p class="text-xs text-gray-300 mt-0.5">{{ node.summary }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="text-center py-4 text-gray-500 text-sm">
+    No trace data available for this comment.
+</div>
+{% endif %}
