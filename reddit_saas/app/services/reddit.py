@@ -14,6 +14,7 @@ from datetime import datetime, timezone, timedelta
 
 import praw
 
+from app.services.post_filter import evaluate
 from app.services.sanitize import ensure_subreddit_bare
 from praw.models import Submission
 from prawcore.exceptions import (
@@ -191,6 +192,8 @@ def scrape_subreddit(
         skipped_old = 0
         skipped_locked = 0
         skipped_low_score = 0
+        skip_counts: dict[str, int] = {}
+        skipped_filter_error: int = 0
         api_calls_estimate = 1  # Initial listing request
 
         for submission in submissions:
@@ -216,6 +219,25 @@ def scrape_subreddit(
                 skipped_low_score += 1
                 continue
 
+            # Post content filter (before expensive _submission_to_dict call)
+            try:
+                filter_result = evaluate(submission)
+            except Exception as e:
+                logger.warning(
+                    "POST_FILTER_ERROR | submission_id=%s | subreddit=r/%s | error=%s — skipping submission",
+                    submission.id, subreddit_name, str(e)[:200],
+                )
+                skipped_filter_error += 1
+                continue
+
+            if filter_result.skipped:
+                skip_counts[filter_result.reason.value] = skip_counts.get(filter_result.reason.value, 0) + 1
+                logger.info(
+                    "POST_FILTER_SKIP | submission_id=%s | subreddit=r/%s | title=%s | reason=%s",
+                    submission.id, subreddit_name, submission.title[:80], filter_result.reason.value,
+                )
+                continue
+
             post = _submission_to_dict(submission)
             api_calls_estimate += 1  # Each submission's comments = 1 API call
             posts.append(post)
@@ -226,10 +248,25 @@ def scrape_subreddit(
         logger.info(
             "REDDIT_API_RESULT | action=scrape_subreddit | subreddit=r/%s | "
             "posts_returned=%d | skipped_stickied=%d | skipped_old=%d | skipped_locked=%d | "
-            "skipped_low_score=%d | est_api_calls=%d | duration_ms=%d",
+            "skipped_low_score=%d | skipped_filter_error=%d | est_api_calls=%d | duration_ms=%d",
             subreddit_name, len(posts), skipped_stickied, skipped_old, skipped_locked,
-            skipped_low_score, api_calls_estimate, duration_ms,
+            skipped_low_score, skipped_filter_error, api_calls_estimate, duration_ms,
         )
+
+        # Emit per-reason filter summary (only if any posts were filtered)
+        if skip_counts or skipped_filter_error > 0:
+            filter_parts = " | ".join(
+                f"filtered_{reason}={count}"
+                for reason, count in skip_counts.items()
+                if count > 0
+            )
+            summary_msg = f"POST_FILTER_SUMMARY | subreddit=r/{subreddit_name}"
+            if filter_parts:
+                summary_msg += f" | {filter_parts}"
+            if skipped_filter_error > 0:
+                summary_msg += f" | filter_errors={skipped_filter_error}"
+            logger.info(summary_msg)
+
         return posts
 
     except TooManyRequests as e:

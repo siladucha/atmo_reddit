@@ -1155,7 +1155,7 @@ def portal_mark_posted(
 
     return HTMLResponse(
         content="",
-        headers={"HX-Trigger": '{"showToast": {"type": "success", "message": "Marked as posted ✓"}}'},
+        headers={"HX-Trigger": '{"showToast": {"type": "success", "message": "Marked as posted"}}'},
     )
 
 
@@ -1233,7 +1233,7 @@ def portal_edit_draft(
     return HTMLResponse(
         content="",
         headers={
-            "HX-Trigger": '{"showToast": {"type": "success", "message": "Got it — we\'ll remember this for future drafts"}}'
+            "HX-Trigger": '{"showToast": {"type": "success", "message": "Got it - we\'ll remember this for future drafts"}}'
         },
     )
 

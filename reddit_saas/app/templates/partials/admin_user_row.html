@@ -71,5 +71,13 @@
                 class="text-red-400 hover:text-red-300 text-xs">
             Deactivate
         </button>
+        {% if current_user.role == 'owner' and current_user.id != user.id %}
+        <button hx-post="/admin/users/{{ user.id }}/hard-delete"
+                hx-target="closest tr" hx-swap="outerHTML swap:0.3s"
+                hx-confirm="PERMANENTLY delete {{ user.email }}? This cannot be undone!"
+                class="text-red-500 hover:text-red-400 text-xs font-bold ml-2">
+            Delete
+        </button>
+        {% endif %}
     </td>
 </tr>

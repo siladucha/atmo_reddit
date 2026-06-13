@@ -327,6 +327,16 @@ class StrategyEngine:
             discovery_section = self._build_discovery_prompt_section(discovery_context)
             prompt = prompt + "\n\n" + discovery_section
 
+        # --- Inject Outcome Feedback context (from feedback loop) ---
+        try:
+            from app.services.feedback_loop import get_performance_context
+            perf_ctx = get_performance_context(db, avatar.id)
+            if perf_ctx:
+                feedback_section = self._build_feedback_prompt_section(perf_ctx)
+                prompt = prompt + "\n\n" + feedback_section
+        except Exception:
+            pass  # Non-critical: proceed without feedback context
+
         messages = [{"role": "user", "content": prompt}]
 
         # --- Call LLM with retry ---
@@ -507,6 +517,56 @@ class StrategyEngine:
 
         return "\n".join(parts)
 
+    def _build_feedback_prompt_section(self, perf_ctx: dict) -> str:
+        """Build prompt section from outcome feedback data.
+
+        Injects real performance data (karma, removals, top/worst subreddits/approaches)
+        so the LLM can adjust strategy based on what actually worked.
+        """
+        parts = []
+        parts.append("## Outcome Feedback (real data from last 30 days — adjust strategy accordingly)")
+        parts.append("")
+
+        total_posted = perf_ctx.get("total_posted_30d", 0)
+        if total_posted == 0:
+            parts.append("No posting data yet — strategy should focus on building initial engagement.")
+            return "\n".join(parts)
+
+        parts.append(f"- **Comments posted (30d):** {total_posted}")
+        parts.append(f"- **Total karma earned:** {perf_ctx.get('total_karma_30d', 0)}")
+        parts.append(f"- **Avg karma/comment:** {perf_ctx.get('avg_karma_per_comment', 0)}")
+        parts.append(f"- **Removal rate:** {perf_ctx.get('removal_rate', 0):.1%}")
+        parts.append(f"- **Avg replies provoked:** {perf_ctx.get('avg_reply_count', 0)}")
+        parts.append(f"- **Karma velocity:** {perf_ctx.get('karma_velocity_per_day', 0)}/day")
+        parts.append("")
+
+        top_subs = perf_ctx.get("top_subreddits", [])
+        if top_subs:
+            parts.append(f"**Top performing subreddits:** {', '.join(top_subs)}")
+            parts.append("PRIORITIZE these communities — they demonstrate proven engagement.")
+            parts.append("")
+
+        under_subs = perf_ctx.get("underperforming_subreddits", [])
+        if under_subs:
+            parts.append(f"**Underperforming subreddits (consider reducing):** {', '.join(under_subs)}")
+            parts.append("")
+
+        best = perf_ctx.get("best_approaches", [])
+        if best:
+            best_str = ", ".join(f"{a['approach']} (avg {a['avg_karma']})" for a in best)
+            parts.append(f"**Best approaches:** {best_str}")
+            parts.append("")
+
+        worst = perf_ctx.get("worst_approaches", [])
+        if worst:
+            worst_str = ", ".join(f"{a['approach']} (avg {a['avg_karma']})" for a in worst)
+            parts.append(f"**Worst approaches (use less):** {worst_str}")
+            parts.append("")
+
+        parts.append("IMPORTANT: Adjust frequency, subreddit priorities, and approach preferences based on this real outcome data.")
+
+        return "\n".join(parts)
+
     def _render_strategy_md(self, data: dict, avatar: Avatar, client: Client | None, forecast: dict, discovery_context: dict | None = None) -> str:
         """Render structured JSON into readable markdown for display."""
         lines = []
@@ -678,7 +738,12 @@ class StrategyEngine:
 
         # Subreddit affinity — exclude negative
         affinity = self._get_subreddit_affinity(db, avatar)
-        good_subs = [a for a in affinity if not a.get("banned", False)]
+        # affinity is {name: score} — convert to list of dicts for priority building
+        good_subs = [
+            {"subreddit": name.replace("r/", ""), "karma": score, "comments": 0, "type": "hobby" if score == 0.0 else "professional"}
+            for name, score in affinity.items()
+            if score >= 0  # exclude negative karma subs
+        ]
 
         # Phase-based budget
         phase = avatar.warming_phase

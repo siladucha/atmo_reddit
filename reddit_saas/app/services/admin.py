@@ -229,6 +229,59 @@ def reset_user_password(
     return user
 
 
+def delete_user(
+    db: Session,
+    user_id: uuid.UUID,
+    current_user_id: uuid.UUID,
+) -> None:
+    """Permanently delete a user from the database.
+
+    Args:
+        db: SQLAlchemy database session.
+        user_id: The target user to delete.
+        current_user_id: The admin performing the action.
+
+    Raises:
+        ValueError: If the user is not found or admin tries to delete themselves.
+    """
+    if user_id == current_user_id:
+        raise ValueError("Cannot delete your own account")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise ValueError("User not found")
+
+    email = user.email
+
+    # Clear FK dependencies that block deletion
+    # 1. Nullify audit_log.user_id (preserve audit trail, unlink user)
+    from app.models.audit import AuditLog
+    db.query(AuditLog).filter(AuditLog.user_id == user_id).update(
+        {"user_id": None}, synchronize_session=False
+    )
+
+    # 2. Delete discovery sessions owned by this user (RESTRICT FK, must remove first)
+    try:
+        from app.models.discovery_session import DiscoverySession
+        db.query(DiscoverySession).filter(
+            DiscoverySession.operator_user_id == user_id
+        ).delete(synchronize_session=False)
+    except Exception:
+        pass  # Table may not exist yet
+
+    db.delete(user)
+    db.commit()
+
+    audit.log_action(
+        db=db,
+        user_id=current_user_id,
+        action="delete_user",
+        entity_type="user",
+        entity_id=user_id,
+        details={"email": email},
+    )
+
+
 # ---------------------------------------------------------------------------
 # Client management
 # ---------------------------------------------------------------------------

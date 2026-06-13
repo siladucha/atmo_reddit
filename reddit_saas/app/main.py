@@ -12,7 +12,7 @@ from app.middleware.auth import AuthMiddleware
 from app.version import __version__
 from app.middleware.errors import ErrorMiddleware
 from app.middleware.security import SecurityHeadersMiddleware, RateLimitMiddleware
-from app.routes import admin, auth, dashboard, review, pipeline, avatars, avatar_analysis, avatar_pipeline, avatar_workflow, clients, pages, dry_run, export, decision_center, portal, oauth, posting_dashboard, discovery
+from app.routes import admin, auth, dashboard, review, pipeline, avatars, avatar_analysis, avatar_pipeline, avatar_workflow, clients, pages, dry_run, export, decision_center, portal, oauth, posting_dashboard, discovery, admin_geo
 from app.services.metrics_collector import (
     get_metrics_collector,
     install_metrics_logging_handler,
@@ -133,6 +133,7 @@ app.include_router(pages.router, tags=["pages"])
 app.include_router(posting_dashboard.router, tags=["posting-dashboard"])
 app.include_router(discovery.router, tags=["discovery"])
 app.include_router(export.router, tags=["export"])
+app.include_router(admin_geo.router, tags=["admin-geo"])
 
 
 @app.get("/health")

@@ -9,7 +9,7 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import Date, Index, String, Text, Integer, DateTime, ForeignKey, func, text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -45,6 +45,10 @@ class EPGSlot(Base):
     generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     skip_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # Decision transparency — why this thread was selected for this slot
+    # Structure: {"reason": "...", "score": N, "factors": [...], "alternatives_considered": N}
+    selection_reasoning: Mapped[dict | None] = mapped_column("selection_reasoning", JSONB, nullable=True)
 
     # Relationships
     avatar = relationship("Avatar", lazy="joined")

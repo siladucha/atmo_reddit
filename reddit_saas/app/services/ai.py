@@ -445,6 +445,13 @@ def _resolve_api_key(model: str) -> str | None:
         return key or None
     elif model.startswith("anthropic/"):
         return get_config("llm_api_key")
+    elif model.startswith("perplexity/"):
+        # GEO module uses Perplexity Sonar — key from system settings
+        key = get_config("geo_perplexity_api_key") if _setting_exists("geo_perplexity_api_key") else None
+        if not key:
+            import os
+            key = os.environ.get("PERPLEXITY_API_KEY")
+        return key or None
     elif model.startswith("bedrock/"):
         return None  # Uses AWS credentials from env
     elif model.startswith("openai/") or model.startswith("gpt"):

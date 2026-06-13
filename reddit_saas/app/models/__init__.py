@@ -34,6 +34,7 @@ from app.models.opportunity import Opportunity
 from app.models.decision_record import DecisionRecord
 from app.models.zero_day_report import ZeroDayReport
 from app.models.performance_metric import PerformanceMetric
+from app.models.karma_snapshot import KarmaSnapshot
 
 __all__ = [
     "User",
@@ -74,4 +75,15 @@ __all__ = [
     "DecisionRecord",
     "ZeroDayReport",
     "PerformanceMetric",
+    "KarmaSnapshot",
+    "GeoPrompt",
+    "GeoCompetitor",
+    "GeoExecutionBatch",
+    "GeoQueryResult",
+    "GeoFrequencyMetric",
 ]
+
+# GEO/AEO Prompt Monitoring
+from app.models.geo_prompt import GeoPrompt
+from app.models.geo_competitor import GeoCompetitor
+from app.models.geo_execution import GeoExecutionBatch, GeoQueryResult, GeoFrequencyMetric

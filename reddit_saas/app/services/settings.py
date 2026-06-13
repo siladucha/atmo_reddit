@@ -400,6 +400,37 @@ DEFAULTS: dict[str, dict] = {
         "desc": "Maximum automated posts per avatar per day (safety ceiling). Effective cap = min(phase_limit, this value).",
         "group": "posting",
     },
+    # --- GEO/AEO Prompt Monitoring ---
+    "geo_runs_per_prompt": {
+        "value": "3",
+        "secret": False,
+        "desc": "Number of times each prompt is executed per batch (for statistical validity)",
+        "group": "geo",
+    },
+    "geo_rate_limit_perplexity_rpm": {
+        "value": "20",
+        "secret": False,
+        "desc": "Max Perplexity API requests per minute for GEO queries",
+        "group": "geo",
+    },
+    "geo_provider_perplexity_enabled": {
+        "value": "true",
+        "secret": False,
+        "desc": "Enable Perplexity Sonar as GEO query provider",
+        "group": "geo",
+    },
+    "geo_perplexity_api_key": {
+        "value": "",
+        "secret": True,
+        "desc": "Perplexity API key for GEO monitoring queries",
+        "group": "geo",
+    },
+    "geo_monthly_cost_alert_threshold": {
+        "value": "100",
+        "secret": False,
+        "desc": "Monthly cost alert threshold in USD for GEO queries",
+        "group": "geo",
+    },
     # --- EPG 2.0 (Attention Portfolio Manager) ---
     "epg2_enabled": {
         "value": "true",

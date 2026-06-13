@@ -299,6 +299,52 @@ def scrape_hobby_subreddits(avatar_id: str):
         db.close()
 
 
+@celery_app.task(name="scrape_hobby_all_avatars")
+def scrape_hobby_all_avatars():
+    """Discovery: scrape hobby subreddits for all eligible avatars.
+
+    Pure data supply — no generation, no budget decisions.
+    Populates HobbySubreddit table so EPG has an opportunity pool to evaluate.
+    """
+    db = SessionLocal()
+    try:
+        from app.models.avatar import Avatar
+        from app.services.settings import is_scrape_enabled
+
+        if not is_scrape_enabled(db):
+            logger.info("scrape_hobby_all_avatars: scrape_enabled=false, skipping")
+            return {"status": "skipped", "reason": "scrape_disabled"}
+
+        avatars = (
+            db.query(Avatar)
+            .filter(
+                Avatar.active.is_(True),
+                Avatar.is_frozen.is_(False),
+                Avatar.warming_phase > 0,
+                Avatar.health_status.notin_(("shadowbanned", "suspended")),
+            )
+            .all()
+        )
+
+        logger.info("Hobby discovery scrape: %d eligible avatars", len(avatars))
+        total_new = 0
+        errors = 0
+
+        for avatar in avatars:
+            try:
+                count = scrape_hobby_subreddits(str(avatar.id))
+                total_new += (count or 0)
+            except Exception as e:
+                logger.error("Hobby scrape failed for %s: %s", avatar.reddit_username, str(e)[:100])
+                errors += 1
+
+        logger.info("Hobby discovery complete: %d new posts, %d errors", total_new, errors)
+        return {"scraped_avatars": len(avatars), "new_posts": total_new, "errors": errors}
+
+    finally:
+        db.close()
+
+
 @celery_app.task(name="scrape_subreddit_shared", bind=True, max_retries=0)
 def scrape_subreddit_shared(self, subreddit_id: str) -> dict:
     """Scrape a single subreddit. Subreddit-centric — no client_id.

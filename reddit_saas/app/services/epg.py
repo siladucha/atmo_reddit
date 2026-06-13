@@ -349,9 +349,31 @@ def _select_business_threads(
                 score += 2.5  # Competitor mentions are high-value engagement targets
         return score
 
-    # Score and sort
+    # Score and sort (with outcome-based subreddit adjustments from feedback loop)
     import math
-    scored = [(t, _keyword_score(t) * math.log(t.ups + 1, 10)) for t in threads]
+    from app.services.feedback_loop import get_all_epg_adjustments
+
+    # Load feedback adjustments: {subreddit: delta (-1.0 to +1.0)}
+    try:
+        epg_adjustments = get_all_epg_adjustments(db, avatar.id)
+    except Exception:
+        epg_adjustments = {}  # Non-critical: proceed without adjustments
+
+    def _feedback_multiplier(subreddit_name: str) -> float:
+        """Convert feedback adjustment to scoring multiplier.
+
+        delta = 0.0 → multiplier = 1.0 (no change)
+        delta = 0.3 → multiplier = 1.3 (boost 30%)
+        delta = -0.3 → multiplier = 0.7 (reduce 30%)
+        delta = -0.8 → multiplier = 0.2 (heavily penalize)
+        """
+        delta = epg_adjustments.get(subreddit_name.lower(), 0.0)
+        return max(0.1, 1.0 + delta)
+
+    scored = [
+        (t, _keyword_score(t) * math.log(t.ups + 1, 10) * _feedback_multiplier(t.subreddit or ""))
+        for t in threads
+    ]
     scored.sort(key=lambda x: x[1], reverse=True)
 
     # Take top keyword-matched threads
@@ -543,7 +565,7 @@ def build_daily_epg(
         for i, post in enumerate(hobby_posts):
             slot_time = time_slots[i] if i < len(time_slots) else None
 
-            # Persist to DB
+            # Persist to DB with decision reasoning
             epg_slot = EPGSlot(
                 id=uuid.uuid4(),
                 avatar_id=avatar.id,
@@ -556,6 +578,18 @@ def build_daily_epg(
                 subreddit=post.subreddit,
                 thread_title=post.post_title,
                 thread_ups=post.post_ups or 0,
+                selection_reasoning={
+                    "reason": f"Hobby rotation: r/{post.subreddit} selected for credibility building",
+                    "selection_method": "round_robin_hobby",
+                    "phase": phase,
+                    "factors": [
+                        f"Phase {phase}: {'100%' if phase == 1 else '50%' if phase == 2 else '30%'} hobby allocation",
+                        f"Subreddit r/{post.subreddit}: part of avatar's hobby interests",
+                        f"Post engagement: {post.post_ups or 0} upvotes",
+                    ],
+                    "budget": f"{i+1}/{hobby_count} hobby slots",
+                    "alternatives_considered": len(hobby_posts),
+                },
             )
             db.add(epg_slot)
 
@@ -570,6 +604,7 @@ def build_daily_epg(
                 "comment_type": "hobby",
                 "status": "planned",
                 "draft_id": None,
+                "reasoning": epg_slot.selection_reasoning,
             })
 
     # --- Select and persist business slots (Phase 2-3 only) ---
@@ -579,8 +614,40 @@ def build_daily_epg(
         )
         biz_slots = _generate_time_slots(len(business_threads))
 
+        # Load feedback adjustments for reasoning display
+        try:
+            from app.services.feedback_loop import get_all_epg_adjustments as _get_adj
+            _feedback_adj = _get_adj(db, avatar.id)
+        except Exception:
+            _feedback_adj = {}
+
         for i, thread in enumerate(business_threads):
             slot_time = biz_slots[i] if i < len(biz_slots) else None
+
+            # Determine selection method (engage-scored vs keyword fallback)
+            from app.models.thread_score import ThreadScore
+            thread_score = db.query(ThreadScore).filter(
+                ThreadScore.thread_id == thread.id,
+                ThreadScore.client_id == client.id,
+            ).first()
+
+            if thread_score and thread_score.tag == "engage":
+                method = "ai_scored_engage"
+                reason = f"AI scored as 'engage' (composite={thread_score.composite}) for {client.client_name}"
+            else:
+                method = "keyword_fallback"
+                reason = f"Keyword match in r/{thread.subreddit} ({thread.ups} upvotes)"
+
+            # Check if feedback adjustment was applied
+            sub_adj = _feedback_adj.get((thread.subreddit or "").lower(), 0)
+            factors = [
+                f"Phase {phase}: {int((1 - hobby_count/result.remaining)*100)}% professional allocation",
+                f"Thread: {thread.ups} upvotes in r/{thread.subreddit}",
+            ]
+            if sub_adj > 0:
+                factors.append(f"Feedback boost: +{sub_adj:.0%} from positive outcomes in r/{thread.subreddit}")
+            elif sub_adj < 0:
+                factors.append(f"Feedback penalty: {sub_adj:.0%} from poor outcomes in r/{thread.subreddit}")
 
             # Persist to DB
             epg_slot = EPGSlot(
@@ -595,6 +662,17 @@ def build_daily_epg(
                 subreddit=thread.subreddit,
                 thread_title=thread.post_title,
                 thread_ups=thread.ups,
+                selection_reasoning={
+                    "reason": reason,
+                    "selection_method": method,
+                    "phase": phase,
+                    "factors": factors,
+                    "score": thread_score.composite if thread_score else None,
+                    "feedback_adjustment": sub_adj if sub_adj != 0 else None,
+                    "budget": f"{i+1}/{business_count} professional slots",
+                    "alternatives_considered": len(business_threads),
+                    "client": client.client_name,
+                },
             )
             db.add(epg_slot)
 
@@ -608,6 +686,7 @@ def build_daily_epg(
                 "comment_type": "professional",
                 "status": "planned",
                 "draft_id": None,
+                "reasoning": epg_slot.selection_reasoning,
             })
 
     db.commit()

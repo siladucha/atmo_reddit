@@ -880,6 +880,22 @@ def admin_delete_user(
     )
 
 
+@router.post("/users/{user_id}/hard-delete", response_class=HTMLResponse)
+def admin_hard_delete_user(
+    request: Request,
+    user_id: uuid.UUID,
+    current_user: User = Depends(require_owner),
+    db: Session = Depends(get_db),
+):
+    """Permanently delete a user. Owner only."""
+    try:
+        admin_service.delete_user(db, user_id, current_user.id)
+    except ValueError:
+        pass
+    # Return empty row (user is gone)
+    return HTMLResponse(content="")
+
+
 @router.post("/users/{user_id}/reset-password", response_class=HTMLResponse)
 def admin_reset_password(
     request: Request,
@@ -2332,7 +2348,7 @@ def admin_avatar_health_check(
     from app.services.reddit_freshness import is_health_check_fresh
     from app.services.safety import _format_relative_time
 
-    logger = get_logger(__name__)
+    logger = logging.getLogger(__name__)
 
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
@@ -2428,7 +2444,7 @@ def admin_avatar_update_cqs(
     """
     import logging
 
-    logger = get_logger(__name__)
+    logger = logging.getLogger(__name__)
 
     VALID_CQS_LEVELS = {"lowest", "low", "moderate", "high", "highest"}
 
@@ -3228,7 +3244,7 @@ def admin_avatar_build_epg(
 ):
     """Build EPG and generate comments for an avatar (manual trigger)."""
     import logging
-    logger = get_logger(__name__)
+    logger = logging.getLogger(__name__)
 
     from app.services.epg import build_daily_epg
 
@@ -3296,7 +3312,7 @@ def admin_avatar_refresh(
     from app.services.health_checker import check_avatar_health
     from app.services.cqs_checker import update_avatar_cqs_from_reddit
 
-    logger = get_logger(__name__)
+    logger = logging.getLogger(__name__)
 
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
@@ -8304,7 +8320,7 @@ def admin_portfolio_health(
 
         # Lookup avatar name
         avatar = db.query(Avatar).filter(Avatar.id == aid).first()
-        avatar_name = avatar.username if avatar else str(aid)[:8]
+        avatar_name = avatar.reddit_username if avatar else str(aid)[:8]
 
         if avg_acc is not None and avg_acc < 50:
             alerts.append({

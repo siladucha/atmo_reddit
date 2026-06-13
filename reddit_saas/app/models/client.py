@@ -46,6 +46,10 @@ class Client(Base):
     # Industry classification (for avatar-client matching)
     industry: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
+    # GEO/AEO Prompt Monitoring
+    geo_monitoring_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    geo_execution_frequency: Mapped[str] = mapped_column(String(20), default="twice_weekly", server_default="twice_weekly")
+
     # Relationships
     subreddits = relationship("ClientSubreddit", back_populates="client")  # legacy, kept for migration
     subreddit_assignments = relationship("ClientSubredditAssignment", back_populates="client")

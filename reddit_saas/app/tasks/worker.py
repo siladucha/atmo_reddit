@@ -25,6 +25,8 @@ celery_app = Celery(
         "app.tasks.discovery",
         "app.tasks.karma_outcomes",
         "app.tasks.performance_metrics",
+        "app.tasks.snapshot_outcomes",
+        "app.tasks.feedback",
     ],
 )
 
@@ -51,8 +53,12 @@ celery_app.conf.update(
             "task": "run_full_pipeline_all_clients",
             "schedule": crontab(hour=14, minute=0),
         },
-        # "hobby-pipeline-daily" removed: EPG at 08:15/14:15 now handles hobby slots.
-        # Old hobby pipeline created duplicates outside EPG budget control.
+        # "hobby-pipeline-daily" removed: EPG handles hobby slot decisions.
+        # Hobby scraping (discovery) runs separately to supply opportunity pool.
+        "hobby-discovery-scrape": {
+            "task": "scrape_hobby_all_avatars",
+            "schedule": crontab(hour="7,13", minute=45),  # Before EPG runs (08:15, 14:15)
+        },
         "avatar-visibility-health-check": {
             "task": "health_check_all_avatars",
             "schedule": crontab(hour="7,13", minute=30),  # 30 min before AI pipelines
@@ -108,6 +114,18 @@ celery_app.conf.update(
         "archive-old-decision-records": {
             "task": "archive_old_decision_records",
             "schedule": crontab(hour=1, minute=30),  # 01:30 daily — prune records > 90 days
+        },
+        "snapshot-comment-outcomes-4h": {
+            "task": "snapshot_comment_outcomes",
+            "schedule": crontab(hour="*/4", minute=45),  # Every 4h at :45 — karma/reply/deletion snapshots
+        },
+        "run-feedback-loop-daily": {
+            "task": "run_feedback_loop_all",
+            "schedule": crontab(hour=2, minute=0),  # 02:00 daily — after outcomes collected, before next EPG
+        },
+        "continuous-discovery-weekly": {
+            "task": "run_continuous_discovery_all",
+            "schedule": crontab(hour=4, minute=0, day_of_week="sunday"),  # Weekly, after feedback loop
         },
     },
     # Broker connection resilience
