@@ -121,7 +121,7 @@ reddit_saas/
 │   ├── middleware/
 │   │   ├── auth.py            # JWT auth middleware
 │   │   └── errors.py          # Error handling middleware
-│   ├── models/                # SQLAlchemy models (26 models)
+│   ├── models/                # SQLAlchemy models (40 models)
 │   │   ├── user.py            # User (role, is_active, client_id)
 │   │   ├── user_role.py       # UserRole enum (owner/partner/client_admin/client_manager/client_viewer/b2c_user)
 │   │   ├── user_client_assignment.py # UserClientAssignment (user↔client mapping)
@@ -149,7 +149,20 @@ reddit_saas/
 │   │   ├── health_status.py   # HealthStatus (shadowban detection)
 │   │   ├── strategy_document.py # StrategyDocument
 │   │   ├── reddit_app.py      # RedditApp (OAuth/script app registry, client-scoped)
-│   │   └── posting_event.py   # PostingEvent (posting audit trail)
+│   │   ├── posting_event.py   # PostingEvent (posting audit trail)
+│   │   ├── opportunity.py     # Opportunity (6-dim scoring, EPG 2.0)
+│   │   ├── decision_record.py # DecisionRecord (portfolio state snapshots)
+│   │   ├── karma_snapshot.py  # KarmaSnapshot (4h/24h/48h/7d outcome tracking)
+│   │   ├── performance_metric.py # PerformanceMetric (daily avatar metrics)
+│   │   ├── epg_slot.py        # EPGSlot (daily publishing slots)
+│   │   ├── discovery_session.py # DiscoverySession (research workflow)
+│   │   ├── discovery_entity.py # DiscoveryEntity (extracted entities)
+│   │   ├── discovery_hypothesis.py # DiscoveryHypothesis (validated hypotheses)
+│   │   ├── geo_prompt.py      # GeoPrompt (AEO monitoring prompts)
+│   │   ├── geo_competitor.py  # GeoCompetitor (competitor tracking)
+│   │   ├── geo_execution.py   # GeoExecution (monitoring run results)
+│   │   ├── visibility_report.py # VisibilityReport
+│   │   └── zero_day_report.py # ZeroDayReport
 │   ├── schemas/               # Pydantic validation schemas
 │   │   ├── avatar_analysis.py # BehavioralProfile, AvatarAnalysisRequest
 │   │   └── llm_outputs.py     # ScoringOutput, CommentOutput
@@ -167,8 +180,15 @@ reddit_saas/
 │   │   ├── epg.py             # EPG — daily avatar publishing program (thread selection, timing, dedup)
 │   │   ├── export.py          # Data export endpoints
 │   │   ├── pipeline.py        # Pipeline trigger API
-│   │   └── review.py          # Review API (with learning hook)
-│   ├── services/              # Business logic (51 services)
+│   │   ├── review.py          # Review API (with learning hook)
+│   │   ├── portal.py          # Client Portal (home, review, avatars, EPG, strategy, report)
+│   │   ├── posting_dashboard.py # Posting operations dashboard
+│   │   ├── decision_center.py # Decision Center (live pulse, queue, insights)
+│   │   ├── admin_geo.py       # GEO/AEO monitoring admin
+│   │   ├── discovery.py       # Discovery Engine (sessions, research, reports)
+│   │   ├── avatar_workflow.py # Avatar workflow routes
+│   │   └── oauth.py           # OAuth callback for Reddit
+│   ├── services/              # Business logic (80+ services)
 │   │   ├── admin.py           # Admin CRUD
 │   │   ├── ai.py              # LLM calls (LiteLLM) + schema validation
 │   │   ├── audit.py           # Audit logging
@@ -237,6 +257,12 @@ reddit_saas/
 │   │   ├── queue_ticker.py    # Queue tick (scrape scheduling)
 │   │   ├── scraping.py        # Reddit scraping tasks
 │   │   ├── strategy.py        # Strategy generation tasks
+│   │   ├── epg.py             # EPG build + generate (Portfolio or Legacy)
+│   │   ├── discovery.py       # Discovery Engine tasks (continuous weekly)
+│   │   ├── karma_outcomes.py  # Karma outcome checking (EPG 2.0 feedback)
+│   │   ├── performance_metrics.py # Daily performance aggregation + archival
+│   │   ├── snapshot_outcomes.py # Comment karma/deletion snapshots (4h/24h/48h/7d)
+│   │   ├── feedback.py        # Feedback loop (outcome analysis → model correction)
 │   │   └── worker.py          # Celery worker configuration
 │   ├── templates/             # Jinja2 templates (50 pages + 65 partials)
 │   │   ├── base.html          # Light theme (user pages)
@@ -271,7 +297,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 └── README.md
 ```
 
-## What's Built (MVP Status — May 12, 2026)
+## What's Built (Status — June 13, 2026)
 
 ### Core Platform
 - **Admin panel** (dark theme): dashboard, user/client/persona/keyword/subreddit CRUD, task monitoring, system health, AI costs, audit logs, billing placeholder
@@ -340,23 +366,65 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - Operations dashboard
 - Subreddit freshness tracking with stale indicators
 
+### EPG 2.0 — Attention Portfolio Manager (June 2026)
+- **Portfolio Manager** — investment-style decision engine with AttentionBudget, ReturnWeights, PortfolioAllocation
+- **Opportunity Engine** — 6-dimensional scoring (visibility, competition, trust, karma, risk, strategic alignment)
+- **Risk Engine** — RiskAssessment with 6 factors + phase multiplier + historical removal rate
+- **Return Engine** — Expected karma/trust/visibility/influence prediction with subreddit karma multiplier
+- **Feedback Loop** — outcome analysis → hypothesis updates → EPG subreddit adjustments → model correction
+- **Zero-day detection** — reports when avatar has no eligible opportunities
+- **Feature flag** — `epg2_enabled` system setting to toggle between legacy and Portfolio Manager
+
+### Comment Outcome Tracking (June 2026)
+- **KarmaSnapshot model** — time-series at 4h/24h/48h/7d after posting
+- **Deletion detection** — auto-marks drafts + emits activity events
+- **Engagement velocity** — karma growth curves feed EPG model correction
+- **Thread depth** — reply_count proves discussion provoked (Tier-2 signal)
+
+### Discovery Engine (June 2026)
+- **Session-based research** — create → extract entities → confirm → research → hypotheses → report → strategy handoff
+- **Entity extraction** — LLM-based extraction from client brief
+- **Hypothesis engine** — generate, validate, score confidence
+- **Reddit researcher** — PRAW-based community intelligence gathering
+- **Continuous discovery** — weekly automated runs (Sunday 04:00)
+- **Strategy handoff** — convert findings to strategy documents
+
+### GEO/AEO Prompt Monitoring (June 2026)
+- **Prompt management** — track brand visibility queries for AI platforms
+- **Competitor tracking** — monitor competitor mentions in AI responses
+- **Brand detection** — automated scoring of brand presence in AI search
+- **Citation parsing** — extract and analyze citations from AI responses
+- **Batch execution** — run monitoring queries with history and detail views
+
+### Client Portal (June 2026)
+- **Full portal** — home, review queue, avatars, avatar detail, subreddits, keywords, strategy, report, EPG
+- **Draft management** — approve, skip, mark posted, edit from portal
+- **RBAC-scoped** — clients see only their own data
+- **Client Hub** — tab-based overview with lazy-loaded partials
+
+### Decision Center (June 2026)
+- **Live Pulse** — real-time system status (pipeline, avatars, slots, events)
+- **Queue** — pending decisions (drafts, approvals)
+- **Insights** — system-generated recommendations and alerts
+- **Bulk approve** — batch operations
+- **Execute action** — trigger pipeline ops from Decision Center
+
 ## What's NOT Built Yet
 - ~~Production deployment~~ → **DONE** (gorampit.com, DigitalOcean, SSL)
-- **Automated Posting — Admin UI** — proxy config section, posting logs, global dashboard, kill switch toggle
+- ~~Automated Posting — Admin UI~~ → **DONE** (posting dashboard with stats, events, traceability)
 - **Automated Posting — Proxy integration** — need to buy residential proxies (ProxyJet)
 - **Automated Posting — OAuth mode** — pending Reddit approval for web app creation
-- Strategy Questions feedback loop — LLM generates questions_for_client in strategy; future: multiple-choice answers (A/B/C/D) + free text field, saved as client preferences, injected into next strategy generation. MVP: questions visible in strategy markdown only, no answer mechanism.
+- ~~Comment outcome tracking~~ → **DONE** (KarmaSnapshot at 4h/24h/48h/7d + deletion detection)
+- ~~Budget engine~~ → **DONE** (EPG 2.0 AttentionBudget + daily cap + portfolio allocation)
+- Strategy Questions feedback loop — future: multiple-choice answers, saved as client preferences
 - Subreddit rule extraction (PRAW sidebar/wiki → LLM parsing → compliance checks)
-- Comment outcome tracking (karma snapshots at 4h/24h/48h + removal detection)
-- Budget engine (smart daily limits per avatar)
 - Cross-avatar deduplication (prevent two avatars commenting on same thread)
-- Real billing/payments
+- Real billing/payments (Stripe)
 - Plan action limits enforcement (max_comments_per_month)
 - Data retention cleanup (TTL for old scraped threads)
 - Agency multi-tenant workspace (deferred until 3+ agency clients)
 - White-label (custom domain, branding) — deferred
 - Cross-avatar routing / upvote coordination — deferred
-- Viral acceleration rules — deferred
 - Auto-generated PDF reports — deferred
 
 ## EPG — Avatar Daily Publishing Program
@@ -403,19 +471,28 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **Rate Limiter**: Redis sorted set sliding window
 - **Retry**: bind=True, max_retries=3, countdown=60×2^attempt (AI tasks only)
 
-### Celery Beat Schedule (Israel Time — Asia/Jerusalem)
+### Celery Beat Schedule (Israel Time — Asia/Jerusalem) — Updated June 13, 2026
 | Time | Task | Purpose |
 |------|------|---------|
 | every 60s | `queue_tick` | Scrape scheduling (gated by DB interval) |
 | every 60s | `system_heartbeat` | System health pulse |
+| every 5 min | `execute_pending_posts` | Automated posting (approved EPG slots) |
+| every 4h at :15 | `track_karma_all_avatars` | Karma tracking |
+| every 4h at :45 | `snapshot_comment_outcomes` | Karma/deletion snapshots |
+| 01:00 | `compute_daily_performance_metrics` | Aggregate yesterday's avatar metrics |
+| 01:30 | `archive_old_decision_records` | Prune records > 90 days |
+| 02:00 | `run_feedback_loop_all` | Outcome analysis → EPG model correction |
+| 03:00 Sun | `scrape_repurpose_all_subreddits` | Weekly evergreen harvest |
+| 04:00 Sun | `run_continuous_discovery_all` | Weekly continuous discovery |
 | 05:20 | `snapshot_profile_analytics_all_avatars` | Profile analytics |
 | 06:00 | `evaluate_all_avatar_phases` | Phase evaluation |
 | 06:30 | `check_cqs_all_avatars` | CQS batch check (auto-freeze on lowest) |
 | 07:30, 13:30 | `health_check_all_avatars` | Shadowban/suspension detection |
+| 07:45, 13:45 | `scrape_hobby_all_avatars` | Hobby scraping (before EPG) |
 | 08:00, 14:00 | `run_full_pipeline_all_clients` | Score → Generate → Posts |
-| 10:00 | `run_hobby_pipeline_all_avatars` | Hobby scrape + generate |
-| every 4h | `track_karma_all_avatars` | Karma tracking |
-| every 5 min | `execute_pending_posts` | Automated posting (approved EPG slots) |
+| 08:15, 14:15 | `build_and_generate_epg_all_avatars` | EPG plan + generate |
+| 12:15, 18:15 | `check_karma_outcomes` | 4h karma outcome check |
+| 00:15, 06:15 | `check_karma_outcomes` | 24-28h karma outcome check |
 
 ## Comment Draft Status Workflow
 `pending` → `approved` / `rejected` → `posted`
