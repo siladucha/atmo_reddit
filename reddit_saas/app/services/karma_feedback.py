@@ -1,12 +1,22 @@
-"""Karma feedback service — tracks posted comment performance on Reddit.
+"""Risk & Reputation Control — RAMP Closed Feedback Architecture (Loop 4).
 
-Checks reddit_score for posted comments, detects significant karma drops,
-and triggers avatar phase demotion when karma consistently drops below
-threshold.
+Monitors avatar reputation health and triggers protective actions when
+risk indicators breach thresholds. This goes beyond karma-only demotion:
 
-Demotion trigger: if average reddit_score across recent posted comments
-drops below KARMA_DROP_THRESHOLD (negative karma), the avatar is demoted
-by one phase.
+Demotion triggers (any single trigger can demote):
+1. Karma Drop — avg reddit_score < -2 over 14 days (original)
+2. High Removal Rate — >30% of recent comments removed by mods
+3. Shadowban Risk — health_status is "warned" or "suspicious"
+4. Frequency Overload — >8 posts in 24h (approaching Reddit's spam threshold)
+5. Subreddit Misfit — >50% of comments in a subreddit get negative karma
+
+Phase demotion reduces brand exposure:
+- Phase 3→2: removes brand mention eligibility
+- Phase 2→1: hobby-only content, zero professional mentions
+- Phase 1: minimum phase, only freeze available below this
+
+Architecture role: Loop 4 feeds INTO Loop 3 (EPG) via phase gates —
+a demoted avatar gets a smaller budget and higher risk threshold.
 """
 
 from __future__ import annotations
@@ -31,6 +41,12 @@ KARMA_DROP_THRESHOLD = -2
 MIN_SCORED_COMMENTS = 3
 # Window in days to look back for karma evaluation
 KARMA_EVAL_WINDOW_DAYS = 14
+# High removal rate threshold (fraction of comments removed)
+REMOVAL_RATE_THRESHOLD = 0.30
+# Maximum posts in 24h before frequency risk triggers
+FREQUENCY_OVERLOAD_THRESHOLD = 8
+# Subreddit misfit threshold (fraction of comments with negative karma)
+SUBREDDIT_MISFIT_THRESHOLD = 0.50
 
 
 def update_comment_score(
@@ -395,3 +411,149 @@ def get_avatar_full_karma_summary(
             ),
         },
     }
+
+
+def evaluate_reputation_risk(
+    db: Session,
+    avatar: Avatar,
+) -> dict:
+    """Comprehensive reputation risk evaluation (Loop 4 — Risk/Reputation Control).
+
+    Evaluates ALL risk dimensions, not just karma. Returns a full risk report
+    with recommended action.
+
+    Risk dimensions checked:
+    1. Karma Drop — sustained negative karma (original check)
+    2. High Removal Rate — comments being removed by moderators
+    3. Shadowban Risk — health status warnings
+    4. Frequency Overload — posting too fast
+    5. Subreddit Misfit — consistently poor performance in specific subs
+
+    Returns:
+        Dict with evaluation results:
+        - triggers_fired: list of fired trigger names
+        - should_demote: bool
+        - should_freeze: bool
+        - risk_level: "low" | "medium" | "high" | "critical"
+        - details: per-trigger context
+    """
+    from datetime import datetime, timedelta, timezone
+
+    result = {
+        "avatar_id": str(avatar.id),
+        "avatar_username": avatar.reddit_username,
+        "current_phase": avatar.warming_phase,
+        "triggers_fired": [],
+        "should_demote": False,
+        "should_freeze": False,
+        "risk_level": "low",
+        "details": {},
+    }
+
+    # Skip mentors and phase 1 (can't demote below 1)
+    if avatar.warming_phase <= 1:
+        return result
+
+    now = datetime.now(timezone.utc)
+    window_start = now - timedelta(days=KARMA_EVAL_WINDOW_DAYS)
+
+    # Get recent posted comments
+    recent_posted = (
+        db.query(CommentDraft)
+        .filter(
+            CommentDraft.avatar_id == avatar.id,
+            CommentDraft.status == "posted",
+            CommentDraft.posted_at >= window_start,
+        )
+        .all()
+    )
+
+    if len(recent_posted) < MIN_SCORED_COMMENTS:
+        return result
+
+    # --- Trigger 1: Karma Drop ---
+    scored = [c for c in recent_posted if c.reddit_score is not None]
+    if len(scored) >= MIN_SCORED_COMMENTS:
+        avg_score = sum(c.reddit_score for c in scored) / len(scored)
+        if avg_score < KARMA_DROP_THRESHOLD:
+            result["triggers_fired"].append("karma_drop")
+            result["details"]["karma_drop"] = {
+                "avg_score": round(avg_score, 2),
+                "threshold": KARMA_DROP_THRESHOLD,
+                "sample_size": len(scored),
+            }
+
+    # --- Trigger 2: High Removal Rate ---
+    removed = [c for c in recent_posted if c.is_deleted]
+    removal_rate = len(removed) / len(recent_posted) if recent_posted else 0
+    if removal_rate > REMOVAL_RATE_THRESHOLD:
+        result["triggers_fired"].append("high_removal_rate")
+        result["details"]["high_removal_rate"] = {
+            "removal_rate": round(removal_rate, 3),
+            "removed_count": len(removed),
+            "total_count": len(recent_posted),
+            "threshold": REMOVAL_RATE_THRESHOLD,
+        }
+
+    # --- Trigger 3: Shadowban Risk ---
+    health_status = getattr(avatar, "health_status", "healthy")
+    if health_status in ("warned", "suspicious"):
+        result["triggers_fired"].append("shadowban_risk")
+        result["details"]["shadowban_risk"] = {
+            "health_status": health_status,
+        }
+
+    # --- Trigger 4: Frequency Overload ---
+    last_24h = now - timedelta(hours=24)
+    posts_24h = sum(
+        1 for c in recent_posted
+        if c.posted_at and c.posted_at >= last_24h
+    )
+    if posts_24h > FREQUENCY_OVERLOAD_THRESHOLD:
+        result["triggers_fired"].append("frequency_overload")
+        result["details"]["frequency_overload"] = {
+            "posts_24h": posts_24h,
+            "threshold": FREQUENCY_OVERLOAD_THRESHOLD,
+        }
+
+    # --- Trigger 5: Subreddit Misfit ---
+    from collections import defaultdict
+    sub_scores = defaultdict(list)
+    for c in scored:
+        sub = c.thread.subreddit if c.thread else None
+        if sub:
+            sub_scores[sub].append(c.reddit_score)
+
+    misfit_subs = []
+    for sub, scores in sub_scores.items():
+        if len(scores) >= 3:
+            negative_ratio = sum(1 for s in scores if s < 0) / len(scores)
+            if negative_ratio > SUBREDDIT_MISFIT_THRESHOLD:
+                misfit_subs.append({"subreddit": sub, "negative_ratio": round(negative_ratio, 2)})
+
+    if misfit_subs:
+        result["triggers_fired"].append("subreddit_misfit")
+        result["details"]["subreddit_misfit"] = {
+            "misfit_subreddits": misfit_subs,
+            "threshold": SUBREDDIT_MISFIT_THRESHOLD,
+        }
+
+    # --- Determine action ---
+    trigger_count = len(result["triggers_fired"])
+
+    if trigger_count == 0:
+        result["risk_level"] = "low"
+    elif trigger_count == 1:
+        result["risk_level"] = "medium"
+        result["should_demote"] = True
+    elif trigger_count == 2:
+        result["risk_level"] = "high"
+        result["should_demote"] = True
+    else:
+        result["risk_level"] = "critical"
+        result["should_demote"] = True
+        # 3+ triggers = immediate freeze
+        if "shadowban_risk" in result["triggers_fired"]:
+            result["should_freeze"] = True
+
+    return result

@@ -152,6 +152,12 @@ def run_continuous_discovery(db: Session, client_id: uuid.UUID) -> ContinuousDis
     if result.deltas:
         _log_discovery_deltas(db, client_id, result)
 
+    # Wire Discovery → EPG weights: when hypothesis confidence changes
+    # significantly, adjust EPG subreddit priorities for related avatars.
+    # This implements Improvement 4: Discovery updates EPG weights directly.
+    if result.deltas:
+        _propagate_to_epg_weights(db, client_id, result)
+
     db.commit()
 
     logger.info(
@@ -367,6 +373,77 @@ def _evaluate_hypothesis(
             )
 
     return None
+
+
+
+def _propagate_to_epg_weights(
+    db: Session, client_id: uuid.UUID, result: ContinuousDiscoveryResult
+) -> None:
+    """Propagate Discovery confidence changes to EPG subreddit weights.
+
+    When Discovery confirms a hypothesis is working (confidence up),
+    boost the related subreddit in EPG selection.
+    When confidence drops, reduce priority.
+
+    This connects Loop 5 (Discovery) → Loop 3 (EPG) directly,
+    without waiting for the full feedback loop cycle.
+    """
+    from app.models.avatar import Avatar
+    from app.services.feedback_loop import _store_epg_adjustments
+
+    # Find avatars associated with this client
+    avatars = (
+        db.query(Avatar)
+        .filter(
+            Avatar.active.is_(True),
+            Avatar.is_frozen.is_(False),
+        )
+        .all()
+    )
+
+    # Filter to client's avatars
+    client_id_str = str(client_id)
+    client_avatars = [
+        a for a in avatars
+        if a.client_ids and client_id_str in a.client_ids
+    ]
+
+    if not client_avatars:
+        return
+
+    # Build adjustment map from deltas
+    sub_adjustments: dict[str, float] = {}
+    for delta in result.deltas:
+        sub = delta.subreddit.lower() if delta.subreddit else ""
+        if not sub:
+            continue
+
+        if delta.delta_type == "confidence_up":
+            sub_adjustments[sub] = sub_adjustments.get(sub, 0) + 0.15
+        elif delta.delta_type in ("confidence_down", "removal_spike", "karma_decline"):
+            sub_adjustments[sub] = sub_adjustments.get(sub, 0) - 0.2
+
+    if not sub_adjustments:
+        return
+
+    # Apply to all client avatars
+    for avatar in client_avatars:
+        try:
+            # Read existing adjustments and merge
+            from app.services.feedback_loop import get_all_epg_adjustments
+            existing = get_all_epg_adjustments(db, avatar.id)
+
+            merged = dict(existing)
+            for sub, delta in sub_adjustments.items():
+                current = merged.get(sub, 0.0)
+                merged[sub] = max(-0.8, min(0.5, current + delta))
+
+            _store_epg_adjustments(db, avatar.id, merged)
+        except Exception as e:
+            logger.warning(
+                "Failed to propagate discovery delta to EPG for avatar %s: %s",
+                avatar.id, str(e)[:100],
+            )
 
 
 def _log_discovery_deltas(db: Session, client_id: uuid.UUID, result: ContinuousDiscoveryResult):

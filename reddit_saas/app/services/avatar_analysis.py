@@ -21,7 +21,7 @@ from app.schemas.avatar_analysis import (
     BehavioralProfile,
 )
 from app.services.ai import call_llm_json, ai_trigger_context
-from app.services.learning_loop import get_recent_edits
+from app.services.learning_loop import get_recent_edits, get_outcome_context
 from app.services.settings import get_setting
 
 logger = get_logger(__name__)
@@ -202,6 +202,16 @@ def analyze_avatar(
             "AVATAR_ANALYSIS | action=few_shot_injected | avatar_id=%s | count=%d",
             avatar_id,
             len(edit_records),
+        )
+
+    # Inject real Reddit outcome data (Loop 2 ← Loop 3 connection)
+    # This ensures behavioral profiles are validated against actual performance
+    outcome_section = get_outcome_context(db, avatar_id)
+    if outcome_section:
+        user_prompt = user_prompt + outcome_section
+        logger.info(
+            "AVATAR_ANALYSIS | action=outcome_context_injected | avatar_id=%s",
+            avatar_id,
         )
 
     messages = [

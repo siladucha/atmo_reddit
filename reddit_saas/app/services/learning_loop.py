@@ -1,4 +1,10 @@
-"""Learning Loop service — store human edits and retrieve for few-shot injection."""
+"""Learning Loop service — store human edits and retrieve for few-shot injection.
+
+Part of the RAMP Closed Feedback Architecture.
+This loop learns from TWO signals:
+1. Human corrections to LLM-generated behavioral profiles (store_edit)
+2. Real Reddit outcomes that validate/invalidate profile accuracy (get_outcome_context)
+"""
 
 from app.logging_config import get_logger
 import uuid
@@ -140,3 +146,65 @@ def get_recent_edits(
     )
     result = db.execute(stmt).scalars().all()
     return list(result)
+
+def get_outcome_context(db: Session, avatar_id: uuid.UUID) -> str:
+    """Build outcome-based context for avatar analysis injection.
+
+    Fetches real Reddit performance data (karma, removals, approach effectiveness)
+    and formats it as context for the LLM to validate/correct behavioral profiles.
+
+    This connects Loop 2 (Avatar Analysis) to Loop 3 (EPG Feedback),
+    ensuring the profile assessment reflects actual Reddit outcomes,
+    not just human preferences.
+
+    Args:
+        db: Database session.
+        avatar_id: The avatar to get outcome data for.
+
+    Returns:
+        Formatted string for prompt injection, or empty string if no data.
+    """
+    try:
+        from app.services.outcome_analysis import compute_avatar_outcome_profile
+
+        profile = compute_avatar_outcome_profile(db, avatar_id, lookback_days=30)
+
+        if profile.total_posted < 3:
+            return ""
+
+        parts = [
+            "\n\n--- Real Reddit Outcome Data (last 30 days) ---",
+            f"Total posted: {profile.total_posted}",
+            f"Average karma: {profile.avg_karma:.1f}",
+            f"Removal rate: {profile.removal_rate:.0%}",
+            f"Karma velocity: {profile.karma_velocity:.1f}/day",
+        ]
+
+        if profile.top_performing_subreddits:
+            parts.append(f"Best subreddits: {', '.join(profile.top_performing_subreddits)}")
+
+        if profile.underperforming_subreddits:
+            parts.append(f"Underperforming: {', '.join(profile.underperforming_subreddits)}")
+
+        if profile.approach_signals:
+            best = profile.approach_signals[0]
+            parts.append(f"Best approach: {best.approach} (avg karma: {best.avg_karma:.1f})")
+            if len(profile.approach_signals) > 1:
+                worst = profile.approach_signals[-1]
+                parts.append(f"Worst approach: {worst.approach} (avg karma: {worst.avg_karma:.1f})")
+
+        parts.append(
+            "\nUse this outcome data to VALIDATE your behavioral assessment. "
+            "If the avatar\'s actual Reddit performance contradicts the voice profile "
+            "or intended persona, note it in \'mismatches\'."
+        )
+
+        return "\n".join(parts)
+
+    except Exception:
+        logger.warning(
+            "get_outcome_context failed for avatar %s — skipping outcome injection",
+            avatar_id,
+            exc_info=True,
+        )
+        return ""
