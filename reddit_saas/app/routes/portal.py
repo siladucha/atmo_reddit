@@ -48,6 +48,23 @@ from app.template_filters import register_filters
 register_filters(templates.env)
 
 
+def _karma_tier(karma: int) -> str:
+    """Map raw karma to a named tier for client-facing display."""
+    if karma >= 5000:
+        return "Authority"
+    elif karma >= 1000:
+        return "Established"
+    elif karma >= 200:
+        return "Building"
+    return "Newcomer"
+
+
+def _avatar_display_name(avatar) -> str:
+    """Return client-facing name: display_name if set, else reddit_username."""
+    return avatar.display_name or avatar.reddit_username
+
+
+
 # --- Helpers ---
 
 
@@ -231,7 +248,7 @@ def portal_review(
         .order_by(Avatar.reddit_username.asc())
         .all()
     )
-    avatar_options = [{"id": str(a.id), "name": a.reddit_username} for a in avatars_for_filter]
+    avatar_options = [{"id": str(a.id), "name": _avatar_display_name(a)} for a in avatars_for_filter]
 
     # Count approved (ready to post) and posted
     approved_count = (
@@ -306,6 +323,10 @@ def portal_avatars(
     for a in avatars_raw:
         health = get_avatar_health(db, a)
         view = build_avatar_view(a, health, client_by_id)
+        # Client-facing overrides: hide reddit_username, show persona
+        view["client_display_name"] = _avatar_display_name(a)
+        view["client_persona_bio"] = a.persona_bio or ""
+        view["karma_tier"] = _karma_tier((a.reddit_karma_comment or 0) + (a.reddit_karma_post or 0))
         avatars.append(view)
     return _portal_render(
         request,
@@ -373,13 +394,13 @@ def portal_avatar_detail(
 
     avatar_data = {
         "id": str(avatar.id),
-        "username": avatar.reddit_username,
+        "display_name": _avatar_display_name(avatar),
+        "persona_bio": avatar.persona_bio or "",
+        "karma_tier": _karma_tier((avatar.reddit_karma_comment or 0) + (avatar.reddit_karma_post or 0)),
         "active": avatar.active,
         "warming_phase": avatar.warming_phase,
         "is_frozen": avatar.is_frozen,
         "freeze_reason": avatar.freeze_reason,
-        "reddit_karma_comment": avatar.reddit_karma_comment or 0,
-        "reddit_karma_post": avatar.reddit_karma_post or 0,
         "voice_profile_md": avatar.voice_profile_md or "",
         "tone_principles": avatar.tone_principles or "",
         "speech_patterns": avatar.speech_patterns or "",
@@ -1198,7 +1219,7 @@ def portal_strategy(
         .order_by(Avatar.reddit_username.asc())
         .all()
     )
-    avatar_options = [{"id": str(a.id), "name": a.reddit_username} for a in all_avatars]
+    avatar_options = [{"id": str(a.id), "name": _avatar_display_name(a)} for a in all_avatars]
 
     # Filter avatars if selector used
     if avatar_id:
@@ -1569,7 +1590,7 @@ def portal_drafts_partial(
 
         drafts.append({
             "id": str(d.id),
-            "avatar_name": avatar.reddit_username if avatar else "Unknown",
+            "avatar_name": _avatar_display_name(avatar) if avatar else "Unknown",
             "avatar_phase": avatar.warming_phase if avatar else 1,
             "subreddit_name": sub_name,
             "thread_title": thread_title,
