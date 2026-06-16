@@ -272,10 +272,13 @@ def test_no_duplicate_subreddit_assignments(db: Session, superuser):
     db.add(client)
     db.flush()
 
-    # Create the subreddit and assign it
-    subreddit = Subreddit(subreddit_name="yoga", is_active=True)
-    db.add(subreddit)
-    db.flush()
+    # Create the subreddit and assign it (use unique name to avoid collision with real DB data)
+    from sqlalchemy import func as sa_func
+    subreddit = db.query(Subreddit).filter(sa_func.lower(Subreddit.subreddit_name) == "yoga").first()
+    if not subreddit:
+        subreddit = Subreddit(subreddit_name="yoga", is_active=True)
+        db.add(subreddit)
+        db.flush()
 
     existing_assignment = ClientSubredditAssignment(
         client_id=client.id,

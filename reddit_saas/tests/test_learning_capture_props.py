@@ -55,6 +55,7 @@ def make_mock_draft(
     draft.client_id = uuid.uuid4()
     draft.ai_draft = ai_draft
     draft.engagement_mode = "helpful_peer"
+    draft.original_ai_draft = None
 
     # For "approved" status, edited_draft differs from ai_draft
     # For "approved_unchanged", edited_draft equals ai_draft or is None

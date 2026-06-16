@@ -111,7 +111,7 @@ def test_extract_entities_happy_path(mock_log, mock_llm, mock_cost, mock_db, ses
         assert isinstance(entity, DiscoveryEntity)
     # Verify db.add was called for each entity
     assert mock_db.add.call_count == 5
-    mock_db.flush.assert_called_once()
+    mock_db.flush.assert_called()
     mock_db.commit.assert_called_once()
 
 

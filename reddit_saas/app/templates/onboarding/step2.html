@@ -1,0 +1,38 @@
+{% extends "client_base.html" %}
+{% block title %}Onboarding — Your Problem{% endblock %}
+
+{% block content %}
+<div style="max-width:700px;margin:0 auto;padding:var(--space-4) var(--space-3);">
+    {% include "onboarding/progress.html" %}
+
+    <h1 class="text-h1" style="margin-bottom:8px;">The problem you solve</h1>
+    <p class="text-small" style="color:var(--color-muted);margin-bottom:var(--space-4);">Answer these like you're explaining to a smart colleague over coffee. The AI uses your language to sound authentic on Reddit.</p>
+
+    <form method="post" action="/onboard/step/2/save">
+        <div style="display:flex;flex-direction:column;gap:var(--space-3);">
+            <div class="surface" style="padding:var(--space-3);">
+                <label style="color:var(--color-white);font-weight:500;font-size:var(--text-body);display:block;margin-bottom:8px;">What does your best customer say their life was like before using you?</label>
+                <p class="text-micro" style="color:var(--color-muted);margin-bottom:8px;">Think: their frustrations, time wasted, risks they faced</p>
+                <textarea name="before_product" rows="3" class="field-input" style="width:100%;" placeholder="e.g. We were drowning in vulnerability alerts with no way to know which ones actually mattered...">{{ client.company_worldview or '' }}</textarea>
+            </div>
+
+            <div class="surface" style="padding:var(--space-3);">
+                <label style="color:var(--color-white);font-weight:500;font-size:var(--text-body);display:block;margin-bottom:8px;">What does your product do that your top 2-3 competitors cannot?</label>
+                <p class="text-micro" style="color:var(--color-muted);margin-bottom:8px;">Be specific. What's your unfair advantage?</p>
+                <textarea name="unique_value" rows="3" class="field-input" style="width:100%;" placeholder="e.g. We simulate full attack paths across hybrid environments using a digital twin — competitors only scan for individual vulnerabilities...">{{ client.company_problem or '' }}</textarea>
+            </div>
+
+            <div class="surface" style="padding:var(--space-3);">
+                <label style="color:var(--color-white);font-weight:500;font-size:var(--text-body);display:block;margin-bottom:8px;">Name your 2-3 main competitors</label>
+                <p class="text-micro" style="color:var(--color-muted);margin-bottom:8px;">Who do prospects compare you to?</p>
+                <textarea name="competitors" rows="2" class="field-input" style="width:100%;" placeholder="e.g. Tenable, Wiz, CrowdStrike Falcon Exposure">{{ client.competitive_landscape or '' }}</textarea>
+            </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;margin-top:var(--space-4);">
+            <a href="/onboard/step/1" class="btn-ghost" style="padding:12px 24px;">← Back</a>
+            <button type="submit" class="btn-primary" style="padding:12px 32px;">Next →</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

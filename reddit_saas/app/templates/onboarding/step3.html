@@ -1,0 +1,81 @@
+{% extends "client_base.html" %}
+{% block title %}Onboarding — Your Buyer{% endblock %}
+
+{% block content %}
+<div style="max-width:700px;margin:0 auto;padding:var(--space-4) var(--space-3);">
+    {% include "onboarding/progress.html" %}
+
+    <h1 class="text-h1" style="margin-bottom:8px;">Who is your ideal buyer?</h1>
+    <p class="text-small" style="color:var(--color-muted);margin-bottom:var(--space-4);">This helps the AI find the right Reddit communities and write comments that resonate with your audience.</p>
+
+    <form method="post" action="/onboard/step/3/save">
+        <!-- B2B / B2C toggle -->
+        <div style="display:flex;gap:8px;margin-bottom:var(--space-3);">
+            <label style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:var(--radius-pill);border:1px solid var(--color-border);cursor:pointer;">
+                <input type="radio" name="business_type" value="b2b" checked onchange="document.getElementById('b2b-fields').style.display='block';document.getElementById('b2c-fields').style.display='none';">
+                <span style="color:var(--color-white);font-size:var(--text-small);">B2B</span>
+            </label>
+            <label style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:var(--radius-pill);border:1px solid var(--color-border);cursor:pointer;">
+                <input type="radio" name="business_type" value="b2c" onchange="document.getElementById('b2c-fields').style.display='block';document.getElementById('b2b-fields').style.display='none';">
+                <span style="color:var(--color-white);font-size:var(--text-small);">B2C</span>
+            </label>
+        </div>
+
+        <!-- B2B fields -->
+        <div id="b2b-fields" class="surface" style="padding:var(--space-3);display:flex;flex-direction:column;gap:12px;">
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);">Job titles of your buyers *</label>
+                <input type="text" name="job_titles" class="field-input" style="width:100%;" placeholder="e.g. CISO, VP Security, Security Architect" value="">
+            </div>
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);">Seniority level</label>
+                <select name="seniority" class="field-input" style="width:100%;">
+                    <option value="c-level">C-Level / VP</option>
+                    <option value="director">Director</option>
+                    <option value="manager" selected>Manager / Lead</option>
+                    <option value="individual">Individual Contributor</option>
+                    <option value="mixed">Mixed levels</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);">Their day-to-day frustration *</label>
+                <textarea name="frustration" rows="2" class="field-input" style="width:100%;" placeholder="e.g. Drowning in alerts, can't prioritize, board asks 'are we secure?' and they can't answer confidently"></textarea>
+            </div>
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);">What do they search before finding you? *</label>
+                <textarea name="search_query" rows="2" class="field-input" style="width:100%;" placeholder="e.g. 'how to prioritize vulnerabilities', 'attack path analysis tools', 'CTEM vs vulnerability scanning'"></textarea>
+                <p class="text-micro" style="color:var(--color-muted);margin-top:4px;">This becomes the seed for keyword suggestions in the next step.</p>
+            </div>
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);">Adjacent buyer (optional)</label>
+                <textarea name="adjacent_icp" rows="2" class="field-input" style="width:100%;" placeholder="e.g. Cloud Security Engineers who evaluate tools for their CISO"></textarea>
+            </div>
+        </div>
+
+        <!-- B2C fields (hidden by default) -->
+        <div id="b2c-fields" class="surface" style="padding:var(--space-3);display:none;flex-direction:column;gap:12px;">
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);">Demographics *</label>
+                <input type="text" name="demographics" class="field-input" style="width:100%;" placeholder="e.g. 25-45 year old professionals interested in personal finance">
+            </div>
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);">Interests *</label>
+                <input type="text" name="interests" class="field-input" style="width:100%;" placeholder="e.g. investing, side hustles, productivity, career growth">
+            </div>
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);">Their frustration *</label>
+                <textarea name="frustration" rows="2" class="field-input" style="width:100%;" placeholder="What keeps them up at night?"></textarea>
+            </div>
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);">What do they search? *</label>
+                <textarea name="search_query" rows="2" class="field-input" style="width:100%;" placeholder="What do they Google or ask Reddit before finding you?"></textarea>
+            </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;margin-top:var(--space-4);">
+            <a href="/onboard/step/2" class="btn-ghost" style="padding:12px 24px;">← Back</a>
+            <button type="submit" class="btn-primary" style="padding:12px 32px;">Next →</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

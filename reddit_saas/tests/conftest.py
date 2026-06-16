@@ -1,8 +1,8 @@
 """Shared test fixtures."""
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, event, text
+from sqlalchemy.orm import sessionmaker, Session
 from fastapi.testclient import TestClient
 
 from app.database import Base, get_db
@@ -25,13 +25,30 @@ def setup_db():
 
 @pytest.fixture
 def db():
-    """Provide a DB session that rolls back after each test."""
+    """Provide a DB session that rolls back after each test.
+
+    Uses SQLAlchemy 2.0 nested transaction (SAVEPOINT) pattern:
+    - Outer real transaction wraps the entire test
+    - session.commit() releases savepoints, not the outer transaction
+    - session.close() is intercepted to prevent premature deassociation
+    - Final rollback undoes everything
+    """
     connection = engine.connect()
     transaction = connection.begin()
-    session = TestSession(bind=connection)
+    session = TestSession(bind=connection, join_transaction_mode="create_savepoint")
+
+    # Prevent tested code from closing our session (Celery tasks call db.close()
+    # in their finally block which would deassociate the transaction).
+    _real_close = session.close
+    session.close = lambda: None
+
     yield session
+
+    # Restore and cleanup
+    session.close = _real_close
     session.close()
-    transaction.rollback()
+    if transaction.is_active:
+        transaction.rollback()
     connection.close()
 
 
@@ -58,6 +75,7 @@ def superuser(db):
     from app.services.auth import create_user
     user = create_user(db, email="admin@test.com", password="admin123", full_name="Admin")
     user.is_superuser = True
+    user.role = "owner"
     db.commit()
     db.refresh(user)
     return user

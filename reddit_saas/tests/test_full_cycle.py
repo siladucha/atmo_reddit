@@ -89,7 +89,7 @@ def test_full_cycle_data_flow(db):
     # Create a test avatar linked to client
     avatar = Avatar(
         id=uuid.uuid4(),
-        reddit_username="test_cycle_avatar",
+        reddit_username=f"test_cycle_avatar_{uuid.uuid4().hex[:8]}",
         active=True,
         warming_phase=2,
         client_ids=[str(client_id)],

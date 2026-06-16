@@ -1,0 +1,21 @@
+<!-- Onboarding progress bar — 6 steps -->
+<div style="display:flex;align-items:center;justify-content:center;gap:0;margin-bottom:var(--space-4);padding:0 var(--space-2);">
+    {% set step_names = ["Company", "Problem", "Buyer", "Voice", "Keywords", "Review"] %}
+    {% for i in range(1, 7) %}
+    <div style="display:flex;align-items:center;">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <div style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:var(--text-small);font-weight:600;
+                {% if i < step %}background:var(--color-green);color:#fff;
+                {% elif i == step %}background:var(--color-orange);color:#fff;
+                {% else %}background:var(--color-surface-alt);color:var(--color-muted);border:1px solid var(--color-border);{% endif %}">
+                {% if i < step %}✓{% else %}{{ i }}{% endif %}
+            </div>
+            <span style="font-size:var(--text-micro);color:{% if i == step %}var(--color-orange){% elif i < step %}var(--color-green){% else %}var(--color-muted){% endif %};white-space:nowrap;">{{ step_names[i-1] }}</span>
+        </div>
+        {% if i < 6 %}
+        <div style="width:40px;height:2px;margin:0 4px;margin-bottom:20px;
+            {% if i < step %}background:var(--color-green);{% else %}background:var(--color-border);{% endif %}"></div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>

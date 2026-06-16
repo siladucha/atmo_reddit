@@ -1,0 +1,68 @@
+{% extends "client_base.html" %}
+{% block title %}Onboarding — Company Profile{% endblock %}
+
+{% block content %}
+<div style="max-width:700px;margin:0 auto;padding:var(--space-4) var(--space-3);">
+    {% include "onboarding/progress.html" %}
+
+    <h1 class="text-h1" style="margin-bottom:8px;">Tell us about your company</h1>
+    <p class="text-small" style="color:var(--color-muted);margin-bottom:var(--space-4);">Enter your website URL and we'll auto-detect your company profile. You can edit anything we get wrong.</p>
+
+    <!-- URL Scrape -->
+    <div style="margin-bottom:var(--space-4);">
+        <div style="display:flex;gap:8px;align-items:flex-end;">
+            <div style="flex:1;">
+                <label class="text-micro" style="color:var(--color-muted);">Company Website</label>
+                <input type="url" id="url-input" name="url" placeholder="https://yourcompany.com"
+                       value="{{ client.brand_domain or '' }}"
+                       class="field-input" style="width:100%;">
+            </div>
+            <button hx-post="/onboard/step/1/scrape"
+                    hx-include="#url-input"
+                    hx-target="#profile-card"
+                    hx-swap="innerHTML"
+                    hx-indicator="#scrape-loading"
+                    class="btn-primary" style="padding:10px 20px;white-space:nowrap;">
+                Analyze
+            </button>
+        </div>
+        <div id="scrape-loading" class="htmx-indicator" style="margin-top:8px;">
+            <span class="text-small" style="color:var(--color-orange);">Analyzing website...</span>
+        </div>
+    </div>
+
+    <!-- Profile Card (populated by HTMX or pre-filled) -->
+    <form method="post" action="/onboard/step/1/save">
+        <div id="profile-card">
+            <div class="surface" style="padding:var(--space-3);border-radius:var(--radius-card);">
+                <div style="display:grid;gap:12px;">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div>
+                            <label class="text-micro" style="color:var(--color-muted);">Company Name *</label>
+                            <input type="text" name="client_name" value="{{ client.client_name or '' }}" required class="field-input" style="width:100%;">
+                        </div>
+                        <div>
+                            <label class="text-micro" style="color:var(--color-muted);">Brand Name *</label>
+                            <input type="text" name="brand_name" value="{{ client.brand_name or '' }}" required class="field-input" style="width:100%;">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-micro" style="color:var(--color-muted);">What does your company do?</label>
+                        <textarea name="company_profile" rows="3" class="field-input" style="width:100%;">{{ client.company_profile or '' }}</textarea>
+                    </div>
+                    <div>
+                        <label class="text-micro" style="color:var(--color-muted);">Industry</label>
+                        <input type="text" name="industry" value="{{ client.industry or '' }}" placeholder="e.g. Cybersecurity, DevOps, Marketing Tech" class="field-input" style="width:100%;">
+                    </div>
+                    <input type="hidden" name="brand_domain" value="{{ client.brand_domain or '' }}">
+                    <input type="hidden" name="value_proposition" value="">
+                </div>
+            </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-top:var(--space-4);">
+            <button type="submit" class="btn-primary" style="padding:12px 32px;">Next →</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

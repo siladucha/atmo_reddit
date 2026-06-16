@@ -393,6 +393,9 @@ class TestCheckAvatarHealth:
             "health_check_comment_lookback_days": "7",
             "health_check_max_failures_before_limited": "3",
             "health_check_max_failures_before_unknown": "5",
+            "external_shadowban_checker_enabled": "",
+            "external_shadowban_checker_url_template": "",
+            "external_shadowban_checker_timeout_seconds": "8",
         }[key]
 
         mock_profile.return_value = ("suspended", "profile_check")
@@ -426,6 +429,9 @@ class TestCheckAvatarHealth:
             "health_check_comment_lookback_days": "7",
             "health_check_max_failures_before_limited": "3",
             "health_check_max_failures_before_unknown": "5",
+            "external_shadowban_checker_enabled": "",
+            "external_shadowban_checker_url_template": "",
+            "external_shadowban_checker_timeout_seconds": "8",
         }[key]
 
         mock_profile.return_value = (None, "profile_check")
@@ -460,6 +466,9 @@ class TestCheckAvatarHealth:
             "health_check_comment_lookback_days": "7",
             "health_check_max_failures_before_limited": "3",
             "health_check_max_failures_before_unknown": "5",
+            "external_shadowban_checker_enabled": "",
+            "external_shadowban_checker_url_template": "",
+            "external_shadowban_checker_timeout_seconds": "8",
         }[key]
 
         mock_profile.return_value = (None, "profile_check")
@@ -489,6 +498,9 @@ class TestCheckAvatarHealth:
             "health_check_comment_lookback_days": "7",
             "health_check_max_failures_before_limited": "3",
             "health_check_max_failures_before_unknown": "5",
+            "external_shadowban_checker_enabled": "",
+            "external_shadowban_checker_url_template": "",
+            "external_shadowban_checker_timeout_seconds": "8",
         }[key]
 
         mock_profile.return_value = (None, "profile_check")
@@ -518,6 +530,9 @@ class TestCheckAvatarHealth:
             "health_check_comment_lookback_days": "7",
             "health_check_max_failures_before_limited": "3",
             "health_check_max_failures_before_unknown": "5",
+            "external_shadowban_checker_enabled": "",
+            "external_shadowban_checker_url_template": "",
+            "external_shadowban_checker_timeout_seconds": "8",
         }[key]
 
         mock_profile.return_value = (None, "profile_check")
@@ -548,6 +563,9 @@ class TestCheckAvatarHealth:
             "health_check_comment_lookback_days": "7",
             "health_check_max_failures_before_limited": "3",
             "health_check_max_failures_before_unknown": "5",
+            "external_shadowban_checker_enabled": "",
+            "external_shadowban_checker_url_template": "",
+            "external_shadowban_checker_timeout_seconds": "8",
         }[key]
 
         mock_profile.side_effect = HealthCheckError("Network timeout")
@@ -577,6 +595,9 @@ class TestCheckAvatarHealth:
             "health_check_comment_lookback_days": "7",
             "health_check_max_failures_before_limited": "3",
             "health_check_max_failures_before_unknown": "5",
+            "external_shadowban_checker_enabled": "",
+            "external_shadowban_checker_url_template": "",
+            "external_shadowban_checker_timeout_seconds": "8",
         }[key]
 
         mock_profile.side_effect = HealthCheckError("Network timeout")
@@ -605,6 +626,9 @@ class TestCheckAvatarHealth:
             "health_check_comment_lookback_days": "7",
             "health_check_max_failures_before_limited": "3",
             "health_check_max_failures_before_unknown": "5",
+            "external_shadowban_checker_enabled": "",
+            "external_shadowban_checker_url_template": "",
+            "external_shadowban_checker_timeout_seconds": "8",
         }[key]
 
         mock_profile.side_effect = HealthCheckError("Network timeout")
@@ -634,6 +658,9 @@ class TestCheckAvatarHealth:
             "health_check_comment_lookback_days": "7",
             "health_check_max_failures_before_limited": "3",
             "health_check_max_failures_before_unknown": "5",
+            "external_shadowban_checker_enabled": "",
+            "external_shadowban_checker_url_template": "",
+            "external_shadowban_checker_timeout_seconds": "8",
         }[key]
 
         mock_profile.return_value = (None, "profile_check")
@@ -662,6 +689,9 @@ class TestCheckAvatarHealth:
             "health_check_comment_lookback_days": "7",
             "health_check_max_failures_before_limited": "3",
             "health_check_max_failures_before_unknown": "5",
+            "external_shadowban_checker_enabled": "",
+            "external_shadowban_checker_url_template": "",
+            "external_shadowban_checker_timeout_seconds": "8",
         }[key]
 
         mock_profile.return_value = (None, "profile_check")
@@ -698,6 +728,9 @@ class TestCheckAvatarHealth:
             "health_check_comment_lookback_days": "7",
             "health_check_max_failures_before_limited": "3",
             "health_check_max_failures_before_unknown": "5",
+            "external_shadowban_checker_enabled": "",
+            "external_shadowban_checker_url_template": "",
+            "external_shadowban_checker_timeout_seconds": "8",
         }[key]
 
         mock_profile.return_value = (None, "profile_check")
@@ -727,6 +760,9 @@ class TestCheckAvatarHealth:
             "health_check_comment_lookback_days": "7",
             "health_check_max_failures_before_limited": "3",
             "health_check_max_failures_before_unknown": "5",
+            "external_shadowban_checker_enabled": "",
+            "external_shadowban_checker_url_template": "",
+            "external_shadowban_checker_timeout_seconds": "8",
         }[key]
 
         mock_profile.side_effect = HealthCheckError("Network timeout")
@@ -756,6 +792,9 @@ class TestCheckAvatarHealth:
             "health_check_comment_lookback_days": "7",
             "health_check_max_failures_before_limited": "3",
             "health_check_max_failures_before_unknown": "5",
+            "external_shadowban_checker_enabled": "",
+            "external_shadowban_checker_url_template": "",
+            "external_shadowban_checker_timeout_seconds": "8",
         }[key]
 
         mock_profile.return_value = (None, "profile_check")
@@ -793,14 +832,20 @@ class TestFlagPendingDraftsForAvatar:
         from app.models.thread import RedditThread
         from app.models.client import Client
 
-        client = Client(name="Test Client", keywords={"high": ["test"]})
+        client = Client(client_name="Test Client", brand_name="TestBrand", keywords={"high": ["test"]})
         db.add(client)
+        db.flush()
+
+        from app.models.subreddit import Subreddit
+        sub = Subreddit(subreddit_name="test_sub")
+        db.add(sub)
         db.flush()
 
         thread = RedditThread(
             subreddit="test_sub",
-            title="Test Thread",
-            reddit_id="abc123",
+            subreddit_id=sub.id,
+            post_title="Test Thread",
+            reddit_native_id="abc123",
             url="https://reddit.com/r/test/abc123",
         )
         db.add(thread)
@@ -836,14 +881,20 @@ class TestFlagPendingDraftsForAvatar:
         from app.models.thread import RedditThread
         from app.models.client import Client
 
-        client = Client(name="Test Client 2", keywords={"high": ["test"]})
+        client = Client(client_name="Test Client 2", brand_name="TestBrand2", keywords={"high": ["test"]})
         db.add(client)
+        db.flush()
+
+        from app.models.subreddit import Subreddit
+        sub = Subreddit(subreddit_name="test_sub2")
+        db.add(sub)
         db.flush()
 
         thread = RedditThread(
             subreddit="test_sub2",
-            title="Test Thread 2",
-            reddit_id="def456",
+            subreddit_id=sub.id,
+            post_title="Test Thread 2",
+            reddit_native_id="def456",
             url="https://reddit.com/r/test/def456",
         )
         db.add(thread)
@@ -897,14 +948,20 @@ class TestFlagPendingDraftsForAvatar:
         from app.models.thread import RedditThread
         from app.models.client import Client
 
-        client = Client(name="Test Client 3", keywords={"high": ["test"]})
+        client = Client(client_name="Test Client 3", brand_name="TestBrand3", keywords={"high": ["test"]})
         db.add(client)
+        db.flush()
+
+        from app.models.subreddit import Subreddit
+        sub = Subreddit(subreddit_name="test_sub3")
+        db.add(sub)
         db.flush()
 
         thread = RedditThread(
             subreddit="test_sub3",
-            title="Test Thread 3",
-            reddit_id="ghi789",
+            subreddit_id=sub.id,
+            post_title="Test Thread 3",
+            reddit_native_id="ghi789",
             url="https://reddit.com/r/test/ghi789",
         )
         db.add(thread)

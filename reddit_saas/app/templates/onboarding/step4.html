@@ -1,0 +1,44 @@
+{% extends "client_base.html" %}
+{% block title %}Onboarding — Voice & Guardrails{% endblock %}
+
+{% block content %}
+<div style="max-width:700px;margin:0 auto;padding:var(--space-4) var(--space-3);">
+    {% include "onboarding/progress.html" %}
+
+    <h1 class="text-h1" style="margin-bottom:8px;">Voice & guardrails</h1>
+    <p class="text-small" style="color:var(--color-muted);margin-bottom:var(--space-4);">These rules protect your brand. The AI will never cross these lines.</p>
+
+    <form method="post" action="/onboard/step/4/save">
+        <div style="display:flex;flex-direction:column;gap:var(--space-3);">
+            <div class="surface" style="padding:var(--space-3);">
+                <label style="color:var(--color-white);font-weight:500;font-size:var(--text-body);display:block;margin-bottom:8px;">What 3 things should your brand NEVER be associated with on Reddit?</label>
+                <p class="text-micro" style="color:var(--color-muted);margin-bottom:8px;">Topics, sentiments, or associations that are off-limits</p>
+                <textarea name="never_associated" rows="2" class="field-input" style="width:100%;" placeholder="e.g. Hacking tutorials, black hat activity, vendor bashing">{{ (client.brand_voice or '').split('NEVER associated with: ')[-1].split('\n')[0] if 'NEVER' in (client.brand_voice or '') else '' }}</textarea>
+            </div>
+
+            <div class="surface" style="padding:var(--space-3);">
+                <label style="color:var(--color-white);font-weight:500;font-size:var(--text-body);display:block;margin-bottom:8px;">Any claims you legally cannot make?</label>
+                <p class="text-micro" style="color:var(--color-muted);margin-bottom:8px;">Regulatory limits, unproven claims, competitor comparisons you can't back up</p>
+                <textarea name="legal_limits" rows="2" class="field-input" style="width:100%;" placeholder="e.g. Cannot claim '100% breach prevention', cannot name specific customer deployments without approval"></textarea>
+            </div>
+
+            <div class="surface" style="padding:var(--space-3);">
+                <label style="color:var(--color-white);font-weight:500;font-size:var(--text-body);display:block;margin-bottom:8px;">Is there a brand, person, or publication whose communication style you admire?</label>
+                <p class="text-micro" style="color:var(--color-muted);margin-bottom:8px;">This helps calibrate the avatar's tone</p>
+                <textarea name="admired_style" rows="2" class="field-input" style="width:100%;" placeholder="e.g. Krebs on Security — direct, technical, no-BS. Or: how Datadog does developer marketing."></textarea>
+            </div>
+
+            <div class="surface" style="padding:var(--space-3);">
+                <label style="color:var(--color-white);font-weight:500;font-size:var(--text-body);display:block;margin-bottom:8px;">Describe your brand voice (optional)</label>
+                <p class="text-micro" style="color:var(--color-muted);margin-bottom:8px;">How should your avatars sound? Formal/casual, technical/accessible, opinionated/neutral?</p>
+                <textarea name="brand_voice" rows="3" class="field-input" style="width:100%;" placeholder="e.g. Expert, direct, slightly cynical. Anti-hype, anti-vendor-speak. Focus on what actually reduces risk.">{{ client.brand_voice or '' }}</textarea>
+            </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;margin-top:var(--space-4);">
+            <a href="/onboard/step/3" class="btn-ghost" style="padding:12px 24px;">← Back</a>
+            <button type="submit" class="btn-primary" style="padding:12px 32px;">Next →</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -198,6 +198,7 @@ class TestLearningLoopEndToEnd:
         mock_draft.ai_draft = ai_draft_text
         mock_draft.edited_draft = edited_draft_text
         mock_draft.engagement_mode = "helpful_peer"
+        mock_draft.original_ai_draft = None
 
         mock_thread = MagicMock()
         mock_thread.subreddit = "cybersecurity"
@@ -498,6 +499,7 @@ class TestLearningLoopEndToEnd:
         mock_draft.ai_draft = ai_draft_text
         mock_draft.edited_draft = edited_draft_text
         mock_draft.engagement_mode = "helpful_peer"
+        mock_draft.original_ai_draft = None
 
         mock_thread = MagicMock()
         mock_thread.subreddit = "cybersecurity"

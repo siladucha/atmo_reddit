@@ -1,0 +1,103 @@
+{% extends "client_base.html" %}
+{% block title %}Onboarding — Review & Activate{% endblock %}
+
+{% block content %}
+<div style="max-width:700px;margin:0 auto;padding:var(--space-4) var(--space-3);">
+    {% include "onboarding/progress.html" %}
+
+    <h1 class="text-h1" style="margin-bottom:8px;">Review & activate</h1>
+    <p class="text-small" style="color:var(--color-muted);margin-bottom:var(--space-4);">Review everything before we start building your Reddit presence. Click any section to edit.</p>
+
+    {% if error %}
+    <div style="background:rgba(229,57,53,0.1);border:1px solid var(--color-red);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-3);">
+        <p style="color:var(--color-red);font-size:var(--text-small);">{{ error }}</p>
+    </div>
+    {% endif %}
+
+    {% if quality and not quality.can_activate %}
+    <div style="background:rgba(229,57,53,0.1);border:1px solid var(--color-red);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-3);">
+        <p style="color:var(--color-red);font-size:var(--text-small);font-weight:600;margin-bottom:4px;">Cannot activate yet — missing required information:</p>
+        <ul style="color:var(--color-red);font-size:var(--text-small);padding-left:16px;">
+            {% for field in quality.missing %}
+            <li>{{ field }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <!-- Review sections -->
+    <div style="display:flex;flex-direction:column;gap:var(--space-3);">
+        <!-- Company Profile -->
+        <div class="surface" style="padding:var(--space-3);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <h3 class="text-h3">Company Profile</h3>
+                <a href="/onboard/step/1" style="color:var(--color-orange);font-size:var(--text-small);text-decoration:none;">Edit →</a>
+            </div>
+            <p style="color:var(--color-white);font-size:var(--text-small);"><strong>{{ client.client_name }}</strong> ({{ client.brand_name }})</p>
+            {% if client.company_profile %}
+            <p style="color:var(--color-muted);font-size:var(--text-small);margin-top:4px;">{{ client.company_profile[:200] }}{% if client.company_profile|length > 200 %}...{% endif %}</p>
+            {% endif %}
+            {% if client.industry %}<p style="color:var(--color-muted);font-size:var(--text-micro);margin-top:4px;">Industry: {{ client.industry }}</p>{% endif %}
+        </div>
+
+        <!-- Problem & Positioning -->
+        <div class="surface" style="padding:var(--space-3);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <h3 class="text-h3">Problem & Positioning</h3>
+                <a href="/onboard/step/2" style="color:var(--color-orange);font-size:var(--text-small);text-decoration:none;">Edit →</a>
+            </div>
+            {% if client.company_worldview %}<p style="color:var(--color-muted);font-size:var(--text-small);">{{ client.company_worldview[:150] }}{% if client.company_worldview|length > 150 %}...{% endif %}</p>{% endif %}
+            {% if client.competitive_landscape %}<p style="color:var(--color-muted);font-size:var(--text-micro);margin-top:4px;">Competitors: {{ client.competitive_landscape[:100] }}</p>{% endif %}
+        </div>
+
+        <!-- ICP -->
+        <div class="surface" style="padding:var(--space-3);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <h3 class="text-h3">Ideal Customer</h3>
+                <a href="/onboard/step/3" style="color:var(--color-orange);font-size:var(--text-small);text-decoration:none;">Edit →</a>
+            </div>
+            {% if client.icp_profiles %}<p style="color:var(--color-muted);font-size:var(--text-small);">{{ client.icp_profiles[:200] }}{% if client.icp_profiles|length > 200 %}...{% endif %}</p>{% endif %}
+        </div>
+
+        <!-- Voice & Guardrails -->
+        <div class="surface" style="padding:var(--space-3);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <h3 class="text-h3">Voice & Guardrails</h3>
+                <a href="/onboard/step/4" style="color:var(--color-orange);font-size:var(--text-small);text-decoration:none;">Edit →</a>
+            </div>
+            {% if client.brand_voice %}<p style="color:var(--color-muted);font-size:var(--text-small);">{{ client.brand_voice[:150] }}{% if client.brand_voice|length > 150 %}...{% endif %}</p>{% endif %}
+        </div>
+
+        <!-- Keywords & Subreddits -->
+        <div class="surface" style="padding:var(--space-3);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <h3 class="text-h3">Keywords & Subreddits</h3>
+                <a href="/onboard/step/5" style="color:var(--color-orange);font-size:var(--text-small);text-decoration:none;">Edit →</a>
+            </div>
+            {% set kw_count = 0 %}
+            {% if client.keywords %}{% for tier, kws in client.keywords.items() %}{% if kws is iterable %}{% set kw_count = kw_count + kws|length %}{% endif %}{% endfor %}{% endif %}
+            <p style="color:var(--color-muted);font-size:var(--text-small);">{{ kw_count }} keywords · {{ subreddit_count }} subreddits</p>
+        </div>
+    </div>
+
+    <!-- Activate button -->
+    <form method="post" action="/onboard/step/6/activate" style="margin-top:var(--space-4);">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <a href="/onboard/step/5" class="btn-ghost" style="padding:12px 24px;">← Back</a>
+            {% if quality and quality.can_activate %}
+            <button type="submit" class="btn-primary" style="padding:14px 40px;font-size:var(--text-body);font-weight:700;">
+                Start Building Your Presence
+            </button>
+            {% else %}
+            <button type="button" disabled style="padding:14px 40px;font-size:var(--text-body);font-weight:700;background:var(--color-surface-alt);color:var(--color-muted);border:none;border-radius:var(--radius-input);cursor:not-allowed;">
+                Complete required fields first
+            </button>
+            {% endif %}
+        </div>
+    </form>
+
+    {% if quality and quality.warnings %}
+    <p style="color:var(--color-muted);font-size:var(--text-micro);margin-top:12px;text-align:center;">Optional fields not filled: {{ quality.warnings|join(', ') }}. You can add these later from Settings.</p>
+    {% endif %}
+</div>
+{% endblock %}

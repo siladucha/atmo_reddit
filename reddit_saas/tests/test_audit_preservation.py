@@ -371,19 +371,20 @@ class TestQuerySemanticsPreservation:
         user_id = _create_user(db)
         _seed_audit_logs(db, user_id, count=8)
 
-        # Get total from first page
-        _, total = query_audit_logs(db=db, page=1, per_page=per_page)
+        # Use user_id filter to scope to seeded data only (avoid shared DB noise)
+        _, total = query_audit_logs(db=db, page=1, per_page=per_page, user_id=user_id)
 
         # Collect all entries across pages
         all_entries = []
         page = 1
+        max_pages = (total // per_page) + 2
         while True:
-            entries, _ = query_audit_logs(db=db, page=page, per_page=per_page)
+            entries, _ = query_audit_logs(db=db, page=page, per_page=per_page, user_id=user_id)
             if not entries:
                 break
             all_entries.extend(entries)
             page += 1
-            if page > 100:  # Safety limit
+            if page > max_pages:
                 break
 
         assert len(all_entries) == total

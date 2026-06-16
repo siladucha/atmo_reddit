@@ -1,0 +1,49 @@
+{# Keyword priority legend — reusable tooltip/info block.
+   Include anywhere keywords with priorities are displayed.
+   Supports both dark theme (admin) and light theme (client portal) via the
+   optional `theme` variable. Default: "dark". Pass theme="light" for portal. #}
+{% set _theme = theme | default("dark") %}
+
+{% if _theme == "light" %}
+{# --- Client Portal (light theme) --- #}
+<div class="keyword-priority-legend" style="position:relative;display:inline-block;margin-left:8px;vertical-align:middle;">
+    <button type="button"
+            onclick="this.nextElementSibling.classList.toggle('hidden')"
+            style="background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:11px;color:#818cf8;font-weight:600;"
+            title="What do priority levels mean?">?</button>
+    <div class="hidden"
+         style="position:absolute;top:28px;left:0;z-index:50;width:340px;background:var(--color-surface, #1A1A2E);border:1px solid var(--color-border, #2E2E4A);border-radius:8px;padding:12px 16px;box-shadow:0 8px 24px rgba(0,0,0,0.4);">
+        <p style="font-size:11px;font-weight:600;color:var(--color-white, #fff);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em;">Priority Levels</p>
+        <div style="display:flex;flex-direction:column;gap:6px;font-size:12px;line-height:1.4;">
+            <div><span style="color:#f87171;font-weight:600;">HIGH</span><span style="color:var(--color-muted, #94a3b8);"> — Core terms. Always scored. Weight 3.0</span></div>
+            <div><span style="color:#fbbf24;font-weight:600;">MEDIUM</span><span style="color:var(--color-muted, #94a3b8);"> — Adjacent topics. Always scored. Weight 2.0</span></div>
+            <div><span style="color:#34d399;font-weight:600;">LOW</span><span style="color:var(--color-muted, #94a3b8);"> — Peripheral. Scored only if thread has engagement. Weight 1.0</span></div>
+            <div><span style="color:#c084fc;font-weight:600;">COMPETITOR</span><span style="color:var(--color-muted, #94a3b8);"> — Rival brands. Prioritized for strategic response. Weight 2.5</span></div>
+        </div>
+        <p style="font-size:11px;color:var(--color-muted, #94a3b8);margin-top:8px;border-top:1px solid var(--color-border, #2E2E4A);padding-top:8px;">
+            Threads with no keyword match are skipped (no AI cost).
+        </p>
+    </div>
+</div>
+
+{% else %}
+{# --- Admin (dark theme) --- #}
+<div class="keyword-priority-legend relative inline-block ml-2 align-middle">
+    <button type="button"
+            onclick="this.nextElementSibling.classList.toggle('hidden')"
+            class="w-5 h-5 rounded-full bg-slate-700 border border-slate-600 text-gray-400 hover:text-white hover:border-indigo-500 text-[11px] font-semibold inline-flex items-center justify-center cursor-pointer transition-colors"
+            title="What do priority levels mean?">?</button>
+    <div class="hidden absolute top-7 left-0 z-50 w-[340px] bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl">
+        <p class="text-[10px] font-semibold text-gray-300 uppercase tracking-wider mb-2">Priority Levels</p>
+        <div class="space-y-1.5 text-xs leading-relaxed">
+            <div><span class="text-red-400 font-semibold">HIGH</span><span class="text-gray-400"> — Core terms. Always scored. Weight 3.0</span></div>
+            <div><span class="text-amber-400 font-semibold">MEDIUM</span><span class="text-gray-400"> — Adjacent topics. Always scored. Weight 2.0</span></div>
+            <div><span class="text-emerald-400 font-semibold">LOW</span><span class="text-gray-400"> — Peripheral. Scored only if thread has engagement. Weight 1.0</span></div>
+            <div><span class="text-purple-400 font-semibold">COMPETITOR</span><span class="text-gray-400"> — Rival brands. Prioritized for strategic response. Weight 2.5</span></div>
+        </div>
+        <p class="text-[11px] text-gray-500 mt-2 pt-2 border-t border-slate-700">
+            Threads with no keyword match are skipped (no AI cost).
+        </p>
+    </div>
+</div>
+{% endif %}

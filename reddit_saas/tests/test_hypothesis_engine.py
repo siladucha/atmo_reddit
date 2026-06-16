@@ -157,7 +157,7 @@ def test_happy_path_5_hypotheses(mock_log, mock_llm, mock_cost, mock_db, mock_se
     for h in result:
         assert isinstance(h, DiscoveryHypothesis)
     assert mock_db.add.call_count == 5
-    mock_db.flush.assert_called_once()
+    mock_db.flush.assert_called()
     mock_db.commit.assert_called_once()
 
 

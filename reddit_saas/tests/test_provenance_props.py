@@ -211,15 +211,19 @@ def test_property_11_generation_provenance_storage(
     (b) Text of all applied CorrectionPatterns (rule_text values)
     (c) A learning_token_count integer >= 0
     """
-    # Create mock objects
-    examples = [make_mock_edit_record(data) for data in record_data_list]
-    patterns = [make_mock_correction_pattern(data) for data in pattern_data_list]
-
     # Set up mocks
     client = make_mock_client()
     avatar = make_mock_avatar(client.id)
     thread = make_mock_thread()
     db = make_mock_db()
+
+    # Create mock objects — assign correct client_id for isolation checks
+    examples = [make_mock_edit_record(data) for data in record_data_list]
+    for ex in examples:
+        ex.client_id = client.id
+    patterns = [make_mock_correction_pattern(data) for data in pattern_data_list]
+    for pat in patterns:
+        pat.client_id = client.id
 
     # Mock LLM response
     mock_llm_response = {

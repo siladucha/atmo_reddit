@@ -368,10 +368,10 @@ def test_audit_log_readonly(admin_client):
 
 
 def test_billing_placeholder(admin_client):
-    """Billing page shows 'Coming Soon'."""
+    """Billing page renders successfully."""
     r = admin_client.get("/admin/billing")
     assert r.status_code == 200
-    assert "Coming Soon" in r.text
+    assert "Billing" in r.text
 
 
 def test_seed_neuroyoga(db):
