@@ -5,7 +5,7 @@ Reddit API calls with rate limiting (up to 120 seconds total).
 Progress is tracked in session_metadata for HTMX polling.
 """
 
-import logging
+from app.logging_config import get_logger
 import time
 import uuid
 
@@ -18,7 +18,7 @@ from app.services.discovery.confidence_scorer import score_hypothesis
 from app.services.discovery.reddit_researcher import research_hypothesis
 from app.tasks.worker import celery_app
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 TOTAL_TIMEOUT = 120  # Max seconds for all hypotheses in one iteration
 

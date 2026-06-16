@@ -64,14 +64,17 @@ def geo_main_page(
         .all()
     )
 
-    return templates.TemplateResponse("admin_geo.html", {
-        "request": request,
-        "user": current_user,
-        "client": client,
-        "prompts": prompts,
-        "competitors": competitors,
-        "batches": batches,
-    })
+    return templates.TemplateResponse(
+        request,
+        "admin_geo.html",
+        {
+            "user": current_user,
+            "client": client,
+            "prompts": prompts,
+            "competitors": competitors,
+            "batches": batches,
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -93,11 +96,14 @@ def get_prompts_partial(
         .order_by(desc(GeoPrompt.created_at))
         .all()
     )
-    return templates.TemplateResponse("partials/geo_prompts.html", {
-        "request": request,
-        "prompts": prompts,
-        "client_id": str(client_id),
-    })
+    return templates.TemplateResponse(
+        request,
+        "partials/geo_prompts.html",
+        {
+            "prompts": prompts,
+            "client_id": str(client_id),
+        },
+    )
 
 
 @router.post("/{client_id}/geo/prompts", response_class=HTMLResponse)
@@ -159,11 +165,14 @@ def create_prompt(
         .order_by(desc(GeoPrompt.created_at))
         .all()
     )
-    return templates.TemplateResponse("partials/geo_prompts.html", {
-        "request": request,
-        "prompts": prompts,
-        "client_id": str(client_id),
-    })
+    return templates.TemplateResponse(
+        request,
+        "partials/geo_prompts.html",
+        {
+            "prompts": prompts,
+            "client_id": str(client_id),
+        },
+    )
 
 
 @router.post("/{client_id}/geo/prompts/{prompt_id}/toggle", response_class=HTMLResponse)
@@ -198,11 +207,14 @@ def toggle_prompt(
         .order_by(desc(GeoPrompt.created_at))
         .all()
     )
-    return templates.TemplateResponse("partials/geo_prompts.html", {
-        "request": request,
-        "prompts": prompts,
-        "client_id": str(client_id),
-    })
+    return templates.TemplateResponse(
+        request,
+        "partials/geo_prompts.html",
+        {
+            "prompts": prompts,
+            "client_id": str(client_id),
+        },
+    )
 
 
 @router.delete("/{client_id}/geo/prompts/{prompt_id}", response_class=HTMLResponse)
@@ -236,11 +248,14 @@ def delete_prompt(
         .order_by(desc(GeoPrompt.created_at))
         .all()
     )
-    return templates.TemplateResponse("partials/geo_prompts.html", {
-        "request": request,
-        "prompts": prompts,
-        "client_id": str(client_id),
-    })
+    return templates.TemplateResponse(
+        request,
+        "partials/geo_prompts.html",
+        {
+            "prompts": prompts,
+            "client_id": str(client_id),
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -262,11 +277,14 @@ def get_competitors_partial(
         .order_by(desc(GeoCompetitor.created_at))
         .all()
     )
-    return templates.TemplateResponse("partials/geo_competitors.html", {
-        "request": request,
-        "competitors": competitors,
-        "client_id": str(client_id),
-    })
+    return templates.TemplateResponse(
+        request,
+        "partials/geo_competitors.html",
+        {
+            "competitors": competitors,
+            "client_id": str(client_id),
+        },
+    )
 
 
 @router.post("/{client_id}/geo/competitors", response_class=HTMLResponse)
@@ -330,11 +348,14 @@ def create_competitor(
         .order_by(desc(GeoCompetitor.created_at))
         .all()
     )
-    return templates.TemplateResponse("partials/geo_competitors.html", {
-        "request": request,
-        "competitors": competitors,
-        "client_id": str(client_id),
-    })
+    return templates.TemplateResponse(
+        request,
+        "partials/geo_competitors.html",
+        {
+            "competitors": competitors,
+            "client_id": str(client_id),
+        },
+    )
 
 
 @router.post("/{client_id}/geo/competitors/{comp_id}/toggle", response_class=HTMLResponse)
@@ -369,11 +390,14 @@ def toggle_competitor(
         .order_by(desc(GeoCompetitor.created_at))
         .all()
     )
-    return templates.TemplateResponse("partials/geo_competitors.html", {
-        "request": request,
-        "competitors": competitors,
-        "client_id": str(client_id),
-    })
+    return templates.TemplateResponse(
+        request,
+        "partials/geo_competitors.html",
+        {
+            "competitors": competitors,
+            "client_id": str(client_id),
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -396,11 +420,14 @@ def get_history_partial(
         .limit(20)
         .all()
     )
-    return templates.TemplateResponse("partials/geo_history.html", {
-        "request": request,
-        "batches": batches,
-        "client_id": str(client_id),
-    })
+    return templates.TemplateResponse(
+        request,
+        "partials/geo_history.html",
+        {
+            "batches": batches,
+            "client_id": str(client_id),
+        },
+    )
 
 
 @router.get("/{client_id}/geo/batch/{batch_id}", response_class=HTMLResponse)
@@ -434,13 +461,16 @@ def get_batch_detail(
         prompts_list = db.query(GeoPrompt).filter(GeoPrompt.id.in_(prompt_ids)).all()
         prompts_map = {p.id: p for p in prompts_list}
 
-    return templates.TemplateResponse("partials/geo_batch_detail.html", {
-        "request": request,
-        "batch": batch,
-        "metrics": metrics,
-        "prompts_map": prompts_map,
-        "client_id": str(client_id),
-    })
+    return templates.TemplateResponse(
+        request,
+        "partials/geo_batch_detail.html",
+        {
+            "batch": batch,
+            "metrics": metrics,
+            "prompts_map": prompts_map,
+            "client_id": str(client_id),
+        },
+    )
 
 
 @router.post("/{client_id}/geo/run-now", response_class=HTMLResponse)
@@ -482,11 +512,14 @@ def run_now(
         .limit(20)
         .all()
     )
-    return templates.TemplateResponse("partials/geo_history.html", {
-        "request": request,
-        "batches": batches,
-        "client_id": str(client_id),
-    })
+    return templates.TemplateResponse(
+        request,
+        "partials/geo_history.html",
+        {
+            "batches": batches,
+            "client_id": str(client_id),
+        },
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -9,7 +9,7 @@ Handles three scenarios:
 Stateless service — callable from UI handoff button or automated strategy review.
 """
 
-import logging
+from app.logging_config import get_logger
 import uuid
 from datetime import datetime, timezone
 
@@ -20,7 +20,7 @@ from app.models.client import Client
 from app.models.discovery_session import DiscoverySession
 from app.models.subreddit import ClientSubredditAssignment, Subreddit
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def prepare_handoff_context(session: DiscoverySession) -> dict:

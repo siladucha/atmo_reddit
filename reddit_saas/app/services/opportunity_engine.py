@@ -15,7 +15,7 @@ Scoring dimensions:
 from __future__ import annotations
 
 import json
-import logging
+from app.logging_config import get_logger
 import math
 import uuid
 from dataclasses import dataclass, field
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from app.models.thread import RedditThread
     from app.models.thread_score import ThreadScore
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------

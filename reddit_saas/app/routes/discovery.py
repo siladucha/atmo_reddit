@@ -5,7 +5,7 @@ UI is HTMX-driven: single session page with partial swaps for each step.
 """
 
 import uuid
-import logging
+from app.logging_config import get_logger
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -26,7 +26,7 @@ from app.services.discovery.session_manager import SessionManager
 from app.services.discovery.strategy_handoff import execute_handoff, prepare_handoff_context
 from app.tasks.discovery import research_hypotheses_task
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/admin/discovery", tags=["discovery"])
 templates = Jinja2Templates(directory="app/templates")

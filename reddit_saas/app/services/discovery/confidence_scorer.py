@@ -21,13 +21,13 @@ The caller is responsible for updating the hypothesis record.
 
 from __future__ import annotations
 
-import logging
+from app.logging_config import get_logger
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.models.discovery_hypothesis import DiscoveryHypothesis
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # --- Constants ---
 BASE_SCORE = 50

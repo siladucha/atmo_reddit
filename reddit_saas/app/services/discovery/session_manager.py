@@ -7,7 +7,7 @@ Provides both module-level functions and a SessionManager class for backward
 compatibility with existing route handlers.
 """
 
-import logging
+from app.logging_config import get_logger
 import math
 import uuid
 from datetime import datetime, timezone
@@ -21,7 +21,7 @@ from app.models.discovery_hypothesis import DiscoveryHypothesis
 from app.models.discovery_session import DiscoverySession
 from app.models.visibility_report import VisibilityReport
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 MAX_ITERATIONS = 5
 MIN_BRIEF_LENGTH = 50

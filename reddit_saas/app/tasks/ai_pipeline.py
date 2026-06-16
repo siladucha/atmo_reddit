@@ -526,6 +526,14 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
             except Exception:
                 logger.exception("Failed to record generate activity event")
 
+            # Notify client (real-time)
+            if generated > 0:
+                try:
+                    from app.services.task_notifications import notify_pipeline_complete
+                    notify_pipeline_complete(client_id, drafts_count=generated)
+                except Exception:
+                    pass
+
             return generated
 
         except Exception as exc:

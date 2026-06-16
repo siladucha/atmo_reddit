@@ -67,6 +67,7 @@
             <h2 class="text-lg font-medium text-white">
                 Keywords
                 <span class="text-sm text-gray-400 font-normal">({{ keywords|length }})</span>
+                {% include "partials/keyword_priority_legend.html" %}
             </h2>
             <a href="/admin/clients/{{ client.id }}/onboard/step/3" class="text-indigo-400 hover:text-indigo-300 text-sm">Edit</a>
         </div>
@@ -74,6 +75,7 @@
         {% set high_kws = keywords|selectattr("priority", "equalto", "HIGH")|list %}
         {% set medium_kws = keywords|selectattr("priority", "equalto", "MEDIUM")|list %}
         {% set low_kws = keywords|selectattr("priority", "equalto", "LOW")|list %}
+        {% set competitor_kws = keywords|selectattr("priority", "equalto", "COMPETITOR")|list %}
         <div class="space-y-2 text-sm">
             {% if high_kws %}
             <div>
@@ -91,6 +93,12 @@
             <div>
                 <span class="text-gray-400 font-medium">LOW ({{ low_kws|length }}):</span>
                 <span class="text-gray-300">{{ low_kws|map(attribute='name')|join(', ') }}</span>
+            </div>
+            {% endif %}
+            {% if competitor_kws %}
+            <div>
+                <span class="text-purple-400 font-medium">COMPETITOR ({{ competitor_kws|length }}):</span>
+                <span class="text-gray-300">{{ competitor_kws|map(attribute='name')|join(', ') }}</span>
             </div>
             {% endif %}
         </div>

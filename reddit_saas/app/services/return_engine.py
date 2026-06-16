@@ -21,7 +21,7 @@ Scoring dimensions:
 
 from __future__ import annotations
 
-import logging
+from app.logging_config import get_logger
 import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from app.models.opportunity import Opportunity
     from app.services.portfolio_manager import ReturnWeights
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------

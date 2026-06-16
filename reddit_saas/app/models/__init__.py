@@ -35,6 +35,9 @@ from app.models.decision_record import DecisionRecord
 from app.models.zero_day_report import ZeroDayReport
 from app.models.performance_metric import PerformanceMetric
 from app.models.karma_snapshot import KarmaSnapshot
+from app.models.client_action_log import ClientActionLog
+from app.models.voice_feedback import VoiceFeedback
+from app.models.subreddit_request import SubredditRequest
 
 __all__ = [
     "User",
@@ -76,6 +79,9 @@ __all__ = [
     "ZeroDayReport",
     "PerformanceMetric",
     "KarmaSnapshot",
+    "ClientActionLog",
+    "VoiceFeedback",
+    "SubredditRequest",
     "GeoPrompt",
     "GeoCompetitor",
     "GeoExecutionBatch",
@@ -87,3 +93,4 @@ __all__ = [
 from app.models.geo_prompt import GeoPrompt
 from app.models.geo_competitor import GeoCompetitor
 from app.models.geo_execution import GeoExecutionBatch, GeoQueryResult, GeoFrequencyMetric
+from app.models.notification import Notification

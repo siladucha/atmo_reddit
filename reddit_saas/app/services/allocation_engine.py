@@ -22,7 +22,7 @@ Requirements: 5.1, 5.4, 5.5, 5.6, 5.7
 
 from __future__ import annotations
 
-import logging
+from app.logging_config import get_logger
 import math
 import uuid
 from dataclasses import dataclass, field
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from app.services.return_engine import ExpectedReturn
     from app.services.risk_engine import RiskAssessment
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------

@@ -10,7 +10,9 @@
 {% block content %}
 <div class="max-w-3xl mx-auto">
     <h1 class="text-2xl font-semibold text-white mb-2">Client Onboarding</h1>
-    <p class="text-gray-400 text-sm mb-6">Step {{ step }} of {{ total_steps }} — Keyword Setup</p>
+    <p class="text-gray-400 text-sm mb-6">Step {{ step }} of {{ total_steps }} — Keyword Setup
+        {% include "partials/keyword_priority_legend.html" %}
+    </p>
 
     {% include "partials/wizard_progress.html" %}
 
@@ -34,6 +36,7 @@
                     <option value="HIGH">HIGH</option>
                     <option value="MEDIUM" selected>MEDIUM</option>
                     <option value="LOW">LOW</option>
+                    <option value="COMPETITOR">COMPETITOR</option>
                 </select>
             </div>
             <button type="submit"
@@ -58,6 +61,7 @@
                     <span class="px-2 py-0.5 rounded text-xs font-medium
                           {% if kw.priority == 'HIGH' %}bg-red-900/50 text-red-400 border border-red-700
                           {% elif kw.priority == 'MEDIUM' %}bg-amber-900/50 text-amber-400 border border-amber-700
+                          {% elif kw.priority == 'COMPETITOR' %}bg-purple-900/50 text-purple-400 border border-purple-700
                           {% else %}bg-slate-700 text-gray-400 border border-slate-600{% endif %}">
                         {{ kw.priority }}
                     </span>

@@ -250,12 +250,21 @@ def create_demo_session(
     """
     now = datetime.now(timezone.utc)
 
+    # Reuse existing CyberShield (Demo) client if one exists (prevent duplicates)
+    from app.models.client import Client
+    existing_demo_client = (
+        db.query(Client)
+        .filter(Client.client_name == "CyberShield (Demo)")
+        .first()
+    )
+    demo_client_id = existing_demo_client.id if existing_demo_client else None
+
     # Create session
     session = DiscoverySession(
         operator_user_id=operator_user_id,
         client_brief=DEMO_BRIEF.strip(),
         prospect_name="CyberShield (Demo)",
-        client_id=None,
+        client_id=demo_client_id,
         status="completed",
         current_iteration=2,
         completed_at=now,

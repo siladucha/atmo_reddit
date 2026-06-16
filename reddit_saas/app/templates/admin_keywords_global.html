@@ -15,7 +15,9 @@
 <div class="space-y-6">
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-semibold text-white">Keywords</h1>
+            <h1 class="text-2xl font-semibold text-white">Keywords
+                {% include "partials/keyword_priority_legend.html" %}
+            </h1>
             <p class="text-sm text-gray-400 mt-1">Keyword performance analytics. Showing match data from the last 90 days.</p>
         </div>
     </div>
@@ -85,6 +87,7 @@
                             <span class="px-2 py-0.5 rounded text-xs font-medium
                                   {% if kw.priority == 'HIGH' %}bg-red-900/50 text-red-400 border border-red-700
                                   {% elif kw.priority == 'MEDIUM' %}bg-amber-900/50 text-amber-400 border border-amber-700
+                                  {% elif kw.priority == 'COMPETITOR' %}bg-purple-900/50 text-purple-400 border border-purple-700
                                   {% else %}bg-emerald-900/50 text-emerald-400 border border-emerald-700{% endif %}">
                                 {{ kw.priority }}
                             </span>

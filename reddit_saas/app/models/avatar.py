@@ -19,6 +19,11 @@ class Avatar(Base):
     email_address: Mapped[str | None] = mapped_column(String(255), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
+
+    # Client-facing persona (hidden: reddit_username, raw karma from client view)
+    display_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    persona_bio: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     # Pool & industry classification
     pool: Mapped[str] = mapped_column(String(20), default="b2b", server_default="b2b", nullable=False)
     industry: Mapped[str | None] = mapped_column(String(100), nullable=True)

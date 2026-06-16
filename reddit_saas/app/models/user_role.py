@@ -87,6 +87,13 @@ class UserRole(str, Enum):
         return self in (UserRole.owner, UserRole.partner)
 
     @property
+    def can_trigger_client_pipeline(self) -> bool:
+        """Returns True for roles that can trigger rate-limited pipeline from client portal."""
+        return self in (
+            UserRole.owner, UserRole.partner, UserRole.client_admin, UserRole.client_manager
+        )
+
+    @property
     def can_view_all_clients(self) -> bool:
         """Returns True for roles that can see all clients (not scoped to one)."""
         return self in (UserRole.owner, UserRole.partner, UserRole.qa)

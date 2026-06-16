@@ -228,6 +228,11 @@
             <div class="text-sm text-gray-400" title="Reddit accounts assigned to this client for posting comments. Each avatar has its own voice, persona, and warming phase.">Avatars</div>
             <div class="text-xl font-mono text-white mt-1">{{ avatars|length }}</div>
         </a>
+        <a href="/admin/clients/{{ client.id }}/geo"
+           class="bg-dark-steel rounded-lg border border-slate-700 p-4 hover:border-indigo-500 transition-colors">
+            <div class="text-sm text-gray-400" title="GEO/AEO Prompt Monitoring — track brand visibility in AI-generated answers (Perplexity, ChatGPT, Gemini).">GEO Monitoring</div>
+            <div class="text-xl font-mono text-white mt-1">{{ '●' if client.geo_monitoring_enabled else '○' }}</div>
+        </a>
     </div>
 
     <!-- Assigned Avatars -->

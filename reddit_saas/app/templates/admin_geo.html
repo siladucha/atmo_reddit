@@ -12,9 +12,15 @@
 <div class="max-w-7xl mx-auto">
     <!-- Header -->
     <div class="flex items-center justify-between mb-6">
-        <div>
-            <h1 class="text-2xl font-bold text-white">GEO/AEO Prompt Monitoring</h1>
-            <p class="text-gray-400 text-sm mt-1">{{ client.brand_name }} — Brand visibility in AI responses</p>
+        <div class="flex items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-white">GEO/AEO Prompt Monitoring</h1>
+                <p class="text-gray-400 text-sm mt-1">{{ client.brand_name }} — Brand visibility in AI responses</p>
+            </div>
+            <button onclick="document.getElementById('geo-manual').classList.toggle('hidden')"
+                    class="text-xs text-gray-400 hover:text-white border border-slate-600 rounded-lg px-2.5 py-1.5 transition-colors self-start mt-1">
+                ? Guide
+            </button>
         </div>
         <div class="flex items-center gap-3">
             <!-- GEO toggle -->
@@ -34,6 +40,86 @@
                 ▶ Run Now
             </button>
             <span id="run-spinner" class="htmx-indicator text-gray-400 text-sm">Running...</span>
+        </div>
+    </div>
+
+    <!-- Inline Manual (hidden by default) -->
+    <div id="geo-manual" class="hidden mb-6 bg-slate-800/60 rounded-lg border border-slate-700 p-5">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-white uppercase tracking-wide">Quick Guide — GEO/AEO Monitoring</h3>
+            <button onclick="document.getElementById('geo-manual').classList.add('hidden')"
+                    class="text-gray-500 hover:text-white text-lg leading-none">&times;</button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5 text-sm text-gray-300">
+            <!-- What is this -->
+            <div>
+                <h4 class="text-white font-medium mb-1.5">What is this?</h4>
+                <p class="text-gray-400 leading-relaxed">
+                    This tool measures how often <strong class="text-gray-200">{{ client.brand_name }}</strong> appears
+                    in AI search engine responses (Perplexity, Google AI Overviews, ChatGPT).
+                    It sends buyer-intent queries to AI providers and checks whether the brand is mentioned,
+                    which competitors appear, and what Reddit threads are cited.
+                </p>
+            </div>
+
+            <!-- How to use -->
+            <div>
+                <h4 class="text-white font-medium mb-1.5">How to use</h4>
+                <ol class="space-y-1 text-gray-400 list-decimal list-inside leading-relaxed">
+                    <li>Enable monitoring with the <span class="text-green-400">● Monitoring Active</span> toggle</li>
+                    <li>Add <strong class="text-gray-200">buyer-intent prompts</strong> — questions a potential customer would ask AI</li>
+                    <li>Add <strong class="text-gray-200">competitors</strong> — brands to track alongside yours</li>
+                    <li>Click <strong class="text-gray-200">▶ Run Now</strong> to execute a batch</li>
+                    <li>Review results in <strong class="text-gray-200">Execution History</strong> below</li>
+                </ol>
+            </div>
+
+            <!-- Prompts tips -->
+            <div>
+                <h4 class="text-white font-medium mb-1.5">Writing good prompts</h4>
+                <p class="text-gray-400 mb-1.5">Prompts should mimic real buyer queries to AI assistants:</p>
+                <ul class="space-y-0.5 text-gray-400">
+                    <li class="flex gap-2"><span class="text-green-400">✓</span> "What are the best attack path management tools in 2026?"</li>
+                    <li class="flex gap-2"><span class="text-green-400">✓</span> "Best XDR solutions for enterprise security"</li>
+                    <li class="flex gap-2"><span class="text-green-400">✓</span> "How to reduce cloud attack surface"</li>
+                    <li class="flex gap-2"><span class="text-red-400">✗</span> "Tell me about XM Cyber" <span class="text-gray-500">(too direct — not a real buyer query)</span></li>
+                </ul>
+                <p class="text-gray-500 text-xs mt-1.5">Use the Category field to group prompts (e.g. "product", "comparison", "problem").</p>
+            </div>
+
+            <!-- Understanding results -->
+            <div>
+                <h4 class="text-white font-medium mb-1.5">Understanding results</h4>
+                <p class="text-gray-400 mb-1.5">Each batch runs every prompt 3× and reports:</p>
+                <ul class="space-y-0.5 text-gray-400">
+                    <li><strong class="text-green-400">Brand Rate ≥60%</strong> — strong presence, brand appears in most AI answers</li>
+                    <li><strong class="text-amber-400">Brand Rate 30-59%</strong> — moderate presence, room to improve</li>
+                    <li><strong class="text-red-400">Brand Rate &lt;30%</strong> — weak/absent, AI doesn't mention the brand</li>
+                    <li><strong class="text-gray-300">Competitors</strong> — how many competitor brands appeared</li>
+                    <li><strong class="text-gray-300">Reddit URLs</strong> — how many Reddit threads were cited (our influence surface)</li>
+                </ul>
+            </div>
+
+            <!-- Prerequisites -->
+            <div class="md:col-span-2">
+                <h4 class="text-white font-medium mb-1.5">Prerequisites</h4>
+                <div class="flex flex-wrap gap-4 text-gray-400">
+                    <span class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                        Perplexity API key must be set in <a href="/admin/settings" class="text-indigo-400 hover:text-indigo-300 underline">System Settings</a>
+                        (<code class="text-xs bg-slate-700 px-1 py-0.5 rounded">geo_perplexity_api_key</code>)
+                    </span>
+                    <span class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                        Client's <code class="text-xs bg-slate-700 px-1 py-0.5 rounded">brand_name</code> must be filled in
+                    </span>
+                    <span class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                        At least 1 active prompt required
+                    </span>
+                </div>
+            </div>
         </div>
     </div>
 

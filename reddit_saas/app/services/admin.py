@@ -236,6 +236,9 @@ def delete_user(
 ) -> None:
     """Permanently delete a user from the database.
 
+    Clears all FK dependencies before deletion. Preserves audit trail
+    by nullifying user_id references rather than deleting log entries.
+
     Args:
         db: SQLAlchemy database session.
         user_id: The target user to delete.
@@ -253,21 +256,38 @@ def delete_user(
 
     email = user.email
 
-    # Clear FK dependencies that block deletion
-    # 1. Nullify audit_log.user_id (preserve audit trail, unlink user)
+    # Clear ALL FK dependencies that block deletion
     from app.models.audit import AuditLog
     db.query(AuditLog).filter(AuditLog.user_id == user_id).update(
         {"user_id": None}, synchronize_session=False
     )
 
-    # 2. Delete discovery sessions owned by this user (RESTRICT FK, must remove first)
+    # Nullify geo_prompts.created_by
+    try:
+        from app.models.geo_prompt import GeoPrompt
+        db.query(GeoPrompt).filter(GeoPrompt.created_by == user_id).update(
+            {"created_by": None}, synchronize_session=False
+        )
+    except Exception:
+        pass
+
+    # Delete user_client_assignments
+    try:
+        from app.models.user_client_assignment import UserClientAssignment
+        db.query(UserClientAssignment).filter(
+            UserClientAssignment.user_id == user_id
+        ).delete(synchronize_session=False)
+    except Exception:
+        pass
+
+    # Nullify discovery_sessions.operator_user_id (preserve sessions)
     try:
         from app.models.discovery_session import DiscoverySession
         db.query(DiscoverySession).filter(
             DiscoverySession.operator_user_id == user_id
-        ).delete(synchronize_session=False)
+        ).update({"operator_user_id": None}, synchronize_session=False)
     except Exception:
-        pass  # Table may not exist yet
+        pass
 
     db.delete(user)
     db.commit()
@@ -1067,6 +1087,19 @@ def assign_avatars_to_client(
         client_id=client_id,
         details={"avatar_ids": [str(aid) for aid in avatar_ids]},
     )
+
+    # Auto-trigger avatar onboarding if client has completed onboarding
+    if client.onboarding_completed_at:
+        try:
+            from app.tasks.onboarding import run_avatar_onboarding
+            for avatar_id in avatar_ids:
+                run_avatar_onboarding.delay(str(avatar_id), str(client_id))
+            logger.info(
+                "Avatar onboarding auto-triggered for %d avatars (client=%s)",
+                len(avatar_ids), client.client_name,
+            )
+        except Exception as e:
+            logger.warning("Failed to auto-trigger avatar onboarding: %s", e)
 
 
 def unassign_avatar_from_client(

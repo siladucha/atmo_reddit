@@ -277,6 +277,17 @@ def execute_post(db: Session, epg_slot_id: uuid.UUID) -> PostingEvent:
         duration_ms,
     )
 
+    # Notify client (real-time)
+    try:
+        from app.services.task_notifications import notify_draft_posted
+        subreddit = thread.subreddit if thread else ""
+        # Determine client_id from avatar
+        if avatar.client_ids:
+            for cid in avatar.client_ids:
+                notify_draft_posted(cid, subreddit=subreddit, reddit_url=reddit_comment_url)
+    except Exception:
+        pass
+
     return event
 
 

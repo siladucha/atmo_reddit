@@ -380,12 +380,12 @@ class PortfolioConfig:
 # Helpers
 # ---------------------------------------------------------------------------
 
-import logging
+from app.logging_config import get_logger
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _gather_community_state(

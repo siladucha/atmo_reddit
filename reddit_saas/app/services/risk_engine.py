@@ -21,7 +21,7 @@ Requirements: 2.1, 2.2, 2.3, 2.4, 2.6, 8.3, 13.6
 
 from __future__ import annotations
 
-import logging
+from app.logging_config import get_logger
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session
 if TYPE_CHECKING:
     from app.models.avatar import Avatar
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
