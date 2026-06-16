@@ -1,0 +1,45 @@
+{% extends "client_base.html" %}
+
+{% block title %}Activity Log - {{ client_name }}{% endblock %}
+
+{% block content %}
+<div id="portal-content">
+    <div style="margin-bottom:var(--space-4);">
+        <h1 class="text-h1">Activity Log</h1>
+        <p class="text-small" style="margin-top:4px;">Who did what and when. Last 30 days of actions on your account.</p>
+    </div>
+
+    {% if activity_items %}
+    <div style="display:flex;flex-direction:column;gap:4px;">
+        {% for item in activity_items %}
+        <div class="surface" style="padding:12px var(--space-3);display:flex;align-items:center;gap:12px;">
+            <div style="width:32px;height:32px;border-radius:50%;background:var(--color-surface-alt);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--color-muted);flex-shrink:0;">
+                {{ item.user[0] | upper if item.user else "?" }}
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <span style="font-size:var(--text-body);font-weight:500;color:var(--color-white);">{{ item.user }}</span>
+                    <span style="font-size:var(--text-body);color:var(--color-muted);">{{ item.action }}</span>
+                    {% if item.avatar %}
+                    <span style="font-size:var(--text-small);padding:2px 8px;border-radius:var(--radius-pill);background:rgba(139,92,246,0.15);color:#a78bfa;">{{ item.avatar }}</span>
+                    {% endif %}
+                    {% if item.source %}
+                    <span style="font-size:var(--text-micro);color:var(--color-muted);">via {{ item.source }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;">
+                <div style="font-size:var(--text-small);color:var(--color-muted);">{{ item.created_at }}</div>
+                <div style="font-size:var(--text-micro);color:var(--color-muted);">{{ item.created_at_full }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="surface" style="padding:var(--space-4);text-align:center;">
+        <p style="font-size:var(--text-body);color:var(--color-muted);">No activity recorded yet.</p>
+        <p style="font-size:var(--text-small);color:var(--color-muted);margin-top:8px;">Actions like approving, skipping, and marking drafts as posted will appear here.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

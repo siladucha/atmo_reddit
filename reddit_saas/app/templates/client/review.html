@@ -121,4 +121,15 @@ function loadDrafts() {
     htmx.ajax('GET', url, {target: '#drafts-area', swap: 'innerHTML'});
 }
 </script>
+
+<!-- Auto-refresh when new drafts arrive via SSE -->
+<script>
+document.addEventListener('ramp:notification', function(evt) {
+    var data = evt.detail || {};
+    // If notification indicates new drafts, reload the current tab
+    if (data.title && data.title.toLowerCase().indexOf('draft') !== -1) {
+        setTimeout(function() { loadDrafts(); }, 1000);
+    }
+});
+</script>
 {% endblock %}

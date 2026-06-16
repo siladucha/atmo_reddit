@@ -348,13 +348,27 @@ def portal_avatar_detail(
 
     activity = []
     for d in recent_drafts:
+        # Resolve subreddit from thread or hobby_post
+        subreddit_name = ""
+        thread_title = ""
+        if d.thread:
+            subreddit_name = d.thread.subreddit or ""
+            thread_title = (d.thread.post_title or "")[:60]
+        elif d.hobby_post_id:
+            from app.models.hobby import HobbySubreddit
+            hobby = db.query(HobbySubreddit).filter(HobbySubreddit.id == d.hobby_post_id).first()
+            if hobby:
+                subreddit_name = hobby.subreddit or ""
+                thread_title = (hobby.post_title or "")[:60]
+
         activity.append({
-            "subreddit": d.thread.subreddit if d.thread else "",
-            "thread_title": (d.thread.post_title[:60] if d.thread else ""),
+            "subreddit": subreddit_name,
+            "thread_title": thread_title,
             "text": (d.edited_draft or d.ai_draft or "")[:120],
             "status": d.status,
             "reddit_score": d.reddit_score,
             "created_at": _relative_time(d.created_at),
+            "posted_at": _relative_time(d.posted_at) if d.posted_at else "",
         })
 
     avatar_data = {
@@ -387,6 +401,107 @@ def portal_avatar_detail(
     )
 
 
+
+@router.get("/clients/{client_id}/activity", response_class=HTMLResponse)
+def portal_activity_log(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Client portal activity log — who did what and when."""
+    from app.models.audit import AuditLog
+    from app.models.user import User as UserModel
+
+    now = datetime.now(timezone.utc)
+    month_ago = now - timedelta(days=30)
+
+    # Fetch audit logs for this client (last 30 days)
+    logs_raw = (
+        db.query(AuditLog)
+        .filter(
+            AuditLog.client_id == client_id,
+            AuditLog.created_at >= month_ago,
+        )
+        .order_by(AuditLog.created_at.desc())
+        .limit(100)
+        .all()
+    )
+
+    # Also fetch logs where client_id is in details JSON (for portal actions)
+    portal_logs = (
+        db.query(AuditLog)
+        .filter(
+            AuditLog.details.isnot(None),
+            AuditLog.details["client_id"].astext == str(client_id),
+            AuditLog.created_at >= month_ago,
+        )
+        .order_by(AuditLog.created_at.desc())
+        .limit(100)
+        .all()
+    )
+
+    # Merge and deduplicate
+    seen_ids = set()
+    all_logs = []
+    for log in logs_raw + portal_logs:
+        if log.id not in seen_ids:
+            seen_ids.add(log.id)
+            all_logs.append(log)
+
+    # Sort by time
+    all_logs.sort(key=lambda x: x.created_at, reverse=True)
+    all_logs = all_logs[:100]
+
+    # Resolve user names
+    user_ids = {log.user_id for log in all_logs if log.user_id}
+    users_map = {}
+    if user_ids:
+        users = db.query(UserModel).filter(UserModel.id.in_(user_ids)).all()
+        users_map = {u.id: u for u in users}
+
+    # Format action labels
+    action_labels = {
+        "draft_approved": "Approved a draft",
+        "draft_skipped": "Skipped a draft",
+        "draft_marked_posted": "Marked as posted",
+        "draft_edited": "Edited a draft",
+        "mark_posted": "Marked as posted",
+        "approve_draft": "Approved a draft",
+        "reject_draft": "Rejected a draft",
+        "create": "Created",
+        "update": "Updated",
+        "trigger_pipeline": "Triggered pipeline",
+        "epg_rebuild": "Rebuilt EPG",
+        "strategy_regenerate": "Regenerated strategy",
+    }
+
+    activity_items = []
+    for log in all_logs:
+        u = users_map.get(log.user_id)
+        user_display = u.full_name or u.email if u else "System"
+        details = log.details or {}
+
+        activity_items.append({
+            "action": action_labels.get(log.action, log.action.replace("_", " ").title()),
+            "user": user_display,
+            "entity_type": log.entity_type or "",
+            "avatar": details.get("avatar", details.get("avatar_username", "")),
+            "source": details.get("source", ""),
+            "created_at": _relative_time(log.created_at),
+            "created_at_full": log.created_at.strftime("%Y-%m-%d %H:%M") if log.created_at else "",
+        })
+
+    return _portal_render(
+        request,
+        "client/activity_log.html",
+        client_id,
+        db,
+        active_page="activity",
+        extra_context={"activity_items": activity_items},
+    )
+
+
 @router.get("/clients/{client_id}/settings", response_class=HTMLResponse)
 def portal_settings(
     request: Request,
@@ -394,20 +509,76 @@ def portal_settings(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Client portal settings — company profile and configuration."""
+    """Client portal settings — ongoing campaign refinement."""
+    from app.models.voice_feedback import VoiceFeedback
+    from app.models.subreddit_request import SubredditRequest
+    from app.models.subreddit import ClientSubredditAssignment, Subreddit
+
     client_obj = db.query(Client).filter(Client.id == client_id).first()
 
-    profile = {
-        "company_profile": client_obj.company_profile or "",
-        "company_worldview": client_obj.company_worldview or "",
-        "company_problem": client_obj.company_problem or "",
-        "competitive_landscape": client_obj.competitive_landscape or "",
-        "brand_voice": client_obj.brand_voice or "",
-        "icp_profiles": client_obj.icp_profiles or "",
-        "case_studies": client_obj.case_studies or "",
-        "brand_domain": client_obj.brand_domain or "",
-    } if client_obj else {}
+    # 1. Keywords from client JSONB
+    keywords = client_obj.keywords or {} if client_obj else {}
 
+    # 2. Build keyword → subreddit map
+    # Get all active subreddit assignments for this client with their subreddit names
+    assignments = (
+        db.query(ClientSubredditAssignment)
+        .join(Subreddit, ClientSubredditAssignment.subreddit_id == Subreddit.id)
+        .filter(
+            ClientSubredditAssignment.client_id == client_id,
+            ClientSubredditAssignment.is_active.is_(True),
+        )
+        .all()
+    )
+
+    # For now, all keywords are considered monitored in all active subreddits
+    all_subreddit_names = [a.subreddit.subreddit_name for a in assignments if a.subreddit]
+    keyword_subreddit_map = {}
+    for priority in ("high", "medium", "low"):
+        for kw in keywords.get(priority, []):
+            keyword_subreddit_map[kw] = all_subreddit_names
+
+    # 3. Subreddits list (active assignments with name, type, status)
+    subreddits = [
+        {
+            "name": a.subreddit.subreddit_name if a.subreddit else "",
+            "type": a.type,
+            "is_active": a.is_active,
+        }
+        for a in assignments
+    ]
+
+    # 4. Brand guardrails
+    guardrails = client_obj.brand_guardrails or {} if client_obj else {}
+
+    # 5. Voice feedback history (last 5)
+    voice_feedback_history = (
+        db.query(VoiceFeedback)
+        .filter(VoiceFeedback.client_id == client_id)
+        .order_by(VoiceFeedback.created_at.desc())
+        .limit(5)
+        .all()
+    )
+
+    # 6. Pending subreddit requests count
+    pending_requests_count = (
+        db.query(func.count(SubredditRequest.id))
+        .filter(
+            SubredditRequest.client_id == client_id,
+            SubredditRequest.status == "pending",
+        )
+        .scalar()
+    ) or 0
+
+    # 7. Plan limit for subreddits
+    plan_limits = {"seed": 3, "starter": 8, "growth": 15, "scale": 999}
+    plan_type = client_obj.plan_type if client_obj else "starter"
+    plan_limit = plan_limits.get(plan_type, 8)
+
+    # 8. Current subreddit count
+    current_subreddit_count = len(assignments)
+
+    # 9. Can edit?
     can_edit = user.user_role in (UserRole.client_admin, UserRole.client_manager, UserRole.owner, UserRole.partner)
 
     return _portal_render(
@@ -416,8 +587,460 @@ def portal_settings(
         client_id,
         db,
         active_page="settings",
-        extra_context={"profile": profile, "can_edit": can_edit},
+        extra_context={
+            "keywords": keywords,
+            "keyword_subreddit_map": keyword_subreddit_map,
+            "subreddits": subreddits,
+            "guardrails": guardrails,
+            "voice_feedback_history": voice_feedback_history,
+            "pending_requests_count": pending_requests_count,
+            "plan_limit": plan_limit,
+            "current_subreddit_count": current_subreddit_count,
+            "can_edit": can_edit,
+        },
     )
+
+
+# --- Settings: Keywords Add/Remove ---
+
+
+@router.post("/clients/{client_id}/settings/keywords/add", response_class=HTMLResponse)
+def settings_keywords_add(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    keyword: str = Form(...),
+    priority: str = Form("medium"),
+):
+    """Add a keyword to the client's keyword list."""
+    from app.models.subreddit import ClientSubredditAssignment, Subreddit
+    import json
+
+    # RBAC check
+    if user.user_role == UserRole.client_viewer:
+        raise HTTPException(status_code=403, detail="Viewers cannot modify settings")
+
+    client_obj = db.query(Client).filter(Client.id == client_id).first()
+    if not client_obj:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    # Validate
+    keyword = keyword.strip()
+    error = None
+
+    if not keyword:
+        error = "Keyword cannot be empty."
+    elif priority not in ("high", "medium", "low"):
+        error = "Invalid priority level."
+    else:
+        # Check for duplicates across ALL priority levels
+        keywords = client_obj.keywords or {}
+        all_existing = []
+        for p in ("high", "medium", "low"):
+            all_existing.extend([k.lower() for k in keywords.get(p, [])])
+        if keyword.lower() in all_existing:
+            error = "This keyword already exists."
+
+    # Build context for partial
+    keywords = client_obj.keywords or {}
+
+    if not error:
+        # Add to correct priority list
+        if priority not in keywords:
+            keywords[priority] = []
+        keywords[priority].append(keyword)
+        client_obj.keywords = keywords
+        # Force SQLAlchemy to detect JSONB mutation
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(client_obj, "keywords")
+        db.commit()
+        db.refresh(client_obj)
+        keywords = client_obj.keywords or {}
+
+    # Build keyword_subreddit_map
+    assignments = (
+        db.query(ClientSubredditAssignment)
+        .join(Subreddit, ClientSubredditAssignment.subreddit_id == Subreddit.id)
+        .filter(
+            ClientSubredditAssignment.client_id == client_id,
+            ClientSubredditAssignment.is_active.is_(True),
+        )
+        .all()
+    )
+    all_subreddit_names = [a.subreddit.subreddit_name for a in assignments if a.subreddit]
+    keyword_subreddit_map = {}
+    for p in ("high", "medium", "low"):
+        for kw in keywords.get(p, []):
+            keyword_subreddit_map[kw] = all_subreddit_names
+
+    can_edit = user.user_role in (UserRole.client_admin, UserRole.client_manager, UserRole.owner, UserRole.partner)
+
+    response = templates.TemplateResponse(
+        name="partials/client/settings_keywords.html",
+        context={
+            "request": request,
+            "keywords": keywords,
+            "keyword_subreddit_map": keyword_subreddit_map,
+            "can_edit": can_edit,
+            "client_id": str(client_id),
+            "error": error,
+        },
+        request=request,
+    )
+
+    if not error:
+        response.headers["HX-Trigger"] = json.dumps({
+            "showToast": {"type": "success", "message": "Keyword added \u2014 your avatars will now monitor this topic"}
+        })
+
+    return response
+
+
+@router.post("/clients/{client_id}/settings/keywords/remove", response_class=HTMLResponse)
+def settings_keywords_remove(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    keyword: str = Form(...),
+    priority: str = Form(...),
+):
+    """Remove a keyword from the client's keyword list."""
+    from app.models.subreddit import ClientSubredditAssignment, Subreddit
+    import json
+
+    # RBAC check
+    if user.user_role == UserRole.client_viewer:
+        raise HTTPException(status_code=403, detail="Viewers cannot modify settings")
+
+    client_obj = db.query(Client).filter(Client.id == client_id).first()
+    if not client_obj:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    # Remove keyword from specified priority list
+    keywords = client_obj.keywords or {}
+    if priority in keywords and keyword in keywords[priority]:
+        keywords[priority].remove(keyword)
+        client_obj.keywords = keywords
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(client_obj, "keywords")
+        db.commit()
+        db.refresh(client_obj)
+        keywords = client_obj.keywords or {}
+
+    # Build keyword_subreddit_map
+    assignments = (
+        db.query(ClientSubredditAssignment)
+        .join(Subreddit, ClientSubredditAssignment.subreddit_id == Subreddit.id)
+        .filter(
+            ClientSubredditAssignment.client_id == client_id,
+            ClientSubredditAssignment.is_active.is_(True),
+        )
+        .all()
+    )
+    all_subreddit_names = [a.subreddit.subreddit_name for a in assignments if a.subreddit]
+    keyword_subreddit_map = {}
+    for p in ("high", "medium", "low"):
+        for kw in keywords.get(p, []):
+            keyword_subreddit_map[kw] = all_subreddit_names
+
+    can_edit = user.user_role in (UserRole.client_admin, UserRole.client_manager, UserRole.owner, UserRole.partner)
+
+    response = templates.TemplateResponse(
+        name="partials/client/settings_keywords.html",
+        context={
+            "request": request,
+            "keywords": keywords,
+            "keyword_subreddit_map": keyword_subreddit_map,
+            "can_edit": can_edit,
+            "client_id": str(client_id),
+            "error": None,
+        },
+        request=request,
+    )
+
+    response.headers["HX-Trigger"] = json.dumps({
+        "showToast": {"type": "success", "message": "Keyword removed"}
+    })
+
+    return response
+
+
+# --- Settings: Subreddit Request ---
+
+
+@router.post("/clients/{client_id}/settings/subreddits/request", response_class=HTMLResponse)
+def settings_subreddit_request(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    subreddit_name: str = Form(...),
+    note: str = Form(""),
+):
+    """Request to add a new subreddit (creates SubredditRequest record)."""
+    from app.models.subreddit_request import SubredditRequest
+    from app.models.subreddit import ClientSubredditAssignment, Subreddit
+    import json
+
+    # RBAC check
+    if user.user_role == UserRole.client_viewer:
+        raise HTTPException(status_code=403, detail="Viewers cannot modify settings")
+
+    client_obj = db.query(Client).filter(Client.id == client_id).first()
+    if not client_obj:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    # Strip and clean subreddit name
+    subreddit_name = subreddit_name.strip()
+    if subreddit_name.startswith("r/"):
+        subreddit_name = subreddit_name[2:]
+    subreddit_name = subreddit_name.strip()
+
+    # Plan limit check
+    plan_limits = {"seed": 3, "starter": 8, "growth": 15, "scale": 999}
+    plan_type = client_obj.plan_type if client_obj else "starter"
+    plan_limit = plan_limits.get(plan_type, 8)
+
+    assignments = (
+        db.query(ClientSubredditAssignment)
+        .join(Subreddit, ClientSubredditAssignment.subreddit_id == Subreddit.id)
+        .filter(
+            ClientSubredditAssignment.client_id == client_id,
+            ClientSubredditAssignment.is_active.is_(True),
+        )
+        .all()
+    )
+    current_subreddit_count = len(assignments)
+
+    error = None
+    if not subreddit_name:
+        error = "Subreddit name cannot be empty."
+    elif current_subreddit_count >= plan_limit:
+        error = "You've reached your subreddit limit. Contact your account manager to add more slots."
+
+    # Build subreddits list for partial
+    subreddits = [
+        {
+            "name": a.subreddit.subreddit_name if a.subreddit else "",
+            "type": a.type,
+            "is_active": a.is_active,
+        }
+        for a in assignments
+    ]
+
+    # Pending requests count
+    pending_requests_count = (
+        db.query(func.count(SubredditRequest.id))
+        .filter(
+            SubredditRequest.client_id == client_id,
+            SubredditRequest.status == "pending",
+        )
+        .scalar()
+    ) or 0
+
+    if not error:
+        # Create SubredditRequest record
+        new_request = SubredditRequest(
+            client_id=client_id,
+            user_id=user.id,
+            subreddit_name=subreddit_name,
+            note=note.strip() if note else None,
+            status="pending",
+        )
+        db.add(new_request)
+        db.commit()
+        pending_requests_count += 1
+
+    can_edit = user.user_role in (UserRole.client_admin, UserRole.client_manager, UserRole.owner, UserRole.partner)
+
+    response = templates.TemplateResponse(
+        name="partials/client/settings_subreddits.html",
+        context={
+            "request": request,
+            "subreddits": subreddits,
+            "can_edit": can_edit,
+            "client_id": str(client_id),
+            "plan_limit": plan_limit,
+            "current_subreddit_count": current_subreddit_count,
+            "pending_requests_count": pending_requests_count,
+            "error": error,
+            "success": None,
+        },
+        request=request,
+    )
+
+    if not error:
+        response.headers["HX-Trigger"] = json.dumps({
+            "showToast": {"type": "success", "message": "Request sent \u2014 your account manager will review and add this subreddit"}
+        })
+
+    return response
+
+
+
+
+# --- Settings: Brand Guardrails ---
+
+
+@router.post("/clients/{client_id}/settings/guardrails", response_class=HTMLResponse)
+def settings_guardrails_update(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    never_associate: str = Form(""),
+    restricted_claims: str = Form(""),
+    style_inspiration: str = Form(""),
+):
+    """Update brand guardrails for a client."""
+    import json
+    from sqlalchemy.orm.attributes import flag_modified
+
+    # RBAC check
+    if user.user_role == UserRole.client_viewer:
+        raise HTTPException(status_code=403, detail="Viewers cannot modify settings")
+
+    client_obj = db.query(Client).filter(Client.id == client_id).first()
+    if not client_obj:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    # Parse never_associate: split by comma, strip each, remove empty, deduplicate
+    tags_raw = [t.strip() for t in never_associate.split(",") if t.strip()]
+    # Deduplicate preserving order
+    seen = set()
+    tags = []
+    for t in tags_raw:
+        if t.lower() not in seen:
+            seen.add(t.lower())
+            tags.append(t)
+
+    # Build guardrails JSONB
+    guardrails = {
+        "never_associate": tags,
+        "restricted_claims": restricted_claims.strip(),
+        "style_inspiration": style_inspiration.strip(),
+    }
+
+    # Save to client
+    client_obj.brand_guardrails = guardrails
+    flag_modified(client_obj, "brand_guardrails")
+    db.commit()
+    db.refresh(client_obj)
+
+    can_edit = user.user_role in (UserRole.client_admin, UserRole.client_manager, UserRole.owner, UserRole.partner)
+
+    response = templates.TemplateResponse(
+        name="partials/client/settings_guardrails.html",
+        context={
+            "request": request,
+            "guardrails": guardrails,
+            "can_edit": can_edit,
+            "client_id": str(client_id),
+            "error": None,
+            "success": None,
+        },
+        request=request,
+    )
+
+    response.headers["HX-Trigger"] = json.dumps({
+        "showToast": {"type": "success", "message": "Guardrails updated — we’ll apply these to all future drafts."}
+    })
+
+    return response
+
+
+# --- Settings: Voice Feedback ---
+
+
+@router.post("/clients/{client_id}/settings/voice-feedback", response_class=HTMLResponse)
+def settings_voice_feedback(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    feedback_text: str = Form(...),
+):
+    """Submit voice/tone feedback for a client."""
+    import json
+    from app.models.voice_feedback import VoiceFeedback
+
+    # RBAC check
+    if user.user_role == UserRole.client_viewer:
+        raise HTTPException(status_code=403, detail="Viewers cannot modify settings")
+
+    client_obj = db.query(Client).filter(Client.id == client_id).first()
+    if not client_obj:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    can_edit = user.user_role in (UserRole.client_admin, UserRole.client_manager, UserRole.owner, UserRole.partner)
+
+    # Strip and validate
+    feedback_text = feedback_text.strip()
+    error = None
+
+    if not feedback_text:
+        error = "Feedback cannot be empty."
+    elif len(feedback_text) > 500:
+        error = "Feedback must be 500 characters or less."
+
+    if error:
+        # Query history for re-render
+        voice_feedback_history = (
+            db.query(VoiceFeedback)
+            .filter(VoiceFeedback.client_id == client_id)
+            .order_by(VoiceFeedback.created_at.desc())
+            .limit(5)
+            .all()
+        )
+        return templates.TemplateResponse(
+            name="partials/client/settings_voice_feedback.html",
+            context={
+                "request": request,
+                "voice_feedback_history": voice_feedback_history,
+                "can_edit": can_edit,
+                "client_id": str(client_id),
+                "error": error,
+            },
+            request=request,
+        )
+
+    # Create VoiceFeedback record
+    new_feedback = VoiceFeedback(
+        client_id=client_id,
+        user_id=user.id,
+        feedback_text=feedback_text,
+    )
+    db.add(new_feedback)
+    db.commit()
+
+    # Query last 5 feedback entries for history
+    voice_feedback_history = (
+        db.query(VoiceFeedback)
+        .filter(VoiceFeedback.client_id == client_id)
+        .order_by(VoiceFeedback.created_at.desc())
+        .limit(5)
+        .all()
+    )
+
+    response = templates.TemplateResponse(
+        name="partials/client/settings_voice_feedback.html",
+        context={
+            "request": request,
+            "voice_feedback_history": voice_feedback_history,
+            "can_edit": can_edit,
+            "client_id": str(client_id),
+            "error": None,
+        },
+        request=request,
+    )
+
+    response.headers["HX-Trigger"] = json.dumps({
+        "showToast": {"type": "success", "message": "Got it — we’ll apply this to future generations"}
+    })
+
+    return response
 
 
 @router.get("/clients/{client_id}/subreddits", response_class=HTMLResponse)
@@ -595,6 +1218,7 @@ def portal_strategy(
         )
         if strategy:
             strategies.append({
+                "avatar_id": str(avatar.id),
                 "avatar_name": avatar.reddit_username,
                 "version": strategy.version,
                 "is_approved": strategy.is_approved,
@@ -997,54 +1621,60 @@ def portal_approve_draft(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Approve a draft. Returns empty HTML (card removed) or 422 on safety block."""
-    if user.user_role == UserRole.client_viewer:
-        raise HTTPException(status_code=403, detail="Viewers cannot approve drafts")
-
-    draft = db.query(CommentDraft).filter(CommentDraft.id == draft_id).first()
-    if not draft:
-        raise HTTPException(status_code=404, detail="Draft not found")
-
-    avatar = db.query(Avatar).filter(Avatar.id == draft.avatar_id).first()
-    if not avatar or str(client_id) not in (avatar.client_ids or []):
-        raise HTTPException(status_code=404, detail="Draft not found")
-
-    client = db.query(Client).filter(Client.id == client_id).first()
-    if client:
-        block = check_safety_blocks(draft, avatar, client)
-        if block:
-            return JSONResponse(status_code=422, content=block)
-
-    draft.status = "approved"
-    db.commit()
-
-    # Audit log
+    """Approve a draft. Returns JSON response."""
     try:
-        from app.services.audit import log_action
-        log_action(
-            db=db,
-            user_id=user.id,
-            action="draft_approved",
-            entity_type="comment_draft",
-            entity_id=draft_id,
-            details={
-                "client_id": str(client_id),
-                "avatar": avatar.reddit_username,
-                "source": "client_portal",
-            },
+        if user.user_role == UserRole.client_viewer:
+            return JSONResponse(status_code=403, content={"message": "Viewers cannot approve drafts"})
+
+        draft = db.query(CommentDraft).filter(CommentDraft.id == draft_id).first()
+        if not draft:
+            return JSONResponse(status_code=404, content={"message": "Draft not found"})
+
+        avatar = db.query(Avatar).filter(Avatar.id == draft.avatar_id).first()
+        if not avatar or str(client_id) not in (avatar.client_ids or []):
+            return JSONResponse(status_code=404, content={"message": "Draft not found"})
+
+        client = db.query(Client).filter(Client.id == client_id).first()
+        if client:
+            block = check_safety_blocks(draft, avatar, client)
+            if block:
+                return JSONResponse(status_code=422, content=block)
+
+        draft.status = "approved"
+        db.commit()
+
+        # Audit log (best-effort)
+        try:
+            from app.services.audit import log_action
+            log_action(
+                db=db,
+                user_id=user.id,
+                action="draft_approved",
+                entity_type="comment_draft",
+                entity_id=draft_id,
+                details={
+                    "client_id": str(client_id),
+                    "avatar": avatar.reddit_username if avatar else None,
+                    "source": "client_portal",
+                },
+            )
+        except Exception as e:
+            logger.warning("Failed to log audit event: %s", e)
+
+        logger.info(
+            "Portal: draft approved | draft_id=%s | user=%s | client=%s",
+            draft_id, user.email, client_id,
         )
+
+        return JSONResponse(status_code=200, content={"ok": True, "message": "Approved"})
+
     except Exception as e:
-        logger.warning("Failed to log audit event: %s", e)
-
-    logger.info(
-        "Portal: draft approved | draft_id=%s | user=%s | client=%s",
-        draft_id, user.email, client_id,
-    )
-
-    return HTMLResponse(
-        content="",
-        headers={"HX-Trigger": '{"showToast": {"type": "success", "message": "Approved"}}'},
-    )
+        logger.error(
+            "Portal approve UNHANDLED ERROR | draft_id=%s | client_id=%s | error=%s | type=%s",
+            draft_id, client_id, str(e), type(e).__name__,
+        )
+        db.rollback()
+        return JSONResponse(status_code=500, content={"message": "Server error. Please try again."})
 
 
 @router.post("/clients/{client_id}/drafts/{draft_id}/skip")
@@ -1055,48 +1685,54 @@ def portal_skip_draft(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Skip (reject) a draft. Returns empty HTML (card removed)."""
-    if user.user_role == UserRole.client_viewer:
-        raise HTTPException(status_code=403, detail="Viewers cannot skip drafts")
-
-    draft = db.query(CommentDraft).filter(CommentDraft.id == draft_id).first()
-    if not draft:
-        raise HTTPException(status_code=404, detail="Draft not found")
-
-    avatar = db.query(Avatar).filter(Avatar.id == draft.avatar_id).first()
-    if not avatar or str(client_id) not in (avatar.client_ids or []):
-        raise HTTPException(status_code=404, detail="Draft not found")
-
-    draft.status = "rejected"
-    db.commit()
-
-    # Audit log
+    """Skip (reject) a draft. Returns JSON response."""
     try:
-        from app.services.audit import log_action
-        log_action(
-            db=db,
-            user_id=user.id,
-            action="draft_skipped",
-            entity_type="comment_draft",
-            entity_id=draft_id,
-            details={
-                "client_id": str(client_id),
-                "avatar": avatar.reddit_username,
-                "source": "client_portal",
-            },
+        if user.user_role == UserRole.client_viewer:
+            return JSONResponse(status_code=403, content={"message": "Viewers cannot skip drafts"})
+
+        draft = db.query(CommentDraft).filter(CommentDraft.id == draft_id).first()
+        if not draft:
+            return JSONResponse(status_code=404, content={"message": "Draft not found"})
+
+        avatar = db.query(Avatar).filter(Avatar.id == draft.avatar_id).first()
+        if not avatar or str(client_id) not in (avatar.client_ids or []):
+            return JSONResponse(status_code=404, content={"message": "Draft not found"})
+
+        draft.status = "rejected"
+        db.commit()
+
+        # Audit log (best-effort)
+        try:
+            from app.services.audit import log_action
+            log_action(
+                db=db,
+                user_id=user.id,
+                action="draft_skipped",
+                entity_type="comment_draft",
+                entity_id=draft_id,
+                details={
+                    "client_id": str(client_id),
+                    "avatar": avatar.reddit_username if avatar else None,
+                    "source": "client_portal",
+                },
+            )
+        except Exception as e:
+            logger.warning("Failed to log audit event: %s", e)
+
+        logger.info(
+            "Portal: draft skipped | draft_id=%s | user=%s | client=%s",
+            draft_id, user.email, client_id,
         )
+
+        return JSONResponse(status_code=200, content={"ok": True, "message": "Skipped"})
+
     except Exception as e:
-        logger.warning("Failed to log audit event: %s", e)
-
-    logger.info(
-        "Portal: draft skipped | draft_id=%s | user=%s | client=%s",
-        draft_id, user.email, client_id,
-    )
-
-    return HTMLResponse(
-        content="",
-        headers={"HX-Trigger": '{"showToast": {"type": "success", "message": "Skipped"}}'},
-    )
+        logger.error(
+            "Portal skip UNHANDLED ERROR | draft_id=%s | client_id=%s | error=%s | type=%s",
+            draft_id, client_id, str(e), type(e).__name__,
+        )
+        db.rollback()
+        return JSONResponse(status_code=500, content={"message": "Server error. Please try again."})
 
 
 @router.post("/clients/{client_id}/drafts/{draft_id}/mark-posted")
@@ -1109,54 +1745,64 @@ def portal_mark_posted(
     reddit_url: str = Form(""),
 ):
     """Mark an approved draft as posted on Reddit."""
-    if user.user_role == UserRole.client_viewer:
-        raise HTTPException(status_code=403, detail="Viewers cannot mark drafts as posted")
-
-    draft = db.query(CommentDraft).filter(CommentDraft.id == draft_id).first()
-    if not draft:
-        raise HTTPException(status_code=404, detail="Draft not found")
-
-    avatar = db.query(Avatar).filter(Avatar.id == draft.avatar_id).first()
-    if not avatar or str(client_id) not in (avatar.client_ids or []):
-        raise HTTPException(status_code=404, detail="Draft not found")
-
-    if draft.status not in ("approved", "pending"):
-        return JSONResponse(status_code=422, content={"message": "Draft is not in approved state"})
-
-    draft.status = "posted"
-    draft.posted_at = datetime.now(timezone.utc)
-    if reddit_url.strip():
-        draft.reddit_comment_url = reddit_url.strip()
-    db.commit()
-
-    # Audit log
     try:
-        from app.services.audit import log_action
-        log_action(
-            db=db,
-            user_id=user.id,
-            action="draft_marked_posted",
-            entity_type="comment_draft",
-            entity_id=draft_id,
-            details={
-                "client_id": str(client_id),
-                "avatar": avatar.reddit_username,
-                "reddit_url": reddit_url.strip() or None,
-                "source": "client_portal",
-            },
+        if user.user_role == UserRole.client_viewer:
+            return JSONResponse(status_code=403, content={"message": "Viewers cannot mark drafts as posted"})
+
+        draft = db.query(CommentDraft).filter(CommentDraft.id == draft_id).first()
+        if not draft:
+            return JSONResponse(status_code=404, content={"message": "Draft not found"})
+
+        avatar = db.query(Avatar).filter(Avatar.id == draft.avatar_id).first()
+        if not avatar or str(client_id) not in (avatar.client_ids or []):
+            logger.warning(
+                "Portal mark-posted: client_id mismatch | draft_id=%s | client_id=%s | avatar_client_ids=%s",
+                draft_id, client_id, avatar.client_ids if avatar else None,
+            )
+            return JSONResponse(status_code=404, content={"message": "Draft not found"})
+
+        if draft.status not in ("approved", "pending"):
+            return JSONResponse(status_code=422, content={"message": "Draft is not in approved state"})
+
+        draft.status = "posted"
+        draft.posted_at = datetime.now(timezone.utc)
+        if reddit_url.strip():
+            draft.reddit_comment_url = reddit_url.strip()
+        db.commit()
+
+        # Audit log (best-effort)
+        try:
+            from app.services.audit import log_action
+            log_action(
+                db=db,
+                user_id=user.id,
+                action="draft_marked_posted",
+                entity_type="comment_draft",
+                entity_id=draft_id,
+                details={
+                    "client_id": str(client_id),
+                    "avatar": avatar.reddit_username if avatar else None,
+                    "reddit_url": reddit_url.strip() or None,
+                    "source": "client_portal",
+                },
+            )
+        except Exception as e:
+            logger.warning("Failed to log audit event: %s", e)
+
+        logger.info(
+            "Portal: draft marked posted | draft_id=%s | user=%s | client=%s",
+            draft_id, user.email, client_id,
         )
+
+        return JSONResponse(status_code=200, content={"ok": True, "message": "Marked as posted"})
+
     except Exception as e:
-        logger.warning("Failed to log audit event: %s", e)
-
-    logger.info(
-        "Portal: draft marked posted | draft_id=%s | user=%s | client=%s",
-        draft_id, user.email, client_id,
-    )
-
-    return HTMLResponse(
-        content="",
-        headers={"HX-Trigger": '{"showToast": {"type": "success", "message": "Marked as posted"}}'},
-    )
+        logger.error(
+            "Portal mark-posted UNHANDLED ERROR | draft_id=%s | client_id=%s | error=%s | type=%s",
+            draft_id, client_id, str(e), type(e).__name__,
+        )
+        db.rollback()
+        return JSONResponse(status_code=500, content={"message": "Server error. Please try again."})
 
 
 @router.post("/clients/{client_id}/drafts/{draft_id}/edit")

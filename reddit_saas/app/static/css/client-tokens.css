@@ -22,12 +22,12 @@
 
   /* Typography */
   --text-display: 48px;
-  --text-h1: 28px;
-  --text-h2: 20px;
-  --text-h3: 16px;
-  --text-body: 14px;
-  --text-small: 12px;
-  --text-micro: 10px;
+  --text-h1: 30px;
+  --text-h2: 22px;
+  --text-h3: 18px;
+  --text-body: 15px;
+  --text-small: 13px;
+  --text-micro: 11px;
 
   /* Font weights */
   --weight-display: 700;

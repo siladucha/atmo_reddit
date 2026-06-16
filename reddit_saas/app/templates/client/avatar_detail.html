@@ -142,22 +142,30 @@
         <h2 class="text-h3" style="margin-bottom:var(--space-2);">Recent Activity (30 days)</h2>
         <div style="display:flex;flex-direction:column;gap:6px;">
             {% for item in activity %}
-            <div class="surface" style="padding:10px var(--space-3);">
+            <div class="surface" style="padding:12px var(--space-3);">
                 <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
-                    <span style="width:6px;height:6px;border-radius:50%;flex-shrink:0;background:
+                    <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:
                                  {% if item.status == 'posted' %}var(--color-green)
                                  {% elif item.status == 'approved' %}#60a5fa
                                  {% elif item.status == 'pending' %}var(--color-orange)
                                  {% else %}var(--color-muted){% endif %};"></span>
-                    <span style="font-size:var(--text-small);color:var(--color-muted);">r/{{ item.subreddit }}</span>
-                    <span style="font-size:var(--text-small);color:var(--color-white);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ item.thread_title }}</span>
+                    {% if item.subreddit %}
+                    <a href="https://reddit.com/r/{{ item.subreddit }}" target="_blank" rel="noopener"
+                       style="font-size:var(--text-small);color:#818cf8;text-decoration:none;white-space:nowrap;"
+                       onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">r/{{ item.subreddit }}</a>
+                    {% endif %}
+                    <span style="font-size:var(--text-body);color:var(--color-white);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ item.thread_title }}</span>
                     {% if item.reddit_score is not none and item.status == 'posted' %}
                     <span style="font-size:var(--text-small);font-weight:600;color:{% if item.reddit_score > 0 %}var(--color-green){% else %}var(--color-muted){% endif %};">▲{{ item.reddit_score }}</span>
                     {% endif %}
-                    <span style="font-size:var(--text-micro);color:var(--color-muted);text-transform:uppercase;">{{ item.status }}</span>
-                    <span style="font-size:var(--text-small);color:var(--color-muted);">{{ item.created_at }}</span>
+                    <span style="font-size:var(--text-micro);font-weight:600;padding:2px 8px;border-radius:var(--radius-pill);
+                                 {% if item.status == 'posted' %}background:rgba(34,197,94,0.15);color:var(--color-green);
+                                 {% elif item.status == 'approved' %}background:rgba(96,165,250,0.15);color:#60a5fa;
+                                 {% elif item.status == 'pending' %}background:rgba(255,107,53,0.15);color:var(--color-orange);
+                                 {% else %}background:var(--color-surface-alt);color:var(--color-muted);{% endif %}">{{ item.status | upper }}</span>
+                    <span style="font-size:var(--text-small);color:var(--color-muted);white-space:nowrap;">{% if item.status == 'posted' and item.posted_at %}posted {{ item.posted_at }}{% else %}{{ item.created_at }}{% endif %}</span>
                 </div>
-                <p style="font-size:var(--text-small);color:var(--color-muted);line-height:1.4;padding-left:16px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">{{ item.text }}</p>
+                <p style="font-size:var(--text-small);color:var(--color-muted);line-height:1.5;padding-left:18px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">{{ item.text }}</p>
             </div>
             {% endfor %}
         </div>

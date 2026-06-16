@@ -5,7 +5,9 @@
 {% block content %}
 <div id="portal-content">
     <div style="margin-bottom:var(--space-4);">
-        <h1 class="text-h1">Keywords</h1>
+        <h1 class="text-h1">Keywords
+            {% set theme = "light" %}{% include "partials/keyword_priority_legend.html" %}
+        </h1>
         <p class="text-small" style="margin-top:4px;">Keyword performance analytics. Showing match data from the last 90 days.</p>
     </div>
 
@@ -47,6 +49,8 @@
                         <span style="padding:2px 8px;border-radius:var(--radius-pill);background:rgba(239,68,68,0.15);color:#f87171;font-size:var(--text-micro);font-weight:500;">HIGH</span>
                         {% elif kw.priority == 'MEDIUM' %}
                         <span style="padding:2px 8px;border-radius:var(--radius-pill);background:rgba(255,107,53,0.15);color:var(--color-orange);font-size:var(--text-micro);font-weight:500;">MED</span>
+                        {% elif kw.priority == 'COMPETITOR' %}
+                        <span style="padding:2px 8px;border-radius:var(--radius-pill);background:rgba(192,132,252,0.15);color:#c084fc;font-size:var(--text-micro);font-weight:500;">COMP</span>
                         {% else %}
                         <span style="padding:2px 8px;border-radius:var(--radius-pill);background:rgba(148,163,184,0.15);color:var(--color-muted);font-size:var(--text-micro);font-weight:500;">LOW</span>
                         {% endif %}

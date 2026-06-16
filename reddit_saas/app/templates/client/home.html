@@ -29,6 +29,31 @@
     </a>
     {% endif %}
 
+    <!-- Quick Actions (client_manager + client_admin) -->
+    {% if user_role in ['owner', 'partner', 'client_admin', 'client_manager'] %}
+    <div style="display:flex;gap:12px;margin-bottom:var(--space-4);flex-wrap:wrap;">
+        <button
+            hx-post="/clients/{{ client_id }}/actions/pipeline"
+            hx-target="#home-action-status"
+            hx-swap="innerHTML"
+            class="btn-outline"
+            style="font-size:var(--text-small);padding:8px 16px;"
+        >
+            ▶ Run Pipeline
+        </button>
+        <button
+            hx-post="/clients/{{ client_id }}/actions/epg-rebuild"
+            hx-target="#home-action-status"
+            hx-swap="innerHTML"
+            class="btn-outline"
+            style="font-size:var(--text-small);padding:8px 16px;"
+        >
+            📅 Rebuild EPG
+        </button>
+        <span id="home-action-status" style="display:inline-flex;align-items:center;font-size:var(--text-small);"></span>
+    </div>
+    {% endif %}
+
     <!-- Metric cards (HTMX loaded) -->
     <div id="metrics-area"
          hx-get="/clients/{{ client_id }}/partials/metrics"

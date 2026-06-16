@@ -39,6 +39,36 @@
         </div>
     </div>
 
+    <!-- Action Buttons (client_manager + client_admin) -->
+    {% if user_role in ['owner', 'partner', 'client_admin', 'client_manager'] %}
+    <div style="display:flex;gap:12px;margin-bottom:var(--space-4);">
+        <button
+            hx-post="/clients/{{ client_id }}/actions/pipeline"
+            hx-target="#pipeline-status"
+            hx-swap="innerHTML"
+            hx-indicator="#pipeline-spinner"
+            class="btn-outline"
+            style="font-size:var(--text-small);padding:8px 16px;"
+        >
+            <span id="pipeline-spinner" class="htmx-indicator" style="margin-right:6px;">⏳</span>
+            Run Pipeline
+        </button>
+        <button
+            hx-post="/clients/{{ client_id }}/actions/epg-rebuild"
+            hx-target="#epg-rebuild-status"
+            hx-swap="innerHTML"
+            hx-indicator="#epg-rebuild-spinner"
+            class="btn-outline"
+            style="font-size:var(--text-small);padding:8px 16px;"
+        >
+            <span id="epg-rebuild-spinner" class="htmx-indicator" style="margin-right:6px;">⏳</span>
+            Rebuild EPG
+        </button>
+        <span id="pipeline-status" style="display:inline-flex;align-items:center;"></span>
+        <span id="epg-rebuild-status" style="display:inline-flex;align-items:center;"></span>
+    </div>
+    {% endif %}
+
     <!-- Today's plan per avatar -->
     {% if avatar_epgs %}
     {% for epg in avatar_epgs %}

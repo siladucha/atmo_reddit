@@ -50,6 +50,14 @@ class Client(Base):
     geo_monitoring_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     geo_execution_frequency: Mapped[str] = mapped_column(String(20), default="twice_weekly", server_default="twice_weekly")
 
+    # Brand Guardrails (client portal settings)
+    # Structure: {"never_associate": ["topic1", ...], "restricted_claims": "...", "style_inspiration": "..."}
+    brand_guardrails: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
+    # Onboarding state
+    current_onboarding_step: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    onboarding_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Relationships
     subreddits = relationship("ClientSubreddit", back_populates="client")  # legacy, kept for migration
     subreddit_assignments = relationship("ClientSubredditAssignment", back_populates="client")

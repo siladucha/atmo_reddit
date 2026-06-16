@@ -37,7 +37,7 @@
     <div style="display:flex;flex-direction:column;gap:var(--space-3);">
         {% for s in strategies %}
         <div class="surface" style="padding:var(--space-3);">
-            <!-- Header -->
+            <!-- Header + Generate button -->
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
                 <div style="display:flex;align-items:center;gap:10px;">
                     <span style="font-weight:600;color:var(--color-white);">{{ s.avatar_name }}</span>
@@ -50,6 +50,16 @@
                     <span class="badge-orange">PENDING</span>
                     {% endif %}
                     <span class="text-small">{{ s.generated_at }}</span>
+                    {% if user_role in ['owner', 'partner', 'client_admin', 'client_manager'] %}
+                    <button
+                        hx-post="/clients/{{ client_id }}/actions/strategy/{{ s.avatar_id }}"
+                        hx-target="#strategy-status-{{ s.avatar_id }}"
+                        hx-swap="innerHTML"
+                        class="btn-outline"
+                        style="font-size:var(--text-micro);padding:4px 10px;margin-left:8px;"
+                    >↻ Regenerate</button>
+                    <span id="strategy-status-{{ s.avatar_id }}"></span>
+                    {% endif %}
                 </div>
             </div>
 

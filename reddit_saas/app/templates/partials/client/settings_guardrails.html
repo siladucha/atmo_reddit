@@ -1,0 +1,144 @@
+<!-- Brand Guardrails Section Partial — settings_guardrails.html -->
+
+{% if success %}
+<div style="background:rgba(16,185,129,0.15);border:1px solid var(--color-green);border-radius:var(--radius-input);padding:8px 12px;margin-bottom:12px;">
+    <span style="color:var(--color-green);font-size:var(--text-small);">{{ success }}</span>
+</div>
+{% endif %}
+
+{% if error %}
+<div style="background:rgba(229,57,53,0.15);border:1px solid var(--color-red);border-radius:var(--radius-input);padding:8px 12px;margin-bottom:12px;">
+    <span style="color:var(--color-red);font-size:var(--text-small);">{{ error }}</span>
+</div>
+{% endif %}
+
+<h2 style="font-size:var(--text-h2);color:var(--color-white);margin-bottom:8px;">Brand Guardrails</h2>
+<p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:16px;">Define topics, claims, and style guidance the AI should follow.</p>
+
+{% if can_edit %}
+<form hx-post="/clients/{{ client_id }}/settings/guardrails" hx-target="#settings-guardrails" hx-swap="innerHTML">
+
+    <!-- Never-associate topics -->
+    <div style="margin-bottom:16px;">
+        <label style="display:block;font-size:var(--text-small);color:var(--color-white);margin-bottom:6px;font-weight:500;">Never-associate topics</label>
+        <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:8px;">Topics the AI should never link to your brand.</p>
+
+        <!-- Tag display area -->
+        <div id="guardrails-tags-container" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+            {% for tag in guardrails.get('never_associate', []) %}
+            <span class="guardrail-tag" style="display:inline-flex;align-items:center;gap:4px;background:rgba(229,57,53,0.12);color:var(--color-red);border:1px solid rgba(229,57,53,0.3);border-radius:var(--radius-pill);padding:4px 10px;font-size:var(--text-small);">
+                {{ tag }}
+                <button type="button" onclick="removeGuardrailTag(this)" style="background:none;border:none;color:var(--color-red);cursor:pointer;font-size:14px;padding:0 2px;line-height:1;" aria-label="Remove tag {{ tag }}">&times;</button>
+            </span>
+            {% endfor %}
+        </div>
+
+        <!-- Add tag input -->
+        <div style="display:flex;gap:8px;">
+            <input type="text" id="guardrails-tag-input" placeholder="Add topic and press Enter..." style="flex:1;padding:8px 12px;background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius-input);color:var(--color-white);font-size:var(--text-body);" onkeydown="if(event.key==='Enter'){event.preventDefault();addGuardrailTag();}">
+            <button type="button" onclick="addGuardrailTag()" class="btn btn-orange-outline" style="min-height:36px;padding:6px 12px;font-size:var(--text-small);">Add</button>
+        </div>
+
+        <!-- Hidden input that collects all tags as comma-separated -->
+        <input type="hidden" name="never_associate" id="guardrails-tags-hidden" value="{{ guardrails.get('never_associate', []) | join(', ') }}">
+    </div>
+
+    <!-- Restricted claims -->
+    <div style="margin-bottom:16px;">
+        <label for="restricted-claims" style="display:block;font-size:var(--text-small);color:var(--color-white);margin-bottom:6px;font-weight:500;">Restricted claims</label>
+        <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:8px;">Claims or statements the AI should avoid making.</p>
+        <textarea id="restricted-claims" name="restricted_claims" rows="4" style="width:100%;padding:10px 12px;background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius-input);color:var(--color-white);font-size:var(--text-body);resize:vertical;" placeholder="e.g. Do not claim FDA approval, avoid price comparisons...">{{ guardrails.get('restricted_claims', '') }}</textarea>
+    </div>
+
+    <!-- Style inspiration -->
+    <div style="margin-bottom:16px;">
+        <label for="style-inspiration" style="display:block;font-size:var(--text-small);color:var(--color-white);margin-bottom:6px;font-weight:500;">Style inspiration</label>
+        <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:8px;">Describe the tone, style, or examples the AI should follow.</p>
+        <textarea id="style-inspiration" name="style_inspiration" rows="4" style="width:100%;padding:10px 12px;background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius-input);color:var(--color-white);font-size:var(--text-body);resize:vertical;" placeholder="e.g. Sound like a thoughtful practitioner, not a vendor...">{{ guardrails.get('style_inspiration', '') }}</textarea>
+    </div>
+
+    <button type="submit" class="btn btn-orange" style="padding:8px 20px;font-size:var(--text-body);">Save guardrails</button>
+</form>
+
+<script>
+function addGuardrailTag() {
+    var input = document.getElementById('guardrails-tag-input');
+    var tag = input.value.trim();
+    if (!tag) return;
+
+    var container = document.getElementById('guardrails-tags-container');
+    var hidden = document.getElementById('guardrails-tags-hidden');
+
+    // Check for duplicate
+    var currentTags = hidden.value ? hidden.value.split(',').map(function(t){ return t.trim().toLowerCase(); }) : [];
+    if (currentTags.indexOf(tag.toLowerCase()) !== -1) {
+        input.value = '';
+        return;
+    }
+
+    // Add chip
+    var span = document.createElement('span');
+    span.className = 'guardrail-tag';
+    span.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:rgba(229,57,53,0.12);color:var(--color-red);border:1px solid rgba(229,57,53,0.3);border-radius:var(--radius-pill);padding:4px 10px;font-size:var(--text-small);';
+    span.innerHTML = tag + ' <button type="button" onclick="removeGuardrailTag(this)" style="background:none;border:none;color:var(--color-red);cursor:pointer;font-size:14px;padding:0 2px;line-height:1;" aria-label="Remove tag">&times;</button>';
+    container.appendChild(span);
+
+    // Update hidden input
+    if (hidden.value) {
+        hidden.value += ', ' + tag;
+    } else {
+        hidden.value = tag;
+    }
+
+    input.value = '';
+}
+
+function removeGuardrailTag(btn) {
+    var span = btn.parentElement;
+    var tagText = span.textContent.replace('\u00d7', '').trim();
+    span.remove();
+
+    // Update hidden input
+    var hidden = document.getElementById('guardrails-tags-hidden');
+    var tags = hidden.value.split(',').map(function(t){ return t.trim(); }).filter(function(t){ return t.toLowerCase() !== tagText.toLowerCase(); });
+    hidden.value = tags.join(', ');
+}
+</script>
+
+{% else %}
+<!-- Read-only mode for viewers -->
+
+<!-- Never-associate topics (read-only) -->
+<div style="margin-bottom:16px;">
+    <label style="display:block;font-size:var(--text-small);color:var(--color-white);margin-bottom:6px;font-weight:500;">Never-associate topics</label>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        {% for tag in guardrails.get('never_associate', []) %}
+        <span style="display:inline-flex;align-items:center;background:rgba(229,57,53,0.12);color:var(--color-red);border:1px solid rgba(229,57,53,0.3);border-radius:var(--radius-pill);padding:4px 10px;font-size:var(--text-small);">{{ tag }}</span>
+        {% endfor %}
+        {% if not guardrails.get('never_associate', []) %}
+        <span style="font-size:var(--text-small);color:var(--color-muted);">None configured</span>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Restricted claims (read-only) -->
+<div style="margin-bottom:16px;">
+    <label style="display:block;font-size:var(--text-small);color:var(--color-white);margin-bottom:6px;font-weight:500;">Restricted claims</label>
+    {% if guardrails.get('restricted_claims', '') %}
+    <p style="font-size:var(--text-body);color:var(--color-muted);white-space:pre-wrap;">{{ guardrails.get('restricted_claims', '') }}</p>
+    {% else %}
+    <p style="font-size:var(--text-small);color:var(--color-muted);">None configured</p>
+    {% endif %}
+</div>
+
+<!-- Style inspiration (read-only) -->
+<div style="margin-bottom:16px;">
+    <label style="display:block;font-size:var(--text-small);color:var(--color-white);margin-bottom:6px;font-weight:500;">Style inspiration</label>
+    {% if guardrails.get('style_inspiration', '') %}
+    <p style="font-size:var(--text-body);color:var(--color-muted);white-space:pre-wrap;">{{ guardrails.get('style_inspiration', '') }}</p>
+    {% else %}
+    <p style="font-size:var(--text-small);color:var(--color-muted);">None configured</p>
+    {% endif %}
+</div>
+
+{% endif %}
