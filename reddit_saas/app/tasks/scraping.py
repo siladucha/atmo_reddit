@@ -449,8 +449,10 @@ def scrape_subreddit_shared(self, subreddit_id: str) -> dict:
 
         db.commit()
 
-        # Update Subreddit.last_scraped_at
+        # Update Subreddit.last_scraped_at + reset failure counter on success
         sub_record.last_scraped_at = datetime.now(timezone.utc)
+        if sub_record.consecutive_failures > 0:
+            sub_record.consecutive_failures = 0
 
         # Record ScrapeLog with subreddit_id (nullable client_id)
         duration_ms = int((time.time() - start_time) * 1000)
@@ -514,6 +516,20 @@ def scrape_subreddit_shared(self, subreddit_id: str) -> dict:
             if sub_record:
                 sub_record.last_scraped_at = datetime.now(timezone.utc)
                 subreddit_name = sub_record.subreddit_name
+
+                # --- Consecutive failure tracking + auto-disable ---
+                sub_record.consecutive_failures = (sub_record.consecutive_failures or 0) + 1
+                from app.services.settings import get_setting_int
+                max_failures = get_setting_int(db, "scrape_max_consecutive_failures", 5)
+
+                if sub_record.consecutive_failures >= max_failures:
+                    sub_record.is_active = False
+                    sub_record.disabled_reason = f"Auto-disabled after {sub_record.consecutive_failures} consecutive failures. Last error: {error_str[:200]}"
+                    sub_record.disabled_at = datetime.now(timezone.utc)
+                    logger.warning(
+                        "scrape_subreddit_shared: AUTO-DISABLED r/%s after %d consecutive failures (error: %s)",
+                        subreddit_name, sub_record.consecutive_failures, error_str[:100],
+                    )
             else:
                 subreddit_name = "unknown"
 
@@ -532,12 +548,27 @@ def scrape_subreddit_shared(self, subreddit_id: str) -> dict:
             logger.warning("scrape_subreddit_shared: failed to record error scrape_log: %s", inner)
             db.rollback()
 
+        # Emit activity event — include failure count and auto-disable status
+        was_disabled = False
+        try:
+            sub_check = db.query(Subreddit).filter(Subreddit.id == subreddit_uuid).first()
+            failure_count = sub_check.consecutive_failures if sub_check else 0
+            was_disabled = sub_check and not sub_check.is_active and sub_check.disabled_reason
+        except Exception:
+            failure_count = 0
+
+        event_type = "scrape_auto_disabled" if was_disabled else "scrape_failed"
+        event_msg = (
+            f"Auto-disabled r/{subreddit_name} after {failure_count} consecutive failures: {error_str[:150]}"
+            if was_disabled
+            else f"Shared scrape failed for r/{subreddit_name} (failure #{failure_count}): {error_str[:150]}"
+        )
         record_activity_event(
             db,
-            "system",
-            f"Shared scrape failed for r/{subreddit_name}: {error_str[:200]}",
+            event_type,
+            event_msg,
             client_id=None,
-            metadata={"subreddit_id": subreddit_id, "error": error_str[:500]},
+            metadata={"subreddit_id": subreddit_id, "error": error_str[:500], "consecutive_failures": failure_count, "auto_disabled": was_disabled},
         )
 
         # Audit log for admin audit logs page

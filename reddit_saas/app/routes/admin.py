@@ -890,8 +890,27 @@ def admin_hard_delete_user(
     """Permanently delete a user. Owner only."""
     try:
         admin_service.delete_user(db, user_id, current_user.id)
-    except ValueError:
-        pass
+    except ValueError as e:
+        # Self-delete or user not found — return row unchanged
+        user = db.query(User).filter(User.id == user_id).first()
+        if user:
+            return templates.TemplateResponse(
+                name="partials/admin_user_row.html",
+                context={"request": request, "user": user, "current_user": current_user, "error": str(e)},
+                request=request,
+            )
+        return HTMLResponse(content="")
+    except Exception as e:
+        db.rollback()
+        logger.error("Hard-delete user %s failed: %s", user_id, e)
+        user = db.query(User).filter(User.id == user_id).first()
+        if user:
+            return templates.TemplateResponse(
+                name="partials/admin_user_row.html",
+                context={"request": request, "user": user, "current_user": current_user, "error": f"Delete failed: {str(e)[:100]}"},
+                request=request,
+            )
+        return HTMLResponse(content="")
     # Return empty row (user is gone)
     return HTMLResponse(content="")
 
@@ -2091,6 +2110,46 @@ def admin_scrape_now(
     )
 
 
+@router.post("/subreddits/{subreddit_id}/reenable", response_class=HTMLResponse)
+def admin_reenable_subreddit(
+    request: Request,
+    subreddit_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Re-enable a shared subreddit that was auto-disabled due to consecutive failures.
+
+    Resets consecutive_failures counter, clears disabled_reason/disabled_at,
+    and sets is_active back to True.
+    """
+    sub = db.query(Subreddit).filter(Subreddit.id == subreddit_id).first()
+    if not sub:
+        return HTMLResponse("Subreddit not found", status_code=404)
+
+    old_reason = sub.disabled_reason
+    sub.is_active = True
+    sub.consecutive_failures = 0
+    sub.disabled_reason = None
+    sub.disabled_at = None
+    # Reset last_scraped_at so it gets picked up by queue_tick immediately
+    sub.last_scraped_at = None
+    db.commit()
+
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="reenable_subreddit",
+        entity_type="subreddit",
+        entity_id=sub.id,
+        details={
+            "subreddit_name": sub.subreddit_name,
+            "previous_disabled_reason": old_reason,
+        },
+    )
+
+    return RedirectResponse(url="/admin/subreddits", status_code=303)
+
+
 @router.get("/avatars", response_class=HTMLResponse)
 def admin_avatars(
     request: Request,
@@ -2348,7 +2407,7 @@ def admin_avatar_health_check(
     from app.services.reddit_freshness import is_health_check_fresh
     from app.services.safety import _format_relative_time
 
-    logger = logging.getLogger(__name__)
+    logger = get_logger(__name__)
 
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
@@ -2444,7 +2503,7 @@ def admin_avatar_update_cqs(
     """
     import logging
 
-    logger = logging.getLogger(__name__)
+    logger = get_logger(__name__)
 
     VALID_CQS_LEVELS = {"lowest", "low", "moderate", "high", "highest"}
 
@@ -3244,7 +3303,7 @@ def admin_avatar_build_epg(
 ):
     """Build EPG and generate comments for an avatar (manual trigger)."""
     import logging
-    logger = logging.getLogger(__name__)
+    logger = get_logger(__name__)
 
     from app.services.epg import build_daily_epg
 
@@ -3312,7 +3371,7 @@ def admin_avatar_refresh(
     from app.services.health_checker import check_avatar_health
     from app.services.cqs_checker import update_avatar_cqs_from_reddit
 
-    logger = logging.getLogger(__name__)
+    logger = get_logger(__name__)
 
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
