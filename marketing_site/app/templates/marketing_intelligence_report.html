@@ -1,0 +1,137 @@
+{% extends "marketing_base.html" %}
+{% block title %}Your Day 1 Landscape Report — Reddit Competitive Intelligence | RAMP{% endblock %}
+
+{% block content %}
+<!-- HERO -->
+<section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+    <div class="max-w-4xl mx-auto text-center">
+        <h1 class="text-4xl sm:text-5xl font-extrabold text-white tracking-tight">YOUR DAY 1 LANDSCAPE REPORT</h1>
+        <p class="mt-6 text-xl text-gray-300 max-w-3xl mx-auto">Your competitor is mentioned in threads your buyers are reading.<br><span class="italic-accent">Here's which ones.</span></p>
+        <p class="mt-6 text-gray-400 text-lg max-w-3xl mx-auto">The Reddit Landscape Report maps your category's community conversations &mdash; where your competitors have standing, where buying decisions are forming, and where your brand is currently invisible. Delivered within 48 hours. No commitment required.</p>
+    </div>
+</section>
+
+<!-- REPORT CONTENT + FORM -->
+<section class="bg-ramp-darker/50 border-y border-white/5 py-20">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 max-w-6xl mx-auto">
+            <!-- Left: What you'll receive -->
+            <div>
+                <h2 class="text-xl font-bold text-white mb-6">WHAT YOU'LL RECEIVE</h2>
+                <p class="text-gray-400 text-sm mb-8">Four intelligence layers. Delivered in 48 hours.</p>
+
+                <div class="space-y-6">
+                    <div>
+                        <h3 class="text-white font-semibold mb-2">Competitor Share of Voice</h3>
+                        <ul class="space-y-1 text-gray-400 text-sm">
+                            <li>&rarr; Which community voices carry your competitors' names across your target subreddits</li>
+                            <li>&rarr; Estimated SOV percentage per competitor vs. your current zero-baseline</li>
+                            <li>&rarr; Threads where competitor recommendations appeared in the last 90 days</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="text-white font-semibold mb-2">High-Intent Thread Inventory</h3>
+                        <ul class="space-y-1 text-gray-400 text-sm">
+                            <li>&rarr; Active threads where buyers are evaluating tools in your category</li>
+                            <li>&rarr; Threads with explicit buying signals ("which tool should I use", "is X worth it")</li>
+                            <li>&rarr; Communities with the highest density of your ICP</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="text-white font-semibold mb-2">Brand Visibility Gap Analysis</h3>
+                        <ul class="space-y-1 text-gray-400 text-sm">
+                            <li>&rarr; Communities where your brand is invisible</li>
+                            <li>&rarr; Gap between your current presence and competitor presence</li>
+                            <li>&rarr; Estimated competitive cost of that visibility gap</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="text-white font-semibold mb-2">Keyword &amp; Conversation Map</h3>
+                        <ul class="space-y-1 text-gray-400 text-sm">
+                            <li>&rarr; The exact language your buyers use when they're in research mode</li>
+                            <li>&rarr; Topic clusters that signal buying intent in your category</li>
+                            <li>&rarr; Content angles that earn community trust vs. those that get ignored</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Form (Formspree) -->
+            <div>
+                <h2 class="text-xl font-bold text-white mb-6">REQUEST YOUR REPORT</h2>
+                <p class="text-gray-400 text-sm mb-6">Takes 2 minutes. Delivered within 48 hours. No credit card. No commitment.</p>
+
+                <form action="https://formspree.io/f/xdavjynp" method="POST" class="space-y-4">
+                    <!-- Formspree redirect after successful submission -->
+                    <input type="hidden" name="_next" value="https://gorampit.com/thank-you">
+                    <!-- Honeypot anti-spam -->
+                    <input type="text" name="_gotcha" style="display:none">
+
+                    <div>
+                        <label for="email" class="block text-sm font-medium text-gray-300 mb-1">Work email <span class="text-red-400">*</span></label>
+                        <input type="email" id="email" name="email" required placeholder="you@company.com" class="w-full rounded-lg border border-white/10 bg-ramp-card px-4 py-3 text-white placeholder-gray-500 focus:border-ramp-electric focus:ring-1 focus:ring-ramp-electric focus:outline-none">
+                    </div>
+                    <div>
+                        <label for="company" class="block text-sm font-medium text-gray-300 mb-1">Company name <span class="text-red-400">*</span></label>
+                        <input type="text" id="company" name="company" required placeholder="Acme Inc." class="w-full rounded-lg border border-white/10 bg-ramp-card px-4 py-3 text-white placeholder-gray-500 focus:border-ramp-electric focus:ring-1 focus:ring-ramp-electric focus:outline-none">
+                    </div>
+                    <div>
+                        <label for="role" class="block text-sm font-medium text-gray-300 mb-1">Your role <span class="text-red-400">*</span></label>
+                        <input type="text" id="role" name="role" required placeholder="Head of Demand Gen / Growth" class="w-full rounded-lg border border-white/10 bg-ramp-card px-4 py-3 text-white placeholder-gray-500 focus:border-ramp-electric focus:ring-1 focus:ring-ramp-electric focus:outline-none">
+                    </div>
+                    <div>
+                        <label for="company_size" class="block text-sm font-medium text-gray-300 mb-1">Company size <span class="text-red-400">*</span></label>
+                        <select id="company_size" name="company_size" required class="w-full rounded-lg border border-white/10 bg-ramp-card px-4 py-3 text-white focus:border-ramp-electric focus:ring-1 focus:ring-ramp-electric focus:outline-none">
+                            <option value="" class="text-gray-500">Select company size</option>
+                            <option value="1-50">1&ndash;50 employees</option>
+                            <option value="50-200">50&ndash;200 employees</option>
+                            <option value="200-1000">200&ndash;1000 employees</option>
+                            <option value="1000+">1000+ employees</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="industry" class="block text-sm font-medium text-gray-300 mb-1">Primary category / industry <span class="text-red-400">*</span></label>
+                        <input type="text" id="industry" name="industry" required placeholder="e.g. Cybersecurity, DevOps, Fintech" class="w-full rounded-lg border border-white/10 bg-ramp-card px-4 py-3 text-white placeholder-gray-500 focus:border-ramp-electric focus:ring-1 focus:ring-ramp-electric focus:outline-none">
+                    </div>
+                    <div>
+                        <label for="competitors" class="block text-sm font-medium text-gray-300 mb-1">Competitors to include (optional)</label>
+                        <input type="text" id="competitors" name="competitors" placeholder="e.g. Vendor A, Vendor B, Vendor C" class="w-full rounded-lg border border-white/10 bg-ramp-card px-4 py-3 text-white placeholder-gray-500 focus:border-ramp-electric focus:ring-1 focus:ring-ramp-electric focus:outline-none">
+                    </div>
+
+                    <div class="pt-2">
+                        <button type="submit" class="w-full rounded-lg bg-ramp-electric px-6 py-4 text-base font-semibold text-white hover:bg-ramp-blue focus:outline-none focus:ring-2 focus:ring-ramp-electric focus:ring-offset-2 focus:ring-offset-ramp-dark transition-colors">
+                            Request my Landscape Report &rarr;
+                        </button>
+                    </div>
+                    <p class="text-xs text-ramp-muted text-center">No credit card. No commitment. Delivered in 48 hours.</p>
+                </form>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- WHAT HAPPENS NEXT -->
+<section class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+    <div class="text-center mb-10">
+        <h2 class="text-xl font-bold text-white">WHAT HAPPENS NEXT</h2>
+        <p class="mt-2 text-gray-400">After you submit.</p>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-ramp-card border border-white/5 rounded-xl p-6 text-center">
+            <p class="text-ramp-electric text-xs font-semibold uppercase mb-2">Within 2 Hours</p>
+            <h3 class="text-white font-bold mb-2">Confirmation</h3>
+            <p class="text-gray-400 text-sm">We confirm receipt and the scope of your report. If we have questions about your category we'll reach out.</p>
+        </div>
+        <div class="bg-ramp-card border border-white/5 rounded-xl p-6 text-center">
+            <p class="text-ramp-electric text-xs font-semibold uppercase mb-2">Within 48 Hours</p>
+            <h3 class="text-white font-bold mb-2">Your Report</h3>
+            <p class="text-gray-400 text-sm">Full Reddit Landscape Report delivered to your inbox. Competitor SOV, high-intent threads, visibility gap analysis, keyword map.</p>
+        </div>
+        <div class="bg-ramp-card border border-white/5 rounded-xl p-6 text-center">
+            <p class="text-ramp-electric text-xs font-semibold uppercase mb-2">Optional</p>
+            <h3 class="text-white font-bold mb-2">30-Min Walkthrough</h3>
+            <p class="text-gray-400 text-sm">We offer a free call to walk through your report findings and answer any questions. No sales pitch. No commitment.</p>
+        </div>
+    </div>
+</section>
+{% endblock %}

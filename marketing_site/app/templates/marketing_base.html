@@ -3,107 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Cache-Control" content="public, max-age=604800">
-    <title>{% block title %}RAMP — Reddit Marketing Platform{% endblock %}</title>
-    <meta name="description" content="{% block meta_description %}RAMP helps brands grow on Reddit with managed persona-driven engagement. Safe, scalable, and effective.{% endblock %}">
-
-    <!-- Open Graph / Social Sharing -->
+    <title>{% block title %}RAMP — Earned Presence{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}RAMP builds your brand presence in the Reddit communities where B2B buyers ask each other who to trust.{% endblock %}">
     <meta property="og:type" content="website">
-    <meta property="og:title" content="{% block og_title %}RAMP — Reddit Marketing Platform{% endblock %}">
-    <meta property="og:description" content="{% block og_description %}Grow your brand on Reddit with managed persona-driven engagement.{% endblock %}">
-    <meta property="og:url" content="{% block og_url %}https://ramp.com{% endblock %}">
+    <meta property="og:title" content="{% block og_title %}RAMP — Reddit Presence, Managed{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}Earned presence in the communities where your buyers actually talk.{% endblock %}">
+    <meta property="og:url" content="{% block og_url %}https://gorampit.com{% endblock %}">
     <meta property="og:site_name" content="RAMP">
-
-    <!-- Tailwind CSS CDN -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'ramp-dark': '#1C1C2E',
+                        'ramp-darker': '#14141F',
+                        'ramp-card': '#242438',
+                        'ramp-blue': '#2563C4',
+                        'ramp-electric': '#4E8EF5',
+                        'ramp-muted': '#6B6B80',
+                        'ramp-light': '#E8EAF0',
+                    },
+                    fontFamily: {
+                        'serif': ['"DM Serif Display"', 'serif'],
+                        'sans': ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        html { scroll-behavior: smooth; }
+        .italic-accent { font-family: 'DM Serif Display', serif; font-style: italic; color: #4E8EF5; }
+    </style>
     {% block head_extra %}{% endblock %}
 </head>
-<body class="bg-white text-gray-900 font-sans antialiased min-h-screen flex flex-col">
-
-    <!-- Header -->
-    <header class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
+<body class="bg-ramp-dark text-white font-sans antialiased min-h-screen flex flex-col">
+    <header class="bg-ramp-darker/80 backdrop-blur-md border-b border-white/5 sticky top-0 z-50">
         <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
-                <!-- Logo -->
-                <a href="/" class="flex items-center space-x-2">
-                    <span class="text-2xl font-bold text-indigo-600">RAMP</span>
-                </a>
-
-                <!-- Desktop Navigation -->
-                <div class="hidden md:flex items-center space-x-8">
-                    <a href="/" class="text-gray-700 hover:text-indigo-600 font-medium transition-colors">Home</a>
-                    <a href="/mobile" class="text-gray-700 hover:text-indigo-600 font-medium transition-colors">Mobile</a>
-                    <a href="/proxy" class="text-gray-700 hover:text-indigo-600 font-medium transition-colors">Proxy</a>
-                    <a href="/roadmap" class="text-gray-700 hover:text-indigo-600 font-medium transition-colors">Roadmap</a>
-                    <a href="/login" class="text-indigo-600 hover:text-indigo-700 font-semibold transition-colors">Login</a>
+                <a href="/" class="text-2xl font-bold text-white tracking-tight">RAMP</a>
+                <div class="hidden md:flex items-center space-x-6 lg:space-x-8">
+                    <a href="/" class="text-gray-300 hover:text-white font-medium transition-colors text-sm">Home</a>
+                    <a href="/how-it-works" class="text-gray-300 hover:text-white font-medium transition-colors text-sm">How It Works</a>
+                    <a href="/for-agencies" class="text-gray-300 hover:text-white font-medium transition-colors text-sm">For Agencies</a>
+                    <a href="/pricing" class="text-gray-300 hover:text-white font-medium transition-colors text-sm">Pricing</a>
+                    <a href="/intelligence-report" class="text-gray-300 hover:text-white font-medium transition-colors text-sm">Intelligence Report</a>
+                    <a href="/whats-coming" class="text-gray-300 hover:text-white font-medium transition-colors text-sm">What's Coming</a>
+                    <a href="/login" class="text-ramp-electric hover:text-white font-semibold transition-colors text-sm">Client Login</a>
                 </div>
-
-                <!-- Mobile Hamburger Button -->
-                <button type="button" id="mobile-menu-btn" class="md:hidden inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-indigo-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500" aria-expanded="false" aria-label="Toggle navigation menu">
-                    <svg class="h-6 w-6" id="menu-icon-open" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-                    </svg>
-                    <svg class="h-6 w-6 hidden" id="menu-icon-close" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
+                <div class="hidden lg:block">
+                    <a href="/intelligence-report" class="px-4 py-2 bg-ramp-electric hover:bg-ramp-blue text-white text-sm font-semibold rounded-lg transition-colors">See where you stand</a>
+                </div>
+                <button type="button" id="mobile-menu-btn" class="md:hidden p-2 rounded-md text-gray-300 hover:text-white hover:bg-white/10" aria-expanded="false" aria-label="Toggle navigation menu">
+                    <svg class="h-6 w-6" id="menu-icon-open" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                    <svg class="h-6 w-6 hidden" id="menu-icon-close" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
             </div>
-
-            <!-- Mobile Navigation Menu -->
             <div class="md:hidden hidden" id="mobile-menu">
                 <div class="pb-4 pt-2 space-y-1">
-                    <a href="/" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-indigo-600 hover:bg-gray-50">Home</a>
-                    <a href="/mobile" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-indigo-600 hover:bg-gray-50">Mobile</a>
-                    <a href="/proxy" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-indigo-600 hover:bg-gray-50">Proxy</a>
-                    <a href="/roadmap" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-indigo-600 hover:bg-gray-50">Roadmap</a>
-                    <a href="/login" class="block px-3 py-2 rounded-md text-base font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-gray-50">Login</a>
+                    <a href="/" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5">Home</a>
+                    <a href="/how-it-works" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5">How It Works</a>
+                    <a href="/for-agencies" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5">For Agencies</a>
+                    <a href="/pricing" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5">Pricing</a>
+                    <a href="/intelligence-report" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5">Intelligence Report</a>
+                    <a href="/whats-coming" class="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5">What's Coming</a>
+                    <a href="/login" class="block px-3 py-2 rounded-md text-base font-semibold text-ramp-electric hover:text-white hover:bg-white/5">Client Login</a>
                 </div>
             </div>
         </nav>
     </header>
-
-    <!-- Main Content -->
-    <main class="flex-1">
-        {% block content %}{% endblock %}
-    </main>
-
-    <!-- Footer -->
-    <footer class="bg-gray-50 border-t border-gray-200">
+    <main class="flex-1">{% block content %}{% endblock %}</main>
+    <footer class="bg-ramp-darker border-t border-white/5">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-            <div class="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
-                <!-- Footer Logo & Copyright -->
-                <div class="flex items-center space-x-2">
-                    <span class="text-lg font-bold text-indigo-600">RAMP</span>
-                    <span class="text-gray-500 text-sm">&copy; 2026 RAMP. All rights reserved.</span>
+            <div class="flex flex-col md:flex-row items-center justify-between space-y-6 md:space-y-0">
+                <div class="text-center md:text-left">
+                    <span class="text-lg font-bold text-white">RAMP</span>
+                    <span class="text-ramp-muted text-sm ml-2">&copy; 2026</span>
+                    <p class="text-ramp-muted text-sm mt-1">Earned presence in the communities where your buyers actually talk.</p>
                 </div>
-
-                <!-- Footer Links -->
                 <div class="flex items-center space-x-6">
-                    <a href="/" class="text-gray-500 hover:text-indigo-600 text-sm font-medium transition-colors">Home</a>
-                    <a href="/mobile" class="text-gray-500 hover:text-indigo-600 text-sm font-medium transition-colors">Mobile</a>
-                    <a href="/proxy" class="text-gray-500 hover:text-indigo-600 text-sm font-medium transition-colors">Proxy</a>
-                    <a href="/roadmap" class="text-gray-500 hover:text-indigo-600 text-sm font-medium transition-colors">Roadmap</a>
+                    <a href="/how-it-works" class="text-ramp-muted hover:text-white text-sm transition-colors">How It Works</a>
+                    <a href="/for-agencies" class="text-ramp-muted hover:text-white text-sm transition-colors">For Agencies</a>
+                    <a href="/pricing" class="text-ramp-muted hover:text-white text-sm transition-colors">Pricing</a>
+                    <a href="/privacy" class="text-ramp-muted hover:text-white text-sm transition-colors">Privacy</a>
+                    <a href="/terms" class="text-ramp-muted hover:text-white text-sm transition-colors">Terms</a>
                 </div>
             </div>
         </div>
     </footer>
-
-    <!-- Marketing JS (A/B engine + analytics + visitor identity) -->
     <script src="/mkt/static/js/marketing.js" defer></script>
-
-    <!-- Inline script for mobile menu toggle -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             var btn = document.getElementById('mobile-menu-btn');
             var menu = document.getElementById('mobile-menu');
             var iconOpen = document.getElementById('menu-icon-open');
             var iconClose = document.getElementById('menu-icon-close');
-
             if (btn && menu) {
                 btn.addEventListener('click', function() {
                     var expanded = btn.getAttribute('aria-expanded') === 'true';
-                    btn.setAttribute('aria-expanded', !expanded);
+                    btn.setAttribute('aria-expanded', String(!expanded));
                     menu.classList.toggle('hidden');
                     iconOpen.classList.toggle('hidden');
                     iconClose.classList.toggle('hidden');
@@ -111,7 +113,6 @@
             }
         });
     </script>
-
     {% block scripts_extra %}{% endblock %}
 </body>
 </html>

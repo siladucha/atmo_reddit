@@ -1,98 +1,158 @@
 {% extends "marketing_base.html" %}
 
-{% block title %}RAMP — Reddit Marketing, Managed for You{% endblock %}
-{% block meta_description %}Grow your brand on Reddit with AI-powered engagement. Safe, scalable, and effective. Choose personal brand growth or enterprise-scale managed marketing.{% endblock %}
-{% block og_title %}RAMP — Reddit Marketing, Managed for You{% endblock %}
-{% block og_description %}Grow your brand on Reddit with AI-powered engagement. Safe, scalable, and effective.{% endblock %}
+{% block title %}RAMP — Reddit Presence, Managed{% endblock %}
+{% block meta_description %}RAMP builds your brand's presence in the Reddit communities where B2B buyers ask each other who to trust. You approve every piece of content before it reaches a community.{% endblock %}
 
 {% block content %}
-<!-- Hero Section -->
-<section class="relative overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+<!-- HERO -->
+<section class="relative overflow-hidden">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 sm:py-32 lg:py-40">
         <div class="text-center max-w-4xl mx-auto">
-            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-gray-900 tracking-tight leading-tight">
-                Reddit Marketing,
-                <span class="text-indigo-600">Managed for You</span>
+            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white tracking-tight leading-tight">
+                REDDIT PRESENCE, <span class="italic-accent">MANAGED</span>
             </h1>
-            <p class="mt-6 text-lg sm:text-xl lg:text-2xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-                Grow your brand on Reddit with AI-powered engagement. Safe, scalable, and effective.
+            <p class="mt-4 text-xl sm:text-2xl lg:text-3xl text-gray-300 font-light leading-relaxed">
+                Your buyers have already decided<br class="hidden sm:block">
+                who they trust.
             </p>
+            <p class="mt-2 text-xl sm:text-2xl text-white font-medium">
+                They just haven't found you yet.
+            </p>
+            <p class="mt-8 text-lg text-gray-400 max-w-3xl mx-auto leading-relaxed">
+                RAMP builds your brand's presence in the Reddit communities where B2B buyers ask each other who to trust &mdash; while your competitors are <span class="italic-accent">already in those conversations</span>. You approve every piece of content before it reaches a community.
+            </p>
+            <p class="mt-4 text-lg text-gray-400">
+                By the time a buyer reaches your website, the work is already done.
+            </p>
+            <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+                <a href="/intelligence-report" class="px-8 py-4 bg-ramp-electric hover:bg-ramp-blue text-white font-semibold rounded-lg transition-colors text-lg">See where your brand stands &rarr;</a>
+                <a href="/how-it-works" class="px-8 py-4 border border-white/20 hover:border-white/40 text-white font-medium rounded-lg transition-colors text-lg">How it works &rarr;</a>
+            </div>
+            <p class="mt-6 text-xs italic text-ramp-muted">Built by practitioners who mapped Reddit's community dynamics before building a platform around them. Not the other way around.</p>
         </div>
-    </div>
-    <!-- Decorative background element -->
-    <div class="absolute inset-0 -z-10 overflow-hidden" aria-hidden="true">
-        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-indigo-100 opacity-30 blur-3xl"></div>
     </div>
 </section>
 
-<!-- Product Cards Section -->
-<section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
+<!-- STATS -->
+<section class="border-y border-white/5 bg-ramp-darker/50">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
+            <div>
+                <p class="text-4xl font-extrabold text-ramp-electric">72%</p>
+                <p class="text-sm text-gray-400 mt-2">of tech decision-makers use Reddit for peer reviews when evaluating products</p>
+                <p class="text-xs text-ramp-muted mt-1">Reddit B2B Survey, 2024</p>
+            </div>
+            <div>
+                <p class="text-4xl font-extrabold text-ramp-electric">69%</p>
+                <p class="text-sm text-gray-400 mt-2">of the buying process is complete before a buyer speaks to a seller</p>
+                <p class="text-xs text-ramp-muted mt-1">6sense Buyer Experience Study</p>
+            </div>
+            <div>
+                <p class="text-4xl font-extrabold text-ramp-electric">#1</p>
+                <p class="text-sm text-gray-400 mt-2">most cited source in ChatGPT responses &mdash; Reddit</p>
+                <p class="text-xs text-ramp-muted mt-1">Independent research, 2025</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- THE PROBLEM -->
+<section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+    <div class="max-w-3xl mx-auto text-center">
+        <h2 class="text-sm font-semibold text-ramp-electric uppercase tracking-wide">The Conversation You're Missing</h2>
+        <p class="mt-4 text-2xl sm:text-3xl text-white font-bold leading-tight">Before your buyers talk to sales,<br>they're asking strangers what to think.</p>
+        <p class="mt-6 text-gray-400 text-lg leading-relaxed">
+            Reddit is where those conversations happen &mdash; the single highest-density source of B2B practitioner opinion on the internet. It's where AI models like ChatGPT and Perplexity draw from when buyers ask questions in your category. Right now, your competitors may be in those conversations. Your brand might not be.
+        </p>
+    </div>
+</section>
+
+<!-- WHY RAMP WORKS DIFFERENTLY -->
+<section class="bg-ramp-darker/50 border-y border-white/5 py-20">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12">
+            <h2 class="text-2xl sm:text-3xl font-bold text-white">WHY RAMP WORKS DIFFERENTLY</h2>
+            <p class="mt-3 text-gray-400 text-lg">Every decision in this platform was made because we've seen what happens when you do it the other way.</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            <div class="bg-ramp-card border border-white/5 rounded-xl p-8">
+                <p class="text-ramp-electric text-sm font-semibold uppercase tracking-wide mb-3">&#9312; Protection</p>
+                <h3 class="text-white font-bold text-lg mb-3">Your brand is never directly in the execution layer</h3>
+                <p class="text-gray-400 text-sm leading-relaxed">We've watched brands post from their own accounts, get flagged by a moderator with a grudge, and spend months dealing with reputational fallout.</p>
+                <p class="text-white font-semibold text-sm mt-4">You approve. We deliver. Your name stays clean.</p>
+            </div>
+            <div class="bg-ramp-card border border-white/5 rounded-xl p-8">
+                <p class="text-ramp-electric text-sm font-semibold uppercase tracking-wide mb-3">&#9313; Credibility</p>
+                <h3 class="text-white font-bold text-lg mb-3">Credibility is built before your brand gets near a conversation</h3>
+                <p class="text-gray-400 text-sm leading-relaxed">The fastest path to a Reddit mention is not the path that produces a mention worth having. We know this because we've run the experiment.</p>
+                <p class="text-white font-semibold text-sm mt-4">RAMP enforces the sequence that actually works.</p>
+            </div>
+            <div class="bg-ramp-card border border-white/5 rounded-xl p-8">
+                <p class="text-ramp-electric text-sm font-semibold uppercase tracking-wide mb-3">&#9314; Intelligence</p>
+                <h3 class="text-white font-bold text-lg mb-3">Community intelligence built by hand before it was built into software</h3>
+                <p class="text-gray-400 text-sm leading-relaxed">The keyword framework and thread-scoring logic came from mapping how B2B buyers actually talk when evaluating tools.</p>
+                <p class="text-white font-semibold text-sm mt-4">That practitioner foundation is what makes content sound like a community member, not a marketer.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- WHO IT'S FOR -->
+<section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
     <div class="text-center mb-12">
-        <h2 class="text-2xl sm:text-3xl font-bold text-gray-900">Choose Your Path</h2>
-        <p class="mt-3 text-gray-600 text-lg">Two solutions tailored to your needs</p>
+        <h2 class="text-2xl sm:text-3xl font-bold text-white">WHO RAMP IS BUILT FOR</h2>
+        <p class="mt-3 text-gray-400 text-lg">Built for the marketers who know the conversation is happening. And know they're not in it.</p>
     </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 max-w-5xl mx-auto">
-        <!-- Mobile Card — Personal Brand -->
-        <a href="/mobile"
-           data-track-click="product_card_mobile"
-           class="group block bg-white rounded-2xl border border-gray-200 shadow-md hover:shadow-xl hover:border-indigo-300 transition-all duration-300 transform hover:-translate-y-1 p-8 lg:p-10">
-            <div class="flex items-center space-x-3 mb-4">
-                <span class="text-3xl" aria-hidden="true">🚀</span>
-                <h3 class="text-xl lg:text-2xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
-                    Personal Brand
-                </h3>
-            </div>
-            <p class="text-gray-600 text-base lg:text-lg leading-relaxed mb-6">
-                Grow your personal brand on Reddit with managed persona-driven engagement. Build credibility, earn karma, and reach your audience authentically.
-            </p>
-            <span class="inline-flex items-center text-indigo-600 font-semibold group-hover:translate-x-1 transition-transform">
-                Learn more
-                <svg class="ml-2 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                </svg>
-            </span>
-        </a>
-
-        <!-- Proxy Card — Enterprise Scale -->
-        <a href="/proxy"
-           data-track-click="product_card_proxy"
-           class="group block bg-white rounded-2xl border border-gray-200 shadow-md hover:shadow-xl hover:border-indigo-300 transition-all duration-300 transform hover:-translate-y-1 p-8 lg:p-10">
-            <div class="flex items-center space-x-3 mb-4">
-                <span class="text-3xl" aria-hidden="true">🏢</span>
-                <h3 class="text-xl lg:text-2xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
-                    Enterprise Scale
-                </h3>
-            </div>
-            <p class="text-gray-600 text-base lg:text-lg leading-relaxed mb-6">
-                Fully managed Reddit marketing for brands and agencies. Multiple avatars, advanced targeting, and dedicated account management at scale.
-            </p>
-            <span class="inline-flex items-center text-indigo-600 font-semibold group-hover:translate-x-1 transition-transform">
-                Learn more
-                <svg class="ml-2 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                </svg>
-            </span>
-        </a>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+        <div class="bg-ramp-card border-t-2 border-ramp-electric rounded-xl p-8">
+            <h3 class="text-white font-bold text-lg mb-2">For Demand Gen &amp; Growth Leaders</h3>
+            <p class="text-ramp-muted text-sm mb-4">Marketing Manager / Head of Demand Generation</p>
+            <p class="text-gray-400 text-sm leading-relaxed">You know your buyers are on Reddit. You've seen competitor names come up in threads you're not in. You don't have the time, the headcount, or the Reddit expertise to fix it &mdash; and the risk of getting it wrong is real.</p>
+            <p class="text-gray-300 text-sm mt-4">RAMP gives you channel coverage in the communities that matter, with someone else carrying the execution risk and a Day 1 Landscape Report that tells you exactly where you stand before you commit to anything.</p>
+            <a href="/how-it-works" class="inline-block mt-6 text-ramp-electric font-semibold text-sm hover:text-white transition-colors">For Demand Gen leaders &rarr;</a>
+        </div>
+        <div class="bg-ramp-card border-t-2 border-green-500 rounded-xl p-8">
+            <h3 class="text-white font-bold text-lg mb-2">For Product Marketing &amp; Brand Leaders</h3>
+            <p class="text-ramp-muted text-sm mb-4">PMM / Head of Product Marketing / Brand Manager</p>
+            <p class="text-gray-400 text-sm leading-relaxed">Your brand voice took months to get right. You're not handing it to a content farm. Every piece of content that carries your brand's proximity goes through your approval before it goes anywhere.</p>
+            <p class="text-gray-300 text-sm mt-4">RAMP builds community authority that sounds like you, not like a vendor &mdash; and every AI search answer in your category should be citing a voice you helped shape.</p>
+            <a href="/how-it-works" class="inline-block mt-6 text-green-400 font-semibold text-sm hover:text-white transition-colors">For Brand &amp; PMM leaders &rarr;</a>
+        </div>
     </div>
 </section>
 
-<!-- Client Login Section -->
-<section class="bg-gray-50 border-t border-gray-200">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-        <div class="max-w-2xl mx-auto text-center">
-            <h2 class="text-xl sm:text-2xl font-bold text-gray-900 mb-3">Already a client?</h2>
-            <p class="text-gray-600 mb-6">
-                Access your dashboard to review AI-generated comments, track avatar performance, and manage your Reddit engagement campaigns.
-            </p>
-            <a href="/login"
-               class="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
-                <svg class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
-                </svg>
-                Go to Dashboard
-            </a>
+<!-- AEO / GEO ANGLE -->
+<section class="bg-ramp-card/30 border-y border-white/5 py-20">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <h2 class="text-sm font-semibold text-ramp-electric uppercase tracking-wide">The AI Search Angle</h2>
+        <p class="mt-4 text-xl sm:text-2xl text-white font-bold leading-tight max-w-3xl mx-auto">When someone asks AI about your category, the answer is built from community conversations.</p>
+        <blockquote class="mt-8 text-lg italic-accent leading-relaxed max-w-3xl mx-auto">
+            &ldquo;When someone asks ChatGPT which cybersecurity platform is worth considering, the answer isn't built from your website &mdash; it's built from conversations. We make sure yours are in there.&rdquo;
+        </blockquote>
+        <p class="mt-8 text-gray-400 leading-relaxed max-w-3xl mx-auto">
+            AI search doesn't read press releases. It reads the places where practitioners talk honestly &mdash; subreddits, forums, community threads. Reddit is the single most cited source in ChatGPT responses. The brands building credibility in those communities today are accumulating an asset that later entrants cannot buy retroactively.
+        </p>
+        <p class="mt-4 text-gray-300">
+            RAMP builds your presence in those conversations now. Not because you can guarantee an AI citation &mdash; but because the window to be in the source material is open today, and it won't stay that way.
+        </p>
+        <p class="mt-6 text-sm text-ramp-muted">First-mover window: 12&ndash;18 months.</p>
+    </div>
+</section>
+
+<!-- BOTTOM CTA -->
+<section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+    <div class="max-w-3xl mx-auto text-center">
+        <h2 class="text-sm font-semibold text-ramp-electric uppercase tracking-wide">Start Here</h2>
+        <p class="mt-4 text-2xl sm:text-3xl text-white font-bold">See where your brand stands.</p>
+        <p class="mt-2 text-xl text-gray-300">Before your competitor does.</p>
+        <p class="mt-6 text-gray-400 leading-relaxed">
+            Start with a Reddit Landscape Report &mdash; competitor share-of-voice analysis showing exactly which conversations your brand is missing from. Delivered within 48 hours. No commitment required.
+        </p>
+        <div class="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <a href="/intelligence-report" class="px-8 py-4 bg-ramp-electric hover:bg-ramp-blue text-white font-semibold rounded-lg transition-colors text-lg">Request your Landscape Report &rarr;</a>
         </div>
+        <p class="mt-4 text-sm text-gray-400">Or <a href="#" class="text-ramp-electric hover:text-white transition-colors">book a 30-minute call</a> to see how RAMP works before you decide anything.</p>
+        <p class="mt-4 text-xs text-ramp-muted">No credit card. No commitment.</p>
     </div>
 </section>
 {% endblock %}

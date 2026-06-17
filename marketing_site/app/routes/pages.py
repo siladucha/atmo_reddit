@@ -1,8 +1,6 @@
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-
-from app.services.ab_tests import get_default_variants, get_tests_for_page, ACTIVE_TESTS
 
 router = APIRouter(tags=["pages"])
 templates = Jinja2Templates(directory="app/templates")
@@ -10,62 +8,50 @@ templates = Jinja2Templates(directory="app/templates")
 
 @router.get("/", response_class=HTMLResponse)
 async def homepage(request: Request) -> HTMLResponse:
-    """Render the homepage with hero section and product cards."""
-    return templates.TemplateResponse(request=request, name="marketing_home.html")
+    return templates.TemplateResponse("marketing_home.html", {"request": request})
 
 
-@router.get("/mobile", response_class=HTMLResponse)
-async def mobile_page(request: Request) -> HTMLResponse:
-    """Render the Mobile landing page with default variant pricing."""
-    defaults = get_default_variants()
-    tests = get_tests_for_page("mobile")
-    # Build variant display values for template (no-JS fallback)
-    variant_display = {}
-    for test in tests:
-        default_variant_name = defaults[test.test_name]
-        for v in test.variants:
-            if v.name == default_variant_name:
-                variant_display[test.test_name] = v.display_value
-                break
-    return templates.TemplateResponse(
-        request=request,
-        name="marketing_mobile.html",
-        context={"variants": variant_display, "tests": tests},
-    )
+@router.get("/how-it-works", response_class=HTMLResponse)
+async def how_it_works(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse("marketing_how_it_works.html", {"request": request})
 
 
-@router.get("/proxy", response_class=HTMLResponse)
-async def proxy_page(request: Request) -> HTMLResponse:
-    """Render the Proxy landing page with default variant pricing."""
-    defaults = get_default_variants()
-    tests = get_tests_for_page("proxy")
-    variant_display = {}
-    for test in tests:
-        default_variant_name = defaults[test.test_name]
-        for v in test.variants:
-            if v.name == default_variant_name:
-                variant_display[test.test_name] = v.display_value
-                break
-    return templates.TemplateResponse(
-        request=request,
-        name="marketing_proxy.html",
-        context={"variants": variant_display, "tests": tests},
-    )
+@router.get("/for-agencies", response_class=HTMLResponse)
+async def for_agencies(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse("marketing_for_agencies.html", {"request": request})
 
 
-@router.get("/roadmap", response_class=HTMLResponse)
-async def roadmap_page(request: Request) -> HTMLResponse:
-    """Render the product roadmap page."""
-    return templates.TemplateResponse(request=request, name="marketing_roadmap.html")
+@router.get("/pricing", response_class=HTMLResponse)
+async def pricing(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse("marketing_pricing.html", {"request": request})
+
+
+@router.get("/intelligence-report", response_class=HTMLResponse)
+async def intelligence_report(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse("marketing_intelligence_report.html", {"request": request})
+
+
+@router.get("/whats-coming", response_class=HTMLResponse)
+async def whats_coming(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse("marketing_whats_coming.html", {"request": request})
 
 
 @router.get("/thank-you", response_class=HTMLResponse)
-async def thank_you_page(request: Request) -> HTMLResponse:
-    """Render the thank-you confirmation page."""
-    return templates.TemplateResponse(request=request, name="marketing_thank_you.html")
+async def thank_you(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse("marketing_thank_you.html", {"request": request})
 
 
-@router.get("/pitch-deck.html")
-async def pitch_deck() -> FileResponse:
-    """Serve the RAMP white-label pitch deck as a static HTML file."""
-    return FileResponse("app/static/pitch-deck.html", media_type="text/html")
+# Legacy redirects
+@router.get("/mobile", response_class=HTMLResponse)
+async def mobile_redirect(request: Request):
+    return RedirectResponse(url="/how-it-works", status_code=301)
+
+
+@router.get("/proxy", response_class=HTMLResponse)
+async def proxy_redirect(request: Request):
+    return RedirectResponse(url="/for-agencies", status_code=301)
+
+
+@router.get("/roadmap", response_class=HTMLResponse)
+async def roadmap_redirect(request: Request):
+    return RedirectResponse(url="/whats-coming", status_code=301)

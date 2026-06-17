@@ -1,0 +1,61 @@
+{% extends "marketing_base.html" %}
+{% block title %}What's Coming — RAMP Product Direction{% endblock %}
+
+{% block content %}
+<section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+    <div class="max-w-3xl mx-auto text-center">
+        <h1 class="text-4xl sm:text-5xl font-extrabold text-white tracking-tight">PRODUCT DIRECTION</h1>
+        <p class="mt-4 text-xl text-gray-300">The platform is live.<br>Here's what's being built next.</p>
+        <p class="mt-6 text-gray-400 text-lg">RAMP is an active product. The core platform is operational with our first clients. What follows is a narrative overview of where we're taking it &mdash; not a technical spec, but a direction.</p>
+    </div>
+</section>
+
+<!-- MILESTONES -->
+<section class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+    <div class="space-y-8">
+        <!-- NOW -->
+        <div class="bg-ramp-card border border-green-500/30 rounded-xl p-8">
+            <div class="flex items-center gap-3 mb-4">
+                <span class="px-3 py-1 bg-green-500/10 text-green-400 text-xs font-bold uppercase rounded-full">Operational</span>
+                <span class="text-white font-bold text-lg">Managed Brand Presence</span>
+            </div>
+            <p class="text-gray-400 leading-relaxed">The core platform is live. Community intelligence, content strategy, human approval workflow, and managed execution are all operational. First clients are building community standing across multiple subreddits.</p>
+        </div>
+
+        <!-- NEXT -->
+        <div class="bg-ramp-card border border-ramp-electric/30 rounded-xl p-8">
+            <div class="flex items-center gap-3 mb-4">
+                <span class="px-3 py-1 bg-ramp-electric/10 text-ramp-electric text-xs font-bold uppercase rounded-full">In Development</span>
+                <span class="text-white font-bold text-lg">AI Search Authority Tracking</span>
+            </div>
+            <p class="text-gray-400 leading-relaxed">We're building the measurement layer for AI search authority: tracking when community voices in your category appear in ChatGPT, Perplexity, and Gemini responses, and surfacing that as a reportable metric for clients.</p>
+        </div>
+
+        <!-- COMING -->
+        <div class="bg-ramp-card border border-amber-500/30 rounded-xl p-8">
+            <div class="flex items-center gap-3 mb-4">
+                <span class="px-3 py-1 bg-amber-500/10 text-amber-400 text-xs font-bold uppercase rounded-full">Planned</span>
+                <span class="text-white font-bold text-lg">Agency Multi-Tenant</span>
+            </div>
+            <p class="text-gray-400 leading-relaxed">A dedicated workspace for agencies managing multiple clients &mdash; white-labeled reporting, per-client dashboards, and team role management. Currently in planning.</p>
+        </div>
+
+        <!-- HORIZON -->
+        <div class="bg-ramp-card border border-purple-500/30 rounded-xl p-8">
+            <div class="flex items-center gap-3 mb-4">
+                <span class="px-3 py-1 bg-purple-500/10 text-purple-400 text-xs font-bold uppercase rounded-full">Horizon</span>
+                <span class="text-white font-bold text-lg">Self-Service &amp; Expanded Channels</span>
+            </div>
+            <p class="text-gray-400 leading-relaxed">Self-serve onboarding for direct plans, automated billing, and expanded channel coverage beyond Reddit for established clients.</p>
+        </div>
+    </div>
+</section>
+
+<!-- EARLY ACCESS -->
+<section class="border-t border-white/5 py-16">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <p class="text-gray-400 text-sm leading-relaxed">Product direction is shared with clients before it becomes public. If you're interested in early access to specific features, let us know during onboarding.</p>
+        <a href="/intelligence-report" class="inline-block mt-8 px-8 py-4 bg-ramp-electric hover:bg-ramp-blue text-white font-semibold rounded-lg transition-colors">Request your Landscape Report &rarr;</a>
+    </div>
+</section>
+{% endblock %}
