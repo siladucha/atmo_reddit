@@ -1,11 +1,12 @@
 {% extends "client_base.html" %}
+{% from "partials/tooltip.html" import tooltip %}
 
 {% block title %}Schedule — {{ client_name }}{% endblock %}
 
 {% block content %}
 <div id="portal-content">
     <div style="margin-bottom:var(--space-4);">
-        <h1 class="text-h1">Daily Schedule</h1>
+        <h1 class="text-h1">Daily Schedule{{ tooltip("EPG (Electronic Program Guide) — daily publishing plan per avatar. AI picks threads, generates comments, assigns time slots.") }}</h1>
         <p class="text-small" style="margin-top:4px;">Today: {{ now_date }} · What your avatars are doing today and what happened recently.</p>
     </div>
 
@@ -51,7 +52,7 @@
             style="font-size:var(--text-small);padding:8px 16px;"
         >
             <span id="pipeline-spinner" class="htmx-indicator" style="margin-right:6px;">⏳</span>
-            Run Pipeline
+            Run Pipeline{{ tooltip("Score new threads + generate comment drafts. Takes 5-10 min.") }}
         </button>
         <button
             hx-post="/clients/{{ client_id }}/actions/epg-rebuild"
@@ -62,7 +63,7 @@
             style="font-size:var(--text-small);padding:8px 16px;"
         >
             <span id="epg-rebuild-spinner" class="htmx-indicator" style="margin-right:6px;">⏳</span>
-            Rebuild EPG
+            Rebuild EPG{{ tooltip("Regenerate today's schedule. Fills empty slots after approvals/skips.") }}
         </button>
         <span id="pipeline-status" style="display:inline-flex;align-items:center;"></span>
         <span id="epg-rebuild-status" style="display:inline-flex;align-items:center;"></span>
@@ -206,7 +207,7 @@
     <!-- History feed -->
     {% if history_days %}
     <div style="margin-top:var(--space-5);">
-        <h2 class="text-h2" style="margin-bottom:var(--space-3);">Recent Days</h2>
+        <h2 class="text-h2" style="margin-bottom:var(--space-3);">Recent Days{{ tooltip("Publishing history for the past 7 days. Each entry shows what was scheduled, approved, and posted.") }}</h2>
         {% for day in history_days %}
         <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-2);">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">

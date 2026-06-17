@@ -6,7 +6,7 @@
 </div>
 {% endif %}
 
-<h2 style="font-size:var(--text-h2);color:var(--color-white);margin-bottom:8px;">Voice Feedback</h2>
+<h2 style="font-size:var(--text-h2);color:var(--color-white);margin-bottom:8px;">Voice Feedback{% from "partials/tooltip.html" import tooltip %}{{ tooltip("Tell us how the AI-generated comments should sound differently. Your feedback is used to improve future comment generation for your brand.") }}</h2>
 
 {% if can_edit %}
 <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:12px;">Our recent comments didn't feel right — here's what to change</p>

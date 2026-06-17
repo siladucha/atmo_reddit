@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en" class="client-portal">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trial Expired — RAMP</title>
+    <link rel="stylesheet" href="/static/css/client-tokens.css">
+    <style>
+        body { background: var(--color-bg); color: var(--color-white); font-family: ui-sans-serif, system-ui, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+    </style>
+</head>
+<body>
+    <div style="max-width:500px;text-align:center;">
+        <div style="font-size:48px;margin-bottom:24px;">⏰</div>
+        <h1 style="font-size:28px;font-weight:700;margin-bottom:12px;">Your trial has ended</h1>
+        <p style="color:var(--color-muted);font-size:16px;line-height:1.6;margin-bottom:32px;">
+            Your 14-day intelligence trial for <strong style="color:var(--color-white);">{{ client_name }}</strong> has expired.
+            All your data (profile, keywords, subreddits, landscape report) is preserved and ready for when you upgrade.
+        </p>
+        <div style="display:flex;flex-direction:column;gap:12px;align-items:center;">
+            <a href="mailto:tzvi@gorampit.com?subject=RAMP%20Upgrade%20-%20{{ client_name }}" style="padding:14px 32px;background:var(--color-orange);color:#fff;border-radius:8px;font-weight:600;text-decoration:none;font-size:16px;">Upgrade to Start Posting →</a>
+            <a href="/logout" style="color:var(--color-muted);font-size:14px;text-decoration:none;">Sign out</a>
+        </div>
+    </div>
+</body>
+</html>

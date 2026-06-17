@@ -1,11 +1,12 @@
 {% extends "client_base.html" %}
+{% from "partials/tooltip.html" import tooltip %}
 
 {% block title %}Strategy — {{ client_name }}{% endblock %}
 
 {% block content %}
 <div id="portal-content">
     <div style="margin-bottom:var(--space-4);">
-        <h1 class="text-h1">Current Strategy</h1>
+        <h1 class="text-h1">Current Strategy{{ tooltip("AI-generated engagement playbook per avatar. Defines voice, subreddit priorities, posting frequency, and approach hooks. Regenerated periodically.") }}</h1>
         <p class="text-small" style="margin-top:4px;">AI-generated engagement strategy for each of your avatars.</p>
     </div>
 

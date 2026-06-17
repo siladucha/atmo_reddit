@@ -100,6 +100,8 @@ def _get_sidebar_context(client_id: UUID, db: Session) -> dict:
         "client_name": client_name,
         "pending_count": pending_count,
         "has_shadowbanned": has_shadowbanned,
+        "is_trial": client.plan_type == "trial" if client else False,
+        "trial_days_remaining": max(0, 14 - (datetime.now(timezone.utc) - client.created_at).days) if client and client.plan_type == "trial" else None,
     }
 
 
@@ -113,6 +115,17 @@ def _portal_render(
 ) -> HTMLResponse:
     """Render a client portal template with sidebar context."""
     ctx = _get_sidebar_context(client_id, db)
+
+    # Trial expiration enforcement: block access if trial > 14 days
+    client_obj = db.query(Client).filter(Client.id == client_id).first()
+    if client_obj and client_obj.plan_type == "trial":
+        days_since_creation = (datetime.now(timezone.utc) - client_obj.created_at).days if client_obj.created_at else 0
+        if days_since_creation > 14:
+            return templates.TemplateResponse(
+                name="client/trial_expired.html",
+                context={"request": request, "client_id": str(client_id), "client_name": client_obj.client_name or ""},
+                request=request,
+            )
     ctx["request"] = request
     ctx["active_page"] = active_page
 
@@ -121,6 +134,8 @@ def _portal_render(
     ctx["user_email"] = getattr(request.state, "user_email", "") or ""
     ctx["user_role"] = getattr(request.state, "user_role", "") or ""
 
+    # Inject usage/budget context for banners and upsells
+    ctx.update(_get_usage_context(client_id, db))
     if extra_context:
         ctx.update(extra_context)
     return templates.TemplateResponse(name=template, context=ctx, request=request)
@@ -325,6 +340,7 @@ def portal_avatars(
         view = build_avatar_view(a, health, client_by_id)
         # Client-facing overrides: hide reddit_username, show persona
         view["client_display_name"] = _avatar_display_name(a)
+        view["display_name_is_fallback"] = not bool(a.display_name)
         view["client_persona_bio"] = a.persona_bio or ""
         view["karma_tier"] = _karma_tier((a.reddit_karma_comment or 0) + (a.reddit_karma_post or 0))
         avatars.append(view)
@@ -395,6 +411,7 @@ def portal_avatar_detail(
     avatar_data = {
         "id": str(avatar.id),
         "display_name": _avatar_display_name(avatar),
+        "display_name_is_fallback": not bool(avatar.display_name),
         "persona_bio": avatar.persona_bio or "",
         "karma_tier": _karma_tier((avatar.reddit_karma_comment or 0) + (avatar.reddit_karma_post or 0)),
         "active": avatar.active,
@@ -412,13 +429,73 @@ def portal_avatar_detail(
         "business_subreddits": avatar.business_subreddits or [],
     }
 
+    # Per-avatar karma sparkline (last 30 days)
+    from sqlalchemy import cast, Date as SQLDate
+    now_utc = datetime.now(timezone.utc)
+    start_30d = now_utc - timedelta(days=30)
+
+    avatar_daily = (
+        db.query(
+            cast(CommentDraft.posted_at, SQLDate).label("day"),
+            func.count(CommentDraft.id).label("posted"),
+            func.coalesce(func.sum(CommentDraft.reddit_score), 0).label("upvotes"),
+        )
+        .filter(
+            CommentDraft.avatar_id == avatar_id,
+            CommentDraft.status == "posted",
+            CommentDraft.posted_at.isnot(None),
+            CommentDraft.posted_at >= start_30d,
+        )
+        .group_by(cast(CommentDraft.posted_at, SQLDate))
+        .order_by(cast(CommentDraft.posted_at, SQLDate))
+        .all()
+    )
+
+    day_map_av = {r.day: {"posted": r.posted, "upvotes": int(r.upvotes)} for r in avatar_daily}
+    avatar_karma_days = []
+    for i in range(30):
+        d = (now_utc - timedelta(days=29 - i)).date()
+        entry = day_map_av.get(d, {"posted": 0, "upvotes": 0})
+        avatar_karma_days.append({"date": d.strftime("%m/%d"), "posted": entry["posted"], "upvotes": entry["upvotes"]})
+
+    avatar_total_30d = sum(d["upvotes"] for d in avatar_karma_days)
+    avatar_posted_30d = sum(d["posted"] for d in avatar_karma_days)
+
+    # Per-subreddit karma breakdown
+    from app.models.subreddit_karma import SubredditKarma
+    karma_rows = (
+        db.query(SubredditKarma)
+        .filter(SubredditKarma.avatar_id == avatar_id)
+        .order_by(SubredditKarma.comment_karma.desc())
+        .all()
+    )
+    subreddit_karma = [
+        {
+            "subreddit": sk.subreddit_name,
+            "type": sk.subreddit_type,
+            "comment_karma": sk.comment_karma,
+            "post_karma": sk.post_karma,
+            "total": sk.total_karma,
+            "delta": sk.total_delta,
+            "comment_count": sk.comment_count,
+        }
+        for sk in karma_rows
+    ]
+
     return _portal_render(
         request,
         "client/avatar_detail.html",
         client_id,
         db,
         active_page="avatars",
-        extra_context={"avatar": avatar_data, "activity": activity},
+        extra_context={
+            "avatar": avatar_data,
+            "activity": activity,
+            "subreddit_karma": subreddit_karma,
+            "karma_days": avatar_karma_days,
+            "karma_total_30d": avatar_total_30d,
+            "karma_posted_30d": avatar_posted_30d,
+        },
     )
 
 
@@ -839,7 +916,7 @@ def settings_subreddit_request(
     if not subreddit_name:
         error = "Subreddit name cannot be empty."
     elif current_subreddit_count >= plan_limit:
-        error = "You've reached your subreddit limit. Contact your account manager to add more slots."
+        error = "Subreddit limit reached. Add 5 more subreddits for $99/month — contact us to upgrade."
 
     # Build subreddits list for partial
     subreddits = [
@@ -1240,7 +1317,7 @@ def portal_strategy(
         if strategy:
             strategies.append({
                 "avatar_id": str(avatar.id),
-                "avatar_name": avatar.reddit_username,
+                "avatar_name": _avatar_display_name(avatar),
                 "version": strategy.version,
                 "is_approved": strategy.is_approved,
                 "generated_at": _relative_time(strategy.generated_at),
@@ -1360,7 +1437,7 @@ def portal_report(
             "subreddit": c.thread.subreddit if c.thread else "",
             "thread_title": (c.thread.post_title[:80] if c.thread else ""),
             "thread_url": c.thread.url if c.thread and c.thread.url else "",
-            "avatar": c.avatar.reddit_username if c.avatar else "",
+            "avatar": _avatar_display_name(c.avatar) if c.avatar else "",
             "posted_at": _relative_time(c.posted_at),
             "reddit_url": c.reddit_comment_url or "",
         })
@@ -1428,6 +1505,69 @@ def portal_report(
         .scalar()
     ) or 0
 
+    # --- Brand ratio ---
+    # Count brand vs non-brand comments (hobby = non-brand, professional = potential brand)
+    brand_comments = (
+        db.query(func.count(CommentDraft.id))
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(
+            Avatar.client_ids.any(str(client_id)),
+            CommentDraft.status == "posted",
+            CommentDraft.type == "professional",
+            CommentDraft.created_at >= month_start,
+        )
+        .scalar()
+    ) or 0
+
+    non_brand_comments = (
+        db.query(func.count(CommentDraft.id))
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(
+            Avatar.client_ids.any(str(client_id)),
+            CommentDraft.status == "posted",
+            CommentDraft.type == "hobby",
+            CommentDraft.created_at >= month_start,
+        )
+        .scalar()
+    ) or 0
+
+    total_period_comments = brand_comments + non_brand_comments
+    brand_ratio = round(brand_comments / total_period_comments * 100) if total_period_comments > 0 else 0
+
+    # --- Avg upvote per comment ---
+    avg_upvote_report = round(int(month_upvotes) / month_posted, 1) if month_posted > 0 else 0
+
+    # --- Period comparison (vs previous period) ---
+    prev_start = month_start - timedelta(days=days)
+    prev_posted = (
+        db.query(func.count(CommentDraft.id))
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(
+            Avatar.client_ids.any(str(client_id)),
+            CommentDraft.status == "posted",
+            CommentDraft.created_at >= prev_start,
+            CommentDraft.created_at < month_start,
+        )
+        .scalar()
+    ) or 0
+
+    prev_upvotes_total = (
+        db.query(func.coalesce(func.sum(CommentDraft.reddit_score), 0))
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(
+            Avatar.client_ids.any(str(client_id)),
+            CommentDraft.status == "posted",
+            CommentDraft.created_at >= prev_start,
+            CommentDraft.created_at < month_start,
+        )
+        .scalar()
+    ) or 0
+
+    posted_delta = month_posted - prev_posted
+    posted_delta_pct = round(posted_delta / prev_posted * 100) if prev_posted > 0 else (100 if month_posted > 0 else 0)
+    upvotes_delta = int(month_upvotes) - int(prev_upvotes_total)
+    upvotes_delta_pct = round(upvotes_delta / int(prev_upvotes_total) * 100) if int(prev_upvotes_total) > 0 else (100 if int(month_upvotes) > 0 else 0)
+
     report = {
         "days": days,
         "week_generated": week_generated,
@@ -1441,7 +1581,129 @@ def portal_report(
         "engage_rate": round(threads_engage / threads_scored * 100) if threads_scored > 0 else 0,
         "top_comments": top_comments,
         "sub_performance": sub_performance,
+        # New metrics
+        "brand_comments": brand_comments,
+        "non_brand_comments": non_brand_comments,
+        "brand_ratio": brand_ratio,
+        "avg_upvote": avg_upvote_report,
+        "posted_delta": posted_delta,
+        "posted_delta_pct": posted_delta_pct,
+        "upvotes_delta": upvotes_delta,
+        "upvotes_delta_pct": upvotes_delta_pct,
+        "prev_posted": prev_posted,
     }
+
+    # --- Day 1 Baseline ---
+    client_obj = db.query(Client).filter(Client.id == client_id).first()
+    baseline_date = client_obj.onboarding_completed_at or client_obj.created_at if client_obj else None
+    days_since_start = (now - baseline_date).days if baseline_date else 0
+
+    # All-time totals for "since Day 1" view
+    alltime_posted = (
+        db.query(func.count(CommentDraft.id))
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(
+            Avatar.client_ids.any(str(client_id)),
+            CommentDraft.status == "posted",
+        )
+        .scalar()
+    ) or 0
+
+    alltime_upvotes = (
+        db.query(func.coalesce(func.sum(CommentDraft.reddit_score), 0))
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(
+            Avatar.client_ids.any(str(client_id)),
+            CommentDraft.status == "posted",
+        )
+        .scalar()
+    ) or 0
+
+    report["baseline_date"] = baseline_date.strftime("%b %d, %Y") if baseline_date else "—"
+    report["days_since_start"] = days_since_start
+    report["alltime_posted"] = alltime_posted
+    report["alltime_upvotes"] = int(alltime_upvotes)
+
+    # --- Thread Lifetime Visibility ---
+    # Comments where 7d karma > 4h karma (still growing after initial spike)
+    from app.models.karma_snapshot import KarmaSnapshot
+    from sqlalchemy import and_
+
+    # Subquery: comments with both 4h and 7d snapshots
+    long_lived_raw = (
+        db.query(
+            KarmaSnapshot.comment_draft_id,
+            KarmaSnapshot.check_window,
+            KarmaSnapshot.karma_value,
+            KarmaSnapshot.reply_count,
+            KarmaSnapshot.subreddit,
+        )
+        .join(Avatar, KarmaSnapshot.avatar_id == Avatar.id)
+        .filter(
+            Avatar.client_ids.any(str(client_id)),
+            KarmaSnapshot.check_window.in_(["4h", "7d"]),
+            KarmaSnapshot.is_deleted.is_(False),
+        )
+        .all()
+    )
+
+    # Group by draft_id
+    snapshot_by_draft: dict = {}
+    for snap in long_lived_raw:
+        draft_id = str(snap.comment_draft_id)
+        if draft_id not in snapshot_by_draft:
+            snapshot_by_draft[draft_id] = {}
+        snapshot_by_draft[draft_id][snap.check_window] = {
+            "karma": snap.karma_value,
+            "replies": snap.reply_count,
+            "subreddit": snap.subreddit,
+        }
+
+    # Find comments that grew between 4h and 7d
+    growing_comments = []
+    for draft_id, windows in snapshot_by_draft.items():
+        if "4h" in windows and "7d" in windows:
+            growth = windows["7d"]["karma"] - windows["4h"]["karma"]
+            if growth > 0:
+                growing_comments.append({
+                    "draft_id": draft_id,
+                    "karma_4h": windows["4h"]["karma"],
+                    "karma_7d": windows["7d"]["karma"],
+                    "growth": growth,
+                    "replies_7d": windows["7d"]["replies"],
+                    "subreddit": windows["7d"]["subreddit"] or "",
+                })
+
+    # Sort by growth and take top 5
+    growing_comments.sort(key=lambda x: x["growth"], reverse=True)
+    top_growing = growing_comments[:5]
+
+    # Enrich with draft details
+    long_lived_comments = []
+    if top_growing:
+        from uuid import UUID as UUIDType
+        draft_ids = [UUIDType(c["draft_id"]) for c in top_growing]
+        drafts_map = {
+            str(d.id): d
+            for d in db.query(CommentDraft).filter(CommentDraft.id.in_(draft_ids)).all()
+        }
+        for item in top_growing:
+            draft = drafts_map.get(item["draft_id"])
+            if draft:
+                long_lived_comments.append({
+                    "text": (draft.edited_draft or draft.ai_draft or "")[:150],
+                    "subreddit": item["subreddit"],
+                    "karma_4h": item["karma_4h"],
+                    "karma_7d": item["karma_7d"],
+                    "growth": item["growth"],
+                    "replies": item["replies_7d"],
+                    "thread_title": (draft.thread.post_title[:60] if draft.thread else ""),
+                    "reddit_url": draft.reddit_comment_url or "",
+                    "avatar": draft.avatar.display_name or draft.avatar.reddit_username if draft.avatar else "",
+                })
+
+    report["long_lived_comments"] = long_lived_comments
+    report["total_growing"] = len(growing_comments)
 
     return _portal_render(
         request,
@@ -1451,6 +1713,233 @@ def portal_report(
         active_page="report",
         extra_context={"report": report},
     )
+
+# --- Visibility (Share of Voice) ---
+
+
+@router.get("/clients/{client_id}/visibility", response_class=HTMLResponse)
+def portal_visibility(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Client portal — AI Search Visibility (Share of Voice, Competitor Comparison)."""
+    from app.models.geo_execution import GeoExecutionBatch, GeoFrequencyMetric, GeoQueryResult
+    from app.models.geo_competitor import GeoCompetitor
+    from app.models.geo_prompt import GeoPrompt
+    from app.models.thread_score import ThreadScore
+
+    client_obj = db.query(Client).filter(Client.id == client_id).first()
+    if not client_obj:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    # --- GEO: Share of Voice ---
+    # Get baseline batch
+    baseline_batch = (
+        db.query(GeoExecutionBatch)
+        .filter(
+            GeoExecutionBatch.client_id == client_id,
+            GeoExecutionBatch.is_baseline.is_(True),
+            GeoExecutionBatch.status == "completed",
+        )
+        .order_by(GeoExecutionBatch.started_at.asc())
+        .first()
+    )
+
+    # Get latest completed batch
+    latest_batch = (
+        db.query(GeoExecutionBatch)
+        .filter(
+            GeoExecutionBatch.client_id == client_id,
+            GeoExecutionBatch.status == "completed",
+        )
+        .order_by(GeoExecutionBatch.started_at.desc())
+        .first()
+    )
+
+    # Brand appearance rate from latest batch
+    latest_brand_rate = 0.0
+    baseline_brand_rate = 0.0
+    brand_rate_history = []
+
+    if latest_batch:
+        metrics = (
+            db.query(GeoFrequencyMetric)
+            .filter(GeoFrequencyMetric.execution_batch_id == latest_batch.id)
+            .all()
+        )
+        if metrics:
+            total_runs = sum(m.total_runs for m in metrics)
+            total_brand = sum(m.brand_appearances for m in metrics)
+            latest_brand_rate = round(total_brand / total_runs * 100, 1) if total_runs > 0 else 0
+
+    if baseline_batch:
+        base_metrics = (
+            db.query(GeoFrequencyMetric)
+            .filter(GeoFrequencyMetric.execution_batch_id == baseline_batch.id)
+            .all()
+        )
+        if base_metrics:
+            total_runs = sum(m.total_runs for m in base_metrics)
+            total_brand = sum(m.brand_appearances for m in base_metrics)
+            baseline_brand_rate = round(total_brand / total_runs * 100, 1) if total_runs > 0 else 0
+
+    # History: all completed batches for trend
+    all_batches = (
+        db.query(GeoExecutionBatch)
+        .filter(
+            GeoExecutionBatch.client_id == client_id,
+            GeoExecutionBatch.status == "completed",
+        )
+        .order_by(GeoExecutionBatch.started_at.asc())
+        .all()
+    )
+
+    for batch in all_batches:
+        batch_metrics = (
+            db.query(GeoFrequencyMetric)
+            .filter(GeoFrequencyMetric.execution_batch_id == batch.id)
+            .all()
+        )
+        if batch_metrics:
+            total_runs = sum(m.total_runs for m in batch_metrics)
+            total_brand = sum(m.brand_appearances for m in batch_metrics)
+            rate = round(total_brand / total_runs * 100, 1) if total_runs > 0 else 0
+            brand_rate_history.append({
+                "date": batch.started_at.strftime("%m/%d"),
+                "rate": rate,
+                "is_baseline": batch.is_baseline,
+            })
+
+    brand_rate_delta = round(latest_brand_rate - baseline_brand_rate, 1)
+
+    # --- Competitor Comparison ---
+    competitors = (
+        db.query(GeoCompetitor)
+        .filter(GeoCompetitor.client_id == client_id, GeoCompetitor.is_active.is_(True))
+        .all()
+    )
+
+    competitor_data = []
+    if latest_batch and competitors:
+        for comp in competitors:
+            # Count how many results mentioned this competitor in latest batch
+            comp_mentions = (
+                db.query(func.count(GeoQueryResult.id))
+                .filter(
+                    GeoQueryResult.execution_batch_id == latest_batch.id,
+                    GeoQueryResult.competitors_mentioned.has_key(comp.competitor_name),
+                )
+                .scalar()
+            ) or 0
+
+            total_results = (
+                db.query(func.count(GeoQueryResult.id))
+                .filter(GeoQueryResult.execution_batch_id == latest_batch.id)
+                .scalar()
+            ) or 1
+
+            comp_rate = round(comp_mentions / total_results * 100, 1) if total_results > 0 else 0
+            competitor_data.append({
+                "name": comp.competitor_name,
+                "domain": comp.competitor_domain or "",
+                "appearance_rate": comp_rate,
+            })
+
+        # Sort by appearance rate
+        competitor_data.sort(key=lambda x: x["appearance_rate"], reverse=True)
+
+    # --- High-Intent Thread Participation ---
+    now = datetime.now(timezone.utc)
+    month_ago = now - timedelta(days=30)
+
+    high_intent_types = ["comparison", "recommendation", "troubleshooting", "buying", "evaluation"]
+
+    total_posted_30d = (
+        db.query(func.count(CommentDraft.id))
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(
+            Avatar.client_ids.any(str(client_id)),
+            CommentDraft.status == "posted",
+            CommentDraft.created_at >= month_ago,
+        )
+        .scalar()
+    ) or 0
+
+    # Count posted comments in high-intent threads
+    high_intent_posted = (
+        db.query(func.count(CommentDraft.id))
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .join(RedditThread, CommentDraft.thread_id == RedditThread.id)
+        .join(ThreadScore, (ThreadScore.thread_id == RedditThread.id) & (ThreadScore.client_id == client_id))
+        .filter(
+            Avatar.client_ids.any(str(client_id)),
+            CommentDraft.status == "posted",
+            CommentDraft.created_at >= month_ago,
+            ThreadScore.intent.in_(high_intent_types),
+        )
+        .scalar()
+    ) or 0
+
+    high_intent_rate = round(high_intent_posted / total_posted_30d * 100) if total_posted_30d > 0 else 0
+
+    # Intent breakdown
+    intent_breakdown = (
+        db.query(
+            ThreadScore.intent,
+            func.count(CommentDraft.id).label("count"),
+        )
+        .join(RedditThread, ThreadScore.thread_id == RedditThread.id)
+        .join(CommentDraft, CommentDraft.thread_id == RedditThread.id)
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(
+            Avatar.client_ids.any(str(client_id)),
+            CommentDraft.status == "posted",
+            CommentDraft.created_at >= month_ago,
+            ThreadScore.client_id == client_id,
+            ThreadScore.intent.isnot(None),
+        )
+        .group_by(ThreadScore.intent)
+        .order_by(func.count(CommentDraft.id).desc())
+        .all()
+    )
+
+    intent_data = [{"intent": r.intent, "count": r.count, "is_high": r.intent in high_intent_types} for r in intent_breakdown]
+
+    # --- GEO monitoring status ---
+    geo_enabled = client_obj.geo_monitoring_enabled
+    prompts_count = (
+        db.query(func.count(GeoPrompt.id))
+        .filter(GeoPrompt.client_id == client_id, GeoPrompt.is_active.is_(True))
+        .scalar()
+    ) or 0
+
+    visibility = {
+        "geo_enabled": geo_enabled,
+        "prompts_count": prompts_count,
+        "latest_brand_rate": latest_brand_rate,
+        "baseline_brand_rate": baseline_brand_rate,
+        "brand_rate_delta": brand_rate_delta,
+        "brand_rate_history": brand_rate_history,
+        "competitors": competitor_data,
+        "latest_batch_date": latest_batch.started_at.strftime("%b %d, %Y") if latest_batch else None,
+        "baseline_date": baseline_batch.started_at.strftime("%b %d, %Y") if baseline_batch else None,
+        "high_intent_rate": high_intent_rate,
+        "high_intent_posted": high_intent_posted,
+        "total_posted_30d": total_posted_30d,
+        "intent_breakdown": intent_data,
+    }
+
+    return _portal_render(
+        request,
+        "client/visibility.html",
+        client_id,
+        db,
+        active_page="visibility",
+        extra_context={"visibility": visibility, "brand_name": client_obj.brand_name},
+    )
+
 
 # --- HTMX Partials ---
 
@@ -1492,15 +1981,112 @@ def portal_metrics_partial(
         .scalar()
     ) or 0
 
+    # Avg upvote rate per comment
+    avg_upvote = 0.0
+    if comments_posted > 0:
+        avg_upvote = round(int(total_upvotes) / comments_posted, 1)
+
+    # Distinct subreddits with posted comments
+    subreddits_penetrated = (
+        db.query(func.count(func.distinct(RedditThread.subreddit)))
+        .join(CommentDraft, CommentDraft.thread_id == RedditThread.id)
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(
+            CommentDraft.status == "posted",
+            Avatar.client_ids.any(str(client_id)),
+        )
+        .scalar()
+    ) or 0
+
     metrics = {
         "comments_posted": comments_posted,
         "total_upvotes": int(total_upvotes),
         "active_subreddits": active_subreddits,
+        "avg_upvote": avg_upvote,
+        "subreddits_penetrated": subreddits_penetrated,
     }
 
     return templates.TemplateResponse(
         name="partials/client/metric_card.html",
         context={"request": request, "metrics": metrics},
+        request=request,
+    )
+
+
+@router.get("/clients/{client_id}/partials/karma-growth", response_class=HTMLResponse)
+def portal_karma_growth_partial(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return karma growth sparkline partial -- daily posted comments + upvotes over 30 days."""
+    from sqlalchemy import cast, Date as SQLDate
+
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(days=30)
+
+    # Daily aggregates: posted count + sum of upvotes
+    daily_rows = (
+        db.query(
+            cast(CommentDraft.posted_at, SQLDate).label("day"),
+            func.count(CommentDraft.id).label("posted"),
+            func.coalesce(func.sum(CommentDraft.reddit_score), 0).label("upvotes"),
+        )
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(
+            Avatar.client_ids.any(str(client_id)),
+            CommentDraft.status == "posted",
+            CommentDraft.posted_at.isnot(None),
+            CommentDraft.posted_at >= start,
+        )
+        .group_by(cast(CommentDraft.posted_at, SQLDate))
+        .order_by(cast(CommentDraft.posted_at, SQLDate))
+        .all()
+    )
+
+    # Build a 30-day array (fill empty days with 0)
+    day_map = {r.day: {"posted": r.posted, "upvotes": int(r.upvotes)} for r in daily_rows}
+    days = []
+    for i in range(30):
+        d = (now - timedelta(days=29 - i)).date()
+        entry = day_map.get(d, {"posted": 0, "upvotes": 0})
+        days.append({"date": d.strftime("%m/%d"), "posted": entry["posted"], "upvotes": entry["upvotes"]})
+
+    # Cumulative karma growth
+    cumulative = 0
+    for d in days:
+        cumulative += d["upvotes"]
+        d["cumulative"] = cumulative
+
+    # Period comparison (this 30d vs previous 30d)
+    prev_start = start - timedelta(days=30)
+    prev_upvotes = (
+        db.query(func.coalesce(func.sum(CommentDraft.reddit_score), 0))
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(
+            Avatar.client_ids.any(str(client_id)),
+            CommentDraft.status == "posted",
+            CommentDraft.posted_at.isnot(None),
+            CommentDraft.posted_at >= prev_start,
+            CommentDraft.posted_at < start,
+        )
+        .scalar()
+    ) or 0
+
+    curr_upvotes = sum(d["upvotes"] for d in days)
+    delta = curr_upvotes - int(prev_upvotes)
+    delta_pct = round(delta / int(prev_upvotes) * 100) if int(prev_upvotes) > 0 else (100 if curr_upvotes > 0 else 0)
+
+    return templates.TemplateResponse(
+        name="partials/client/karma_growth.html",
+        context={
+            "request": request,
+            "days": days,
+            "total_upvotes_period": curr_upvotes,
+            "delta": delta,
+            "delta_pct": delta_pct,
+        },
         request=request,
     )
 
@@ -1984,7 +2570,7 @@ def portal_epg(
             day_status = "in_progress"
 
         avatar_epgs.append({
-            "username": avatar.reddit_username,
+            "username": _avatar_display_name(avatar),
             "phase": avatar.warming_phase,
             "daily_budget": epg.daily_budget,
             "used_today": epg.used_today,
@@ -2035,7 +2621,7 @@ def portal_epg(
                 elif hobby_post.url:
                     thread_url = hobby_post.url
         history_by_day[day_key].append({
-            "avatar": d.avatar.reddit_username if d.avatar else "?",
+            "avatar": _avatar_display_name(d.avatar) if d.avatar else "?",
             "subreddit": subreddit_name,
             "thread_title": thread_title,
             "thread_url": thread_url,
@@ -2088,3 +2674,326 @@ def portal_redirect(
     """Redirect /clients/{id} to /clients/{id}/home for the new portal."""
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url=f"/clients/{client_id}/home", status_code=303)
+
+
+# --- Landscape Report (Day 1 Intelligence) ---
+
+
+@router.get("/clients/{client_id}/landscape", response_class=HTMLResponse)
+def portal_landscape(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Day 1 Landscape Report — competitive presence, opportunities, scored threads."""
+    from app.services.onboarding.landscape_report import generate_landscape_report
+
+    report = generate_landscape_report(db, client_id)
+
+    return _portal_render(
+        request,
+        "client/landscape.html",
+        client_id,
+        db,
+        active_page="report",
+        extra_context={"landscape": report},
+    )
+
+
+# --- Momentum Events Feed (HTMX partial for home) ---
+
+
+@router.get("/clients/{client_id}/partials/momentum", response_class=HTMLResponse)
+def portal_momentum_partial(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return recent momentum events for the client — breakout comments, phase moves, alerts."""
+    from app.models.activity_event import ActivityEvent
+
+    now = datetime.now(timezone.utc)
+    week_ago = now - timedelta(days=7)
+
+    # Fetch recent events for this client
+    events_raw = (
+        db.query(ActivityEvent)
+        .filter(
+            ActivityEvent.client_id == client_id,
+            ActivityEvent.created_at >= week_ago,
+        )
+        .order_by(ActivityEvent.created_at.desc())
+        .limit(15)
+        .all()
+    )
+
+    # Format events for display
+    EVENT_ICONS = {
+        "scrape": "🔍",
+        "score": "📊",
+        "generate": "✍",
+        "draft_approved": "✓",
+        "draft_posted": "📤",
+        "phase_promotion": "🚀",
+        "phase_demotion": "⚠",
+        "health_alert": "🚨",
+        "comment_deletion_detected": "❌",
+        "karma_milestone": "⭐",
+        "pipeline": "⚡",
+        "system": "🔧",
+        "client_onboarded": "🎉",
+        "avatar_onboarding_complete": "👤",
+    }
+
+    events = []
+    for ev in events_raw:
+        icon = EVENT_ICONS.get(ev.event_type, "📡")
+        meta = ev.event_metadata or {}
+
+        events.append({
+            "icon": icon,
+            "type": ev.event_type,
+            "message": ev.message,
+            "time": _relative_time(ev.created_at),
+            "subreddit": meta.get("subreddit_name", ""),
+            "avatar": meta.get("avatar_username", ""),
+            "score": meta.get("reddit_score", meta.get("upvotes", "")),
+        })
+
+    return templates.TemplateResponse(
+        name="partials/client/momentum_feed.html",
+        context={"request": request, "events": events, "client_id": str(client_id)},
+        request=request,
+    )
+
+
+# --- Report PDF Download ---
+
+
+@router.get("/clients/{client_id}/report/download", response_class=HTMLResponse)
+def portal_report_download(
+    request: Request,
+    client_id: UUID,
+    days: int = 30,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Download report as a standalone HTML file (print-ready, PDF-friendly).
+
+    Client can use browser Print → Save as PDF, or we serve as attachment.
+    """
+    from app.models.comment_draft import CommentDraft
+    from app.models.thread import RedditThread
+    from app.models.subreddit import ClientSubredditAssignment, Subreddit
+    from starlette.responses import Response
+
+    if days not in (30, 60, 90):
+        days = 30
+
+    now = datetime.now(timezone.utc)
+    month_start = now - timedelta(days=days)
+    week_start = now - timedelta(days=7)
+
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404)
+
+    # Gather same stats as portal_report
+    week_generated = (
+        db.query(func.count(CommentDraft.id))
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(Avatar.client_ids.any(str(client_id)), CommentDraft.created_at >= week_start)
+        .scalar()
+    ) or 0
+
+    week_approved = (
+        db.query(func.count(CommentDraft.id))
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(
+            Avatar.client_ids.any(str(client_id)),
+            CommentDraft.status.in_(["approved", "posted"]),
+            CommentDraft.created_at >= week_start,
+        )
+        .scalar()
+    ) or 0
+
+    month_posted = (
+        db.query(func.count(CommentDraft.id))
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(
+            Avatar.client_ids.any(str(client_id)),
+            CommentDraft.status == "posted",
+            CommentDraft.created_at >= month_start,
+        )
+        .scalar()
+    ) or 0
+
+    month_upvotes = (
+        db.query(func.coalesce(func.sum(CommentDraft.reddit_score), 0))
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(
+            Avatar.client_ids.any(str(client_id)),
+            CommentDraft.status == "posted",
+            CommentDraft.created_at >= month_start,
+        )
+        .scalar()
+    ) or 0
+
+    # Top comments
+    top_comments_raw = (
+        db.query(CommentDraft)
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(
+            Avatar.client_ids.any(str(client_id)),
+            CommentDraft.status == "posted",
+            CommentDraft.reddit_score.isnot(None),
+            CommentDraft.reddit_score > 0,
+        )
+        .order_by(CommentDraft.reddit_score.desc())
+        .limit(5)
+        .all()
+    )
+
+    top_comments = []
+    for c in top_comments_raw:
+        top_comments.append({
+            "text": (c.edited_draft or c.ai_draft or "")[:150],
+            "score": c.reddit_score or 0,
+            "subreddit": c.thread.subreddit if c.thread else "",
+            "thread_title": (c.thread.post_title[:60] if c.thread else ""),
+        })
+
+    # Subreddit performance
+    client_subs = (
+        db.query(ClientSubredditAssignment)
+        .join(Subreddit, ClientSubredditAssignment.subreddit_id == Subreddit.id)
+        .filter(ClientSubredditAssignment.client_id == client_id, ClientSubredditAssignment.is_active.is_(True))
+        .all()
+    )
+
+    sub_perf = []
+    for assignment in client_subs:
+        sub_name = assignment.subreddit.subreddit_name if assignment.subreddit else ""
+        activity = (
+            db.query(func.count(CommentDraft.id))
+            .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+            .join(RedditThread, CommentDraft.thread_id == RedditThread.id)
+            .filter(
+                Avatar.client_ids.any(str(client_id)),
+                RedditThread.subreddit == sub_name,
+                CommentDraft.status == "posted",
+                CommentDraft.created_at >= month_start,
+            )
+            .scalar()
+        ) or 0
+        if activity > 0:
+            sub_perf.append({"name": sub_name, "comments": activity})
+
+    # Generate standalone HTML report
+    report_date = now.strftime("%B %d, %Y")
+    brand = client.brand_name or client.client_name
+
+    html = templates.TemplateResponse(
+        name="client/report_pdf.html",
+        context={
+            "request": request,
+            "brand": brand,
+            "report_date": report_date,
+            "days": days,
+            "week_generated": week_generated,
+            "week_approved": week_approved,
+            "month_posted": month_posted,
+            "month_upvotes": int(month_upvotes),
+            "top_comments": top_comments,
+            "sub_perf": sub_perf,
+        },
+        request=request,
+    )
+
+    # Serve as downloadable HTML (print to PDF in browser)
+    filename = f"RAMP_Report_{brand}_{days}d_{now.strftime('%Y%m%d')}.html"
+    html.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return html
+
+
+# --- Budget & Usage Tracking ---
+
+
+def _get_usage_context(client_id: UUID, db: Session) -> dict:
+    """Calculate monthly usage vs plan limits for budget cap banners and upsell triggers."""
+    from app.models.comment_draft import CommentDraft
+
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        return {}
+
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    # Count comments generated this month
+    month_generated = (
+        db.query(func.count(CommentDraft.id))
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(
+            Avatar.client_ids.any(str(client_id)),
+            CommentDraft.created_at >= month_start,
+        )
+        .scalar()
+    ) or 0
+
+    # Plan limits
+    PLAN_ACTIONS = {
+        "trial": 30, "seed": 30, "starter": 60,
+        "growth": 150, "scale": 400,
+    }
+    PLAN_SUBREDDITS = {
+        "trial": 3, "seed": 1, "starter": 2,
+        "growth": 5, "scale": 999,
+    }
+    PLAN_AVATARS = {
+        "trial": 0, "seed": 1, "starter": 3,
+        "growth": 7, "scale": 15,
+    }
+
+    plan = client.plan_type or "starter"
+    action_limit = client.max_comments_per_month or PLAN_ACTIONS.get(plan, 60)
+    avatar_limit = client.max_avatars or PLAN_AVATARS.get(plan, 3)
+
+    # Current counts
+    avatar_count = (
+        db.query(func.count(Avatar.id))
+        .filter(Avatar.client_ids.any(str(client_id)), Avatar.active.is_(True))
+        .scalar()
+    ) or 0
+
+    from app.models.subreddit import ClientSubredditAssignment
+    sub_count = (
+        db.query(func.count(ClientSubredditAssignment.id))
+        .filter(
+            ClientSubredditAssignment.client_id == client_id,
+            ClientSubredditAssignment.is_active.is_(True),
+        )
+        .scalar()
+    ) or 0
+
+    sub_limit = PLAN_SUBREDDITS.get(plan, 2)
+
+    # Usage percentage
+    usage_pct = round(month_generated / action_limit * 100) if action_limit > 0 else 0
+
+    return {
+        "plan_type": plan,
+        "action_limit": action_limit,
+        "month_generated": month_generated,
+        "usage_pct": min(usage_pct, 100),
+        "budget_warning": usage_pct >= 80,
+        "budget_exhausted": usage_pct >= 100,
+        "avatar_count": avatar_count,
+        "avatar_limit": avatar_limit,
+        "avatar_at_limit": avatar_count >= avatar_limit,
+        "sub_count": sub_count,
+        "sub_limit": sub_limit,
+        "sub_at_limit": sub_count >= sub_limit,
+    }

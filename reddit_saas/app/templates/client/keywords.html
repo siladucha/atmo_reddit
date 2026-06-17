@@ -1,11 +1,12 @@
 {% extends "client_base.html" %}
+{% from "partials/tooltip.html" import tooltip %}
 
 {% block title %}Keywords — {{ client_name }}{% endblock %}
 
 {% block content %}
 <div id="portal-content">
     <div style="margin-bottom:var(--space-4);">
-        <h1 class="text-h1">Keywords
+        <h1 class="text-h1">Keywords{{ tooltip("Terms that determine thread relevance. High-priority keywords strongly boost engagement scores. You can add/remove keywords in Settings.") }}
             {% set theme = "light" %}{% include "partials/keyword_priority_legend.html" %}
         </h1>
         <p class="text-small" style="margin-top:4px;">Keyword performance analytics. Showing match data from the last 90 days.</p>
@@ -25,9 +26,9 @@
                 <tr style="border-bottom:1px solid var(--color-border);">
                     <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Keyword</th>
                     <th style="padding:12px 12px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;width:80px;">Priority</th>
-                    <th style="padding:12px 12px;text-align:center;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;width:70px;">Threads</th>
-                    <th style="padding:12px 12px;text-align:center;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;width:70px;">Engage</th>
-                    <th style="padding:12px 12px;text-align:center;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;width:70px;">Drafts</th>
+                    <th style="padding:12px 12px;text-align:center;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;width:70px;">Threads{{ tooltip("How many Reddit threads matched this keyword in the last 90 days.") }}</th>
+                    <th style="padding:12px 12px;text-align:center;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;width:70px;">Engage{{ tooltip("Threads scored high enough for comment generation. Higher = keyword drives real engagement.") }}</th>
+                    <th style="padding:12px 12px;text-align:center;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;width:70px;">Drafts{{ tooltip("Comments actually generated for threads matching this keyword.") }}</th>
                     <th style="padding:12px 12px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Subreddits</th>
                     <th style="padding:12px 12px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Avatars</th>
                     <th style="padding:12px 12px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;width:80px;">Last Seen</th>

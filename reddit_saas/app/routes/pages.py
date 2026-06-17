@@ -524,11 +524,13 @@ def home_redirect(request: Request, db: Session = Depends(get_db)):
     if role.is_admin_level or role.is_internal:
         return RedirectResponse(url="/admin/", status_code=303)
 
-    # Client admin/manager go to their Client Hub
-    if role in (_UR.client_admin, _UR.client_manager) and current_user.client_id:
-        return RedirectResponse(url=f"/clients/{current_user.client_id}", status_code=303)
 
+    # Client-scoped users: check onboarding state first
     if current_user.client_id:
+        from app.models.client import Client as _Client
+        _client = db.query(_Client).filter(_Client.id == current_user.client_id).first()
+        if _client and not _client.onboarding_completed_at and (_client.current_onboarding_step or 0) < 6:
+            return RedirectResponse(url="/onboard", status_code=303)
         return RedirectResponse(url=f"/clients/{current_user.client_id}", status_code=303)
 
     # User has no client assignment — cannot route anywhere meaningful

@@ -18,6 +18,11 @@
                 <div style="font-size:var(--text-micro);color:var(--color-muted);text-transform:capitalize;">
                     {{ (user_role or "user") | replace("_", " ") }}
                 </div>
+                {% if client_name %}
+                <div style="font-size:var(--text-micro);color:var(--color-orange);font-weight:500;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                    {{ client_name }}
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -110,6 +115,17 @@
             <span style="font-size:var(--text-body);font-weight:500;">Strategy</span>
         </a>
 
+
+        <!-- Landscape Report -->
+        <a href="/clients/{{ client_id }}/landscape"
+           class="sidebar-nav-item {% if active_page == 'landscape' %}active{% endif %}"
+           style="display:flex;align-items:center;gap:12px;padding:10px var(--space-3);margin:2px 0;text-decoration:none;color:var(--color-muted);transition:all var(--transition-fast);position:relative;
+                  {% if active_page == 'landscape' %}border-left:3px solid var(--color-orange);background:var(--color-surface-alt);color:var(--color-white);{% else %}border-left:3px solid transparent;{% endif %}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+            </svg>
+            <span style="font-size:var(--text-body);font-weight:500;">Landscape</span>
+        </a>
         <!-- Report -->
         <a href="/clients/{{ client_id }}/report"
            class="sidebar-nav-item {% if active_page == 'report' %}active{% endif %}"
@@ -121,6 +137,18 @@
                 <line x1="6" y1="20" x2="6" y2="14"/>
             </svg>
             <span style="font-size:var(--text-body);font-weight:500;">Report</span>
+        </a>
+
+        <!-- AI Visibility -->
+        <a href="/clients/{{ client_id }}/visibility"
+           class="sidebar-nav-item {% if active_page == 'visibility' %}active{% endif %}"
+           style="display:flex;align-items:center;gap:12px;padding:10px var(--space-3);margin:2px 0;text-decoration:none;color:var(--color-muted);transition:all var(--transition-fast);position:relative;
+                  {% if active_page == 'visibility' %}border-left:3px solid var(--color-orange);background:var(--color-surface-alt);color:var(--color-white);{% else %}border-left:3px solid transparent;{% endif %}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <span style="font-size:var(--text-body);font-weight:500;">AI Visibility</span>
         </a>
 
         <!-- Activity Log -->

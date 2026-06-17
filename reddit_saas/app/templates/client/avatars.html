@@ -1,132 +1,119 @@
 {% extends "client_base.html" %}
+{% from "partials/tooltip.html" import tooltip %}
 
 {% block title %}Avatars — {{ client_name }}{% endblock %}
 
 {% block content %}
 <div id="portal-content">
     <div style="margin-bottom:var(--space-4);">
-        <h1 class="text-h1">Avatars</h1>
+        <h1 class="text-h1">Avatars{{ tooltip("Managed Reddit personas working for your brand. Each has a unique voice, warming phase, and karma tier reflecting community trust.") }}</h1>
         <p class="text-small" style="margin-top:4px;">Your brand personas on Reddit. {{ avatars | length }} total.</p>
     </div>
 
     <!-- Info block -->
     <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-4);">
         <p style="font-size:var(--text-small);color:#a5b4fc;line-height:1.5;">
-            Avatars are Reddit accounts managed on your behalf. Each goes through warming phases: Phase 1 builds credibility with hobby posts, Phase 2 seeds content, Phase 3 integrates your brand. Karma shows community trust. Health monitors for Reddit restrictions.
+            Avatars are managed personas working on your behalf. Each goes through warming phases: Phase 1 builds credibility, Phase 2 seeds content, Phase 3 integrates your brand. Karma tier reflects community trust earned.
         </p>
     </div>
 
     {% if avatars %}
-    <div class="surface" style="overflow:hidden;">
-        <table style="width:100%;border-collapse:collapse;font-size:var(--text-small);">
-            <thead>
-                <tr style="border-bottom:1px solid var(--color-border);">
-                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Status</th>
-                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Username</th>
-                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Reddit</th>
-                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Phase</th>
-                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Karma</th>
-                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Health</th>
-                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">CQS</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for av in avatars %}
-                <tr style="border-bottom:1px solid var(--color-border);{% if not av.active_flag %}opacity:0.5;{% endif %}">
-                    <!-- Status -->
-                    <td style="padding:12px 16px;">
-                        {% if av.is_frozen %}
-                        <span style="display:inline-flex;align-items:center;gap:6px;">
-                            <span style="width:8px;height:8px;border-radius:50%;background:#6366f1;"></span>
-                            <span style="color:#a5b4fc;font-size:var(--text-micro);font-weight:500;">FROZEN</span>
-                        </span>
-                        {% elif av.health_status == 'shadowbanned' %}
-                        <span style="display:inline-flex;align-items:center;gap:6px;">
-                            <span style="width:8px;height:8px;border-radius:50%;background:var(--color-red);"></span>
-                            <span style="color:var(--color-red);font-size:var(--text-micro);font-weight:500;">SHADOW</span>
-                        </span>
-                        {% elif not av.active_flag %}
-                        <span style="display:inline-flex;align-items:center;gap:6px;">
-                            <span style="width:8px;height:8px;border-radius:50%;background:var(--color-muted);"></span>
-                            <span style="color:var(--color-muted);font-size:var(--text-micro);font-weight:500;">INACTIVE</span>
-                        </span>
-                        {% elif av.reddit_status == 'active' %}
-                        <span style="display:inline-flex;align-items:center;gap:6px;">
-                            <span style="width:8px;height:8px;border-radius:50%;background:var(--color-green);"></span>
-                            <span style="color:var(--color-green);font-size:var(--text-micro);font-weight:500;">ACTIVE</span>
-                        </span>
-                        {% else %}
-                        <span style="display:inline-flex;align-items:center;gap:6px;">
-                            <span style="width:8px;height:8px;border-radius:50%;background:var(--color-orange);"></span>
-                            <span style="color:var(--color-orange);font-size:var(--text-micro);font-weight:500;">{{ (av.reddit_status or 'unknown') | upper }}</span>
-                        </span>
-                        {% endif %}
-                    </td>
-                    <!-- Username -->
-                    <td style="padding:12px 16px;">
-                        <a href="/clients/{{ client_id }}/avatars/{{ av.id }}" style="color:var(--color-white);font-weight:500;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{{ av.username }}</a>
-                    </td>
-                    <!-- Reddit status -->
-                    <td style="padding:12px 16px;color:var(--color-muted);">
-                        {{ av.reddit_status or '—' }}
-                    </td>
-                    <!-- Phase -->
-                    <td style="padding:12px 16px;">
-                        {% if av.warming_phase == 0 %}
-                        <span style="padding:2px 8px;border-radius:var(--radius-pill);background:rgba(124,58,237,0.2);color:#a78bfa;font-size:var(--text-micro);font-weight:500;">Mentor</span>
-                        {% elif av.warming_phase == 1 %}
-                        <span class="badge-grey">Phase 1</span>
-                        {% elif av.warming_phase == 2 %}
-                        <span class="badge-orange">Phase 2</span>
-                        {% elif av.warming_phase == 3 %}
-                        <span class="badge-green">Phase 3</span>
-                        {% endif %}
-                    </td>
-                    <!-- Karma -->
-                    <td style="padding:12px 16px;color:var(--color-white);font-family:ui-monospace,monospace;">
-                        {{ (av.reddit_karma_comment or 0) + (av.reddit_karma_post or 0) }}
-                    </td>
-                    <!-- Health -->
-                    <td style="padding:12px 16px;">
-                        {% if av.health_status == 'healthy' or av.health_status == 'active' %}
-                        <span style="color:var(--color-green);">●</span>
-                        {% elif av.health_status == 'shadowbanned' %}
-                        <span style="color:var(--color-red);">● shadow</span>
-                        {% elif av.health_status == 'suspended' %}
-                        <span style="color:var(--color-red);">● suspended</span>
-                        {% elif av.health_status == 'limited' %}
-                        <span style="color:var(--color-orange);">● limited</span>
-                        {% else %}
-                        <span style="color:var(--color-muted);">—</span>
-                        {% endif %}
-                    </td>
-                    <!-- CQS -->
-                    <td style="padding:12px 16px;">
-                        {% if av.cqs_level == 'high' %}
-                        <span style="color:var(--color-green);font-weight:500;">High</span>
-                        {% elif av.cqs_level == 'medium' %}
-                        <span style="color:var(--color-orange);font-weight:500;">Medium</span>
-                        {% elif av.cqs_level == 'low' %}
-                        <span style="color:var(--color-orange);font-weight:500;">Low</span>
-                        {% elif av.cqs_level == 'lowest' %}
-                        <span style="color:var(--color-red);font-weight:500;">Lowest</span>
-                        {% else %}
-                        <span style="color:var(--color-muted);">—</span>
-                        {% endif %}
-                        {% if av.cqs_stale %}
-                        <span style="color:var(--color-muted);font-size:var(--text-micro);margin-left:4px;">stale</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:var(--space-3);">
+        {% for av in avatars %}
+        <a href="/clients/{{ client_id }}/avatars/{{ av.id }}" class="surface" style="padding:var(--space-3);text-decoration:none;border:1px solid transparent;transition:border-color 150ms;{% if not av.active_flag %}opacity:0.5;{% endif %}" onmouseover="this.style.borderColor='var(--color-orange)'" onmouseout="this.style.borderColor='transparent'">
+            <!-- Header: avatar circle + name + status -->
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                <div style="width:44px;height:44px;border-radius:50%;background:var(--color-surface-alt);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;color:var(--color-orange);flex-shrink:0;">
+                    {{ (av.client_display_name or "?")[0] | upper }}
+                </div>
+                <div style="flex:1;min-width:0;">
+                    <p style="color:{% if av.display_name_is_fallback %}var(--color-orange){% else %}var(--color-white){% endif %};font-weight:600;font-size:var(--text-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" {% if av.display_name_is_fallback %}title="Persona name not configured yet — showing internal ID. Ask your account manager to set a display name."{% endif %}>{{ av.client_display_name }}{% if av.display_name_is_fallback %} <span style="font-size:var(--text-micro);color:var(--color-orange);font-weight:400;">⚙</span>{% endif %}</p>
+                    {% if av.client_persona_bio %}
+                    <p style="color:var(--color-muted);font-size:var(--text-small);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ av.client_persona_bio }}</p>
+                    {% endif %}
+                </div>
+                <!-- Status indicator -->
+                {% if av.is_frozen %}
+                <span style="padding:2px 8px;border-radius:var(--radius-pill);background:rgba(99,102,241,0.2);color:#a5b4fc;font-size:var(--text-micro);font-weight:500;">FROZEN</span>
+                {% elif av.health_status == 'shadowbanned' %}
+                <span class="badge-red">FLAGGED</span>
+                {% elif av.active_flag and av.reddit_status == 'active' %}
+                <span style="width:8px;height:8px;border-radius:50%;background:var(--color-green);"></span>
+                {% endif %}
+            </div>
+
+            <!-- Metrics row -->
+            <div style="display:flex;gap:16px;margin-bottom:12px;">
+                <!-- Phase -->
+                <div>
+                    <p class="text-micro" style="margin-bottom:2px;">Phase{{ tooltip("Warming phase controls what the avatar can do. Phase 1 = credibility only (no brand). Phase 2 = content seeding. Phase 3 = brand integration.") }}</p>
+                    {% if av.warming_phase == 0 %}
+                    <span style="padding:2px 8px;border-radius:var(--radius-pill);background:rgba(124,58,237,0.2);color:#a78bfa;font-size:var(--text-small);font-weight:500;">Mentor</span>
+                    {% elif av.warming_phase == 1 %}
+                    <span class="badge-grey">Phase 1</span>
+                    {% elif av.warming_phase == 2 %}
+                    <span class="badge-orange">Phase 2</span>
+                    {% elif av.warming_phase == 3 %}
+                    <span class="badge-green">Phase 3</span>
+                    {% endif %}
+                </div>
+                <!-- Karma tier -->
+                <div>
+                    <p class="text-micro" style="margin-bottom:2px;">Trust{{ tooltip("Karma tier reflects community standing. Newcomer < Building < Established < Authority. Higher trust = comments gain more visibility.") }}</p>
+                    <p style="font-size:var(--text-small);color:var(--color-white);font-weight:500;">{{ av.karma_tier }}</p>
+                </div>
+                <!-- Health -->
+                <div>
+                    <p class="text-micro" style="margin-bottom:2px;">Health{{ tooltip("Reddit account status. Healthy = normal. Flagged = possible shadowban detected (auto-paused). Limited = restricted activity.") }}</p>
+                    {% if av.health_status == 'active' or av.health_status == 'healthy' %}
+                    <span style="color:var(--color-green);font-size:var(--text-small);">● Healthy</span>
+                    {% elif av.health_status == 'shadowbanned' %}
+                    <span style="color:var(--color-red);font-size:var(--text-small);">● Flagged</span>
+                    {% elif av.health_status == 'limited' %}
+                    <span style="color:var(--color-orange);font-size:var(--text-small);">● Limited</span>
+                    {% else %}
+                    <span style="color:var(--color-muted);font-size:var(--text-small);">—</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Shadowban alert -->
+            {% if av.health_status == 'shadowbanned' %}
+            <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:8px 12px;margin-bottom:8px;">
+                <p style="color:var(--color-red);font-size:var(--text-small);font-weight:500;">This avatar has been flagged by Reddit. We have automatically paused it and are investigating. No action needed from you.</p>
+            </div>
+            {% endif %}
+
+            <!-- CQS if relevant -->
+            {% if av.cqs_level %}
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span class="text-micro">Quality:</span>
+                {% if av.cqs_level == 'high' or av.cqs_level == 'highest' %}
+                <span style="color:var(--color-green);font-size:var(--text-small);font-weight:500;">{{ av.cqs_level | capitalize }}</span>
+                {% elif av.cqs_level == 'moderate' or av.cqs_level == 'medium' %}
+                <span style="color:var(--color-orange);font-size:var(--text-small);font-weight:500;">{{ av.cqs_level | capitalize }}</span>
+                {% else %}
+                <span style="color:var(--color-red);font-size:var(--text-small);font-weight:500;">{{ av.cqs_level | capitalize }}</span>
+                {% endif %}
+            </div>
+            {% endif %}
+        </a>
+        {% endfor %}
+        <!-- Upsell: avatar expansion -->
+        {% if avatar_at_limit %}
+        <div class="surface" style="padding:var(--space-3);border:1px dashed rgba(255,107,53,0.4);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:160px;">
+            <p style="color:var(--color-orange);font-size:20px;margin-bottom:8px;">+</p>
+            <p style="color:var(--color-white);font-weight:500;font-size:var(--text-small);margin-bottom:4px;">Your avatars are fully deployed</p>
+            <p style="color:var(--color-muted);font-size:var(--text-micro);margin-bottom:12px;">More avatars = more coverage across subreddits</p>
+            <a href="mailto:tzvi@gorampit.com?subject=Avatar%20Expansion" style="padding:6px 14px;border-radius:var(--radius-pill);background:rgba(255,107,53,0.15);color:var(--color-orange);font-size:var(--text-small);font-weight:500;text-decoration:none;">Add more avatars →</a>
+        </div>
+        {% endif %}
     </div>
     {% else %}
     <div class="surface" style="padding:var(--space-5);text-align:center;">
         <p style="font-size:24px;margin-bottom:var(--space-2);">👥</p>
         <p style="color:var(--color-white);font-weight:500;margin-bottom:8px;">Your avatars are being configured</p>
-        <p class="text-small">Check back in 24–48 hours.</p>
+        <p class="text-small">Check back in 24-48 hours. We are setting up your team of personas.</p>
     </div>
     {% endif %}
 </div>

@@ -6,7 +6,7 @@
 </div>
 {% endif %}
 
-<h2 style="font-size:var(--text-h2);color:var(--color-white);margin-bottom:8px;">Keywords</h2>
+<h2 style="font-size:var(--text-h2);color:var(--color-white);margin-bottom:8px;">Keywords{% from "partials/tooltip.html" import tooltip %}{{ tooltip("Keywords determine which threads get scored. High-priority = strong signal. Add terms your buyers use when discussing problems your brand solves.") }}</h2>
 <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:16px;">Manage the keywords your avatars monitor across subreddits.</p>
 
 {% set has_any_keywords = (keywords.get('high', []) | length + keywords.get('medium', []) | length + keywords.get('low', []) | length) > 0 %}

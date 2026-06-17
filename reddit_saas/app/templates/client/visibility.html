@@ -1,0 +1,203 @@
+{% extends "client_base.html" %}
+{% from "partials/tooltip.html" import tooltip %}
+
+{% block title %}AI Visibility — {{ client_name }}{% endblock %}
+
+{% block content %}
+<div id="portal-content">
+    <div style="margin-bottom:var(--space-4);">
+        <h1 class="text-h1">AI Search Visibility{{ tooltip("GEO/AEO monitoring: we ask AI platforms buyer-intent questions and check if your brand appears in the answers. Higher rate = your Reddit content is being cited as credible.") }}</h1>
+        <p class="text-small" style="margin-top:4px;">How often {{ brand_name }} appears when AI platforms answer buyer questions.</p>
+    </div>
+
+    <!-- Info block -->
+    <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-4);">
+        <p style="font-size:var(--text-small);color:#a5b4fc;line-height:1.5;">
+            We monitor AI search engines (Perplexity, Google Gemini) with real buyer-intent queries related to your market. When your brand appears in AI responses, it means your Reddit presence is being cited as a credible source.
+        </p>
+    </div>
+
+    {% if not visibility.geo_enabled %}
+    <!-- GEO not enabled -->
+    <div class="surface" style="padding:var(--space-5);text-align:center;">
+        <p style="font-size:24px;margin-bottom:var(--space-2);">🔍</p>
+        <p style="color:var(--color-white);font-weight:500;margin-bottom:8px;">AI Visibility monitoring is being configured</p>
+        <p class="text-small">Your account manager will set up monitoring queries for your market niche.</p>
+    </div>
+    {% else %}
+
+    <!-- Share of Voice — Main KPI -->
+    <div style="margin-bottom:var(--space-4);">
+        <h2 class="text-h3" style="margin-bottom:var(--space-2);">Brand Visibility Rate{{ tooltip("Percentage of AI responses that mention your brand when asked buyer-intent questions. Measured by running queries through Perplexity Sonar.") }}</h2>
+        <div class="surface" style="padding:var(--space-3);">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--space-3);">
+                <!-- Current rate -->
+                <div style="text-align:center;">
+                    <p class="text-micro" style="margin-bottom:4px;">Current</p>
+                    <p style="font-size:36px;font-weight:700;color:{% if visibility.latest_brand_rate > 0 %}var(--color-green){% else %}var(--color-muted){% endif %};">{{ visibility.latest_brand_rate }}%</p>
+                    <p class="text-micro" style="margin-top:4px;">of AI responses mention {{ brand_name }}</p>
+                </div>
+                <!-- Baseline -->
+                <div style="text-align:center;">
+                    <p class="text-micro" style="margin-bottom:4px;">Baseline (Day 1)</p>
+                    <p style="font-size:36px;font-weight:700;color:var(--color-muted);">{{ visibility.baseline_brand_rate }}%</p>
+                    {% if visibility.baseline_date %}
+                    <p class="text-micro" style="margin-top:4px;">{{ visibility.baseline_date }}</p>
+                    {% else %}
+                    <p class="text-micro" style="margin-top:4px;">not yet measured</p>
+                    {% endif %}
+                </div>
+                <!-- Delta -->
+                <div style="text-align:center;">
+                    <p class="text-micro" style="margin-bottom:4px;">Growth</p>
+                    <p style="font-size:36px;font-weight:700;color:{% if visibility.brand_rate_delta > 0 %}var(--color-green){% elif visibility.brand_rate_delta < 0 %}var(--color-red){% else %}var(--color-muted){% endif %};">
+                        {% if visibility.brand_rate_delta > 0 %}+{% endif %}{{ visibility.brand_rate_delta }}%
+                    </p>
+                    <p class="text-micro" style="margin-top:4px;">since baseline</p>
+                </div>
+            </div>
+
+            <!-- Trend sparkline -->
+            {% if visibility.brand_rate_history | length > 1 %}
+            <div style="margin-top:var(--space-3);padding-top:var(--space-2);border-top:1px solid var(--color-border);">
+                <p class="text-micro" style="margin-bottom:8px;">Visibility over time</p>
+                {% set max_rate = namespace(v=1) %}
+                {% for h in visibility.brand_rate_history %}
+                    {% if h.rate > max_rate.v %}{% set max_rate.v = h.rate %}{% endif %}
+                {% endfor %}
+                <div style="display:flex;align-items:flex-end;gap:2px;height:40px;">
+                    {% for h in visibility.brand_rate_history %}
+                    {% set bar_h = (h.rate / max_rate.v * 100)|int if max_rate.v > 0 else 0 %}
+                    <div style="flex:1;min-width:0;border-radius:2px 2px 0 0;
+                                height:{{ [bar_h, 4]|max }}%;
+                                background:{% if h.is_baseline %}rgba(99,102,241,0.6){% elif h.rate > 0 %}rgba(34,197,94,0.7){% else %}rgba(148,163,184,0.2){% endif %};"
+                         title="{{ h.date }}: {{ h.rate }}%{% if h.is_baseline %} (baseline){% endif %}"></div>
+                    {% endfor %}
+                </div>
+                <div style="display:flex;margin-top:4px;">
+                    {% for h in visibility.brand_rate_history %}
+                    <span style="flex:1;min-width:0;text-align:center;font-size:8px;color:var(--color-muted);{% if not loop.first and not loop.last and not loop.index0 % 3 == 0 %}visibility:hidden;{% endif %}">{{ h.date }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if visibility.latest_batch_date %}
+            <p class="text-micro" style="margin-top:8px;text-align:right;">Last measured: {{ visibility.latest_batch_date }}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Competitor Comparison -->
+    {% if visibility.competitors %}
+    <div style="margin-bottom:var(--space-4);">
+        <h2 class="text-h3" style="margin-bottom:var(--space-2);">Competitor Presence in AI Responses</h2>
+        <div class="surface" style="overflow:hidden;">
+            <table style="width:100%;border-collapse:collapse;font-size:var(--text-small);">
+                <thead>
+                    <tr style="border-bottom:1px solid var(--color-border);">
+                        <th style="padding:10px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;">Brand</th>
+                        <th style="padding:10px 12px;text-align:center;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;width:120px;">Appearance Rate</th>
+                        <th style="padding:10px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;">Visibility</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Your brand first -->
+                    <tr style="border-bottom:1px solid var(--color-border);background:rgba(34,197,94,0.05);">
+                        <td style="padding:10px 16px;">
+                            <span style="color:var(--color-white);font-weight:600;">{{ brand_name }}</span>
+                            <span style="margin-left:6px;padding:2px 6px;border-radius:var(--radius-pill);background:rgba(34,197,94,0.15);color:var(--color-green);font-size:var(--text-micro);font-weight:500;">YOU</span>
+                        </td>
+                        <td style="padding:10px 12px;text-align:center;font-family:ui-monospace,monospace;color:var(--color-green);font-weight:600;">{{ visibility.latest_brand_rate }}%</td>
+                        <td style="padding:10px 16px;">
+                            <div style="height:8px;border-radius:4px;background:var(--color-surface-alt);overflow:hidden;">
+                                <div style="height:100%;border-radius:4px;background:var(--color-green);width:{{ visibility.latest_brand_rate }}%;"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% for comp in visibility.competitors %}
+                    <tr style="border-bottom:1px solid var(--color-border);">
+                        <td style="padding:10px 16px;">
+                            <span style="color:var(--color-white);font-weight:500;">{{ comp.name }}</span>
+                            {% if comp.domain %}
+                            <span style="margin-left:6px;font-size:var(--text-micro);color:var(--color-muted);">{{ comp.domain }}</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding:10px 12px;text-align:center;font-family:ui-monospace,monospace;color:{% if comp.appearance_rate > visibility.latest_brand_rate %}var(--color-red){% else %}var(--color-muted){% endif %};">{{ comp.appearance_rate }}%</td>
+                        <td style="padding:10px 16px;">
+                            <div style="height:8px;border-radius:4px;background:var(--color-surface-alt);overflow:hidden;">
+                                <div style="height:100%;border-radius:4px;background:{% if comp.appearance_rate > visibility.latest_brand_rate %}rgba(239,68,68,0.7){% else %}rgba(148,163,184,0.5){% endif %};width:{{ comp.appearance_rate }}%;"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- High-Intent Thread Participation -->
+    <div style="margin-bottom:var(--space-4);">
+        <h2 class="text-h3" style="margin-bottom:var(--space-2);">High-Intent Thread Participation</h2>
+        <p class="text-small" style="margin-bottom:var(--space-2);">How often your avatars appear in threads where people are actively comparing, evaluating, or troubleshooting — the highest-value discussions.</p>
+        <div class="surface" style="padding:var(--space-3);">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);margin-bottom:var(--space-3);">
+                <div style="text-align:center;padding:var(--space-2);background:var(--color-surface-alt);border-radius:8px;">
+                    <p class="text-micro" style="margin-bottom:4px;">High-Intent Rate</p>
+                    <p style="font-size:28px;font-weight:700;color:{% if visibility.high_intent_rate >= 40 %}var(--color-green){% elif visibility.high_intent_rate >= 20 %}var(--color-orange){% else %}var(--color-muted){% endif %};">{{ visibility.high_intent_rate }}%</p>
+                    <p class="text-micro" style="margin-top:4px;">{{ visibility.high_intent_posted }} of {{ visibility.total_posted_30d }} comments (30d)</p>
+                </div>
+                <div style="text-align:center;padding:var(--space-2);background:var(--color-surface-alt);border-radius:8px;">
+                    <p class="text-micro" style="margin-bottom:4px;">Target</p>
+                    <p style="font-size:28px;font-weight:700;color:var(--color-muted);">40%+</p>
+                    <p class="text-micro" style="margin-top:4px;">recommended for AEO impact</p>
+                </div>
+            </div>
+
+            <!-- Intent breakdown -->
+            {% if visibility.intent_breakdown %}
+            <p class="text-micro" style="margin-bottom:8px;">Thread intent distribution (30 days)</p>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+                {% for item in visibility.intent_breakdown %}
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="min-width:140px;font-size:var(--text-small);color:var(--color-white);font-weight:{% if item.is_high %}500{% else %}400{% endif %};">{{ item.intent }}</span>
+                    <div style="flex:1;height:8px;border-radius:4px;background:var(--color-surface-alt);overflow:hidden;">
+                        {% set bar_w = (item.count / visibility.total_posted_30d * 100)|int if visibility.total_posted_30d > 0 else 0 %}
+                        <div style="height:100%;border-radius:4px;width:{{ bar_w }}%;background:{% if item.is_high %}rgba(34,197,94,0.7){% else %}rgba(148,163,184,0.4){% endif %};"></div>
+                    </div>
+                    <span style="min-width:30px;font-size:var(--text-small);font-family:ui-monospace,monospace;color:var(--color-muted);text-align:right;">{{ item.count }}</span>
+                    {% if item.is_high %}
+                    <span style="padding:1px 6px;border-radius:var(--radius-pill);background:rgba(34,197,94,0.15);color:var(--color-green);font-size:8px;font-weight:600;">HIGH</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-small" style="text-align:center;padding:var(--space-2);color:var(--color-muted);">Intent data will appear after the first month of posting.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- How It Works -->
+    <div class="surface" style="padding:var(--space-3);">
+        <h3 style="font-size:var(--text-h3);color:var(--color-white);margin-bottom:8px;">How AI Visibility Works</h3>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-3);">
+            <div>
+                <p style="color:var(--color-orange);font-weight:600;margin-bottom:4px;">1. Presence</p>
+                <p class="text-small">Your avatars participate in high-value Reddit discussions with expert-level content.</p>
+            </div>
+            <div>
+                <p style="color:var(--color-orange);font-weight:600;margin-bottom:4px;">2. Authority</p>
+                <p class="text-small">Upvotes + replies signal to AI engines that your content is trustworthy and community-validated.</p>
+            </div>
+            <div>
+                <p style="color:var(--color-orange);font-weight:600;margin-bottom:4px;">3. Citation</p>
+                <p class="text-small">AI search engines (Perplexity, Gemini) cite Reddit content where your brand is positioned as the expert.</p>
+            </div>
+        </div>
+    </div>
+
+    {% endif %}
+</div>
+{% endblock %}

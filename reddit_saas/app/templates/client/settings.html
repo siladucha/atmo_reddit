@@ -1,11 +1,12 @@
 {% extends "client_base.html" %}
+{% from "partials/tooltip.html" import tooltip %}
 
 {% block title %}Settings — {{ client_name }}{% endblock %}
 
 {% block content %}
 <div id="portal-content">
     <div style="margin-bottom:var(--space-4);">
-        <h1 class="text-h1">Settings</h1>
+        <h1 class="text-h1">Settings{{ tooltip("Refine your campaign: add/remove keywords, request new subreddits, set brand guardrails, and provide voice feedback to improve AI output.") }}</h1>
         <p class="text-small" style="margin-top:4px;">Ongoing campaign refinement. All major configuration was set during onboarding.</p>
     </div>
 

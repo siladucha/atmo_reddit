@@ -1,11 +1,12 @@
 {% extends "client_base.html" %}
+{% from "partials/tooltip.html" import tooltip %}
 
 {% block title %}Subreddits — {{ client_name }}{% endblock %}
 
 {% block content %}
 <div id="portal-content">
     <div style="margin-bottom:var(--space-4);">
-        <h1 class="text-h1">Subreddits</h1>
+        <h1 class="text-h1">Subreddits{{ tooltip("Reddit communities where we look for engagement opportunities. We scrape new posts every few hours and AI scores them for relevance to your brand.") }}</h1>
         <p class="text-small" style="margin-top:4px;">Communities we're monitoring and engaging in. {{ subreddits | length }} configured.</p>
     </div>
 
@@ -23,8 +24,8 @@
                 <tr style="border-bottom:1px solid var(--color-border);">
                     <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Status</th>
                     <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Subreddit</th>
-                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Type</th>
-                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Last Scraped</th>
+                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Type{{ tooltip("Professional = industry-relevant communities. Hobby = builds avatar credibility without brand mentions.") }}</th>
+                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Last Scraped{{ tooltip("When we last fetched new posts from this subreddit. Typically every 4-6 hours.") }}</th>
                     <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Last Result</th>
                     <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Next Scrape</th>
                 </tr>

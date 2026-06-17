@@ -1,4 +1,5 @@
 {% extends "client_base.html" %}
+{% from "partials/tooltip.html" import tooltip %}
 
 {% block title %}Review Queue — {{ client_name }}{% endblock %}
 
@@ -6,7 +7,7 @@
 <div id="portal-content">
     <!-- Page header -->
     <div style="margin-bottom:var(--space-4);">
-        <h1 class="text-h1">Review Queue</h1>
+        <h1 class="text-h1">Review Queue{{ tooltip("AI-generated comment drafts awaiting human approval. Approve to move to posting, Edit to improve (your edits train the AI), Skip to reject.") }}</h1>
         <p class="text-small" style="margin-top:4px;">Manage your comment drafts through the approval workflow.</p>
     </div>
 
@@ -14,15 +15,15 @@
     <div style="display:flex;gap:0;border-bottom:1px solid var(--color-border);margin-bottom:var(--space-3);">
         <button onclick="switchTab('pending')" id="tab-pending"
                 style="padding:10px 20px;font-size:var(--text-small);font-weight:600;border:none;background:transparent;cursor:pointer;border-bottom:2px solid var(--color-orange);color:var(--color-orange);">
-            ✍ Pending{% if pending_count %} <span style="background:var(--color-orange);color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px;">{{ pending_count }}</span>{% endif %}
+            ✍ Pending{{ tooltip("Drafts waiting for your review. Approve or skip each one.") }}{% if pending_count %} <span style="background:var(--color-orange);color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px;">{{ pending_count }}</span>{% endif %}
         </button>
         <button onclick="switchTab('approved')" id="tab-approved"
                 style="padding:10px 20px;font-size:var(--text-small);font-weight:600;border:none;background:transparent;cursor:pointer;border-bottom:2px solid transparent;color:var(--color-muted);">
-            📋 Ready to Post{% if approved_count %} <span style="background:var(--color-surface-alt);color:var(--color-white);border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px;">{{ approved_count }}</span>{% endif %}
+            📋 Ready to Post{{ tooltip("Approved comments waiting for an avatar owner to post them on Reddit.") }}{% if approved_count %} <span style="background:var(--color-surface-alt);color:var(--color-white);border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px;">{{ approved_count }}</span>{% endif %}
         </button>
         <button onclick="switchTab('posted')" id="tab-posted"
                 style="padding:10px 20px;font-size:var(--text-small);font-weight:600;border:none;background:transparent;cursor:pointer;border-bottom:2px solid transparent;color:var(--color-muted);">
-            ✓ Posted{% if posted_count %} <span style="background:var(--color-surface-alt);color:var(--color-muted);border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px;">{{ posted_count }}</span>{% endif %}
+            ✓ Posted{{ tooltip("Comments that have been published on Reddit. Showing last 30 days.") }}{% if posted_count %} <span style="background:var(--color-surface-alt);color:var(--color-muted);border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px;">{{ posted_count }}</span>{% endif %}
         </button>
     </div>
 

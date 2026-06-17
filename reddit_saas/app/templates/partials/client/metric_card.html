@@ -2,12 +2,15 @@
 <div class="surface" style="padding:var(--space-3);">
     <p class="text-small" style="margin-bottom:8px;">Comments Posted</p>
     <p class="text-display">{{ metrics.comments_posted }}</p>
+    <p class="text-micro" style="margin-top:4px;">avg {{ metrics.avg_upvote }} upvotes each</p>
 </div>
 <div class="surface" style="padding:var(--space-3);">
     <p class="text-small" style="margin-bottom:8px;">Total Upvotes</p>
-    <p class="text-display">{{ metrics.total_upvotes }}</p>
+    <p class="text-display" style="color:var(--color-green);">{{ metrics.total_upvotes }}</p>
+    <p class="text-micro" style="margin-top:4px;">community engagement earned</p>
 </div>
 <div class="surface" style="padding:var(--space-3);">
     <p class="text-small" style="margin-bottom:8px;">Subreddits Active</p>
     <p class="text-display">{{ metrics.active_subreddits }}</p>
+    <p class="text-micro" style="margin-top:4px;">{{ metrics.subreddits_penetrated }} with posted comments</p>
 </div>

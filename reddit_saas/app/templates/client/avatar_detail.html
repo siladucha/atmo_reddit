@@ -1,6 +1,6 @@
 {% extends "client_base.html" %}
 
-{% block title %}{{ avatar.username }} — {{ client_name }}{% endblock %}
+{% block title %}{{ avatar.display_name }} — {{ client_name }}{% endblock %}
 
 {% block content %}
 <div id="portal-content">
@@ -12,10 +12,10 @@
     <!-- Header -->
     <div style="display:flex;align-items:center;gap:16px;margin-bottom:var(--space-4);">
         <div style="width:48px;height:48px;border-radius:50%;background:var(--color-surface-alt);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600;color:var(--color-muted);">
-            {{ avatar.username[0] | upper }}
+            {{ avatar.display_name[0] | upper }}
         </div>
         <div>
-            <h1 class="text-h1" style="margin-bottom:2px;">{{ avatar.username }}</h1>
+            <h1 class="text-h1" style="margin-bottom:2px;{% if avatar.display_name_is_fallback %}color:var(--color-orange);{% endif %}" {% if avatar.display_name_is_fallback %}title="Persona name not configured yet"{% endif %}>{{ avatar.display_name }}{% if avatar.display_name_is_fallback %} <span style="font-size:12px;">⚙</span>{% endif %}</h1>
             <div style="display:flex;align-items:center;gap:8px;">
                 {% if avatar.warming_phase == 1 %}
                 <span class="badge-grey">Phase 1 — Credibility</span>
@@ -26,7 +26,7 @@
                 {% elif avatar.warming_phase == 0 %}
                 <span style="background:#7c3aed;color:#fff;font-size:var(--text-micro);font-weight:600;padding:2px 8px;border-radius:var(--radius-pill);">Mentor</span>
                 {% endif %}
-                <span class="text-small">Karma: {{ avatar.reddit_karma_comment + avatar.reddit_karma_post }}</span>
+                <span class="text-small">Trust: {{ avatar.karma_tier }}</span>
                 {% if avatar.is_frozen %}
                 <span class="badge-red">FROZEN</span>
                 {% elif not avatar.active %}
@@ -132,6 +132,82 @@
             {% for sub in avatar.hobby_subreddits %}
             <a href="https://reddit.com/r/{{ sub }}" target="_blank" rel="noopener" style="padding:4px 12px;border-radius:var(--radius-pill);background:rgba(139,92,246,0.15);color:#a78bfa;font-size:var(--text-small);text-decoration:none;">r/{{ sub }}</a>
             {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Avatar Performance (30 days) -->
+    {% if karma_days %}
+    <div class="surface" style="padding:var(--space-3);margin-top:var(--space-4);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <div>
+                <h3 style="font-size:var(--text-h3);color:var(--color-white);margin-bottom:2px;">Performance (30 days)</h3>
+                <p class="text-small">{{ karma_posted_30d }} comments · {{ karma_total_30d }} upvotes earned</p>
+            </div>
+        </div>
+        <!-- Mini sparkline -->
+        {% set max_k = namespace(v=1) %}
+        {% for d in karma_days %}
+            {% if d.upvotes > max_k.v %}{% set max_k.v = d.upvotes %}{% endif %}
+        {% endfor %}
+        <div style="display:flex;align-items:flex-end;gap:1px;height:36px;margin-bottom:4px;">
+            {% for d in karma_days %}
+            {% set h = (d.upvotes / max_k.v * 100)|int if max_k.v > 0 else 0 %}
+            <div style="flex:1;min-width:0;border-radius:2px 2px 0 0;
+                        height:{{ [h, 3]|max }}%;
+                        background:{% if d.upvotes > 0 %}rgba(34,197,94,0.7){% else %}rgba(148,163,184,0.15){% endif %};"
+                 title="{{ d.date }}: {{ d.upvotes }} upvotes"></div>
+            {% endfor %}
+        </div>
+        <div style="display:flex;">
+            {% for d in karma_days %}
+            <span style="flex:1;min-width:0;text-align:center;font-size:7px;color:var(--color-muted);{% if not loop.index0 % 7 == 0 %}visibility:hidden;{% endif %}">{{ d.date }}</span>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Subreddit Karma Breakdown -->
+    {% if subreddit_karma %}
+    <div style="margin-top:var(--space-4);">
+        <h2 class="text-h3" style="margin-bottom:var(--space-2);">Karma by Subreddit</h2>
+        <p class="text-small" style="margin-bottom:var(--space-2);">Community trust earned in each subreddit.</p>
+        <div class="surface" style="overflow:hidden;">
+            <table style="width:100%;border-collapse:collapse;font-size:var(--text-small);">
+                <thead>
+                    <tr style="border-bottom:1px solid var(--color-border);">
+                        <th style="padding:10px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;">Subreddit</th>
+                        <th style="padding:10px 12px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;width:70px;">Type</th>
+                        <th style="padding:10px 12px;text-align:center;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;width:70px;">Karma</th>
+                        <th style="padding:10px 12px;text-align:center;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;width:70px;">Change</th>
+                        <th style="padding:10px 12px;text-align:center;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;width:80px;">Comments</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sk in subreddit_karma %}
+                    <tr style="border-bottom:1px solid var(--color-border);">
+                        <td style="padding:10px 16px;">
+                            <a href="https://reddit.com/r/{{ sk.subreddit }}" target="_blank" rel="noopener" style="color:var(--color-white);font-weight:500;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">r/{{ sk.subreddit }}</a>
+                        </td>
+                        <td style="padding:10px 12px;">
+                            {% if sk.type == 'hobby' %}
+                            <span style="padding:2px 8px;border-radius:var(--radius-pill);background:rgba(139,92,246,0.15);color:#a78bfa;font-size:var(--text-micro);">hobby</span>
+                            {% elif sk.type == 'professional' %}
+                            <span style="padding:2px 8px;border-radius:var(--radius-pill);background:rgba(59,130,246,0.15);color:#60a5fa;font-size:var(--text-micro);">prof</span>
+                            {% else %}
+                            <span style="padding:10px 12px;color:var(--color-muted);font-size:var(--text-micro);">—</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding:10px 12px;text-align:center;font-family:ui-monospace,monospace;color:var(--color-white);font-weight:500;">{{ sk.total }}</td>
+                        <td style="padding:10px 12px;text-align:center;font-family:ui-monospace,monospace;
+                            {% if sk.delta > 0 %}color:var(--color-green);{% elif sk.delta < 0 %}color:var(--color-red);{% else %}color:var(--color-muted);{% endif %}">
+                            {% if sk.delta > 0 %}+{% endif %}{{ sk.delta }}
+                        </td>
+                        <td style="padding:10px 12px;text-align:center;font-family:ui-monospace,monospace;color:var(--color-muted);">{{ sk.comment_count }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
     {% endif %}

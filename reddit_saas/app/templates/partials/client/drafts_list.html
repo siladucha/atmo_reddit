@@ -1,5 +1,12 @@
 <!-- Draft cards partial — loaded via HTMX. Status-aware rendering. -->
 {% if drafts %}
+<!-- Batch approve bar (shown when checkboxes selected) -->
+{% if status == "pending" and can_review %}
+<div id="batch-bar" style="display:none;position:sticky;top:0;z-index:10;background:var(--color-surface);border:1px solid var(--color-orange);border-radius:var(--radius-card);padding:10px 16px;margin-bottom:12px;display:none;align-items:center;justify-content:space-between;">
+    <span id="batch-count" style="font-size:var(--text-small);color:var(--color-white);font-weight:500;">0 selected</span>
+    <button onclick="batchApprove()" style="padding:8px 20px;border-radius:var(--radius-input);background:var(--color-green);color:#fff;font-size:var(--text-small);font-weight:600;border:none;cursor:pointer;">Approve Selected</button>
+</div>
+{% endif %}
 {% for draft in drafts %}
 <div id="draft-{{ draft.id }}" class="surface" style="padding:var(--space-3);position:relative;">
     <!-- Safety block banner (pending only) -->
@@ -12,6 +19,7 @@
     <!-- Header row -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
         <div style="display:flex;align-items:center;gap:10px;">
+            {% if status == "pending" and can_review and not draft.safety_block %}<input type="checkbox" class="batch-check" data-draft-id="{{ draft.id }}" onchange="updateBatchBar()" style="width:16px;height:16px;accent-color:var(--color-orange);cursor:pointer;">{% endif %}
             <span style="font-weight:500;color:var(--color-white);">{{ draft.avatar_name }}</span>
             {% if draft.avatar_phase == 1 %}
             <span class="badge-grey">Phase 1</span>
@@ -278,39 +286,40 @@ function skipDraft(clientId, draftId) {
 }
 
 function regenerateDraft(clientId, draftId) {
-    const card = document.getElementById('draft-' + draftId);
-    if (!confirm('Generate a new AI version of this comment?')) return;
-    card.style.opacity = '0.5';
-    card.style.pointerEvents = 'none';
-    fetch('/clients/' + clientId + '/actions/regenerate/' + draftId, {method: 'POST'})
+    const card = document.getElementById("draft-" + draftId);
+    const note = prompt("What should be different? (optional — helps the AI improve)", "");
+    if (note === null) return; // cancelled
+    card.style.opacity = "0.5";
+    card.style.pointerEvents = "none";
+    fetch("/clients/" + clientId + "/actions/regenerate/" + draftId, {
+        method: "POST",
+        headers: {"Content-Type": "application/x-www-form-urlencoded"},
+        body: "note=" + encodeURIComponent(note)
+    })
         .then(r => {
             if (r.ok) {
-                card.style.transition = 'all 300ms ease';
-                card.style.opacity = '0';
+                card.style.transition = "all 300ms ease";
+                card.style.opacity = "0";
                 setTimeout(() => {
                     card.remove();
-                    // Trigger refresh of the drafts list
-                    const container = document.getElementById('drafts-container');
-                    if (container && window.htmx) {
-                        htmx.trigger(container, 'refreshDrafts');
-                    }
+                    if (window.htmx) { setTimeout(() => loadDrafts(), 500); }
                 }, 350);
             } else {
                 return r.json().then(data => {
-                    alert(data.message || 'Regeneration failed');
-                    card.style.opacity = '1';
-                    card.style.pointerEvents = 'auto';
+                    alert(data.message || "Regeneration failed");
+                    card.style.opacity = "1";
+                    card.style.pointerEvents = "auto";
                 }).catch(() => {
-                    alert('Regeneration failed. Please try again.');
-                    card.style.opacity = '1';
-                    card.style.pointerEvents = 'auto';
+                    alert("Regeneration failed. Please try again.");
+                    card.style.opacity = "1";
+                    card.style.pointerEvents = "auto";
                 });
             }
         })
         .catch(() => {
-            alert('Network error. Please try again.');
-            card.style.opacity = '1';
-            card.style.pointerEvents = 'auto';
+            alert("Network error. Please try again.");
+            card.style.opacity = "1";
+            card.style.pointerEvents = "auto";
         });
 }
 
@@ -351,6 +360,46 @@ function editAndApprove(clientId, draftId) {
         alert('Network error. Please try again.');
         card.style.opacity = '1';
         card.style.pointerEvents = 'auto';
+    });
+}
+
+function updateBatchBar() {
+    var checks = document.querySelectorAll(".batch-check:checked");
+    var bar = document.getElementById("batch-bar");
+    var count = document.getElementById("batch-count");
+    if (checks.length >= 2) {
+        bar.style.display = "flex";
+        count.textContent = checks.length + " selected";
+    } else {
+        bar.style.display = "none";
+    }
+}
+
+function batchApprove() {
+    var checks = document.querySelectorAll(".batch-check:checked");
+    if (checks.length === 0) return;
+    var clientId = document.body.getAttribute("data-client-id");
+    var promises = [];
+    checks.forEach(function(cb) {
+        var draftId = cb.getAttribute("data-draft-id");
+        var card = document.getElementById("draft-" + draftId);
+        if (card) { card.style.opacity = "0.5"; card.style.pointerEvents = "none"; }
+        promises.push(
+            fetch("/clients/" + clientId + "/drafts/" + draftId + "/approve", {
+                method: "POST", headers: {"Accept": "application/json"}, credentials: "same-origin"
+            }).then(function(r) {
+                if (r.ok && card) {
+                    card.style.transition = "all 300ms ease";
+                    card.style.maxHeight = "0"; card.style.overflow = "hidden";
+                    card.style.padding = "0"; card.style.margin = "0"; card.style.opacity = "0";
+                    setTimeout(function() { card.remove(); }, 350);
+                }
+            })
+        );
+    });
+    Promise.all(promises).then(function() {
+        document.getElementById("batch-bar").style.display = "none";
+        setTimeout(function() { if (typeof loadDrafts === "function") loadDrafts(); }, 500);
     });
 }
 </script>

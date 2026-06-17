@@ -12,7 +12,7 @@
 </div>
 {% endif %}
 
-<h2 style="font-size:var(--text-h2);color:var(--color-white);margin-bottom:8px;">Brand Guardrails</h2>
+<h2 style="font-size:var(--text-h2);color:var(--color-white);margin-bottom:8px;">Brand Guardrails{% from "partials/tooltip.html" import tooltip %}{{ tooltip("Rules the AI follows when generating comments. Never-associate = topics to avoid. Restricted claims = factual boundaries. Style inspiration = tone guidance.") }}</h2>
 <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:16px;">Define topics, claims, and style guidance the AI should follow.</p>
 
 {% if can_edit %}

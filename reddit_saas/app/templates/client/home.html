@@ -1,4 +1,5 @@
 {% extends "client_base.html" %}
+{% from "partials/tooltip.html" import tooltip %}
 
 {% block title %}Home — {{ client_name }}{% endblock %}
 
@@ -39,7 +40,7 @@
             class="btn-outline"
             style="font-size:var(--text-small);padding:8px 16px;"
         >
-            ▶ Run Pipeline
+            ▶ Run Pipeline{{ tooltip("Triggers AI scoring + comment generation for all your subreddits. Takes 5-10 minutes.") }}
         </button>
         <button
             hx-post="/clients/{{ client_id }}/actions/epg-rebuild"
@@ -48,7 +49,7 @@
             class="btn-outline"
             style="font-size:var(--text-small);padding:8px 16px;"
         >
-            📅 Rebuild EPG
+            📅 Rebuild EPG{{ tooltip("Regenerates today's publishing schedule. Use after approving/skipping drafts to fill empty slots.") }}
         </button>
         <span id="home-action-status" style="display:inline-flex;align-items:center;font-size:var(--text-small);"></span>
     </div>
@@ -74,6 +75,36 @@
         </div>
     </div>
 
+    <!-- Momentum Events Feed -->
+    <div style="margin-bottom:var(--space-4);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <h2 class="text-h3">Momentum{{ tooltip("Recent pipeline activity: scrapes, new drafts generated, approvals, and posts. Shows your campaign is alive.") }}</h2>
+            <a href="/clients/{{ client_id }}/activity" class="text-small" style="color:var(--color-muted);text-decoration:none;" onmouseover="this.style.color='var(--color-white)'" onmouseout="this.style.color='var(--color-muted)'">View all →</a>
+        </div>
+        <div id="momentum-feed"
+             hx-get="/clients/{{ client_id }}/partials/momentum"
+             hx-trigger="load"
+             hx-swap="innerHTML"
+             style="max-height:300px;overflow-y:auto;">
+            <div style="padding:20px;text-align:center;">
+                <div class="skeleton" style="width:80%;height:40px;margin:0 auto 8px;"></div>
+                <div class="skeleton" style="width:60%;height:40px;margin:0 auto;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Karma Growth Sparkline (HTMX loaded) -->
+    <div id="karma-growth-area"
+         hx-get="/clients/{{ client_id }}/partials/karma-growth"
+         hx-trigger="load"
+         hx-swap="innerHTML"
+         style="margin-bottom:var(--space-4);">
+        <div class="surface" style="padding:var(--space-3);">
+            <div class="skeleton" style="width:40%;height:14px;margin-bottom:12px;"></div>
+            <div class="skeleton" style="width:100%;height:48px;"></div>
+        </div>
+    </div>
+
     <!-- Navigation tiles -->
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:var(--space-3);">
 
@@ -81,7 +112,7 @@
         <a href="/clients/{{ client_id }}/avatars" class="surface" style="padding:var(--space-3);text-decoration:none;transition:border-color 150ms;border:1px solid transparent;" onmouseover="this.style.borderColor='var(--color-orange)'" onmouseout="this.style.borderColor='transparent'">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
                 <span style="font-size:20px;">👥</span>
-                <span style="font-weight:600;color:var(--color-white);">Avatars</span>
+                <span style="font-weight:600;color:var(--color-white);">Avatars</span>{{ tooltip("Managed Reddit personas working for your brand. Each has a unique voice, niche expertise, and warming phase.") }}
             </div>
             <p class="text-display" style="margin-bottom:4px;">{{ avatars_active }}</p>
             <p class="text-small">{{ avatars_active }} active of {{ avatars_total }} total · Phase progression, karma, health status</p>
@@ -91,7 +122,7 @@
         <a href="/clients/{{ client_id }}/epg" class="surface" style="padding:var(--space-3);text-decoration:none;transition:border-color 150ms;border:1px solid transparent;" onmouseover="this.style.borderColor='var(--color-orange)'" onmouseout="this.style.borderColor='transparent'">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
                 <span style="font-size:20px;">📅</span>
-                <span style="font-weight:600;color:var(--color-white);">Schedule</span>
+                <span style="font-weight:600;color:var(--color-white);">Schedule</span>{{ tooltip("Daily publishing program — AI picks threads, generates comments, assigns time slots. You approve, avatar owners post.") }}
             </div>
             <p class="text-display" style="margin-bottom:4px;">{{ week_posted }}</p>
             <p class="text-small">posted this week · Daily publishing program, time slots, history</p>
@@ -101,7 +132,7 @@
         <a href="/clients/{{ client_id }}/subreddits" class="surface" style="padding:var(--space-3);text-decoration:none;transition:border-color 150ms;border:1px solid transparent;" onmouseover="this.style.borderColor='var(--color-orange)'" onmouseout="this.style.borderColor='transparent'">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
                 <span style="font-size:20px;">🌐</span>
-                <span style="font-weight:600;color:var(--color-white);">Subreddits</span>
+                <span style="font-weight:600;color:var(--color-white);">Subreddits</span>{{ tooltip("Reddit communities where your avatars are active. We scrape new threads from each and score them for engagement opportunities.") }}
             </div>
             <p class="text-display" style="margin-bottom:4px;">{{ subreddits_count }}</p>
             <p class="text-small">active communities · Scraping status, freshness, results</p>
@@ -111,7 +142,7 @@
         <a href="/clients/{{ client_id }}/keywords" class="surface" style="padding:var(--space-3);text-decoration:none;transition:border-color 150ms;border:1px solid transparent;" onmouseover="this.style.borderColor='var(--color-orange)'" onmouseout="this.style.borderColor='transparent'">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
                 <span style="font-size:20px;">#</span>
-                <span style="font-weight:600;color:var(--color-white);">Keywords</span>
+                <span style="font-weight:600;color:var(--color-white);">Keywords</span>{{ tooltip("Terms used to score thread relevance. High-priority keywords strongly boost a thread's engagement score.") }}
             </div>
             <p class="text-display" style="margin-bottom:4px;">{{ keywords_count }}</p>
             <p class="text-small">scoring keywords · Thread matches, engagement rate, subreddit hits</p>
@@ -121,7 +152,7 @@
         <a href="/clients/{{ client_id }}/strategy" class="surface" style="padding:var(--space-3);text-decoration:none;transition:border-color 150ms;border:1px solid transparent;" onmouseover="this.style.borderColor='var(--color-orange)'" onmouseout="this.style.borderColor='transparent'">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
                 <span style="font-size:20px;">📋</span>
-                <span style="font-weight:600;color:var(--color-white);">Strategy</span>
+                <span style="font-weight:600;color:var(--color-white);">Strategy</span>{{ tooltip("AI-generated engagement playbook per avatar. Defines how and where each persona participates.") }}
             </div>
             <p style="font-size:var(--text-h3);font-weight:700;color:var(--color-white);margin-bottom:4px;">{% if has_strategy %}Active{% else %}Pending{% endif %}</p>
             <p class="text-small">{% if has_strategy %}AI engagement strategy approved and active{% else %}Strategy being generated for your avatars{% endif %}</p>
@@ -131,15 +162,42 @@
         <a href="/clients/{{ client_id }}/report" class="surface" style="padding:var(--space-3);text-decoration:none;transition:border-color 150ms;border:1px solid transparent;" onmouseover="this.style.borderColor='var(--color-orange)'" onmouseout="this.style.borderColor='transparent'">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
                 <span style="font-size:20px;">📊</span>
-                <span style="font-weight:600;color:var(--color-white);">Report</span>
+                <span style="font-weight:600;color:var(--color-white);">Report</span>{{ tooltip("Performance summary: karma earned, approval rates, top-performing comments, subreddit breakdown.") }}
             </div>
             <p style="font-size:var(--text-h3);font-weight:700;color:var(--color-white);margin-bottom:4px;">Weekly</p>
             <p class="text-small">Performance summary, approval rates, top comments</p>
         </a>
 
+        <!-- AI Visibility -->
+        <a href="/clients/{{ client_id }}/visibility" class="surface" style="padding:var(--space-3);text-decoration:none;transition:border-color 150ms;border:1px solid transparent;" onmouseover="this.style.borderColor='var(--color-orange)'" onmouseout="this.style.borderColor='transparent'">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <span style="font-size:20px;">🔍</span>
+                <span style="font-weight:600;color:var(--color-white);">AI Visibility</span>{{ tooltip("Monitors how often your brand appears in AI search results (Perplexity, ChatGPT, Google AI Overviews) vs competitors.") }}
+            </div>
+            <p style="font-size:var(--text-h3);font-weight:700;color:var(--color-white);margin-bottom:4px;">Share of Voice</p>
+            <p class="text-small">Brand presence in AI search results, competitor comparison</p>
+        </a>
+
     </div>
 
     <!-- Queue empty note (only if no pending) -->
+    <!-- Trial onboarding success state -->
+    {% if is_trial and avatars_active == 0 %}
+    <div class="surface" style="padding:var(--space-4);margin-top:var(--space-3);border:1px solid rgba(99,102,241,0.3);">
+        <div style="display:flex;align-items:flex-start;gap:16px;">
+            <span style="font-size:28px;">🎯</span>
+            <div>
+                <h3 style="color:var(--color-white);font-weight:600;margin-bottom:8px;">Your intelligence trial is active</h3>
+                <p style="color:var(--color-muted);font-size:var(--text-small);line-height:1.6;margin-bottom:12px;">We are scanning your target subreddits and analyzing competitor presence. While avatars are not active on the trial plan, you can explore:</p>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                    <a href="/clients/{{ client_id }}/landscape" style="padding:8px 16px;border-radius:var(--radius-input);background:var(--color-orange);color:#fff;font-size:var(--text-small);font-weight:600;text-decoration:none;">View Landscape Report →</a>
+                    <a href="/clients/{{ client_id }}/subreddits" style="padding:8px 16px;border-radius:var(--radius-input);background:var(--color-surface-alt);border:1px solid var(--color-border);color:var(--color-white);font-size:var(--text-small);font-weight:500;text-decoration:none;">Your Subreddits</a>
+                    <a href="/clients/{{ client_id }}/keywords" style="padding:8px 16px;border-radius:var(--radius-input);background:var(--color-surface-alt);border:1px solid var(--color-border);color:var(--color-white);font-size:var(--text-small);font-weight:500;text-decoration:none;">Keywords</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
     {% if not pending_count or pending_count == 0 %}
     <div style="margin-top:var(--space-4);">
         <div class="surface" style="padding:var(--space-2) var(--space-3);display:inline-flex;align-items:center;gap:8px;">
