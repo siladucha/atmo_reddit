@@ -47,6 +47,8 @@ MODEL_FALLBACK_CHAIN = {
     "gemini/gemini-2.5-flash": ["gemini/gemini-2.5-flash-lite", "anthropic/claude-haiku-4-5"],
     "gemini/gemini-2.5-flash-lite": ["gemini/gemini-2.5-flash", "anthropic/claude-haiku-4-5"],
     "gemini/": ["gemini/gemini-2.5-flash-lite", "anthropic/claude-haiku-4-5"],  # prefix fallback
+    "perplexity/sonar": ["gemini/gemini-2.5-flash"],  # GEO fallback: Perplexity → Gemini with grounding
+    "perplexity/": ["gemini/gemini-2.5-flash"],  # prefix fallback
 }
 
 # Errors that trigger automatic model fallback

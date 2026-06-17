@@ -1,4 +1,7 @@
-"""GEO Query Runner — orchestrates prompt execution against Perplexity Sonar.
+"""GEO Query Runner — orchestrates prompt execution with provider fallback.
+
+Primary: Perplexity Sonar (web search + citations)
+Fallback: Google Gemini with Google Search grounding (web search + citations)
 
 Handles: LLM call -> brand detection -> citation parsing -> result storage.
 Uses existing call_llm() for API calls and log_ai_usage() for cost tracking.
@@ -26,14 +29,27 @@ logger = get_logger(__name__)
 # Perplexity Sonar model string for LiteLLM
 PERPLEXITY_MODEL = "perplexity/sonar"
 
+# Gemini fallback model (with Google Search grounding)
+# Using flash-lite for lower demand/cost; flash as secondary fallback
+GEMINI_GEO_MODEL = "gemini/gemini-2.5-flash-lite"
+GEMINI_GEO_FALLBACK = "gemini/gemini-2.5-flash"
+
 # System prompt for GEO queries
 GEO_SYSTEM_PROMPT = (
     "You are an AI assistant helping a user research solutions. "
-    "Answer the question comprehensively, citing sources where possible."
+    "Answer the question comprehensively, citing sources where possible. "
+    "Include URLs and references to sources you find."
 )
 
-# Add Perplexity model cost (approximate — Perplexity Sonar pricing)
+# Add model costs
 MODEL_COSTS.setdefault(PERPLEXITY_MODEL, {"input": 1.00, "output": 1.00})
+MODEL_COSTS.setdefault(GEMINI_GEO_MODEL, {"input": 0.15, "output": 0.60})
+
+# Retry & circuit breaker settings for GEO batch
+GEO_RETRY_ATTEMPTS = 2          # retries per query (total 3 attempts)
+GEO_RETRY_DELAY_S = 10          # initial delay between retries
+GEO_CIRCUIT_BREAKER_THRESHOLD = 3  # consecutive failures before stopping the batch
+GEO_MAX_BATCH_DURATION_S = 300  # hard timeout: abort batch after 5 min
 
 
 class GeoRateLimiter:
@@ -81,6 +97,16 @@ def _get_redis_client():
     from app.config import get_settings
     settings = get_settings()
     return redis.from_url(settings.redis_url, decode_responses=True)
+
+
+def _setting_exists_safe(key: str) -> bool:
+    """Check if a config key exists and is non-empty (without raising)."""
+    try:
+        from app.config import get_config
+        val = get_config(key)
+        return bool(val and val.strip())
+    except Exception:
+        return False
 
 
 def _get_perplexity_api_key(db: Session) -> str | None:
@@ -147,11 +173,19 @@ def run_geo_batch_for_client(
         logger.info("GEO: Perplexity provider disabled, skipping")
         return None
 
-    # Get API key
+    # Determine provider: Perplexity (primary) or Gemini (fallback)
     api_key = _get_perplexity_api_key(db)
+    use_gemini_fallback = False
     if not api_key:
-        logger.error("GEO: No Perplexity API key configured (geo_perplexity_api_key)")
-        return None
+        # Check if Gemini is available as fallback
+        from app.config import get_config
+        gemini_key = get_config("gemini_api_key") if _setting_exists_safe("gemini_api_key") else None
+        if not gemini_key:
+            logger.error("GEO: No Perplexity API key AND no Gemini API key configured — cannot run GEO")
+            return None
+        use_gemini_fallback = True
+        api_key = gemini_key
+        logger.info("GEO: Perplexity key not set — using Gemini with Google Search grounding as fallback")
 
     # Load competitors
     competitors = _get_competitors_for_client(db, client.id)
@@ -186,44 +220,89 @@ def run_geo_batch_for_client(
 
     successful = 0
     failed = 0
+    consecutive_failures = 0
+    batch_start = time.time()
 
     for prompt in prompts:
+        # Circuit breaker: stop early if provider is clearly down
+        if consecutive_failures >= GEO_CIRCUIT_BREAKER_THRESHOLD:
+            remaining = total_queries - successful - failed
+            logger.warning(
+                "GEO: Circuit breaker triggered (%d consecutive failures). "
+                "Aborting remaining %d queries for batch %s",
+                consecutive_failures, remaining, batch.id,
+            )
+            # Mark remaining as failed
+            for remaining_prompt in prompts[prompts.index(prompt):]:
+                for rn in range(1, runs_per_prompt + 1):
+                    if successful + failed >= total_queries:
+                        break
+                    _store_failed_result(db, batch, remaining_prompt, rn, "circuit_breaker_abort")
+                    failed += 1
+            break
+
+        # Hard timeout: don't let batch run forever
+        if time.time() - batch_start > GEO_MAX_BATCH_DURATION_S:
+            logger.warning("GEO: Batch %s exceeded %ds timeout. Aborting.", batch.id, GEO_MAX_BATCH_DURATION_S)
+            _store_failed_result(db, batch, prompt, 1, "batch_timeout")
+            failed += (total_queries - successful - failed)
+            break
+
         for run_num in range(1, runs_per_prompt + 1):
+            # Circuit breaker check inside inner loop too
+            if consecutive_failures >= GEO_CIRCUIT_BREAKER_THRESHOLD:
+                break
+
             # Rate limiting
             if rate_limiter:
-                if not rate_limiter.wait_for_slot(max_rpm, timeout=120):
+                if not rate_limiter.wait_for_slot(max_rpm, timeout=30):
                     logger.warning("GEO: Rate limit timeout for batch %s", batch.id)
-                    # Store failed result
                     _store_failed_result(db, batch, prompt, run_num, "rate_limit_timeout")
                     failed += 1
                     continue
 
-            # Execute query
-            try:
-                result = _execute_single_query(
-                    db=db,
-                    batch=batch,
-                    prompt=prompt,
-                    client=client,
-                    run_number=run_num,
-                    brand_name=brand_name,
-                    competitors=competitors,
-                    api_key=api_key,
-                    triggered_by=triggered_by,
-                )
-                if result:
-                    successful += 1
-                else:
-                    failed += 1
+            # Execute query with retry
+            query_result = None
+            for attempt in range(1 + GEO_RETRY_ATTEMPTS):
+                try:
+                    query_result = _execute_single_query(
+                        db=db,
+                        batch=batch,
+                        prompt=prompt,
+                        client=client,
+                        run_number=run_num,
+                        brand_name=brand_name,
+                        competitors=competitors,
+                        api_key=api_key,
+                        triggered_by=triggered_by,
+                        use_gemini=use_gemini_fallback,
+                    )
+                    if query_result:
+                        break  # success
+                    # _execute_single_query returned None (stored failed result itself)
+                    if attempt < GEO_RETRY_ATTEMPTS:
+                        delay = GEO_RETRY_DELAY_S * (2 ** attempt)
+                        logger.info("GEO: Retry %d/%d for prompt %s (waiting %ds)", attempt + 1, GEO_RETRY_ATTEMPTS, prompt.id, delay)
+                        time.sleep(delay)
+                except Exception as e:
+                    if attempt < GEO_RETRY_ATTEMPTS:
+                        delay = GEO_RETRY_DELAY_S * (2 ** attempt)
+                        logger.warning("GEO: Attempt %d failed for prompt %s: %s. Retrying in %ds", attempt + 1, prompt.id, str(e)[:100], delay)
+                        time.sleep(delay)
+                    else:
+                        logger.error("GEO: All attempts exhausted for prompt %s run %d: %s", prompt.id, run_num, e)
+                        _store_failed_result(db, batch, prompt, run_num, str(e)[:500])
 
-                # Record rate limit usage
-                if rate_limiter:
-                    rate_limiter.record_request()
-
-            except Exception as e:
-                logger.error("GEO: Query failed for prompt %s run %d: %s", prompt.id, run_num, e)
-                _store_failed_result(db, batch, prompt, run_num, str(e)[:500])
+            if query_result:
+                successful += 1
+                consecutive_failures = 0  # reset on success
+            else:
                 failed += 1
+                consecutive_failures += 1
+
+            # Record rate limit usage
+            if rate_limiter and query_result:
+                rate_limiter.record_request()
 
     # Compute frequency metrics
     _compute_frequency_metrics(db, batch, prompts)
@@ -258,22 +337,73 @@ def _execute_single_query(
     competitors: list[dict],
     api_key: str,
     triggered_by: str,
+    use_gemini: bool = False,
 ) -> GeoQueryResult | None:
-    """Execute a single LLM query and store the result."""
+    """Execute a single LLM query and store the result.
+
+    Uses Perplexity Sonar by default. If use_gemini=True, uses Gemini Flash
+    with Google Search grounding tool as fallback provider.
+    """
     messages = [
         {"role": "system", "content": GEO_SYSTEM_PROMPT},
         {"role": "user", "content": prompt.prompt_text},
     ]
 
+    model = GEMINI_GEO_MODEL if use_gemini else PERPLEXITY_MODEL
+    provider = "gemini" if use_gemini else "perplexity"
+
     start_ms = time.time()
     try:
-        llm_result = call_llm(
-            messages=messages,
-            model=PERPLEXITY_MODEL,
-            temperature=0.7,
-            max_tokens=2048,
-        )
+        if use_gemini:
+            # Gemini with Google Search grounding — pass as tool via litellm
+            import litellm
+            kwargs = {
+                "model": model,
+                "messages": messages,
+                "temperature": 0.7,
+                "max_tokens": 2048,
+                "api_key": api_key,
+                "tools": [{"google_search": {}}],
+                "timeout": 60,
+            }
+            response = litellm.completion(**kwargs)
+            duration_ms = int((time.time() - start_ms) * 1000)
+            content_text = response.choices[0].message.content or ""
+            usage = response.usage
+            input_tokens = usage.prompt_tokens if usage else 0
+            output_tokens = usage.completion_tokens if usage else 0
+            from app.services.ai import _calculate_cost
+            cost_usd = _calculate_cost(model, input_tokens, output_tokens)
+            llm_result = {
+                "content": content_text,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "cost_usd": cost_usd,
+                "duration_ms": duration_ms,
+                "model": model,
+            }
+        else:
+            llm_result = call_llm(
+                messages=messages,
+                model=model,
+                temperature=0.7,
+                max_tokens=2048,
+            )
     except Exception as e:
+        # If primary fails, try fallback (Perplexity → Gemini)
+        if not use_gemini:
+            logger.warning("GEO: Perplexity failed for prompt %s, trying Gemini fallback: %s", prompt.id, e)
+            try:
+                return _execute_single_query(
+                    db=db, batch=batch, prompt=prompt, client=client,
+                    run_number=run_number, brand_name=brand_name,
+                    competitors=competitors, api_key=api_key,
+                    triggered_by=triggered_by, use_gemini=True,
+                )
+            except Exception as fallback_err:
+                logger.error("GEO: Gemini fallback also failed: %s", fallback_err)
+                _store_failed_result(db, batch, prompt, run_number, f"both_failed: {e} / {fallback_err}")
+                return None
         logger.warning("GEO: LLM call failed for prompt %s: %s", prompt.id, e)
         _store_failed_result(db, batch, prompt, run_number, str(e)[:500])
         return None
@@ -309,7 +439,7 @@ def _execute_single_query(
         prompt_id=prompt.id,
         client_id=client.id,
         execution_batch_id=batch.id,
-        provider="perplexity",
+        provider=provider,
         run_number=run_number,
         response_text=response_text,
         brand_mentioned=detection.brand_found,
