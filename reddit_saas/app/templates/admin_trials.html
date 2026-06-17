@@ -1,0 +1,196 @@
+{% extends "admin_base.html" %}
+{% block title %}Trial Management{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> / <span class="text-white">Trial Management</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-2xl font-semibold text-white">Trial Management</h1>
+            <p class="text-sm text-gray-400 mt-1">All trial clients — active, expired, and converted.</p>
+        </div>
+        <div class="flex gap-3 text-sm">
+            <span class="px-3 py-1 rounded bg-emerald-900/50 text-emerald-400 border border-emerald-700">
+                Active: {{ trials | selectattr('status', 'equalto', 'active') | list | length }}
+            </span>
+            <span class="px-3 py-1 rounded bg-amber-900/50 text-amber-400 border border-amber-700">
+                Expiring soon: {{ trials | selectattr('status', 'equalto', 'expiring') | list | length }}
+            </span>
+            <span class="px-3 py-1 rounded bg-red-900/50 text-red-400 border border-red-700">
+                Expired: {{ trials | selectattr('status', 'equalto', 'expired') | list | length }}
+            </span>
+        </div>
+    </div>
+
+    {% if not trials %}
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-8 text-center">
+        <p class="text-gray-400">No trial clients yet.</p>
+        <p class="text-sm text-gray-500 mt-2">Trial signups appear here when users register via <code class="text-indigo-400">/onboard/trial</code></p>
+    </div>
+    {% else %}
+    <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+        <table class="w-full text-sm text-left">
+            <thead>
+                <tr class="border-b border-slate-700">
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Client / Company</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">User</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Email</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Status</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Days Left</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Started</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Onboarding</th>
+                    <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for trial in trials %}
+                <tr class="border-b border-slate-700 hover:bg-slate-700/30
+                    {% if trial.status == 'expired' %}opacity-60{% endif %}">
+                    <td class="px-4 py-3">
+                        <a href="/admin/clients/{{ trial.client.id }}" class="text-indigo-400 hover:text-indigo-300 font-medium">
+                            {{ trial.client.client_name }}
+                        </a>
+                        {% if trial.client.brand_name and trial.client.brand_name != trial.client.client_name %}
+                        <span class="text-gray-500 text-xs ml-1">({{ trial.client.brand_name }})</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-gray-300 text-xs">
+                        {{ trial.user.full_name if trial.user else '—' }}
+                    </td>
+                    <td class="px-4 py-3 text-gray-300 text-xs font-mono">
+                        {{ trial.user.email if trial.user else '—' }}
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if trial.status == 'active' %}
+                        <span class="px-2 py-0.5 rounded text-xs font-medium bg-emerald-900/50 text-emerald-400">Active</span>
+                        {% elif trial.status == 'expiring' %}
+                        <span class="px-2 py-0.5 rounded text-xs font-medium bg-amber-900/50 text-amber-400">Expiring</span>
+                        {% elif trial.status == 'expired' %}
+                        <span class="px-2 py-0.5 rounded text-xs font-medium bg-red-900/50 text-red-400">Expired</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if trial.status == 'expired' %}
+                        <span class="text-red-400 font-mono text-xs">0</span>
+                        {% elif trial.days_left <= 3 %}
+                        <span class="text-amber-400 font-mono text-xs font-bold">{{ trial.days_left }}</span>
+                        {% else %}
+                        <span class="text-emerald-400 font-mono text-xs">{{ trial.days_left }}</span>
+                        {% endif %}
+                        <span class="text-gray-600 text-xs">/ 14</span>
+                    </td>
+                    <td class="px-4 py-3 text-gray-500 text-xs font-mono">
+                        {{ trial.client.created_at.strftime('%Y-%m-%d') if trial.client.created_at else '—' }}
+                    </td>
+                    <td class="px-4 py-3 text-xs">
+                        {% if trial.client.current_onboarding_step >= 6 %}
+                        <span class="text-emerald-400">✅ Complete</span>
+                        {% elif trial.client.current_onboarding_step > 0 %}
+                        <span class="text-amber-400">Step {{ trial.client.current_onboarding_step }}/6</span>
+                        {% else %}
+                        <span class="text-gray-500">Not started</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="flex gap-2 items-center">
+                            <a href="/admin/clients/{{ trial.client.id }}" class="text-indigo-400 hover:text-indigo-300 text-xs">View</a>
+                            <form method="post" action="/admin/trials/{{ trial.client.id }}/upgrade" class="inline">
+                                <button type="submit"
+                                        onclick="return confirm('Upgrade {{ trial.client.client_name }} to Starter plan?')"
+                                        class="text-emerald-400 hover:text-emerald-300 text-xs font-medium">
+                                    Upgrade
+                                </button>
+                            </form>
+                            <form method="post" action="/admin/trials/{{ trial.client.id }}/extend" class="inline">
+                                <button type="submit"
+                                        onclick="return confirm('Extend trial for {{ trial.client.client_name }} by 7 days?')"
+                                        class="text-amber-400 hover:text-amber-300 text-xs">
+                                    +7d
+                                </button>
+                            </form>
+                            <button onclick="confirmDeleteTrial('{{ trial.client.id }}', '{{ trial.client.client_name }}')"
+                                    class="text-red-400 hover:text-red-300 text-xs font-bold">
+                                Delete
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="delete-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden">
+    <div class="bg-dark-steel border border-slate-700 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl">
+        <h3 class="text-lg font-semibold text-white mb-2">⚠️ Delete Trial Client</h3>
+        <p class="text-gray-400 text-sm mb-4">
+            Permanently delete <strong id="delete-client-name" class="text-white"></strong> and all associated data?
+        </p>
+        <div id="delete-preview-loading" class="text-gray-500 text-sm py-4 text-center">Loading cascade preview...</div>
+        <div id="delete-preview-content" class="hidden">
+            <p class="text-xs text-gray-400 mb-2 font-medium uppercase">The following will be deleted:</p>
+            <div id="delete-counts-list" class="max-h-48 overflow-y-auto space-y-1 mb-4 text-xs"></div>
+        </div>
+        <div class="flex gap-3 justify-end mt-4">
+            <button onclick="closeDeleteModal()" class="px-4 py-2 rounded-lg text-sm text-gray-400 border border-slate-600 hover:text-white hover:border-slate-500">
+                Cancel
+            </button>
+            <form id="delete-form" method="post" class="inline">
+                <button type="submit" class="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 hover:bg-red-700 text-white">
+                    Confirm Delete
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function confirmDeleteTrial(clientId, clientName) {
+    const modal = document.getElementById('delete-modal');
+    const nameEl = document.getElementById('delete-client-name');
+    const loading = document.getElementById('delete-preview-loading');
+    const content = document.getElementById('delete-preview-content');
+    const countsList = document.getElementById('delete-counts-list');
+    const form = document.getElementById('delete-form');
+
+    nameEl.textContent = clientName;
+    form.action = '/admin/clients/' + clientId + '/delete';
+    loading.classList.remove('hidden');
+    content.classList.add('hidden');
+    countsList.innerHTML = '';
+    modal.classList.remove('hidden');
+
+    fetch('/admin/clients/' + clientId + '/delete-preview')
+        .then(r => r.json())
+        .then(data => {
+            loading.classList.add('hidden');
+            content.classList.remove('hidden');
+            for (const [label, count] of Object.entries(data.counts || {})) {
+                if (count > 0) {
+                    const div = document.createElement('div');
+                    div.className = 'flex justify-between px-2 py-1 rounded bg-slate-night';
+                    div.innerHTML = '<span class="text-gray-300">' + label + '</span><span class="text-white font-mono">' + count + '</span>';
+                    countsList.appendChild(div);
+                }
+            }
+            if (countsList.children.length === 0) {
+                countsList.innerHTML = '<p class="text-gray-500 text-center py-2">No associated data found.</p>';
+            }
+        })
+        .catch(() => {
+            loading.textContent = 'Failed to load preview.';
+        });
+}
+
+function closeDeleteModal() {
+    document.getElementById('delete-modal').classList.add('hidden');
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDeleteModal(); });
+</script>
+{% endblock %}

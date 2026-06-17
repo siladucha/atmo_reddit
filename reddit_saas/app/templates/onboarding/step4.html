@@ -35,6 +35,23 @@
             </div>
         </div>
 
+
+        <!-- Tone Calibration Loop -->
+        <div class="surface" style="padding:var(--space-3);margin-top:var(--space-3);border:1px solid rgba(255,107,53,0.3);">
+            <label style="color:var(--color-orange);font-weight:600;font-size:var(--text-body);display:block;margin-bottom:8px;">Tone Calibration</label>
+            <p class="text-small" style="color:var(--color-muted);margin-bottom:16px;">We will generate 5 sample sentences in your brand voice. Rate each 1-5 (5 = "exactly us"). This teaches the AI your tone.</p>
+            <div id="calibration-area">
+                <button type="button"
+                        hx-post="/onboard/step/4/calibrate"
+                        hx-target="#calibration-area"
+                        hx-swap="innerHTML"
+                        hx-indicator="#cal-loading"
+                        style="padding:10px 20px;border-radius:var(--radius-input);background:var(--color-orange);color:#fff;font-weight:600;border:none;cursor:pointer;font-size:var(--text-small);">
+                    Generate Sample Sentences
+                </button>
+                <span id="cal-loading" class="htmx-indicator" style="margin-left:12px;color:var(--color-orange);font-size:var(--text-small);">Generating...</span>
+            </div>
+        </div>
         <div style="display:flex;justify-content:space-between;margin-top:var(--space-4);">
             <a href="/onboard/step/3" class="btn-ghost" style="padding:12px 24px;">← Back</a>
             <button type="submit" class="btn-primary" style="padding:12px 32px;">Next →</button>

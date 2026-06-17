@@ -15,6 +15,7 @@
         <div>
             <h1 class="text-2xl font-semibold text-white">{{ client.client_name }}</h1>
             <span class="text-sm text-gray-400">{{ client.brand_name }}</span>
+            <span class="ml-3 px-2 py-0.5 rounded text-xs font-medium {% if client.plan_type == "trial" %}bg-amber-900/50 text-amber-400{% else %}bg-slate-700 text-slate-300{% endif %}">{{ client.plan_type or "starter" }}</span>
             <span class="ml-2 px-2 py-0.5 rounded text-xs font-medium
                   {% if client.is_active %}bg-emerald-900/50 text-emerald-400{% else %}bg-red-900/50 text-red-400{% endif %}">
                 {{ 'Active' if client.is_active else 'Inactive' }}
@@ -53,6 +54,11 @@
                 </button>
             </form>
             {% endif %}
+            <!-- Delete Client (cascade) -->
+            <button onclick="confirmDeleteClient('{{ client.id }}', '{{ client.client_name }}')"
+                    class="bg-red-900 hover:bg-red-800 text-red-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-red-700">
+                🗑 Delete
+            </button>
         </div>
     </div>
 
@@ -338,4 +344,66 @@
         <p class="text-gray-500 text-sm py-4">Loading return weights…</p>
     </div>
 </div>
+
+<!-- Delete Confirmation Modal -->
+<div id="delete-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden">
+    <div class="bg-dark-steel border border-slate-700 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl">
+        <h3 class="text-lg font-semibold text-white mb-2">⚠️ Permanently Delete Client</h3>
+        <p class="text-gray-400 text-sm mb-4">
+            This will permanently delete <strong id="delete-client-name" class="text-red-400"></strong> and cascade-remove all associated data.
+            This action <strong class="text-white">cannot be undone</strong>.
+        </p>
+        <div id="delete-preview-loading" class="text-gray-500 text-sm py-4 text-center">Loading cascade preview...</div>
+        <div id="delete-preview-content" class="hidden">
+            <p class="text-xs text-gray-400 mb-2 font-medium uppercase">Items to be deleted/unlinked:</p>
+            <div id="delete-counts-list" class="max-h-48 overflow-y-auto space-y-1 mb-4 text-xs"></div>
+        </div>
+        <div class="flex gap-3 justify-end mt-4">
+            <button onclick="closeDeleteModal()" class="px-4 py-2 rounded-lg text-sm text-gray-400 border border-slate-600 hover:text-white hover:border-slate-500">
+                Cancel
+            </button>
+            <form id="delete-form" method="post" class="inline">
+                <button type="submit" class="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 hover:bg-red-700 text-white">
+                    Yes, Delete Everything
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function confirmDeleteClient(clientId, clientName) {
+    const modal = document.getElementById('delete-modal');
+    document.getElementById('delete-client-name').textContent = clientName;
+    document.getElementById('delete-form').action = '/admin/clients/' + clientId + '/delete';
+    document.getElementById('delete-preview-loading').classList.remove('hidden');
+    document.getElementById('delete-preview-content').classList.add('hidden');
+    document.getElementById('delete-counts-list').innerHTML = '';
+    modal.classList.remove('hidden');
+
+    fetch('/admin/clients/' + clientId + '/delete-preview')
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('delete-preview-loading').classList.add('hidden');
+            document.getElementById('delete-preview-content').classList.remove('hidden');
+            const list = document.getElementById('delete-counts-list');
+            for (const [label, count] of Object.entries(data.counts || {})) {
+                if (count > 0) {
+                    const div = document.createElement('div');
+                    div.className = 'flex justify-between px-2 py-1 rounded bg-slate-night';
+                    div.innerHTML = '<span class="text-gray-300">' + label + '</span><span class="text-white font-mono">' + count + '</span>';
+                    list.appendChild(div);
+                }
+            }
+            if (list.children.length === 0) {
+                list.innerHTML = '<p class="text-gray-500 text-center py-2">No associated data.</p>';
+            }
+        })
+        .catch(() => { document.getElementById('delete-preview-loading').textContent = 'Failed to load.'; });
+}
+
+function closeDeleteModal() { document.getElementById('delete-modal').classList.add('hidden'); }
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDeleteModal(); });
+</script>
+
 {% endblock %}

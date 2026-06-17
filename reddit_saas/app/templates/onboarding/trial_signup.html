@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Start Free Trial — RAMP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="bg-white text-gray-900 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
+        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <a href="/" class="flex items-center space-x-2">
+                    <span class="text-2xl font-bold text-indigo-600">RAMP</span>
+                </a>
+                <div class="flex items-center space-x-6">
+                    <a href="/login" class="text-gray-700 hover:text-indigo-600 font-medium transition-colors">Sign In</a>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex items-center">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+
+                <!-- Left: Value prop -->
+                <div class="space-y-6">
+                    <h1 class="text-4xl font-bold text-gray-900 leading-tight">
+                        See what your buyers<br>are saying on Reddit
+                    </h1>
+                    <p class="text-lg text-gray-600 leading-relaxed">
+                        14-day intelligence trial. No credit card. No posting. Just pure insight into how your brand and competitors show up in the conversations that drive purchase decisions.
+                    </p>
+
+                    <div class="space-y-4 pt-4">
+                        <div class="flex items-center gap-3">
+                            <span class="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
+                                <svg class="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            </span>
+                            <span class="text-gray-700">AI-powered subreddit discovery and thread scoring</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
+                                <svg class="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            </span>
+                            <span class="text-gray-700">Competitor presence monitoring across target communities</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
+                                <svg class="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            </span>
+                            <span class="text-gray-700">Day 1 Reddit Landscape Report with actionable insights</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="flex-shrink-0 w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
+                                <svg class="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            </span>
+                            <span class="text-gray-700">AI comment drafts (read-only preview of what your avatars would post)</span>
+                        </div>
+                    </div>
+
+                    <p class="text-sm text-gray-500 pt-2">
+                        Work email required. Setup takes 15-20 minutes.
+                    </p>
+                </div>
+
+                <!-- Right: Signup Form -->
+                <div class="flex justify-center lg:justify-end">
+                    <div class="bg-gray-50 border border-gray-200 p-8 rounded-xl shadow-sm w-full max-w-md">
+                        <div class="text-center mb-6">
+                            <h2 class="text-xl font-semibold text-gray-900">Start your 14-day trial</h2>
+                            <p class="text-sm text-gray-500 mt-1">Full intelligence access. No credit card needed.</p>
+                        </div>
+
+                        {% if error %}
+                        <div class="bg-red-50 text-red-700 p-3 rounded-lg mb-4 text-sm border border-red-200">{{ error }}</div>
+                        {% endif %}
+
+                        <form method="POST" action="/onboard/trial/signup" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                                <input type="text" name="full_name" required
+                                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                                    placeholder="Jane Smith">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Work Email</label>
+                                <input type="email" name="email" required
+                                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                                    placeholder="jane@company.com">
+                                <p class="text-xs text-gray-400 mt-1">Personal emails (Gmail, Hotmail) not accepted</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
+                                <input type="text" name="company_name"
+                                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                                    placeholder="Acme Corp">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                                <input type="password" name="password" required minlength="8"
+                                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                                    placeholder="Minimum 8 characters">
+                            </div>
+                            <button type="submit"
+                                class="w-full bg-indigo-600 text-white py-2.5 px-4 rounded-lg hover:bg-indigo-700 transition font-medium shadow-sm">
+                                Start Free Trial →
+                            </button>
+                        </form>
+
+                        <p class="mt-5 text-xs text-gray-400 text-center">
+                            Already have an account? <a href="/login" class="text-indigo-600 hover:underline">Sign in</a>
+                        </p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-50 border-t border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div class="flex items-center justify-between">
+                <span class="text-lg font-bold text-indigo-600">RAMP</span>
+                <span class="text-gray-500 text-sm">&copy; 2026 All rights reserved.</span>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

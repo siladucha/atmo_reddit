@@ -2026,3 +2026,381 @@ def trigger_pipeline(
 
     result = celery_app.send_task(task_name, args=[entity_id])
     return str(result.id)
+
+
+# ---------------------------------------------------------------------------
+# Client cascade deletion
+# ---------------------------------------------------------------------------
+
+
+def get_client_cascade_preview(
+    db: Session,
+    client_id: uuid.UUID,
+) -> dict:
+    """Return counts of all related entities that will be deleted with the client."""
+    from app.models.activity_event import ActivityEvent
+    from app.models.ai_usage import AIUsageLog
+    from app.models.audit import AuditLog
+    from app.models.avatar_rental import AvatarRental
+    from app.models.comment_draft import CommentDraft
+    from app.models.correction_pattern import CorrectionPattern
+    from app.models.edit_record import EditRecord
+    from app.models.epg_slot import EPGSlot
+    from app.models.geo_competitor import GeoCompetitor
+    from app.models.geo_prompt import GeoPrompt
+    from app.models.notification import Notification
+    from app.models.post_draft import PostDraft
+    from app.models.scrape_log import ScrapeLog
+    from app.models.thread_score import ThreadScore
+    from app.models.user_client_assignment import UserClientAssignment
+
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise ValueError("Client not found")
+
+    users_count = db.query(func.count(User.id)).filter(User.client_id == client_id).scalar() or 0
+    assignments_count = db.query(func.count(UserClientAssignment.id)).filter(
+        UserClientAssignment.client_id == client_id
+    ).scalar() or 0
+    csa_count = db.query(func.count(ClientSubredditAssignment.id)).filter(
+        ClientSubredditAssignment.client_id == client_id
+    ).scalar() or 0
+    cs_count = db.query(func.count(ClientSubreddit.id)).filter(
+        ClientSubreddit.client_id == client_id
+    ).scalar() or 0
+    threads_count = db.query(func.count(RedditThread.id)).filter(
+        RedditThread.client_id == client_id
+    ).scalar() or 0
+    scores_count = db.query(func.count(ThreadScore.id)).filter(
+        ThreadScore.client_id == client_id
+    ).scalar() or 0
+    drafts_count = db.query(func.count(CommentDraft.id)).filter(
+        CommentDraft.client_id == client_id
+    ).scalar() or 0
+    post_drafts_count = db.query(func.count(PostDraft.id)).filter(
+        PostDraft.client_id == client_id
+    ).scalar() or 0
+    epg_count = db.query(func.count(EPGSlot.id)).filter(
+        EPGSlot.client_id == client_id
+    ).scalar() or 0
+    edit_records_count = db.query(func.count(EditRecord.id)).filter(
+        EditRecord.client_id == client_id
+    ).scalar() or 0
+    patterns_count = db.query(func.count(CorrectionPattern.id)).filter(
+        CorrectionPattern.client_id == client_id
+    ).scalar() or 0
+    events_count = db.query(func.count(ActivityEvent.id)).filter(
+        ActivityEvent.client_id == client_id
+    ).scalar() or 0
+    scrape_logs_count = db.query(func.count(ScrapeLog.id)).filter(
+        ScrapeLog.client_id == client_id
+    ).scalar() or 0
+    ai_usage_count = db.query(func.count(AIUsageLog.id)).filter(
+        AIUsageLog.client_id == client_id
+    ).scalar() or 0
+    audit_count = db.query(func.count(AuditLog.id)).filter(
+        AuditLog.client_id == client_id
+    ).scalar() or 0
+    geo_prompts_count = db.query(func.count(GeoPrompt.id)).filter(
+        GeoPrompt.client_id == client_id
+    ).scalar() or 0
+    geo_competitors_count = db.query(func.count(GeoCompetitor.id)).filter(
+        GeoCompetitor.client_id == client_id
+    ).scalar() or 0
+    rentals_count = db.query(func.count(AvatarRental.id)).filter(
+        AvatarRental.client_id == client_id
+    ).scalar() or 0
+    notifications_count = db.query(func.count(Notification.id)).filter(
+        Notification.client_id == client_id
+    ).scalar() or 0
+    avatars_count = db.query(func.count(Avatar.id)).filter(
+        Avatar.client_ids.any(str(client_id))
+    ).scalar() or 0
+
+    vf_count = 0
+    try:
+        from app.models.voice_feedback import VoiceFeedback
+        vf_count = db.query(func.count(VoiceFeedback.id)).filter(
+            VoiceFeedback.client_id == client_id
+        ).scalar() or 0
+    except Exception:
+        pass
+
+    sr_count = 0
+    try:
+        from app.models.subreddit_request import SubredditRequest
+        sr_count = db.query(func.count(SubredditRequest.id)).filter(
+            SubredditRequest.client_id == client_id
+        ).scalar() or 0
+    except Exception:
+        pass
+
+    cal_count = 0
+    try:
+        from app.models.client_action_log import ClientActionLog
+        cal_count = db.query(func.count(ClientActionLog.id)).filter(
+            ClientActionLog.client_id == client_id
+        ).scalar() or 0
+    except Exception:
+        pass
+
+    return {
+        "client_name": client.client_name,
+        "client_id": str(client_id),
+        "counts": {
+            "Users (will be deleted)": users_count,
+            "User-Client Assignments": assignments_count,
+            "Subreddit Assignments": csa_count,
+            "Client Subreddits (legacy)": cs_count,
+            "Reddit Threads": threads_count,
+            "Thread Scores": scores_count,
+            "Comment Drafts": drafts_count,
+            "Post Drafts": post_drafts_count,
+            "EPG Slots": epg_count,
+            "Edit Records": edit_records_count,
+            "Correction Patterns": patterns_count,
+            "Activity Events": events_count,
+            "Scrape Logs": scrape_logs_count,
+            "AI Usage Logs (will be nullified)": ai_usage_count,
+            "Audit Logs (will be nullified)": audit_count,
+            "GEO Prompts": geo_prompts_count,
+            "GEO Competitors": geo_competitors_count,
+            "Avatar Rentals": rentals_count,
+            "Notifications": notifications_count,
+            "Avatars (will be unlinked)": avatars_count,
+            "Voice Feedback": vf_count,
+            "Subreddit Requests": sr_count,
+            "Client Action Logs": cal_count,
+        },
+    }
+
+
+def delete_client_cascade(
+    db: Session,
+    client_id: uuid.UUID,
+    current_user_id: uuid.UUID,
+) -> dict:
+    """Permanently delete a client and all associated data.
+
+    Avatars NOT deleted — only unlinked. Users NOT deleted — only unlinked.
+    Audit/AI logs preserved with client_id=NULL.
+    """
+    from app.models.activity_event import ActivityEvent
+    from app.models.ai_usage import AIUsageLog
+    from app.models.audit import AuditLog
+    from app.models.avatar_rental import AvatarRental
+    from app.models.comment_draft import CommentDraft
+    from app.models.correction_pattern import CorrectionPattern
+    from app.models.edit_record import EditRecord
+    from app.models.epg_slot import EPGSlot
+    from app.models.geo_competitor import GeoCompetitor
+    from app.models.geo_prompt import GeoPrompt
+    from app.models.notification import Notification
+    from app.models.post_draft import PostDraft
+    from app.models.scrape_log import ScrapeLog
+    from app.models.thread_score import ThreadScore
+    from app.models.user_client_assignment import UserClientAssignment
+
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise ValueError("Client not found")
+
+    client_name = client.client_name
+    deleted = {}
+
+    # 1. Delete users linked to this client (frees email for re-registration)
+    #    Skip the current_user performing the deletion
+    from app.models.audit import AuditLog as AuditLog2
+    client_users = db.query(User).filter(
+        User.client_id == client_id,
+        User.id != current_user_id,
+    ).all()
+    deleted["users_deleted"] = len(client_users)
+    for u in client_users:
+        # Clear FK deps for each user before deletion
+        db.query(AuditLog2).filter(AuditLog2.user_id == u.id).update(
+            {"user_id": None}, synchronize_session=False
+        )
+        try:
+            from app.models.geo_prompt import GeoPrompt as GP2
+            db.query(GP2).filter(GP2.created_by == u.id).update(
+                {"created_by": None}, synchronize_session=False
+            )
+        except Exception:
+            pass
+        try:
+            from app.models.discovery_session import DiscoverySession as DS2
+            db.query(DS2).filter(DS2.operator_user_id == u.id).update(
+                {"operator_user_id": None}, synchronize_session=False
+            )
+        except Exception:
+            pass
+        db.delete(u)
+
+    # 2. Delete user-client assignments
+    deleted["user_client_assignments"] = db.query(UserClientAssignment).filter(
+        UserClientAssignment.client_id == client_id
+    ).delete(synchronize_session=False)
+
+    # 3. Delete notifications
+    try:
+        deleted["notifications"] = db.query(Notification).filter(
+            Notification.client_id == client_id
+        ).delete(synchronize_session=False)
+    except Exception:
+        deleted["notifications"] = 0
+
+    # 4. Delete voice feedback
+    try:
+        from app.models.voice_feedback import VoiceFeedback
+        deleted["voice_feedback"] = db.query(VoiceFeedback).filter(
+            VoiceFeedback.client_id == client_id
+        ).delete(synchronize_session=False)
+    except Exception:
+        deleted["voice_feedback"] = 0
+
+    # 5. Delete subreddit requests
+    try:
+        from app.models.subreddit_request import SubredditRequest
+        deleted["subreddit_requests"] = db.query(SubredditRequest).filter(
+            SubredditRequest.client_id == client_id
+        ).delete(synchronize_session=False)
+    except Exception:
+        deleted["subreddit_requests"] = 0
+
+    # 6. Delete client action logs
+    try:
+        from app.models.client_action_log import ClientActionLog
+        deleted["client_action_logs"] = db.query(ClientActionLog).filter(
+            ClientActionLog.client_id == client_id
+        ).delete(synchronize_session=False)
+    except Exception:
+        deleted["client_action_logs"] = 0
+
+    # 7. Delete GEO data
+    deleted["geo_competitors"] = db.query(GeoCompetitor).filter(
+        GeoCompetitor.client_id == client_id
+    ).delete(synchronize_session=False)
+    try:
+        from app.models.geo_execution import GeoExecution
+        prompt_ids = [p.id for p in db.query(GeoPrompt.id).filter(GeoPrompt.client_id == client_id).all()]
+        if prompt_ids:
+            deleted["geo_executions"] = db.query(GeoExecution).filter(
+                GeoExecution.prompt_id.in_(prompt_ids)
+            ).delete(synchronize_session=False)
+        else:
+            deleted["geo_executions"] = 0
+    except Exception:
+        deleted["geo_executions"] = 0
+    deleted["geo_prompts"] = db.query(GeoPrompt).filter(
+        GeoPrompt.client_id == client_id
+    ).delete(synchronize_session=False)
+
+    # 8. Delete EPG slots
+    deleted["epg_slots"] = db.query(EPGSlot).filter(
+        EPGSlot.client_id == client_id
+    ).delete(synchronize_session=False)
+
+    # 9. Delete correction patterns
+    deleted["correction_patterns"] = db.query(CorrectionPattern).filter(
+        CorrectionPattern.client_id == client_id
+    ).delete(synchronize_session=False)
+
+    # 10. Delete edit records
+    deleted["edit_records"] = db.query(EditRecord).filter(
+        EditRecord.client_id == client_id
+    ).delete(synchronize_session=False)
+
+    # 11. Delete post drafts
+    deleted["post_drafts"] = db.query(PostDraft).filter(
+        PostDraft.client_id == client_id
+    ).delete(synchronize_session=False)
+
+    # 12. Delete comment drafts
+    deleted["comment_drafts"] = db.query(CommentDraft).filter(
+        CommentDraft.client_id == client_id
+    ).delete(synchronize_session=False)
+
+    # 13. Delete thread scores
+    deleted["thread_scores"] = db.query(ThreadScore).filter(
+        ThreadScore.client_id == client_id
+    ).delete(synchronize_session=False)
+
+    # 14. Delete scrape logs
+    deleted["scrape_logs"] = db.query(ScrapeLog).filter(
+        ScrapeLog.client_id == client_id
+    ).delete(synchronize_session=False)
+
+    # 15. Delete activity events
+    deleted["activity_events"] = db.query(ActivityEvent).filter(
+        ActivityEvent.client_id == client_id
+    ).delete(synchronize_session=False)
+
+    # 16. Nullify AI usage logs (preserve for cost analytics)
+    deleted["ai_usage_nullified"] = db.query(AIUsageLog).filter(
+        AIUsageLog.client_id == client_id
+    ).update({"client_id": None}, synchronize_session=False)
+
+    # 17. Nullify audit logs (preserve audit trail)
+    deleted["audit_logs_nullified"] = db.query(AuditLog).filter(
+        AuditLog.client_id == client_id
+    ).update({"client_id": None}, synchronize_session=False)
+
+    # 18. Delete avatar rentals
+    deleted["avatar_rentals"] = db.query(AvatarRental).filter(
+        AvatarRental.client_id == client_id
+    ).delete(synchronize_session=False)
+
+    # 19. Unlink avatars (remove from client_ids array — avatars preserved)
+    avatars = db.query(Avatar).filter(Avatar.client_ids.any(str(client_id))).all()
+    deleted["avatars_unlinked"] = len(avatars)
+    for avatar in avatars:
+        if avatar.client_ids:
+            avatar.client_ids = [cid for cid in avatar.client_ids if cid != str(client_id)]
+
+    # 20. Delete subreddit assignments
+    deleted["subreddit_assignments"] = db.query(ClientSubredditAssignment).filter(
+        ClientSubredditAssignment.client_id == client_id
+    ).delete(synchronize_session=False)
+    deleted["client_subreddits"] = db.query(ClientSubreddit).filter(
+        ClientSubreddit.client_id == client_id
+    ).delete(synchronize_session=False)
+
+    # 21. Delete threads (owned by this client)
+    deleted["threads"] = db.query(RedditThread).filter(
+        RedditThread.client_id == client_id
+    ).delete(synchronize_session=False)
+
+    # 22. Nullify discovery sessions (preserve research data)
+    try:
+        from app.models.discovery_session import DiscoverySession
+        deleted["discovery_sessions_nullified"] = db.query(DiscoverySession).filter(
+            DiscoverySession.client_id == client_id
+        ).update({"client_id": None}, synchronize_session=False)
+    except Exception:
+        deleted["discovery_sessions_nullified"] = 0
+
+    # 23. Nullify reddit_apps (shared pool)
+    try:
+        from app.models.reddit_app import RedditApp
+        deleted["reddit_apps_nullified"] = db.query(RedditApp).filter(
+            RedditApp.client_id == client_id
+        ).update({"client_id": None}, synchronize_session=False)
+    except Exception:
+        deleted["reddit_apps_nullified"] = 0
+
+    # 24. Finally, delete the client itself
+    db.delete(client)
+    db.commit()
+
+    # Audit the deletion (client_id=None since client is gone)
+    audit.log_action(
+        db=db,
+        user_id=current_user_id,
+        action="delete_client_cascade",
+        entity_type="client",
+        entity_id=client_id,
+        details={"client_name": client_name, "deleted_counts": deleted},
+    )
+
+    return {"client_name": client_name, "deleted": deleted}

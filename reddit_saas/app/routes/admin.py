@@ -1532,6 +1532,157 @@ def admin_client_run_pipeline(
 
 
 # ---------------------------------------------------------------------------
+# Client cascade deletion
+# ---------------------------------------------------------------------------
+
+
+@router.get("/clients/{client_id}/delete-preview")
+def admin_client_delete_preview(
+    request: Request,
+    client_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
+    db: Session = Depends(get_db),
+):
+    """Return JSON with counts of all entities that will be deleted."""
+    from fastapi.responses import JSONResponse
+    try:
+        preview = admin_service.get_client_cascade_preview(db, client_id)
+        return JSONResponse(content=preview)
+    except ValueError as e:
+        return JSONResponse(content={"error": str(e)}, status_code=404)
+
+
+@router.post("/clients/{client_id}/delete", response_class=HTMLResponse)
+def admin_client_delete(
+    request: Request,
+    client_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    _client_access: User = Depends(verify_client_access_from_path),
+    db: Session = Depends(get_db),
+):
+    """Permanently delete a client and all associated data (cascade)."""
+    try:
+        result = admin_service.delete_client_cascade(db, client_id, current_user.id)
+    except ValueError as e:
+        return RedirectResponse(url="/admin/clients", status_code=303)
+    return RedirectResponse(url="/admin/clients", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# Trial management
+# ---------------------------------------------------------------------------
+
+
+@router.get("/trials", response_class=HTMLResponse)
+def admin_trials(
+    request: Request,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Trial management panel — all trial clients with status and actions."""
+    from datetime import datetime, timezone
+    from app.models.client import Client as ClientModel
+
+    trial_clients = (
+        db.query(ClientModel)
+        .filter(ClientModel.plan_type == "trial")
+        .order_by(ClientModel.created_at.desc())
+        .all()
+    )
+
+    now = datetime.now(timezone.utc)
+    trials = []
+    for client in trial_clients:
+        days_elapsed = (now - client.created_at).days if client.created_at else 0
+        days_left = max(0, 14 - days_elapsed)
+
+        if days_left == 0:
+            status = "expired"
+        elif days_left <= 3:
+            status = "expiring"
+        else:
+            status = "active"
+
+        # Find the user linked to this trial client
+        user = db.query(User).filter(User.client_id == client.id).first()
+
+        trials.append({
+            "client": client,
+            "user": user,
+            "days_left": days_left,
+            "days_elapsed": days_elapsed,
+            "status": status,
+        })
+
+    return templates.TemplateResponse(
+        name="admin_trials.html",
+        context={
+            "request": request,
+            "active_nav": "trials",
+            "trials": trials,
+        },
+        request=request,
+    )
+
+
+@router.post("/trials/{client_id}/upgrade", response_class=HTMLResponse)
+def admin_trial_upgrade(
+    request: Request,
+    client_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Upgrade a trial client to starter plan."""
+    from app.models.client import Client as ClientModel
+
+    client = db.query(ClientModel).filter(ClientModel.id == client_id).first()
+    if client and client.plan_type == "trial":
+        client.plan_type = "starter"
+        client.max_avatars = 3
+        db.commit()
+
+        audit_service.log_action(
+            db=db,
+            user_id=current_user.id,
+            action="upgrade_trial",
+            entity_type="client",
+            entity_id=client_id,
+            details={"from": "trial", "to": "starter"},
+        )
+
+    return RedirectResponse(url="/admin/trials", status_code=303)
+
+
+@router.post("/trials/{client_id}/extend", response_class=HTMLResponse)
+def admin_trial_extend(
+    request: Request,
+    client_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Extend trial by 7 days (shifts created_at back by 7 days)."""
+    from datetime import timedelta
+    from app.models.client import Client as ClientModel
+
+    client = db.query(ClientModel).filter(ClientModel.id == client_id).first()
+    if client and client.plan_type == "trial" and client.created_at:
+        client.created_at = client.created_at + timedelta(days=7)
+        db.commit()
+
+        audit_service.log_action(
+            db=db,
+            user_id=current_user.id,
+            action="extend_trial",
+            entity_type="client",
+            entity_id=client_id,
+            details={"extended_days": 7},
+        )
+
+    return RedirectResponse(url="/admin/trials", status_code=303)
+
+
+# ---------------------------------------------------------------------------
 # Keyword management (6.5)
 # ---------------------------------------------------------------------------
 

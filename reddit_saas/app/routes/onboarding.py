@@ -28,20 +28,46 @@ from app.models.user_role import UserRole
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/onboard", tags=["onboarding"])
-templates = Jinja2Templates(directory="app/templates")
+# Use direct Jinja2 Environment to avoid Starlette TemplateResponse cache bug
+# (TypeError: unhashable type: 'dict' in jinja2/utils.py)
+from jinja2 import Environment, FileSystemLoader
+_jinja_env = Environment(loader=FileSystemLoader("app/templates"))
 
 from app.version import __version__ as app_version
-from app.config import get_settings as _get_settings
-templates.env.globals["app_version"] = app_version
-templates.env.globals["posting_disabled"] = lambda: _get_settings().posting_disabled
+_jinja_env.globals["app_version"] = app_version
 
 from app.template_filters import register_filters
-register_filters(templates.env)
+register_filters(_jinja_env)
+
+
+def _render_template(template_name: str, **context) -> HTMLResponse:
+    """Render a Jinja2 template directly (bypasses Starlette cache bug)."""
+    tmpl = _jinja_env.get_template(template_name)
+    html = tmpl.render(**context)
+    return HTMLResponse(content=html)
 
 TOTAL_STEPS = 6
 
 
 # --- Helpers ---
+
+
+
+def _render_onboard(name_or_template, context=None, *, request=None, **kwargs):
+    """Wrapper: renders template like TemplateResponse but using direct Jinja2."""
+    if isinstance(name_or_template, str) and context is None:
+        # Called as _render_onboard("template.html", {"k": "v"}, ...)
+        # But with no context, just render empty
+        tmpl = _jinja_env.get_template(name_or_template)
+        return HTMLResponse(content=tmpl.render(**kwargs))
+    
+    if isinstance(context, dict):
+        tmpl = _jinja_env.get_template(name_or_template)
+        return HTMLResponse(content=tmpl.render(**context))
+    
+    # Fallback
+    tmpl = _jinja_env.get_template(name_or_template)
+    return HTMLResponse(content=tmpl.render())
 
 
 def _get_client_for_onboarding(user: User, db: Session) -> Client:
@@ -103,7 +129,7 @@ def step1_get(
 ):
     """Render Step 1 — URL input + company profile."""
     client = _get_client_for_onboarding(user, db)
-    return templates.TemplateResponse(
+    return _render_onboard(
         "onboarding/step1.html",
         _onboarding_context(request, 1, client),
     )
@@ -223,7 +249,7 @@ def step2_get(
 ):
     """Render Step 2 — conversational prompts."""
     client = _get_client_for_onboarding(user, db)
-    return templates.TemplateResponse(
+    return _render_onboard(
         "onboarding/step2.html",
         _onboarding_context(request, 2, client),
     )
@@ -281,7 +307,7 @@ def step3_get(
 ):
     """Render Step 3 — ICP definition."""
     client = _get_client_for_onboarding(user, db)
-    return templates.TemplateResponse(
+    return _render_onboard(
         "onboarding/step3.html",
         _onboarding_context(request, 3, client),
     )
@@ -335,14 +361,14 @@ def step4_get(
 ):
     """Render Step 4 — guardrail questions."""
     client = _get_client_for_onboarding(user, db)
-    return templates.TemplateResponse(
+    return _render_onboard(
         "onboarding/step4.html",
         _onboarding_context(request, 4, client),
     )
 
 
 @router.post("/step/4/save")
-def step4_save(
+async def step4_save(
     request: Request,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -367,6 +393,23 @@ def step4_save(
 
     client.brand_voice = "\n".join(parts) if parts else client.brand_voice
 
+    # Capture tone calibration anchors (sentences rated 4-5)
+    form_data = await request.form()
+    tone_anchors = []
+    for i in range(5):
+        sentence = form_data.get(f"tone_sentence_{i}", "")
+        rating = form_data.get(f"tone_rating_{i}", "")
+        if sentence and rating:
+            try:
+                r = int(rating)
+                if r >= 4:
+                    tone_anchors.append(sentence)
+            except ValueError:
+                pass
+    if tone_anchors:
+        # Store as part of brand_voice (few-shot anchors)
+        client.brand_voice = (client.brand_voice or "") + "\n\nTone anchors (rated 4-5 by client):\n" + "\n".join(f"- {a}" for a in tone_anchors)
+
     if client.current_onboarding_step < 5:
         client.current_onboarding_step = 5
     db.commit()
@@ -385,7 +428,7 @@ def step5_get(
 ):
     """Render Step 5 — keywords and subreddits."""
     client = _get_client_for_onboarding(user, db)
-    return templates.TemplateResponse(
+    return _render_onboard(
         "onboarding/step5.html",
         _onboarding_context(request, 5, client, keywords=client.keywords or {}),
     )
@@ -572,7 +615,7 @@ def step6_get(
         .count()
     )
 
-    return templates.TemplateResponse(
+    return _render_onboard(
         "onboarding/step6.html",
         _onboarding_context(
             request, 6, client,
@@ -602,7 +645,7 @@ def step6_activate(
             .filter(ClientSubredditAssignment.client_id == client.id, ClientSubredditAssignment.is_active.is_(True))
             .count()
         )
-        return templates.TemplateResponse(
+        return _render_onboard(
             "onboarding/step6.html",
             _onboarding_context(
                 request, 6, client,
@@ -633,6 +676,25 @@ def step6_activate(
 
     logger.info("Client onboarded: %s (id=%s) by user %s", client.client_name, client.id, user.email)
 
+    # Trigger Day 1 scraping + landscape report (async, non-blocking)
+    try:
+        from app.tasks.scraping import scrape_subreddit_shared
+        from app.models.subreddit import ClientSubredditAssignment, Subreddit
+        subs = (
+            db.query(ClientSubredditAssignment)
+            .join(Subreddit, ClientSubredditAssignment.subreddit_id == Subreddit.id)
+            .filter(
+                ClientSubredditAssignment.client_id == client.id,
+                ClientSubredditAssignment.is_active.is_(True),
+            )
+            .all()
+        )
+        for s in subs:
+            scrape_subreddit_shared.delay(str(s.subreddit_id))
+        logger.info("Dispatched Day 1 scraping for %d subreddits", len(subs))
+    except Exception as e:
+        logger.warning("Day 1 scraping dispatch failed: %s", e)
+
     return RedirectResponse(url="/onboard/complete", status_code=303)
 
 
@@ -647,7 +709,196 @@ def onboard_complete(
 ):
     """Confirmation page after successful onboarding."""
     client = _get_client_for_onboarding(user, db)
-    return templates.TemplateResponse(
+    return _render_onboard(
         "onboarding/complete.html",
         _onboarding_context(request, TOTAL_STEPS, client),
     )
+
+
+# --- Free Trial Signup ---
+
+# Blocked email domains (personal/free email providers)
+BLOCKED_EMAIL_DOMAINS = {
+    "gmail.com", "googlemail.com", "hotmail.com", "outlook.com",
+    "yahoo.com", "yahoo.co.uk", "aol.com", "icloud.com", "me.com",
+    "mac.com", "mail.com", "protonmail.com", "proton.me", "zoho.com",
+    "yandex.com", "yandex.ru", "mail.ru", "live.com", "msn.com",
+    "gmx.com", "gmx.net", "tutanota.com", "fastmail.com",
+}
+
+
+def _is_work_email(email: str) -> bool:
+    """Check if email is a work email (not a personal/free provider)."""
+    domain = email.lower().split("@")[-1] if "@" in email else ""
+    return domain not in BLOCKED_EMAIL_DOMAINS and "." in domain
+
+
+@router.get("/trial", response_class=HTMLResponse)
+def trial_page(request: Request):
+    """Free trial signup page — 14-day intelligence trial."""
+    from jinja2 import Environment, FileSystemLoader
+    env = Environment(loader=FileSystemLoader("app/templates"))
+    template = env.get_template("onboarding/trial_signup.html")
+    html = template.render(request=request, error=None)
+    return HTMLResponse(content=html)
+
+
+@router.post("/trial/signup")
+def trial_signup(
+    request: Request,
+    db: Session = Depends(get_db),
+    email: str = Form(...),
+    password: str = Form(...),
+    full_name: str = Form(""),
+    company_name: str = Form(""),
+):
+    """Create a free trial account: User + Client (trial plan) → redirect to wizard."""
+    from app.services.auth import get_user_by_email, create_user, create_access_token
+    from app.services.cookies import set_auth_cookie
+
+    # Validate work email
+    if not _is_work_email(email):
+        from jinja2 import Environment, FileSystemLoader
+        _env = Environment(loader=FileSystemLoader("app/templates"))
+        _tmpl = _env.get_template("onboarding/trial_signup.html")
+        return HTMLResponse(content=_tmpl.render(request=request, error="Please use your work email. Personal emails (Gmail, Hotmail, etc.) are not accepted."))
+
+    # Check if email already exists
+    existing = get_user_by_email(db, email)
+    if existing:
+        from jinja2 import Environment, FileSystemLoader
+        _env = Environment(loader=FileSystemLoader("app/templates"))
+        _tmpl = _env.get_template("onboarding/trial_signup.html")
+        return HTMLResponse(content=_tmpl.render(request=request, error="This email is already registered. Please sign in."))
+
+    # Create trial client
+    from datetime import timedelta
+    trial_client = Client(
+        client_name=company_name.strip() or email.split("@")[0],
+        brand_name=company_name.strip() or email.split("@")[0],
+        plan_type="trial",
+        max_avatars=0,
+        is_active=True,
+        current_onboarding_step=1,
+    )
+    db.add(trial_client)
+    db.flush()
+
+    # Create user linked to trial client
+    user = create_user(db, email=email, password=password, full_name=full_name)
+    user.role = UserRole.client_admin.value
+    user.client_id = trial_client.id
+    db.commit()
+
+    # Log in immediately
+    token = create_access_token(data={
+        "sub": str(user.id),
+        "email": user.email,
+        "full_name": user.full_name or "",
+        "role": user.user_role.value,
+        "is_superuser": False,
+    })
+
+    response = RedirectResponse(url="/onboard", status_code=303)
+    set_auth_cookie(response, token)
+
+    logger.info("Trial signup: email=%s client=%s", email, trial_client.id)
+
+    return response
+
+
+# --- Tone Calibration (Step 4 Enhancement) ---
+
+
+@router.post("/step/4/calibrate", response_class=HTMLResponse)
+def step4_calibrate(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Generate 5 sample sentences in the brand voice for calibration."""
+    client = _get_client_for_onboarding(user, db)
+
+    # Build voice context from what we have so far
+    voice_context = {
+        "brand_name": client.brand_name or client.client_name or "",
+        "brand_voice": client.brand_voice or "",
+        "company_profile": client.company_profile or "",
+        "industry": client.industry or "",
+        "icp_profiles": client.icp_profiles or "",
+    }
+
+    from app.services.ai import call_llm_json, log_ai_usage
+
+    prompt = """Generate 5 sample Reddit comment sentences that match this brand's voice.
+Each sentence should be something an expert with this voice might say on Reddit — helpful, opinionated, authentic.
+
+Brand context:
+- Brand: {brand_name}
+- Industry: {industry}
+- Voice description: {brand_voice}
+- Product: {company_profile}
+- ICP: {icp_profiles}
+
+Rules:
+- Each sentence is 1-2 sentences max (Reddit comment style)
+- Vary the tone: one assertive, one helpful, one slightly cynical, one data-driven, one conversational
+- No marketing speak, no fluff. Real Reddit expert voice.
+- Each should feel like a fragment of a genuine comment
+
+Output JSON:
+{{"sentences": ["sentence 1", "sentence 2", "sentence 3", "sentence 4", "sentence 5"]}}"""
+
+    messages = [
+        {"role": "system", "content": prompt.format(**voice_context)},
+        {"role": "user", "content": "Generate 5 calibration sentences."},
+    ]
+
+    try:
+        result = call_llm_json(
+            messages=messages,
+            model="gemini/gemini-2.5-flash",
+            temperature=0.8,
+            max_tokens=500,
+        )
+        log_ai_usage(db, str(client.id), "onboarding_tone_calibration", result)
+        sentences = result["data"].get("sentences", [])[:5]
+    except Exception as e:
+        logger.error("Tone calibration generation failed: %s", e)
+        return HTMLResponse(
+            '<p class="text-small" style="color:var(--color-red);">Failed to generate samples. Try again.</p>'
+            '<button type="button" hx-post="/onboard/step/4/calibrate" hx-target="#calibration-area" hx-swap="innerHTML" '
+            'style="padding:8px 16px;border-radius:var(--radius-input);background:var(--color-orange);color:#fff;font-weight:600;border:none;cursor:pointer;font-size:var(--text-small);margin-top:8px;">Retry</button>'
+        )
+
+    # Build rating UI
+    html_parts = ['<div style="display:flex;flex-direction:column;gap:12px;">']
+    html_parts.append('<p class="text-small" style="color:var(--color-green);margin-bottom:4px;">Rate each sentence: 1 = "nothing like us" → 5 = "exactly this"</p>')
+
+    for i, sentence in enumerate(sentences):
+        # Build rating buttons (avoid backslash in f-string for Python 3.11 compat)
+        rating_buttons = ""
+        for r in range(1, 6):
+            onchange_js = "this.parentElement.parentElement.querySelectorAll(&#39;label&#39;).forEach(l=>l.style.background=&#39;transparent&#39;);this.parentElement.style.background=&#39;rgba(255,107,53,0.3)&#39;"
+            rating_buttons += (
+                f'<label style="cursor:pointer;padding:4px;">'
+                f'<input type="radio" name="tone_rating_{i}" value="{r}" style="display:none;" '
+                f'onchange="{onchange_js}">'
+                f'<span style="display:inline-block;width:32px;height:32px;border-radius:50%;border:2px solid var(--color-border);line-height:32px;text-align:center;font-size:var(--text-small);font-weight:600;color:var(--color-muted);">{r}</span>'
+                f'</label>'
+            )
+        escaped_sentence = sentence.replace('"', '&quot;')
+        html_parts.append(
+            f'<div style="background:var(--color-surface-alt);border-radius:8px;padding:12px 16px;">'
+            f'<p style="color:var(--color-white);font-size:var(--text-body);line-height:1.5;margin-bottom:10px;font-style:italic;">&ldquo;{escaped_sentence}&rdquo;</p>'
+            f'<div style="display:flex;gap:6px;">'
+            f'<input type="hidden" name="tone_sentence_{i}" value="{escaped_sentence}">'
+            f'{rating_buttons}'
+            f'</div></div>'
+        )
+
+    html_parts.append('</div>')
+    html_parts.append('<p class="text-micro" style="color:var(--color-muted);margin-top:8px;">Rate at least 3 sentences 4 or higher to proceed. Your highest-rated sentences become training anchors.</p>')
+    html_parts.append('<input type="hidden" name="tone_calibration_done" value="true">')
+
+    return HTMLResponse("\n".join(html_parts))

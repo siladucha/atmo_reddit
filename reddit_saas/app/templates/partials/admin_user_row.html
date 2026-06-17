@@ -3,7 +3,12 @@
     <td class="px-4 py-3 text-gray-300">{{ user.full_name or '—' }}</td>
     <td class="px-4 py-3 text-gray-400 text-xs">
         {% if user.client_id %}
-        <span class="text-indigo-400">{{ user.client.client_name if user.client else user.client_id }}</span>
+        <a href="/admin/clients/{{ user.client_id }}" class="text-indigo-400 hover:text-indigo-300">{{ user.client.client_name if user.client else user.client_id }}</a>
+        {% if user.client and user.client.plan_type == "trial" %}
+        <span class="ml-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-900/50 text-amber-400">TRIAL</span>
+        {% elif user.client and user.client.plan_type %}
+        <span class="ml-1 px-1.5 py-0.5 rounded text-xs font-medium bg-slate-700 text-slate-400">{{ user.client.plan_type }}</span>
+        {% endif %}
         {% else %}
         <span class="text-gray-500">—</span>
         {% endif %}

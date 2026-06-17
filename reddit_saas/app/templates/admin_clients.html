@@ -70,7 +70,7 @@
                 <tr class="border-b border-slate-700 hover:bg-slate-700/30">
                     <td class="px-4 py-3">
                         <a href="/admin/clients/{{ item.client.id }}" class="text-indigo-400 hover:text-indigo-300">
-                            {{ item.client.client_name }}
+                            {{ item.client.client_name }}{% if item.client.plan_type == "trial" %} <span class="ml-2 px-2 py-0.5 rounded text-xs font-medium bg-amber-900/50 text-amber-400">TRIAL</span>{% endif %}
                         </a>
                     </td>
                     <td class="px-4 py-3 text-gray-300">{{ item.client.brand_name }}</td>
