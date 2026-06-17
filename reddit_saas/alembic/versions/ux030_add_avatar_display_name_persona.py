@@ -12,8 +12,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "b1c2d3e4f5g6"
-down_revision = None  # Will be set by alembic when generating
+revision = "ux030_display"
+down_revision = "sft01"
 branch_labels = None
 depends_on = None
 

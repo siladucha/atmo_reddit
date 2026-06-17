@@ -27,6 +27,8 @@ logger = get_logger(__name__)
 
 # Routes that don't require authentication
 PUBLIC_ROUTES = {
+    "/onboard/trial",
+    "/onboard/trial/signup",
     "/login",
     "/register",
     "/logout",
