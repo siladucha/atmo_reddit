@@ -216,3 +216,39 @@ Total:                              $378/mo
 Revenue (avg $500/client):        $5,000/mo
 Margin:                              92%
 ```
+
+---
+
+## Future: Provider-Level Request Queues (added June 17, 2026)
+
+**Problem:** When 100+ clients trigger GEO/scoring/generation simultaneously, all requests hit the same provider API at once. This causes:
+- 429 rate limits from Gemini/Anthropic/Perplexity
+- Cascading failures (one provider down → all clients affected)
+- No fairness — first client to trigger gets all the capacity
+
+**Solution: Per-provider request queues with backpressure**
+
+```
+Client triggers GEO → Celery task → Provider Queue (Redis sorted set) → Worker pool → API call
+                                         ↓
+                              - Max concurrency per provider (e.g. Gemini: 10 parallel)
+                              - Fair scheduling (round-robin across clients)
+                              - Circuit breaker (5 consecutive 503 → pause 60s)
+                              - Overflow → next provider in fallback chain
+```
+
+**Architecture:**
+- One Redis sorted set per provider: `provider_queue:gemini`, `provider_queue:perplexity`, `provider_queue:anthropic`
+- Worker pool per provider (configurable concurrency: 5-20 parallel calls)
+- Circuit breaker state in Redis: `provider_circuit:gemini` = {failures: 5, open_until: timestamp}
+- Client-level fairness: weighted round-robin based on plan tier
+- Overflow routing: if queue depth > threshold → spill to fallback provider
+
+**When to build:** Before 50+ clients OR when provider rate limits become weekly occurrence.
+
+**Current mitigation (good enough for 10 clients):**
+- GeoRateLimiter (per-provider sliding window in Redis)
+- Retry with exponential backoff inside tasks
+- Fallback chain in call_llm() (Perplexity → Gemini → Sonnet)
+- Per-query circuit breaker in GEO batch (consecutive_failures threshold)
+
