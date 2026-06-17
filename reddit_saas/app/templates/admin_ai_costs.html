@@ -68,8 +68,8 @@
 
     <!-- Pipeline Stages (always visible — key overview) -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
-        {% set stage_icons = {"Discovery": "🧭", "Scoring": "🔍", "Content": "✍️", "Hobby": "🌿", "Posts": "📝", "Other": "⚙️"} %}
-        {% set stage_colors = {"Discovery": "bg-teal-600", "Scoring": "bg-blue-600", "Content": "bg-purple-600", "Hobby": "bg-amber-600", "Posts": "bg-rose-600", "Other": "bg-gray-600"} %}
+        {% set stage_icons = {"Discovery": "🧭", "Scoring": "🔍", "Content": "✍️", "Hobby": "🌿", "Posts": "📝", "GEO/AEO": "🌐", "Other": "⚙️"} %}
+        {% set stage_colors = {"Discovery": "bg-teal-600", "Scoring": "bg-blue-600", "Content": "bg-purple-600", "Hobby": "bg-amber-600", "Posts": "bg-rose-600", "GEO/AEO": "bg-emerald-600", "Other": "bg-gray-600"} %}
         {% set total_stage_cost = by_stage | sum(attribute='cost') or 1 %}
         <div class="flex h-7 rounded-lg overflow-hidden mb-3">
             {% for s in by_stage %}{% if s.cost > 0 %}

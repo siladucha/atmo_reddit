@@ -1653,6 +1653,7 @@ def get_ai_costs_by_operation(db: Session, days: int | None = None) -> list[dict
         "post_brief": "Posts",
         "post_generation": "Posts",
         "discovery": "Discovery",
+        "geo_query": "GEO/AEO",
     }
 
     total_cost = sum(float(r.cost) for r in rows) or 1.0
