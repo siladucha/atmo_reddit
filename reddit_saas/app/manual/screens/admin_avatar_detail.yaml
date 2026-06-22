@@ -1,0 +1,48 @@
+title: "Avatar Detail"
+lifecycle_stage: "monitoring"
+
+flow_position:
+  flow_name: "Platform Management"
+  current_step: 3
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Clients"
+      active: false
+    - name: "Avatars"
+      active: true
+    - name: "Pipeline"
+      active: false
+    - name: "Analytics"
+      active: false
+
+screen_context:
+  before: "Avatars list or search result"
+  after: "Edit avatar or view intelligence metrics"
+  description: "Detailed view of a single avatar. Karma history, subreddit presence, strategy, health status, and posting history."
+
+screen_purpose: "Deep dive into an avatar's performance and health. Make operational decisions about freezing, phase, or strategy."
+
+available_actions:
+  all:
+    - name: "Freeze"
+      description: "Immediately pause all activity for this avatar"
+      destructive: true
+    - name: "Unfreeze"
+      description: "Resume activity"
+      destructive: false
+    - name: "Edit"
+      description: "Modify avatar settings"
+      destructive: false
+    - name: "Phase Override"
+      description: "Manually change warming phase"
+      destructive: false
+
+role_behavior:
+  summary: "Accessible to platform admins and avatar managers."
+  differences:
+    - role: "Owner / Partner"
+      access: "Full control including phase override"
+    - role: "Avatar Manager"
+      access: "Can freeze/unfreeze and view (no phase override)"

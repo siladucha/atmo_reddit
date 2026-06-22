@@ -1,0 +1,39 @@
+title: "Avatar Detail"
+lifecycle_stage: "execution"
+
+flow_position:
+  flow_name: "Daily Operations"
+  current_step: 4
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Review Queue"
+      active: false
+    - name: "EPG Schedule"
+      active: false
+    - name: "Avatars"
+      active: true
+    - name: "Reports"
+      active: false
+
+screen_context:
+  before: "Avatars list page"
+  after: "Back to avatars list or dashboard"
+  description: "Detailed view of a single avatar's performance. Karma growth, subreddit presence, posting history, and strategy."
+
+screen_purpose: "Understand how a specific avatar is performing in your campaign. Track karma growth and community presence."
+
+available_actions:
+  all:
+    - name: "View Karma History"
+      description: "See karma growth chart over time"
+      destructive: false
+
+role_behavior:
+  summary: "All client roles can view."
+  differences:
+    - role: "Client Admin / Manager"
+      access: "Full detail view"
+    - role: "Client Viewer"
+      access: "Read-only detail view"

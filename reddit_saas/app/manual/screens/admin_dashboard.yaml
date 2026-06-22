@@ -1,0 +1,45 @@
+title: "Admin Dashboard"
+lifecycle_stage: "monitoring"
+
+flow_position:
+  flow_name: "Platform Management"
+  current_step: 1
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: true
+    - name: "Clients"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Pipeline"
+      active: false
+    - name: "Analytics"
+      active: false
+
+screen_context:
+  before: "Login / authentication"
+  after: "Manage clients, avatars, or review pipeline status"
+  description: "Central operations hub. Real-time overview of system health, active pipelines, and pending actions across all clients."
+
+screen_purpose: "Monitor overall platform health at a glance — active clients, avatar status, pipeline throughput, and system alerts."
+
+available_actions:
+  all:
+    - name: "Run Pipeline"
+      description: "Trigger a full scoring and generation cycle for all clients"
+      destructive: false
+    - name: "View Activity Feed"
+      description: "See recent pipeline events across all clients"
+      destructive: false
+    - name: "Navigate to Clients/Avatars"
+      description: "Jump to entity management screens"
+      destructive: false
+
+role_behavior:
+  summary: "Dashboard is accessible to owner, partner, and client_admin/client_manager roles with different data scope."
+  differences:
+    - role: "Owner / Partner"
+      access: "Full platform-wide metrics and controls"
+    - role: "Client Admin / Manager"
+      access: "Sees only their client data and limited pipeline controls"

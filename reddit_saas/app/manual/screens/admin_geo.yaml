@@ -1,0 +1,43 @@
+title: "GEO/AEO Monitoring"
+lifecycle_stage: "monitoring"
+
+flow_position:
+  flow_name: "Platform Management"
+  current_step: 5
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Clients"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Pipeline"
+      active: false
+    - name: "Analytics"
+      active: true
+
+screen_context:
+  before: "Client detail or sidebar navigation"
+  after: "Individual execution batch results"
+  description: "Monitor brand visibility in AI search engines (Google Gemini, Perplexity, ChatGPT). Track mentions and citations."
+
+screen_purpose: "Track how well client brands appear in AI-generated search results. Monitor competitor presence."
+
+available_actions:
+  all:
+    - name: "Add Prompt"
+      description: "Create a new monitoring query"
+      destructive: false
+    - name: "Run Now"
+      description: "Execute all prompts immediately"
+      destructive: false
+    - name: "Add Competitor"
+      description: "Track a new competitor"
+      destructive: false
+
+role_behavior:
+  summary: "Platform admins only."
+  differences:
+    - role: "Owner / Partner"
+      access: "Full GEO monitoring access"

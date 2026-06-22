@@ -1,0 +1,39 @@
+title: "My Subreddits"
+lifecycle_stage: "configuration"
+
+flow_position:
+  flow_name: "Daily Operations"
+  current_step: 4
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Review Queue"
+      active: false
+    - name: "EPG Schedule"
+      active: false
+    - name: "Avatars"
+      active: true
+    - name: "Reports"
+      active: false
+
+screen_context:
+  before: "Dashboard or sidebar navigation"
+  after: "Subreddits feed into pipeline scoring"
+  description: "Subreddits being monitored for your campaign. See which communities are active and request additions."
+
+screen_purpose: "Manage which Reddit communities the system monitors for engagement opportunities."
+
+available_actions:
+  all:
+    - name: "Request Addition"
+      description: "Ask to add a new subreddit to monitoring"
+      destructive: false
+
+role_behavior:
+  summary: "Client admins can request additions. Viewers see read-only list."
+  differences:
+    - role: "Client Admin"
+      access: "Can request new subreddit additions"
+    - role: "Client Viewer"
+      access: "Read-only subreddit list"

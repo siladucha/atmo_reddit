@@ -1,0 +1,42 @@
+title: "Campaign Settings"
+lifecycle_stage: "configuration"
+
+flow_position:
+  flow_name: "Daily Operations"
+  current_step: 5
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Review Queue"
+      active: false
+    - name: "EPG Schedule"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Reports"
+      active: true
+
+screen_context:
+  before: "Sidebar navigation"
+  after: "Settings affect pipeline behavior"
+  description: "Campaign configuration. Company profile, notification preferences, and pipeline settings."
+
+screen_purpose: "Manage your campaign configuration. Update company information and adjust notification preferences."
+
+available_actions:
+  all:
+    - name: "Update Profile"
+      description: "Change company name, description, or website"
+      destructive: false
+    - name: "Save Settings"
+      description: "Apply configuration changes"
+      destructive: false
+
+role_behavior:
+  summary: "Client admin only can edit settings."
+  differences:
+    - role: "Client Admin"
+      access: "Full settings edit access"
+    - role: "Client Viewer"
+      access: "Read-only settings view"

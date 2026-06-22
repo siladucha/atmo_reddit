@@ -1,0 +1,44 @@
+title: "Client Hub"
+lifecycle_stage: "execution"
+
+flow_position:
+  flow_name: "Daily Operations"
+  current_step: 1
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: true
+    - name: "Review Queue"
+      active: false
+    - name: "EPG Schedule"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Reports"
+      active: false
+
+screen_context:
+  before: "Client list or direct navigation"
+  after: "Tab-specific content (overview, subreddits, avatars, etc.)"
+  description: "Tabbed overview of a single client. Quick access to all client data sections."
+
+screen_purpose: "Central hub for client information. Switch between overview, subreddits, avatars, threads, and review tabs."
+
+available_actions:
+  all:
+    - name: "Switch Tab"
+      description: "Navigate between client data sections"
+      destructive: false
+    - name: "Run Pipeline"
+      description: "Trigger pipeline for this client"
+      destructive: false
+
+role_behavior:
+  summary: "Accessible to platform admins and client roles with matching client_id."
+  differences:
+    - role: "Owner / Partner"
+      access: "Full tab access for any client"
+    - role: "Client Admin / Manager"
+      access: "Full tab access for their client"
+    - role: "Client Viewer"
+      access: "Read-only tabs for their client"

@@ -1,0 +1,45 @@
+title: "Avatar Onboarding"
+lifecycle_stage: "configuration"
+
+flow_position:
+  flow_name: "Platform Management"
+  current_step: 3
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Clients"
+      active: false
+    - name: "Avatars"
+      active: true
+    - name: "Pipeline"
+      active: false
+    - name: "Analytics"
+      active: false
+
+screen_context:
+  before: "Avatars list or client detail"
+  after: "Avatar detail page after approval"
+  description: "One-click avatar onboarding. Enter a Reddit username, AI analyzes the profile, and pre-fills avatar configuration."
+
+screen_purpose: "Onboard new avatars quickly. AI classifies voice, strategy, and persona from Reddit history automatically."
+
+available_actions:
+  all:
+    - name: "Analyze"
+      description: "Fetch Reddit profile and run AI classification"
+      destructive: false
+    - name: "Approve"
+      description: "Create the avatar with the classified settings"
+      destructive: false
+    - name: "Edit"
+      description: "Modify AI-generated settings before approval"
+      destructive: false
+
+role_behavior:
+  summary: "Platform admins and avatar managers."
+  differences:
+    - role: "Owner / Partner"
+      access: "Can onboard for any client"
+    - role: "Avatar Manager"
+      access: "Can onboard for assigned clients"

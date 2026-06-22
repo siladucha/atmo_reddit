@@ -1,0 +1,42 @@
+title: "Thread Browser"
+lifecycle_stage: "monitoring"
+
+flow_position:
+  flow_name: "Platform Management"
+  current_step: 4
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Clients"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Pipeline"
+      active: true
+    - name: "Analytics"
+      active: false
+
+screen_context:
+  before: "Dashboard or subreddit detail"
+  after: "Thread detail or scoring review"
+  description: "Browse all scraped Reddit threads. Filter by subreddit, score, status. See thread liveness and scoring details."
+
+screen_purpose: "Inspect what the scraper found. Check thread scores, identify high-value engagement opportunities."
+
+available_actions:
+  all:
+    - name: "View Thread"
+      description: "Open thread detail with full scoring breakdown"
+      destructive: false
+    - name: "Filter"
+      description: "Narrow results by subreddit, score, or status"
+      destructive: false
+
+role_behavior:
+  summary: "Read-only for all admin roles."
+  differences:
+    - role: "Owner / Partner"
+      access: "See all threads across all clients"
+    - role: "Client Admin / Manager"
+      access: "See only threads from their subreddits"

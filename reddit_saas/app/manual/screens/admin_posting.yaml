@@ -1,0 +1,42 @@
+title: "Posting Dashboard"
+lifecycle_stage: "execution"
+
+flow_position:
+  flow_name: "Platform Management"
+  current_step: 4
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Clients"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Pipeline"
+      active: true
+    - name: "Analytics"
+      active: false
+
+screen_context:
+  before: "Dashboard or EPG schedule"
+  after: "Individual posting event trace"
+  description: "Posting operations overview. See all posting events, success rates, timing, and per-avatar breakdown."
+
+screen_purpose: "Monitor automated posting operations. Track what was posted, when, and whether it succeeded."
+
+available_actions:
+  all:
+    - name: "View Trace"
+      description: "See full lifecycle of a specific post (thread > score > draft > EPG > post)"
+      destructive: false
+    - name: "Filter by Avatar"
+      description: "Show events for a specific avatar"
+      destructive: false
+
+role_behavior:
+  summary: "Accessible to owner, partner, and avatar manager."
+  differences:
+    - role: "Owner / Partner"
+      access: "Full posting visibility"
+    - role: "Avatar Manager"
+      access: "Can see posting events for their avatars"

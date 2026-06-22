@@ -1,0 +1,54 @@
+title: "Client Dashboard"
+lifecycle_stage: "execution"
+
+flow_position:
+  flow_name: "Daily Operations"
+  current_step: 1
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: true
+    - name: "Review Queue"
+      active: false
+    - name: "EPG Schedule"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Reports"
+      active: false
+
+screen_context:
+  before: "Login or portal navigation"
+  after: "Review queue to approve pending drafts, or EPG to see today's schedule"
+  description: "Your campaign home base. See how your avatars are performing, what content is pending review, and key metrics at a glance."
+
+screen_purpose: "Get a quick overview of your Reddit presence program — active avatars, pending approvals, recent posts, and campaign health."
+
+available_actions:
+  all:
+    - name: "Run Pipeline"
+      description: "Trigger fresh content generation for your campaign"
+      destructive: false
+    - name: "View Review Queue"
+      description: "Navigate to pending drafts for approval"
+      destructive: false
+    - name: "View EPG"
+      description: "See today's posting schedule"
+      destructive: false
+  client_viewer:
+    - name: "View Review Queue"
+      description: "Navigate to see approved/pending drafts (read-only)"
+      destructive: false
+    - name: "View EPG"
+      description: "See today's posting schedule (read-only)"
+      destructive: false
+
+role_behavior:
+  summary: "All client roles can view the dashboard. Actions differ by role."
+  differences:
+    - role: "Client Admin"
+      access: "Full access — trigger pipeline, view all sections"
+    - role: "Client Manager"
+      access: "Can trigger pipeline, approve drafts"
+    - role: "Client Viewer"
+      access: "Read-only — metrics and navigation only"

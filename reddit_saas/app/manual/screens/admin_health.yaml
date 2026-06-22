@@ -1,0 +1,40 @@
+title: "System Health"
+lifecycle_stage: "monitoring"
+
+flow_position:
+  flow_name: "Platform Management"
+  current_step: 5
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Clients"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Pipeline"
+      active: false
+    - name: "Analytics"
+      active: true
+
+screen_context:
+  before: "Dashboard or alert notification"
+  after: "Individual avatar health detail"
+  description: "Avatar health monitoring. Shadowban detection results, CQS scores, frozen avatars, and health history."
+
+screen_purpose: "Monitor avatar health status. Identify shadowbanned or at-risk avatars before they cause issues."
+
+available_actions:
+  all:
+    - name: "Run Health Check"
+      description: "Trigger immediate health scan for all avatars"
+      destructive: false
+    - name: "View History"
+      description: "See health status changes over time"
+      destructive: false
+
+role_behavior:
+  summary: "Owner only — system monitoring."
+  differences:
+    - role: "Owner"
+      access: "Full health dashboard with all avatars"

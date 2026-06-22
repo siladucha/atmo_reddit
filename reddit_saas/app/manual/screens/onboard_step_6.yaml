@@ -1,0 +1,42 @@
+title: "Onboarding: Activate"
+lifecycle_stage: "onboarding"
+
+flow_position:
+  flow_name: "Onboarding"
+  current_step: 6
+  total_steps: 6
+  steps:
+    - name: "Website Analysis"
+      active: false
+    - name: "ICP Synthesis"
+      active: false
+    - name: "Keywords"
+      active: false
+    - name: "Subreddits"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Activate"
+      active: true
+
+screen_context:
+  before: "Previous onboarding step"
+  after: "Campaign activation and first pipeline run"
+  description: "Step 6 of the AI-guided onboarding wizard. Activate configuration."
+
+screen_purpose: "Configure activate for your campaign. AI assists with suggestions based on your website and industry."
+
+available_actions:
+  all:
+    - name: "Next"
+      description: "Save and proceed to the next step"
+      destructive: false
+    - name: "Back"
+      description: "Return to previous step without saving"
+      destructive: false
+
+role_behavior:
+  summary: "Available to users in onboarding flow."
+  differences:
+    - role: "B2C User / Client Admin"
+      access: "Full wizard interaction"

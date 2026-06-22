@@ -1,0 +1,43 @@
+title: "Trial Management"
+lifecycle_stage: "monitoring"
+
+flow_position:
+  flow_name: "Platform Management"
+  current_step: 2
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Clients"
+      active: true
+    - name: "Avatars"
+      active: false
+    - name: "Pipeline"
+      active: false
+    - name: "Analytics"
+      active: false
+
+screen_context:
+  before: "Clients list or dashboard alert"
+  after: "Convert trial to paid or extend"
+  description: "Manage trial clients. See days remaining, activation status, and conversion readiness."
+
+screen_purpose: "Track trial progress and decide which trials to convert to paid plans."
+
+available_actions:
+  all:
+    - name: "Extend Trial"
+      description: "Add days to a trial period"
+      destructive: false
+    - name: "Convert to Paid"
+      description: "Upgrade trial to a paid plan"
+      destructive: false
+    - name: "Expire Trial"
+      description: "Manually end a trial early"
+      destructive: true
+
+role_behavior:
+  summary: "Platform admins only."
+  differences:
+    - role: "Owner / Partner"
+      access: "Full trial management"

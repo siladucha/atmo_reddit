@@ -1,0 +1,42 @@
+title: "Activity Feed"
+lifecycle_stage: "monitoring"
+
+flow_position:
+  flow_name: "Platform Management"
+  current_step: 5
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Clients"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Pipeline"
+      active: false
+    - name: "Analytics"
+      active: true
+
+screen_context:
+  before: "Dashboard or client detail"
+  after: "Review individual events or filter by client"
+  description: "Real-time feed of all pipeline events across the platform. Filter by client to see their specific activity."
+
+screen_purpose: "Monitor pipeline operations in real-time. See what the system is doing — scraping, scoring, generating, posting."
+
+available_actions:
+  all:
+    - name: "Filter by Client"
+      description: "Show events for a specific client only"
+      destructive: false
+    - name: "Refresh"
+      description: "Load latest events"
+      destructive: false
+
+role_behavior:
+  summary: "Accessible to platform admins (owner/partner)."
+  differences:
+    - role: "Owner / Partner"
+      access: "Full activity feed with all clients"
+    - role: "Client Admin / Manager"
+      access: "Filtered to their client only"

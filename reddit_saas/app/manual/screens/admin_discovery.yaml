@@ -1,0 +1,43 @@
+title: "Discovery Engine"
+lifecycle_stage: "monitoring"
+
+flow_position:
+  flow_name: "Platform Management"
+  current_step: 5
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Clients"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Pipeline"
+      active: false
+    - name: "Analytics"
+      active: true
+
+screen_context:
+  before: "Sidebar navigation or weekly automation"
+  after: "Session detail with entities and hypotheses"
+  description: "AI-powered market research sessions. Extract entities, validate hypotheses, generate research reports."
+
+screen_purpose: "Run automated research to discover new engagement opportunities, validate market hypotheses, and inform strategy."
+
+available_actions:
+  all:
+    - name: "New Session"
+      description: "Start a new discovery research session"
+      destructive: false
+    - name: "Resume Session"
+      description: "Continue a paused session"
+      destructive: false
+    - name: "Export Report"
+      description: "Download research findings"
+      destructive: false
+
+role_behavior:
+  summary: "Platform admins only."
+  differences:
+    - role: "Owner / Partner"
+      access: "Full discovery session management"

@@ -1,0 +1,52 @@
+title: "Review Queue"
+lifecycle_stage: "review"
+
+flow_position:
+  flow_name: "Daily Operations"
+  current_step: 2
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Review Queue"
+      active: true
+    - name: "EPG Schedule"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Reports"
+      active: false
+
+screen_context:
+  before: "Dashboard or notification alert"
+  after: "Approved drafts appear in EPG schedule for posting"
+  description: "AI-generated comment drafts waiting for your review. Each draft shows the target thread, avatar, subreddit, and generated comment text."
+
+screen_purpose: "Review and approve AI-generated content before it gets posted. You are the final quality gate — approve good content, reject or edit what needs improvement."
+
+available_actions:
+  all:
+    - name: "Approve"
+      description: "Mark draft as ready for posting in the next EPG cycle"
+      destructive: false
+    - name: "Reject"
+      description: "Permanently reject this draft (will not be posted)"
+      destructive: true
+    - name: "Edit"
+      description: "Modify the comment text before approving"
+      destructive: false
+    - name: "Skip"
+      description: "Move to next draft without taking action"
+      destructive: false
+  client_viewer:
+    - name: "View drafts"
+      description: "See pending and approved drafts (read-only, no approval actions)"
+      destructive: false
+
+role_behavior:
+  summary: "Approval actions available to admin and manager roles. Viewers see read-only list."
+  differences:
+    - role: "Client Admin / Manager"
+      access: "Can approve, reject, edit, and skip drafts"
+    - role: "Client Viewer"
+      access: "Read-only — can see draft status but cannot take actions"

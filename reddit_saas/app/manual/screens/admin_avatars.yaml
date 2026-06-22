@@ -1,0 +1,51 @@
+title: "Avatar Management"
+lifecycle_stage: "monitoring"
+
+flow_position:
+  flow_name: "Platform Management"
+  current_step: 3
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Clients"
+      active: false
+    - name: "Avatars"
+      active: true
+    - name: "Pipeline"
+      active: false
+    - name: "Analytics"
+      active: false
+
+screen_context:
+  before: "Dashboard or client detail page"
+  after: "Avatar detail, onboarding, or EPG schedule"
+  description: "Overview of all avatars across the platform. Filter by client, phase, health status, and pool. Manage lifecycle operations."
+
+screen_purpose: "Operational control center for all avatars — monitor health, manage phases, freeze/unfreeze, and onboard new avatars."
+
+available_actions:
+  all:
+    - name: "Onboard Avatar"
+      description: "Start the one-click avatar onboarding flow (Reddit profile analysis)"
+      destructive: false
+    - name: "Freeze Avatar"
+      description: "Immediately pause all automated activity for this avatar"
+      destructive: true
+    - name: "Unfreeze Avatar"
+      description: "Resume automated activity for a frozen avatar"
+      destructive: false
+    - name: "View Detail"
+      description: "Open avatar intelligence page (karma, presence, strategy)"
+      destructive: false
+    - name: "Phase Override"
+      description: "Manually set avatar phase (bypasses automatic evaluation)"
+      destructive: false
+
+role_behavior:
+  summary: "Accessible to platform admins and avatar managers."
+  differences:
+    - role: "Owner / Partner"
+      access: "Full control including phase override and client reassignment"
+    - role: "Avatar Manager"
+      access: "Freeze/unfreeze, view detail, onboard (no phase override)"

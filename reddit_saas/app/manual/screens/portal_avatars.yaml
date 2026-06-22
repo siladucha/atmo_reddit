@@ -1,0 +1,39 @@
+title: "My Avatars"
+lifecycle_stage: "execution"
+
+flow_position:
+  flow_name: "Daily Operations"
+  current_step: 4
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Review Queue"
+      active: false
+    - name: "EPG Schedule"
+      active: false
+    - name: "Avatars"
+      active: true
+    - name: "Reports"
+      active: false
+
+screen_context:
+  before: "Dashboard or sidebar navigation"
+  after: "Individual avatar detail page"
+  description: "View all avatars working on your campaign. See their phase, health status, and recent activity."
+
+screen_purpose: "Monitor your avatar team. Check which avatars are active, their warming progress, and posting history."
+
+available_actions:
+  all:
+    - name: "View Detail"
+      description: "Open detailed avatar page with karma and activity"
+      destructive: false
+
+role_behavior:
+  summary: "All client roles can view. No destructive actions available."
+  differences:
+    - role: "Client Admin / Manager"
+      access: "Full avatar list with status details"
+    - role: "Client Viewer"
+      access: "Read-only avatar list"

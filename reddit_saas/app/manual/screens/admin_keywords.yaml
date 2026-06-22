@@ -1,0 +1,45 @@
+title: "Keyword Management"
+lifecycle_stage: "configuration"
+
+flow_position:
+  flow_name: "Platform Management"
+  current_step: 5
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Clients"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Pipeline"
+      active: false
+    - name: "Analytics"
+      active: true
+
+screen_context:
+  before: "Client detail or sidebar navigation"
+  after: "Pipeline uses keywords for thread scoring"
+  description: "Manage scoring keywords per client. Keywords are grouped by priority (high/medium/low) and drive thread relevance scoring."
+
+screen_purpose: "Configure what topics matter for each client. High-priority keywords boost thread scores significantly."
+
+available_actions:
+  all:
+    - name: "Add Keyword"
+      description: "Add a new scoring keyword to a priority tier"
+      destructive: false
+    - name: "Edit Priority"
+      description: "Move keyword between tiers"
+      destructive: false
+    - name: "Delete Keyword"
+      description: "Remove keyword from scoring"
+      destructive: true
+
+role_behavior:
+  summary: "Platform admins manage keywords directly. Clients can manage via portal."
+  differences:
+    - role: "Owner / Partner"
+      access: "Direct keyword CRUD for any client"
+    - role: "Client Admin"
+      access: "Can manage their own keywords via portal"

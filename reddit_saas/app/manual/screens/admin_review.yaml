@@ -1,0 +1,48 @@
+title: "Admin Review Queue"
+lifecycle_stage: "review"
+
+flow_position:
+  flow_name: "Platform Management"
+  current_step: 4
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Clients"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Pipeline"
+      active: true
+    - name: "Analytics"
+      active: false
+
+screen_context:
+  before: "Dashboard or notification alert"
+  after: "Approved drafts enter EPG for posting"
+  description: "Central review queue for all pending comment drafts. Approve, reject, or edit AI-generated content before posting."
+
+screen_purpose: "Quality gate for all AI-generated content. Every comment must pass human review before reaching Reddit."
+
+available_actions:
+  all:
+    - name: "Approve"
+      description: "Mark draft ready for automated posting"
+      destructive: false
+    - name: "Reject"
+      description: "Permanently discard this draft"
+      destructive: true
+    - name: "Edit"
+      description: "Modify comment text before approving"
+      destructive: false
+    - name: "Bulk Approve"
+      description: "Approve multiple selected drafts at once"
+      destructive: false
+
+role_behavior:
+  summary: "Review available to owner, partner, and client manager roles."
+  differences:
+    - role: "Owner / Partner"
+      access: "Can review drafts for all clients"
+    - role: "Client Admin / Manager"
+      access: "Can review only their client drafts"

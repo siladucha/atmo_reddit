@@ -1,0 +1,42 @@
+title: "Login"
+lifecycle_stage: "onboarding"
+
+flow_position:
+  flow_name: "Onboarding"
+  current_step: 1
+  total_steps: 6
+  steps:
+    - name: "Website Analysis"
+      active: true
+    - name: "ICP Synthesis"
+      active: false
+    - name: "Keywords"
+      active: false
+    - name: "Subreddits"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Activate"
+      active: false
+
+screen_context:
+  before: "Marketing site, registration, or session expiry"
+  after: "Dashboard or portal home"
+  description: "Platform login page. Enter your email and password to access your account."
+
+screen_purpose: "Authenticate to access the RAMP platform. Your role determines which features you see after login."
+
+available_actions:
+  all:
+    - name: "Login"
+      description: "Authenticate with email and password"
+      destructive: false
+    - name: "Register"
+      description: "Create a new account"
+      destructive: false
+
+role_behavior:
+  summary: "Public page - no authentication required."
+  differences:
+    - role: "Unauthenticated User"
+      access: "Can attempt login or navigate to registration"

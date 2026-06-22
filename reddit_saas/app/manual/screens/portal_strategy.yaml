@@ -1,0 +1,39 @@
+title: "Strategy Documents"
+lifecycle_stage: "execution"
+
+flow_position:
+  flow_name: "Daily Operations"
+  current_step: 5
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Review Queue"
+      active: false
+    - name: "EPG Schedule"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Reports"
+      active: true
+
+screen_context:
+  before: "Dashboard or sidebar navigation"
+  after: "Strategy guides avatar content generation"
+  description: "Strategy documents that guide your avatars' content generation. Defines voice, topics, and engagement approach."
+
+screen_purpose: "Review and understand the strategy driving your campaign. This shapes how AI generates content for your brand."
+
+available_actions:
+  all:
+    - name: "Request Update"
+      description: "Ask for strategy document refresh"
+      destructive: false
+
+role_behavior:
+  summary: "All client roles can view."
+  differences:
+    - role: "Client Admin"
+      access: "Can request strategy updates"
+    - role: "Client Viewer"
+      access: "Read-only strategy view"

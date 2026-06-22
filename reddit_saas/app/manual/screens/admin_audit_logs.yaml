@@ -1,0 +1,45 @@
+title: "Audit Logs"
+lifecycle_stage: "monitoring"
+
+flow_position:
+  flow_name: "Platform Management"
+  current_step: 5
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Clients"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Pipeline"
+      active: false
+    - name: "Analytics"
+      active: true
+
+screen_context:
+  before: "Sidebar navigation or security investigation"
+  after: "Individual event detail"
+  description: "Complete audit trail of all platform actions. Who did what, when, and from where."
+
+screen_purpose: "Security and compliance audit trail. Track all user actions for accountability and investigation."
+
+available_actions:
+  all:
+    - name: "Filter by User"
+      description: "Show actions by a specific user"
+      destructive: false
+    - name: "Filter by Action"
+      description: "Show specific action types"
+      destructive: false
+    - name: "Export"
+      description: "Download audit log as CSV"
+      destructive: false
+
+role_behavior:
+  summary: "Platform admins only."
+  differences:
+    - role: "Owner / Partner"
+      access: "Full audit log access"
+    - role: "Avatar Manager"
+      access: "Can see their own actions only"

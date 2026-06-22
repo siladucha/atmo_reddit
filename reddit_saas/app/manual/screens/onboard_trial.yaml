@@ -1,0 +1,39 @@
+title: "Trial Signup"
+lifecycle_stage: "onboarding"
+
+flow_position:
+  flow_name: "Onboarding"
+  current_step: 1
+  total_steps: 6
+  steps:
+    - name: "Website Analysis"
+      active: true
+    - name: "ICP Synthesis"
+      active: false
+    - name: "Keywords"
+      active: false
+    - name: "Subreddits"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Activate"
+      active: false
+
+screen_context:
+  before: "Marketing site or referral link"
+  after: "Onboarding wizard step 1"
+  description: "Create your free trial account. Work email required. 14-day trial with full platform access."
+
+screen_purpose: "Start your free trial. Enter your work email and company details to begin the AI-guided setup."
+
+available_actions:
+  all:
+    - name: "Start Trial"
+      description: "Create account and begin 14-day free trial"
+      destructive: false
+
+role_behavior:
+  summary: "Public page - no authentication required."
+  differences:
+    - role: "Unauthenticated User"
+      access: "Can create a trial account"

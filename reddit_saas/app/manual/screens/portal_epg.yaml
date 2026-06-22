@@ -1,0 +1,39 @@
+title: "EPG Schedule"
+lifecycle_stage: "execution"
+
+flow_position:
+  flow_name: "Daily Operations"
+  current_step: 3
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Review Queue"
+      active: false
+    - name: "EPG Schedule"
+      active: true
+    - name: "Avatars"
+      active: false
+    - name: "Reports"
+      active: false
+
+screen_context:
+  before: "Dashboard or review queue"
+  after: "Posting happens automatically at scheduled times"
+  description: "Today's posting schedule. See which comments are queued, their target time, subreddit, and approval status."
+
+screen_purpose: "View the daily publishing plan. See what will be posted today, when, and to which subreddits."
+
+available_actions:
+  all:
+    - name: "Rebuild EPG"
+      description: "Regenerate today's schedule with fresh data"
+      destructive: false
+
+role_behavior:
+  summary: "All client roles can view the schedule."
+  differences:
+    - role: "Client Admin / Manager"
+      access: "Can trigger EPG rebuild"
+    - role: "Client Viewer"
+      access: "Read-only schedule view"

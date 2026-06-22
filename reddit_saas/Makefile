@@ -122,3 +122,28 @@ server-logs:  ## Tail production logs (all services)
 
 server-logs-app:  ## Tail production app logs only
 	ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f --tail=50 app"
+
+# --- UI Observability ---
+
+lint-ui:  ## Run UI lint checks (inline styles, arbitrary Tailwind, markers)
+	python3 scripts/lint_ui.py app/templates/ --allowlist ui_lint_allowlist.txt
+
+generate-ui-map:  ## Auto-generate UI_MAP.md from template scanning
+	python3 scripts/generate_ui_map.py --output ../UI_MAP.md
+	@echo "UI_MAP.md regenerated"
+
+validate-specs:  ## Validate screen spec YAML files
+	python3 scripts/validate_screen_specs.py docs/screen_specs/
+
+ci-ui:  ## Run all UI compliance checks (lint + drift + specs)
+	@echo "=== UI Lint ==="
+	python3 scripts/lint_ui.py app/templates/ --allowlist ui_lint_allowlist.txt
+	@echo "=== UI MAP Drift Check ==="
+	python3 scripts/generate_ui_map.py --check --output ../UI_MAP.md
+	@echo "=== Screen Spec Validation ==="
+	python3 scripts/validate_screen_specs.py docs/screen_specs/
+	@echo "=== All UI checks passed ==="
+
+# UX Manual coverage verification
+verify-manual:
+	@python scripts/verify_manual_coverage.py

@@ -1,0 +1,40 @@
+title: "Scrape Queue"
+lifecycle_stage: "monitoring"
+
+flow_position:
+  flow_name: "Platform Management"
+  current_step: 4
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Clients"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Pipeline"
+      active: true
+    - name: "Analytics"
+      active: false
+
+screen_context:
+  before: "Dashboard or subreddit management"
+  after: "Individual scrape log detail"
+  description: "View the scraping queue. See which subreddits are due for scraping, recent results, and queue depth."
+
+screen_purpose: "Monitor scraping operations. Check if subreddits are being scraped on schedule and identify any stuck jobs."
+
+available_actions:
+  all:
+    - name: "Force Scrape"
+      description: "Trigger immediate scrape for a subreddit"
+      destructive: false
+    - name: "View Log"
+      description: "See detailed scrape results"
+      destructive: false
+
+role_behavior:
+  summary: "Owner only — infrastructure monitoring."
+  differences:
+    - role: "Owner"
+      access: "Full scrape queue access"

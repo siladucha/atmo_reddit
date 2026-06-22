@@ -1,0 +1,47 @@
+title: "My Keywords"
+lifecycle_stage: "configuration"
+
+flow_position:
+  flow_name: "Daily Operations"
+  current_step: 4
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Review Queue"
+      active: false
+    - name: "EPG Schedule"
+      active: false
+    - name: "Avatars"
+      active: true
+    - name: "Reports"
+      active: false
+
+screen_context:
+  before: "Dashboard or sidebar navigation"
+  after: "Keywords drive thread scoring relevance"
+  description: "Scoring keywords for your campaign. Organized by priority (high/medium/low). Drive which threads get flagged."
+
+screen_purpose: "Configure what topics matter for your brand. High-priority keywords strongly influence which threads get engagement."
+
+available_actions:
+  all:
+    - name: "Add Keyword"
+      description: "Add a new scoring keyword"
+      destructive: false
+    - name: "Edit Priority"
+      description: "Change keyword priority tier"
+      destructive: false
+    - name: "Remove Keyword"
+      description: "Delete a keyword from scoring"
+      destructive: true
+
+role_behavior:
+  summary: "Client admins can edit. Viewers see read-only."
+  differences:
+    - role: "Client Admin"
+      access: "Full keyword CRUD"
+    - role: "Client Manager"
+      access: "Can add/edit keywords"
+    - role: "Client Viewer"
+      access: "Read-only keyword list"

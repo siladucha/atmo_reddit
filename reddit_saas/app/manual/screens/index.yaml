@@ -1,0 +1,42 @@
+title: "Dashboard"
+lifecycle_stage: "execution"
+
+flow_position:
+  flow_name: "Daily Operations"
+  current_step: 1
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: true
+    - name: "Review Queue"
+      active: false
+    - name: "EPG Schedule"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Reports"
+      active: false
+
+screen_context:
+  before: "Login or page navigation"
+  after: "Review queue or admin panel"
+  description: "Main landing page after login. Redirects to role-appropriate dashboard."
+
+screen_purpose: "Starting point after authentication. Shows quick stats and navigation to your primary workflows."
+
+available_actions:
+  all:
+    - name: "Navigate to Admin"
+      description: "Open admin panel (if authorized)"
+      destructive: false
+    - name: "Navigate to Review"
+      description: "Open review queue"
+      destructive: false
+
+role_behavior:
+  summary: "All authenticated users. Content varies by role."
+  differences:
+    - role: "Owner / Partner"
+      access: "Links to admin panel"
+    - role: "Client roles"
+      access: "Links to client portal"

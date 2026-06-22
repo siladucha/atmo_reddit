@@ -1,0 +1,42 @@
+title: "Onboarding: Keywords"
+lifecycle_stage: "onboarding"
+
+flow_position:
+  flow_name: "Onboarding"
+  current_step: 3
+  total_steps: 6
+  steps:
+    - name: "Website Analysis"
+      active: false
+    - name: "ICP Synthesis"
+      active: false
+    - name: "Keywords"
+      active: true
+    - name: "Subreddits"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Activate"
+      active: false
+
+screen_context:
+  before: "Previous onboarding step"
+  after: "Next onboarding step"
+  description: "Step 3 of the AI-guided onboarding wizard. Keywords configuration."
+
+screen_purpose: "Configure keywords for your campaign. AI assists with suggestions based on your website and industry."
+
+available_actions:
+  all:
+    - name: "Next"
+      description: "Save and proceed to the next step"
+      destructive: false
+    - name: "Back"
+      description: "Return to previous step without saving"
+      destructive: false
+
+role_behavior:
+  summary: "Available to users in onboarding flow."
+  differences:
+    - role: "B2C User / Client Admin"
+      access: "Full wizard interaction"

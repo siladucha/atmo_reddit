@@ -1,0 +1,42 @@
+title: "Campaign Report"
+lifecycle_stage: "execution"
+
+flow_position:
+  flow_name: "Daily Operations"
+  current_step: 5
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Review Queue"
+      active: false
+    - name: "EPG Schedule"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Reports"
+      active: true
+
+screen_context:
+  before: "Dashboard or sidebar navigation"
+  after: "Export or share with stakeholders"
+  description: "Summary report of your campaign performance. Key metrics, posting activity, and engagement outcomes."
+
+screen_purpose: "Get a high-level view of campaign results. Share with stakeholders or use for internal reporting."
+
+available_actions:
+  all:
+    - name: "Download Report"
+      description: "Export report data"
+      destructive: false
+    - name: "Request Fresh Report"
+      description: "Generate updated report"
+      destructive: false
+
+role_behavior:
+  summary: "All client roles can view."
+  differences:
+    - role: "Client Admin / Manager"
+      access: "Can request new reports"
+    - role: "Client Viewer"
+      access: "Read-only report access"

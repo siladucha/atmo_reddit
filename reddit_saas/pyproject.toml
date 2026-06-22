@@ -1,6 +1,6 @@
 [project]
 name = "ramp"
-version = "0.2.0"
+version = "0.3.0"
 description = "RAMP — Reddit Audience Management Platform"
 requires-python = ">=3.11"
 dependencies = [
@@ -27,6 +27,7 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "email-validator>=2.0.0",
     "numpy>=1.26.0",
+    "markdown>=3.5.0",
 ]
 
 [project.optional-dependencies]
@@ -35,4 +36,9 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "hypothesis>=6.100.0",
     "ruff>=0.5.0",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "asyncio: async tests (require pytest-asyncio)",
 ]
