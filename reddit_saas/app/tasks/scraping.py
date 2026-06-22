@@ -9,6 +9,8 @@ import time
 import uuid
 from datetime import datetime, timezone
 
+from prawcore.exceptions import Forbidden, NotFound
+
 from app.tasks.worker import celery_app
 from app.database import SessionLocal
 from app.models.client import Client
@@ -509,6 +511,14 @@ def scrape_subreddit_shared(self, subreddit_id: str) -> dict:
     except Exception as e:
         error_str = str(e)
 
+        # Classify error: permanent (403/404) vs transient
+        is_permanent = isinstance(e, (Forbidden, NotFound))
+        if is_permanent:
+            if isinstance(e, Forbidden):
+                disable_reason = f"Subreddit returned 403 Forbidden (private, quarantined, or banned): {error_str[:150]}"
+            else:
+                disable_reason = f"Subreddit returned 404 Not Found (deleted or never existed): {error_str[:150]}"
+
         # Update last_scraped_at even on failure so admin UI reflects the attempt
         try:
             db.rollback()
@@ -517,19 +527,30 @@ def scrape_subreddit_shared(self, subreddit_id: str) -> dict:
                 sub_record.last_scraped_at = datetime.now(timezone.utc)
                 subreddit_name = sub_record.subreddit_name
 
-                # --- Consecutive failure tracking + auto-disable ---
-                sub_record.consecutive_failures = (sub_record.consecutive_failures or 0) + 1
-                from app.services.settings import get_setting_int
-                max_failures = get_setting_int(db, "scrape_max_consecutive_failures", 5)
-
-                if sub_record.consecutive_failures >= max_failures:
+                if is_permanent:
+                    # Immediate disable — no point retrying private/deleted subreddits
                     sub_record.is_active = False
-                    sub_record.disabled_reason = f"Auto-disabled after {sub_record.consecutive_failures} consecutive failures. Last error: {error_str[:200]}"
+                    sub_record.consecutive_failures = (sub_record.consecutive_failures or 0) + 1
+                    sub_record.disabled_reason = disable_reason
                     sub_record.disabled_at = datetime.now(timezone.utc)
                     logger.warning(
-                        "scrape_subreddit_shared: AUTO-DISABLED r/%s after %d consecutive failures (error: %s)",
-                        subreddit_name, sub_record.consecutive_failures, error_str[:100],
+                        "scrape_subreddit_shared: IMMEDIATE DISABLE r/%s — %s",
+                        subreddit_name, disable_reason[:100],
                     )
+                else:
+                    # --- Consecutive failure tracking + auto-disable ---
+                    sub_record.consecutive_failures = (sub_record.consecutive_failures or 0) + 1
+                    from app.services.settings import get_setting_int
+                    max_failures = get_setting_int(db, "scrape_max_consecutive_failures", 5)
+
+                    if sub_record.consecutive_failures >= max_failures:
+                        sub_record.is_active = False
+                        sub_record.disabled_reason = f"Auto-disabled after {sub_record.consecutive_failures} consecutive failures. Last error: {error_str[:200]}"
+                        sub_record.disabled_at = datetime.now(timezone.utc)
+                        logger.warning(
+                            "scrape_subreddit_shared: AUTO-DISABLED r/%s after %d consecutive failures (error: %s)",
+                            subreddit_name, sub_record.consecutive_failures, error_str[:100],
+                        )
             else:
                 subreddit_name = "unknown"
 
@@ -568,7 +589,14 @@ def scrape_subreddit_shared(self, subreddit_id: str) -> dict:
             event_type,
             event_msg,
             client_id=None,
-            metadata={"subreddit_id": subreddit_id, "error": error_str[:500], "consecutive_failures": failure_count, "auto_disabled": was_disabled},
+            metadata={
+                "subreddit_id": subreddit_id,
+                "subreddit_name": subreddit_name,
+                "error": error_str[:500],
+                "consecutive_failures": failure_count,
+                "auto_disabled": was_disabled,
+                "permanent_error": is_permanent,
+            },
         )
 
         # Audit log for admin audit logs page

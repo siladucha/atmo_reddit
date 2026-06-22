@@ -64,6 +64,9 @@ def execute_pending_posts():
         if not pending_slots:
             return {"dispatched": 0, "reason": "no_pending_slots"}
 
+        from app.models.client import Client
+        from app.services.trial_guard import is_trial_expired
+
         dispatched = 0
         skipped = 0
 
@@ -74,6 +77,16 @@ def execute_pending_posts():
                 logger.warning("Slot %s: avatar not found, skipping", slot.id)
                 skipped += 1
                 continue
+
+            # Skip expired trial clients — prevent posting after trial ends
+            if avatar.client_ids:
+                try:
+                    _client = db.query(Client).filter(Client.id == uuid.UUID(avatar.client_ids[0])).first()
+                    if _client and is_trial_expired(_client):
+                        skipped += 1
+                        continue
+                except (ValueError, IndexError):
+                    pass
 
             # Check if avatar is eligible (basic checks before dispatching)
             if avatar.posting_mode != "auto":

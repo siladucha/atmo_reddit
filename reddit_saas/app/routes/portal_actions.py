@@ -30,11 +30,29 @@ from app.services.client_action_limiter import (
     get_action_status,
     log_action,
 )
+from app.services.trial_guard import is_trial_expired
 
 logger = get_logger(__name__)
 
+
+def _check_trial_not_expired_actions(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Block portal actions for expired trial clients."""
+    if not user.client_id:
+        return
+    client = db.query(Client).filter(Client.id == user.client_id).first()
+    if client and is_trial_expired(client):
+        raise HTTPException(
+            status_code=403,
+            detail="Trial expired. Please upgrade to continue using RAMP.",
+        )
+
+
 router = APIRouter(
-    dependencies=[Depends(verify_client_access_from_path)],
+    dependencies=[Depends(verify_client_access_from_path), Depends(_check_trial_not_expired_actions)],
     tags=["client-portal-actions"],
 )
 
@@ -177,6 +195,19 @@ def portal_trigger_pipeline(
         client_id, user.email, limit["remaining"],
     )
 
+    # Trial signal: pipeline triggered (engagement)
+    try:
+        from app.services.trial_signal_hooks import record_trial_signal_background
+        record_trial_signal_background(
+            client_id=client_id,
+            signal_type="pipeline_triggered",
+            signal_category="engagement",
+            signal_value={"source": "portal"},
+        )
+    except Exception:
+        pass
+
+
     return HTMLResponse(
         content='<span class="text-green-400 text-sm">Pipeline queued</span>',
         headers={
@@ -274,6 +305,19 @@ def portal_trigger_epg_rebuild(
         client_id, user.email, total_planned, total_generated,
     )
 
+
+    # Trial signal: EPG rebuilt (engagement)
+    try:
+        from app.services.trial_signal_hooks import record_trial_signal_background
+        record_trial_signal_background(
+            client_id=client_id,
+            signal_type="epg_rebuilt",
+            signal_category="engagement",
+            signal_value={"slots_generated": total_generated},
+        )
+    except Exception:
+        pass
+
     return HTMLResponse(
         content=f'<span class="text-green-400 text-sm">EPG rebuilt: {total_generated} slots</span>',
         headers={
@@ -331,6 +375,19 @@ def portal_trigger_strategy(
         "Portal: strategy triggered | avatar=%s | client=%s | user=%s",
         avatar.reddit_username, client_id, user.email,
     )
+
+
+    # Trial signal: strategy requested (value_realization)
+    try:
+        from app.services.trial_signal_hooks import record_trial_signal_background
+        record_trial_signal_background(
+            client_id=client_id,
+            signal_type="strategy_requested",
+            signal_category="value_realization",
+            signal_value={"avatar_id": str(avatar_id)},
+        )
+    except Exception:
+        pass
 
     return HTMLResponse(
         content='<span class="text-green-400 text-sm">Strategy generation started</span>',

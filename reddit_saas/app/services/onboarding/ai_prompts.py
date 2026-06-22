@@ -20,6 +20,9 @@ RULES:
 - If information is not available in the text, return null for that field.
 - company_size_estimate: infer from language, team page references, or "enterprise" vs "startup" signals.
 - industry: use standard industry categories (Cybersecurity, DevOps, Marketing Tech, etc.)
+- customer_pain: describe the problem from the customer's perspective (frustration, inefficiency, risk)
+- unique_advantage: what this product does that competitors likely cannot — infer from positioning
+- competitors_inferred: list competitor names if mentioned; otherwise infer from the market category
 
 OUTPUT (strict JSON):
 {
@@ -28,7 +31,10 @@ OUTPUT (strict JSON):
   "value_proposition": "1 sentence: why customers choose this over alternatives",
   "key_differentiators": ["string", "string", "string"],
   "industry": "string",
-  "company_size_estimate": "startup|smb|mid-market|enterprise|unknown"
+  "company_size_estimate": "startup|smb|mid-market|enterprise|unknown",
+  "customer_pain": "2-3 sentences: what the customer's life looks like WITHOUT this product (pain, frustration, risk)",
+  "unique_advantage": "2-3 sentences: what makes this product irreplaceable vs alternatives",
+  "competitors_inferred": ["string", "string"]
 }"""
 
 
@@ -338,3 +344,147 @@ Company summary: {company_profile[:500]}"""
     except Exception as e:
         logger.error("Subreddit suggestion failed: %s", e)
         return []
+
+
+# --- Step 2: Auto-fill from company profile ---
+
+AUTOFILL_STEP2_PROMPT = """You are a B2B positioning analyst. Given a company profile and industry, infer:
+1. What pain the customer experiences WITHOUT this product (frustration, risk, inefficiency)
+2. What makes this product's approach unique vs alternatives
+3. Who the likely competitors are
+
+OUTPUT (strict JSON):
+{
+  "customer_pain": "2-3 sentences in customer voice: their life BEFORE this product. Use pain language.",
+  "unique_advantage": "2-3 sentences: what this product does that competitors cannot. Be specific.",
+  "competitors": "Comma-separated list of 2-4 likely competitor names or categories"
+}
+
+RULES:
+- Infer from the company description. Don't make up fake specifics.
+- customer_pain should sound like a real person describing their frustration
+- If you can't infer competitors, name the market category (e.g. "traditional consulting firms, freelance CTOs")"""
+
+
+def autofill_step2(company_profile: str, industry: str, db=None, client_id: str | None = None) -> dict:
+    """Auto-fill Step 2 fields from company profile using AI."""
+    messages = [
+        {"role": "system", "content": AUTOFILL_STEP2_PROMPT},
+        {"role": "user", "content": f"Company profile: {company_profile[:2000]}\nIndustry: {industry}"},
+    ]
+    try:
+        result = call_llm_json(
+            messages=messages,
+            model=ONBOARDING_MODEL,
+            temperature=0.3,
+            max_tokens=512,
+        )
+        if db and client_id:
+            log_ai_usage(db, client_id, "onboarding_autofill_step2", result)
+        return result["data"]
+    except Exception as e:
+        logger.error("Step 2 autofill failed: %s", e)
+        return {"error": str(e)}
+
+
+# --- Step 3: Auto-fill ICP from profile + problem ---
+
+AUTOFILL_STEP3_PROMPT = """You are a B2B buyer persona analyst. Given a company profile, their customer's pain, and competitors, infer the Ideal Customer Profile.
+
+OUTPUT (strict JSON):
+{
+  "business_type": "b2b",
+  "job_titles": "2-4 job titles separated by comma (e.g. CTO, VP Engineering, Technical Co-founder)",
+  "seniority": "c-level|director|manager|ic",
+  "frustration": "2-3 sentences: their daily frustration that leads them to seek this solution",
+  "search_query": "3-5 phrases they would Google or search on Reddit, comma-separated",
+  "adjacent_icp": "1 sentence: a secondary buyer who influences the decision (optional, can be empty)"
+}
+
+RULES:
+- Infer from available context. Be specific to the industry.
+- job_titles should be real titles used in this industry
+- search_query should be natural language phrases (not keywords)
+- frustration should sound like a real person venting"""
+
+
+def autofill_step3(
+    company_profile: str,
+    company_problem: str,
+    competitive_landscape: str,
+    industry: str,
+    db=None,
+    client_id: str | None = None,
+) -> dict:
+    """Auto-fill Step 3 ICP fields from available client data."""
+    context = f"""Company: {company_profile[:1500]}
+Customer pain: {company_problem[:500]}
+Competitors: {competitive_landscape[:300]}
+Industry: {industry}"""
+
+    messages = [
+        {"role": "system", "content": AUTOFILL_STEP3_PROMPT},
+        {"role": "user", "content": context},
+    ]
+    try:
+        result = call_llm_json(
+            messages=messages,
+            model=ONBOARDING_MODEL,
+            temperature=0.3,
+            max_tokens=512,
+        )
+        if db and client_id:
+            log_ai_usage(db, client_id, "onboarding_autofill_step3", result)
+        return result["data"]
+    except Exception as e:
+        logger.error("Step 3 autofill failed: %s", e)
+        return {"error": str(e)}
+
+
+# --- Step 4: Auto-fill Voice & Guardrails ---
+
+AUTOFILL_STEP4_PROMPT = """You are a brand strategist. Given a company profile, industry, and competitors, suggest brand voice guardrails.
+
+OUTPUT (strict JSON):
+{
+  "never_associated": "2-3 topics/sentiments the brand should NEVER be linked to on Reddit",
+  "legal_limits": "1-2 claims the company likely cannot make given the industry",
+  "admired_style": "1 brand/publication whose communication style fits this company",
+  "brand_voice": "2-3 sentences describing the ideal tone: formality, technical depth, personality"
+}
+
+RULES:
+- Be specific to the industry and company type
+- never_associated should include actual harmful associations for this industry
+- brand_voice should be actionable (not generic like 'professional and friendly')"""
+
+
+def autofill_step4(
+    company_profile: str,
+    industry: str,
+    competitive_landscape: str,
+    db=None,
+    client_id: str | None = None,
+) -> dict:
+    """Auto-fill Step 4 voice & guardrail fields from company context."""
+    context = f"""Company: {company_profile[:1500]}
+Industry: {industry}
+Competitors: {competitive_landscape[:500]}"""
+
+    messages = [
+        {"role": "system", "content": AUTOFILL_STEP4_PROMPT},
+        {"role": "user", "content": context},
+    ]
+    try:
+        result = call_llm_json(
+            messages=messages,
+            model=ONBOARDING_MODEL,
+            temperature=0.4,
+            max_tokens=512,
+        )
+        if db and client_id:
+            log_ai_usage(db, client_id, "onboarding_autofill_step4", result)
+        return result["data"]
+    except Exception as e:
+        logger.error("Step 4 autofill failed: %s", e)
+        return {"error": str(e)}

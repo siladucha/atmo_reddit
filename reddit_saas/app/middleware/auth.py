@@ -107,11 +107,17 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # Check JWT cookie
         token = request.cookies.get("access_token")
         if not token:
+            # Onboarding routes → redirect to trial signup (not login)
+            if path.startswith("/onboard/"):
+                return RedirectResponse(url="/onboard/trial?next=onboarding", status_code=303)
             logger.debug("No auth token, redirecting to login: %s", path)
             return RedirectResponse(url="/login", status_code=303)
 
         payload = decode_access_token(token)
         if not payload:
+            # Onboarding routes → redirect to trial signup (not login)
+            if path.startswith("/onboard/"):
+                return RedirectResponse(url="/onboard/trial?next=onboarding", status_code=303)
             logger.debug("Invalid auth token, redirecting to login: %s", path)
             return RedirectResponse(url="/login", status_code=303)
 

@@ -308,6 +308,13 @@ def decision_center_bulk_approve(
             draft.status = "approved"
             approved_count += 1
 
+            # Sync EPG slot status
+            try:
+                from app.services.epg_executor import sync_slot_status
+                sync_slot_status(db, draft.id, "approved")
+            except Exception:
+                pass
+
             # Capture learning record
             try:
                 thread = draft.thread

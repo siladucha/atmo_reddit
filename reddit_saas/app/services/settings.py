@@ -474,6 +474,86 @@ DEFAULTS: dict[str, dict] = {
         "desc": "Number of days to retain full decision records before archival (metadata kept, details pruned).",
         "group": "epg",
     },
+    # --- Email Task Delivery ---
+    "email_tasks_enabled": {
+        "value": "false",
+        "secret": False,
+        "desc": "Enable email task delivery for approved EPG slots. When true, approved slots generate execution tasks and send emails.",
+        "group": "email_tasks",
+    },
+    "email_tasks_default_recipient": {
+        "value": "",
+        "secret": False,
+        "desc": "Default recipient email for execution tasks (fallback if no executor assigned).",
+        "group": "email_tasks",
+    },
+    "email_tasks_max_resends": {
+        "value": "3",
+        "secret": False,
+        "desc": "Maximum number of resend attempts per task (anti-spam).",
+        "group": "email_tasks",
+    },
+    "email_tasks_cooldown_minutes": {
+        "value": "10",
+        "secret": False,
+        "desc": "Minimum minutes between delivery attempts for the same task (anti-spam).",
+        "group": "email_tasks",
+    },
+    "email_tasks_deadline_hours": {
+        "value": "4",
+        "secret": False,
+        "desc": "Default deadline offset in hours from scheduled_at (or created_at if no schedule).",
+        "group": "email_tasks",
+    },
+    "smtp_host": {
+        "value": "",
+        "secret": False,
+        "desc": "SMTP server hostname (e.g. mail.goramp.it)",
+        "group": "email_tasks",
+    },
+    "smtp_port": {
+        "value": "587",
+        "secret": False,
+        "desc": "SMTP server port (587 for STARTTLS, 465 for SSL)",
+        "group": "email_tasks",
+    },
+    "smtp_user": {
+        "value": "",
+        "secret": False,
+        "desc": "SMTP authentication username",
+        "group": "email_tasks",
+    },
+    "smtp_password": {
+        "value": "",
+        "secret": True,
+        "desc": "SMTP authentication password (stored encrypted)",
+        "group": "email_tasks",
+    },
+    "smtp_from_email": {
+        "value": "tasks@gorampit.com",
+        "secret": False,
+        "desc": "From email address for task delivery emails",
+        "group": "email_tasks",
+    },
+    "smtp_from_name": {
+        "value": "RAMP Task System",
+        "secret": False,
+        "desc": "From display name for task delivery emails",
+        "group": "email_tasks",
+    },
+    "smtp_use_tls": {
+        "value": "true",
+        "secret": False,
+        "desc": "Use TLS for SMTP connection (true for STARTTLS on port 587)",
+        "group": "email_tasks",
+    },
+    # --- Trial Conversion Intelligence ---
+    "trial_scoring_weights": {
+        "value": '{"engagement": 0.20, "intent": 0.25, "value_realization": 0.25, "conversion": 0.20, "negative_cap": 0.30}',
+        "secret": False,
+        "desc": "JSON weights for trial scoring categories (engagement, intent, value_realization, conversion, negative_cap)",
+        "group": "trial_intelligence",
+    },
 }
 
 # ---------------------------------------------------------------------------

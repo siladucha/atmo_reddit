@@ -48,6 +48,10 @@ def score_threads(self, client_id: str, triggered_by: str = "scheduler"):
             if not client.is_active:
                 logger.info(f"score_threads: client {client.client_name} is deactivated, skipping")
                 return 0
+            from app.services.trial_guard import is_trial_expired
+            if is_trial_expired(client):
+                logger.info(f"score_threads: client {client.client_name} trial expired, skipping")
+                return 0
 
             # Smart scoring: iterate over eligible avatars
             from app.services.smart_scoring import smart_score_for_avatar
@@ -184,6 +188,10 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
                 return 0
             if not client.is_active:
                 logger.info(f"generate_comments: client {client.client_name} is deactivated, skipping")
+                return 0
+            from app.services.trial_guard import is_trial_expired
+            if is_trial_expired(client):
+                logger.info(f"generate_comments: client {client.client_name} trial expired, skipping")
                 return 0
 
             # Get active avatars for this client
@@ -908,6 +916,10 @@ def generate_posts(self, client_id: str, max_posts: int = 3, triggered_by: str =
                 return 0
             if not client.is_active:
                 logger.info(f"generate_posts: client {client.client_name} is deactivated, skipping")
+                return 0
+            from app.services.trial_guard import is_trial_expired
+            if is_trial_expired(client):
+                logger.info(f"generate_posts: client {client.client_name} trial expired, skipping")
                 return 0
 
             # Get active avatars for this client — Phase 2+ only (posts need karma)

@@ -598,6 +598,27 @@ def generate_comment(
         else:
             system_prompt = system_prompt + "\n\n" + strategy_context
 
+
+    # --- Subreddit Tone Context: inject emotional profile warnings ---
+    tone_context = ""
+    try:
+        from app.services.emotional_profile import get_subreddit_tone_context
+        tone_context = get_subreddit_tone_context(db, thread.subreddit) or ""
+        if tone_context:
+            logger.info(
+                "Tone context injected for subreddit r/%s (avatar=%s)",
+                thread.subreddit, avatar.reddit_username,
+            )
+    except Exception:
+        logger.warning(
+            "Failed to retrieve tone context for r/%s — proceeding without",
+            thread.subreddit,
+        )
+        tone_context = ""
+
+    if tone_context:
+        system_prompt = system_prompt + "\n\n" + tone_context
+
     # Inject approach diversity constraint (after all other context)
     if approach_constraint:
         system_prompt = system_prompt + "\n" + approach_constraint

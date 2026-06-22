@@ -37,6 +37,10 @@ from app.services.metrics_collector import (
 )
 from app.version import __version__ as app_version
 from app.config import get_settings as _get_settings
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 
 router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="app/templates")
@@ -1651,6 +1655,19 @@ def admin_trial_upgrade(
             details={"from": "trial", "to": "starter"},
         )
 
+
+    # Trial signal: upgrade CTA clicked/converted (conversion)
+    try:
+        from app.services.trial_signal_hooks import record_trial_signal_background
+        record_trial_signal_background(
+            client_id=client_id,
+            signal_type="upgrade_completed",
+            signal_category="conversion",
+            signal_value={"from": "trial", "to": "starter"},
+        )
+    except Exception:
+        pass
+
     return RedirectResponse(url="/admin/trials", status_code=303)
 
 
@@ -1667,7 +1684,7 @@ def admin_trial_extend(
 
     client = db.query(ClientModel).filter(ClientModel.id == client_id).first()
     if client and client.plan_type == "trial" and client.created_at:
-        client.created_at = client.created_at + timedelta(days=7)
+        client.created_at = client.created_at - timedelta(days=7)
         db.commit()
 
         audit_service.log_action(
@@ -3678,10 +3695,17 @@ def admin_unassign_avatar_from_client(
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
-    """Block direct avatar detachment outside the client lifecycle path."""
-    return HTMLResponse(
-        "Avatar assignments are released only when the client is deleted or deactivated.",
-        status_code=409,
+    """Remove avatar assignment from a specific client."""
+    from app.services import admin as admin_service
+
+    try:
+        admin_service.unassign_avatar_from_client(db, client_id, avatar_id, current_user.id)
+    except ValueError:
+        pass
+
+    return RedirectResponse(
+        url=f"/admin/avatars/{avatar_id}#tab=overview",
+        status_code=303,
     )
 
 
@@ -3787,6 +3811,14 @@ def admin_freeze_avatar(
         entity_id=avatar.id,
         details={"reason": freeze_reason},
     )
+
+    # Enforce client invariant: if this was the last active avatar, pause the client
+    try:
+        from app.services.avatar_invariant import enforce_invariant_on_deactivation
+        for cid in (avatar.client_ids or []):
+            enforce_invariant_on_deactivation(uuid.UUID(cid), db)
+    except Exception as e:
+        logger.warning("Invariant enforcement after freeze failed: %s", e)
 
     return RedirectResponse(url=f"/admin/avatars/{avatar_id}", status_code=303)
 
@@ -9128,4 +9160,195 @@ def _render_portfolio_summary_after_override(
             "success_message": success_message,
             "error_message": error_message,
         },
+    )
+
+
+# --- Emotional Profile Routes ---
+
+
+@router.post("/subreddits/detail/{subreddit_name}/analyze-profile", response_class=HTMLResponse)
+def admin_analyze_emotional_profile(
+    request: Request,
+    subreddit_name: str,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Trigger on-demand emotional profile analysis for a subreddit."""
+    from app.tasks.emotional_profile import analyze_subreddit_emotional_profile
+
+    # Dispatch Celery task
+    analyze_subreddit_emotional_profile.delay(subreddit_name)
+
+    return HTMLResponse(
+        '<span class="text-amber-400 text-sm">'
+        '⏳ Analysis started... Refresh page in 30s to see results.'
+        '</span>'
+    )
+
+
+@router.get("/subreddits/detail/{subreddit_name}/emotional-profile", response_class=HTMLResponse)
+def admin_get_emotional_profile_partial(
+    request: Request,
+    subreddit_name: str,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """HTMX partial: emotional profile display for subreddit detail page."""
+    from sqlalchemy import func as sa_func
+    from app.models.subreddit import Subreddit
+
+    subreddit = (
+        db.query(Subreddit)
+        .filter(sa_func.lower(Subreddit.subreddit_name) == subreddit_name.lower())
+        .first()
+    )
+
+    if not subreddit or not subreddit.emotional_profile:
+        # No profile yet — show empty state with trigger button
+        return HTMLResponse(
+            '<div class="bg-gray-800 rounded-lg p-4">'
+            '<h3 class="text-sm font-medium text-gray-400 uppercase mb-2">Emotional Profile</h3>'
+            '<p class="text-gray-500 text-sm mb-3">Not yet analyzed</p>'
+            f'<button hx-post="/admin/subreddits/detail/{subreddit_name}/analyze-profile" '
+            'hx-swap="outerHTML" '
+            'class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded">'
+            'Run Analysis</button>'
+            '</div>'
+        )
+
+    profile = subreddit.emotional_profile
+
+    # Build HTML
+    html_parts = ['<div class="bg-gray-800 rounded-lg p-4">']
+    html_parts.append('<h3 class="text-sm font-medium text-gray-400 uppercase mb-3">Emotional Profile</h3>')
+
+    # Confidence badge
+    conf = profile.get("confidence", "low")
+    conf_color = {"high": "green", "medium": "amber", "low": "red"}.get(conf, "gray")
+    html_parts.append(
+        f'<div class="flex items-center justify-between mb-3">'
+        f'<span class="text-xs text-{conf_color}-400">Confidence: {conf}</span>'
+        f'<span class="text-xs text-gray-500">'
+        f'Analyzed: {subreddit.emotional_profile_analyzed_at.strftime("%Y-%m-%d %H:%M") if subreddit.emotional_profile_analyzed_at else "never"}'
+        f'</span></div>'
+    )
+
+    # Community temperament
+    html_parts.append(
+        f'<p class="text-sm text-gray-300 mb-3 italic">{profile.get("community_temperament", "")}</p>'
+    )
+
+    # Badges
+    html_parts.append('<div class="flex gap-2 mb-3 flex-wrap">')
+    html_parts.append(f'<span class="px-2 py-0.5 bg-gray-700 text-xs rounded text-gray-300">Formality: {profile.get("formality_level", "?")}</span>')
+    html_parts.append(f'<span class="px-2 py-0.5 bg-gray-700 text-xs rounded text-gray-300">Humor: {profile.get("humor_tolerance", "?")}</span>')
+    html_parts.append(f'<span class="px-2 py-0.5 bg-gray-700 text-xs rounded text-gray-300">Vulnerability: {profile.get("vulnerability_tolerance", "?")}</span>')
+    html_parts.append('</div>')
+
+    # Rewarded tones
+    rewarded = profile.get("rewarded_tones", [])
+    if rewarded:
+        html_parts.append('<div class="mb-2"><span class="text-xs text-green-400 font-medium">✓ Rewarded:</span></div>')
+        html_parts.append('<div class="flex gap-1 flex-wrap mb-3">')
+        for t in rewarded:
+            html_parts.append(
+                f'<span class="px-2 py-0.5 bg-green-900/30 border border-green-700/50 text-xs rounded text-green-300" '
+                f'title="{t.get("description", "")}">{t["name"]}</span>'
+            )
+        html_parts.append('</div>')
+
+    # Punished tones
+    punished = profile.get("punished_tones", [])
+    if punished:
+        html_parts.append('<div class="mb-2"><span class="text-xs text-red-400 font-medium">✗ Punished:</span></div>')
+        html_parts.append('<div class="flex gap-1 flex-wrap mb-3">')
+        for t in punished:
+            html_parts.append(
+                f'<span class="px-2 py-0.5 bg-red-900/30 border border-red-700/50 text-xs rounded text-red-300" '
+                f'title="{t.get("description", "")}">{t["name"]}</span>'
+            )
+        html_parts.append('</div>')
+
+    # Refresh button
+    html_parts.append(
+        f'<button hx-post="/admin/subreddits/detail/{subreddit_name}/analyze-profile" '
+        'hx-swap="outerHTML" hx-target="closest div" '
+        'class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded mt-2">'
+        'Refresh Profile</button>'
+    )
+
+    html_parts.append('</div>')
+    return HTMLResponse("".join(html_parts))
+
+
+# ---------------------------------------------------------------------------
+# Help / Documentation (per-role)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/help", response_class=HTMLResponse)
+def admin_help(
+    request: Request,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """In-app documentation for admin/partner roles."""
+    import markdown
+    from pathlib import Path
+
+    role = current_user.user_role.value
+
+    # Map role to documentation file
+    role_doc_map = {
+        "owner": "owner-partner.md",
+        "partner": "owner-partner.md",
+        "avatar_manager": "avatar-owner.md",
+        "qa": "client-manager.md",
+    }
+
+    doc_filename = role_doc_map.get(role, "owner-partner.md")
+    doc_path = Path("docs/kb/roles") / doc_filename
+
+    # Read and render markdown
+    doc_html = ""
+    if doc_path.exists():
+        md_content = doc_path.read_text(encoding="utf-8")
+        doc_html = markdown.markdown(
+            md_content,
+            extensions=["tables", "fenced_code", "toc"],
+        )
+    else:
+        doc_html = "<p>Documentation not found.</p>"
+
+    # Load trial management guide (always relevant for admins)
+    trial_html = ""
+    trial_path = Path("docs/kb/guides/trial-management.md")
+    if trial_path.exists():
+        trial_md = trial_path.read_text(encoding="utf-8")
+        trial_html = markdown.markdown(
+            trial_md,
+            extensions=["tables", "fenced_code"],
+        )
+
+    # Load operations guide
+    ops_html = ""
+    ops_path = Path("docs/kb/guides/daily-operations.md")
+    if ops_path.exists():
+        ops_md = ops_path.read_text(encoding="utf-8")
+        ops_html = markdown.markdown(
+            ops_md,
+            extensions=["tables", "fenced_code"],
+        )
+
+    return templates.TemplateResponse(
+        name="admin_help.html",
+        context={
+            "request": request,
+            "active_nav": "help",
+            "doc_html": doc_html,
+            "trial_html": trial_html,
+            "ops_html": ops_html,
+            "user_role": role,
+        },
+        request=request,
     )

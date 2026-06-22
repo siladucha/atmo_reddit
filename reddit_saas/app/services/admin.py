@@ -4,6 +4,7 @@ This module is extended incrementally by later tasks with client, keyword,
 subreddit, avatar, health, AI cost, and task monitoring functions.
 """
 
+import logging
 import re
 import uuid
 
@@ -21,6 +22,8 @@ from app.models.user import User
 from app.services import audit
 from app.services.auth import hash_password
 
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # User management

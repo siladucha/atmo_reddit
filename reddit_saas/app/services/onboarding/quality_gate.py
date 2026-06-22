@@ -4,14 +4,20 @@ Simple MVP version: required fields must be non-empty.
 Phase 2: scoring (0-100) with weighted sections.
 """
 
+from sqlalchemy.orm import Session
+
 from app.logging_config import get_logger
 from app.models.client import Client
 
 logger = get_logger(__name__)
 
 
-def check_quality(client: Client) -> dict:
-    """Check if a client's onboarding data is sufficient for activation.
+def check_quality(client: Client, db: Session | None = None) -> dict:
+    """Check if a client onboarding data is sufficient for activation.
+
+    Args:
+        client: Client model instance.
+        db: Optional DB session. If provided, validates subreddit count via query.
 
     Returns:
         {
@@ -41,9 +47,20 @@ def check_quality(client: Client) -> dict:
     if total_keywords < 3:
         missing.append("keywords (minimum 3)")
 
-    # Subreddits: check via relationship or count
-    # For MVP, we trust that step 5 adds at least 1 subreddit
-    # This will be validated at activation time with a DB query
+    # Subreddits: verify at least 1 active subreddit exists via DB query
+    if db is not None:
+        from app.models.subreddit import ClientSubredditAssignment
+
+        sub_count = (
+            db.query(ClientSubredditAssignment)
+            .filter(
+                ClientSubredditAssignment.client_id == client.id,
+                ClientSubredditAssignment.is_active.is_(True),
+            )
+            .count()
+        )
+        if sub_count == 0:
+            missing.append("subreddits (minimum 1)")
 
     # Optional fields (warnings, non-blocking)
     if not client.brand_voice or len(client.brand_voice.strip()) < 10:

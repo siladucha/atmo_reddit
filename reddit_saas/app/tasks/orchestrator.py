@@ -10,6 +10,7 @@ from app.database import SessionLocal
 from app.models.client import Client
 from app.models.avatar import Avatar
 from app.services.audit import log_system_action
+from app.services.trial_guard import is_trial_expired
 
 logger = get_logger(__name__)
 
@@ -39,6 +40,11 @@ def run_full_pipeline_all_clients():
             logger.error(f"Failed to log pipeline_run_started audit entry: {e}")
 
         for client in clients:
+            # Skip expired trial clients to prevent AI resource waste
+            if is_trial_expired(client):
+                logger.info(f"Skipping expired trial client: {client.client_name}")
+                continue
+
             cid = str(client.id)
             try:
                 # Chain: score → generate comments → generate posts

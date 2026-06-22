@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import String, Boolean, DateTime, Integer, Text, ForeignKey, Index, UniqueConstraint, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -40,6 +40,12 @@ class Subreddit(Base):
     consecutive_failures: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     disabled_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Emotional Profile (behavioral/tone intelligence)
+    emotional_profile: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    previous_emotional_profile: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    emotional_profile_analyzed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    emotional_profile_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships
     assignments = relationship("ClientSubredditAssignment", back_populates="subreddit")

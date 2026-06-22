@@ -88,6 +88,19 @@ def export_client_markdown_report(
     name_slug = (client.client_name or "unknown").replace(" ", "_").lower()[:30]
     ts = datetime.now(timezone.utc).strftime("%Y%m%d")
 
+
+    # Trial signal: data exported (fire-and-forget)
+    try:
+        from app.services.trial_signal_hooks import record_trial_signal_background
+        record_trial_signal_background(
+            client_id=client_id,
+            signal_type="data_exported",
+            signal_category="engagement",
+            signal_value={"export_type": "client_report_md"},
+        )
+    except Exception:
+        pass
+
     return Response(
         content=md_content,
         media_type="text/markdown; charset=utf-8",
@@ -129,6 +142,19 @@ def export_client_json_report(
 
     name_slug = (client.client_name or "unknown").replace(" ", "_").lower()[:30]
     ts = datetime.now(timezone.utc).strftime("%Y%m%d")
+
+    # Trial signal: data exported (fire-and-forget)
+    try:
+        from app.services.trial_signal_hooks import record_trial_signal_background
+        record_trial_signal_background(
+            client_id=client_id,
+            signal_type="data_exported",
+            signal_category="engagement",
+            signal_value={"export_type": "client_report_json"},
+        )
+    except Exception:
+        pass
+
     return _json_download(data, f"client_report_{name_slug}_{ts}.json")
 
 

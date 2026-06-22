@@ -103,6 +103,13 @@ def build_and_generate_epg_all_avatars():
                     results["skipped_avatars"] += 1
                     continue
 
+                # Skip expired trial clients (prevent AI resource waste)
+                if client:
+                    from app.services.trial_guard import is_trial_expired
+                    if is_trial_expired(client):
+                        results["skipped_avatars"] += 1
+                        continue
+
                 # Step 1: Build plan — EPG 2.0 or legacy depending on feature flag
                 if epg2_enabled:
                     epg = build_portfolio(db, avatar, client)

@@ -383,6 +383,8 @@ def sync_slot_status(db: Session, draft_id: uuid.UUID, new_status: str) -> None:
 
     if new_status == "approved":
         slot.status = "approved"
+        # --- Email Task Delivery hook ---
+        _dispatch_email_task_if_enabled(db, slot)
     elif new_status == "rejected":
         slot.status = "skipped"
         slot.skip_reason = "rejected_by_reviewer"
@@ -493,3 +495,28 @@ def _log_slot_generated(db: Session, slot: EPGSlot, avatar: Avatar, subreddit: s
         )
     except Exception:
         pass  # Non-critical — don't fail generation on audit error
+
+def _dispatch_email_task_if_enabled(db, slot) -> None:
+    """Create and dispatch an execution task if email_tasks_enabled=true.
+
+    Fire-and-forget: errors here never break the approval flow.
+    """
+    try:
+        from app.services.settings import get_setting
+        if get_setting(db, "email_tasks_enabled") != "true":
+            return
+
+        from app.services.execution_tasks import create_execution_task
+        task = create_execution_task(db, slot.id)
+        if task and task.status == "generated":
+            db.commit()  # Ensure task is persisted before dispatching async
+            try:
+                from app.tasks.execution_tasks import deliver_execution_task
+                deliver_execution_task.delay(str(task.id), 1)
+            except Exception:
+                pass  # Celery unavailable — task stays generated, admin can resend
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "Email task dispatch failed for slot %s (non-critical): %s", slot.id, e
+        )

@@ -49,3 +49,7 @@ class PostingEvent(Base):
 
     # Outcome: success | failure | skipped
     outcome: Mapped[str] = mapped_column(String(20), nullable=False)
+
+    # Execution attribution (Audit Patch 4)
+    execution_source: Mapped[str | None] = mapped_column(String(50), nullable=True)  # auto | human | marketplace
+    execution_task_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)

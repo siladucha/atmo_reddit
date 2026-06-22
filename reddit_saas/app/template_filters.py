@@ -48,5 +48,10 @@ def humanize_number(value) -> str:
 
 
 def register_filters(env):
-    """Register all custom template filters on a Jinja2 environment."""
+    """Register all custom template filters and globals on a Jinja2 environment."""
     env.filters["humanize_number"] = humanize_number
+
+    # UI Observability: register app_env for conditional component markers
+    from app.config import get_settings
+    if "app_env" not in env.globals:
+        env.globals["app_env"] = get_settings().app_env

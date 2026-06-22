@@ -31,11 +31,29 @@ from app.schemas.client_portal import (
     SafetyBlockResponse,
 )
 from app.services.safety_blocks import check_safety_blocks
+from app.services.trial_guard import is_trial_expired
 
 logger = get_logger(__name__)
 
+
+def _check_trial_not_expired(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Dependency that blocks POST actions for expired trial clients."""
+    if not user.client_id:
+        return
+    client = db.query(Client).filter(Client.id == user.client_id).first()
+    if client and is_trial_expired(client):
+        raise HTTPException(
+            status_code=403,
+            detail="Trial expired. Please upgrade to continue using RAMP.",
+        )
+
+
 router = APIRouter(
-    dependencies=[Depends(verify_client_access_from_path)],
+    dependencies=[Depends(verify_client_access_from_path), Depends(_check_trial_not_expired)],
     tags=["client-portal"],
 )
 templates = Jinja2Templates(directory="app/templates")
@@ -344,13 +362,19 @@ def portal_avatars(
         view["client_persona_bio"] = a.persona_bio or ""
         view["karma_tier"] = _karma_tier((a.reddit_karma_comment or 0) + (a.reddit_karma_post or 0))
         avatars.append(view)
+    # Check if user can onboard new avatars
+    can_onboard = user.user_role in (
+        UserRole.owner, UserRole.partner, UserRole.avatar_manager,
+        UserRole.client_admin, UserRole.client_manager,
+    )
+
     return _portal_render(
         request,
         "client/avatars.html",
         client_id,
         db,
         active_page="avatars",
-        extra_context={"avatars": avatars},
+        extra_context={"avatars": avatars, "can_onboard": can_onboard},
     )
 
 
@@ -827,6 +851,19 @@ def settings_keywords_remove(
         db.refresh(client_obj)
         keywords = client_obj.keywords or {}
 
+        # Trial signal: removed_keywords (negative)
+        try:
+            from app.services.trial_signal_hooks import record_trial_signal_background
+            record_trial_signal_background(
+                client_id=client_id,
+                signal_type="removed_keywords",
+                signal_category="negative",
+                signal_value={"keyword": keyword, "priority": priority},
+            )
+        except Exception:
+            pass
+
+
     # Build keyword_subreddit_map
     assignments = (
         db.query(ClientSubredditAssignment)
@@ -876,8 +913,12 @@ def settings_subreddit_request(
     db: Session = Depends(get_db),
     subreddit_name: str = Form(...),
     note: str = Form(""),
+    gotcha: str = Form(""),
 ):
     """Request to add a new subreddit (creates SubredditRequest record)."""
+    # Honeypot check
+    if gotcha:
+        return HTMLResponse(content="<p>Request submitted.</p>", status_code=200)
     from app.models.subreddit_request import SubredditRequest
     from app.models.subreddit import ClientSubredditAssignment, Subreddit
     import json
@@ -1059,8 +1100,12 @@ def settings_voice_feedback(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     feedback_text: str = Form(...),
+    gotcha: str = Form(""),
 ):
     """Submit voice/tone feedback for a client."""
+    # Honeypot check
+    if gotcha:
+        return HTMLResponse(content="<p>Feedback submitted.</p>", status_code=200)
     import json
     from app.models.voice_feedback import VoiceFeedback
 
@@ -2997,3 +3042,85 @@ def _get_usage_context(client_id: UUID, db: Session) -> dict:
         "sub_limit": sub_limit,
         "sub_at_limit": sub_count >= sub_limit,
     }
+
+
+# --- Help / Documentation ---
+
+
+@router.get("/clients/{client_id}/help", response_class=HTMLResponse)
+def portal_help(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """In-app help page — renders role-appropriate documentation as HTML."""
+    import markdown
+    from pathlib import Path
+
+    role = user.user_role.value
+
+    # Map role to documentation file
+    role_doc_map = {
+        "client_admin": "client-admin.md",
+        "client_manager": "client-manager.md",
+        "client_viewer": "client-viewer.md",
+        "b2c_user": "client-admin.md",  # fallback
+    }
+
+    doc_filename = role_doc_map.get(role, "client-admin.md")
+    doc_path = Path("docs/kb/roles") / doc_filename
+
+    # Read and render markdown
+    doc_html = ""
+    if doc_path.exists():
+        md_content = doc_path.read_text(encoding="utf-8")
+        doc_html = markdown.markdown(
+            md_content,
+            extensions=["tables", "fenced_code", "toc"],
+        )
+    else:
+        doc_html = "<p>Documentation not found. Please contact support.</p>"
+
+    # Also load the trial management guide for trial users
+    trial_guide_html = ""
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if client and client.plan_type == "trial":
+        trial_path = Path("docs/kb/guides/trial-management.md")
+        if trial_path.exists():
+            # Only render sections 2 and 3 (portal + onboarding)
+            trial_md = trial_path.read_text(encoding="utf-8")
+            # Extract sections relevant to client
+            sections = []
+            current = []
+            for line in trial_md.split("\n"):
+                if line.startswith("## ") and current:
+                    sections.append("\n".join(current))
+                    current = [line]
+                else:
+                    current.append(line)
+            if current:
+                sections.append("\n".join(current))
+            # Keep sections about portal access and onboarding
+            relevant = [s for s in sections if any(k in s for k in ["Client Portal", "Onboarding Wizard", "Trial Limits"])]
+            if relevant:
+                trial_guide_html = markdown.markdown(
+                    "\n\n".join(relevant),
+                    extensions=["tables", "fenced_code"],
+                )
+
+    ctx = _get_sidebar_context(client_id, db)
+    return templates.TemplateResponse(
+        name="client/help.html",
+        context={
+            "request": request,
+            **ctx,
+            "active_page": "help",
+            "doc_html": doc_html,
+            "trial_guide_html": trial_guide_html,
+            "user_role": role,
+            "user_name": user.full_name or user.email,
+            "user_email": user.email,
+        },
+        request=request,
+    )
