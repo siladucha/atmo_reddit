@@ -100,7 +100,7 @@
             <form hx-post="/review/{{ item.draft.id }}/edit" hx-target="#edit-status-{{ item.draft.id }}" hx-swap="innerHTML" class="flex gap-2">
                 <textarea name="edited_text" rows="2" class="flex-1 px-3 py-2 border rounded text-sm resize-none"
                     placeholder="Edit the comment...">{{ item.draft.edited_draft or item.draft.ai_draft or '' }}</textarea>
-                <button type="submit" class="bg-blue-100 text-blue-700 px-3 py-1.5 rounded text-sm hover:bg-blue-200 self-end">Save Edit</button>
+                <button type="submit" class="bg-green-600 text-white px-3 py-1.5 rounded text-sm hover:bg-green-500 self-end">Save & Approve ✓</button>
             </form>
             <span id="edit-status-{{ item.draft.id }}" class="text-xs"></span>
         </div>

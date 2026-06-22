@@ -1,56 +1,13 @@
 {% extends "client_base.html" %}
-{% block title %}Onboarding — Keywords & Subreddits{% endblock %}
+{% block title %}Onboarding — Connect Avatar{% endblock %}
 
 {% block content %}
-<div style="max-width:700px;margin:0 auto;padding:var(--space-4) var(--space-3);">
-    {% include "onboarding/progress.html" %}
-
-    <h1 class="text-h1" style="margin-bottom:8px;">Keywords & subreddits</h1>
-    <p class="text-small" style="color:var(--color-muted);margin-bottom:var(--space-4);">The AI will suggest keywords and subreddits based on everything you've told us. Confirm or remove what doesn't fit.</p>
-
-    <!-- Generate suggestions button -->
-    <div style="margin-bottom:var(--space-4);">
-        <button hx-post="/onboard/step/5/suggest"
-                hx-target="#suggestions-area"
-                hx-swap="innerHTML"
-                hx-indicator="#suggest-loading"
-                class="btn-primary" style="padding:10px 24px;">
-            Generate AI Suggestions
-        </button>
-        <span id="suggest-loading" class="htmx-indicator" style="margin-left:12px;">
-            <span class="text-small" style="color:var(--color-orange);">Analyzing your profile... (10-15 seconds)</span>
-        </span>
-    </div>
-
-    <form method="post" action="/onboard/step/5/save">
-        <div id="suggestions-area">
-            {% if keywords and (keywords.get('high') or keywords.get('medium') or keywords.get('low')) %}
-            <!-- Pre-existing keywords (from previous session) -->
-            <div style="margin-bottom:24px;">
-                <h3 class="text-h3" style="margin-bottom:12px;">Current Keywords</h3>
-                <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                    {% for tier, kws in keywords.items() %}
-                    {% for kw in kws %}
-                    <label style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:var(--radius-pill);border:1px solid var(--color-border);cursor:pointer;">
-                        <input type="checkbox" name="keywords" value="{{ kw }}|{{ tier }}" checked>
-                        <span style="color:var(--color-white);font-size:var(--text-small);">{{ kw }}</span>
-                        <span style="color:var(--color-muted);font-size:var(--text-micro);">{{ tier }}</span>
-                    </label>
-                    {% endfor %}
-                    {% endfor %}
-                </div>
-            </div>
-            {% else %}
-            <div class="surface" style="padding:var(--space-3);text-align:center;">
-                <p style="color:var(--color-muted);font-size:var(--text-small);">Click "Generate AI Suggestions" to get keyword and subreddit recommendations based on your profile.</p>
-            </div>
-            {% endif %}
-        </div>
-
-        <div style="display:flex;justify-content:space-between;margin-top:var(--space-4);">
-            <a href="/onboard/step/4" class="btn-ghost" style="padding:12px 24px;">← Back</a>
-            <button type="submit" class="btn-primary" style="padding:12px 32px;">Next →</button>
-        </div>
-    </form>
+<script>
+// Step 5 now uses the BYOA flow
+window.location.href = "/onboard/step/5/byoa";
+</script>
+<div style="max-width:600px;margin:0 auto;padding:var(--space-4) var(--space-3);text-align:center;">
+    <p style="color:var(--color-muted);">Redirecting to avatar setup...</p>
+    <a href="/onboard/step/5/byoa" style="color:var(--color-orange);">Click here if not redirected</a>
 </div>
 {% endblock %}

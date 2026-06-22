@@ -1,0 +1,27 @@
+<div id="byoa-result">
+    <div class="surface" style="padding:20px;border-radius:8px;border:1px solid var(--color-red);">
+        <p style="color:var(--color-red);font-weight:500;margin-bottom:8px;">
+            {% if draft.status == "fetch_failed" %}
+            Could not fetch Reddit profile
+            {% else %}
+            AI analysis failed
+            {% endif %}
+        </p>
+        <p style="color:var(--color-muted);font-size:var(--text-small);margin-bottom:16px;">
+            {{ draft.error_message or "An unexpected error occurred. Please try again." }}
+        </p>
+
+        <form hx-post="/onboard/step/5/retry"
+              hx-target="#byoa-result"
+              hx-swap="innerHTML"
+              style="display:flex;gap:12px;">
+            <input type="text" name="reddit_username"
+                   value="{{ draft.reddit_username }}"
+                   placeholder="u/your_username" maxlength="23"
+                   class="field-input" style="flex:1;">
+            <button type="submit" class="btn-primary" style="padding:10px 20px;white-space:nowrap;">
+                Try Again
+            </button>
+        </form>
+    </div>
+</div>

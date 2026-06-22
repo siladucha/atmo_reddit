@@ -1,212 +1,73 @@
 {% extends "admin_base.html" %}
-{% block title %}Schedule & Tasks{% endblock %}
-{% block breadcrumbs %}
-<nav class="text-sm text-gray-400">
-    <span class="text-gray-500">Admin</span> / <span class="text-white">Schedule & Tasks</span>
-</nav>
-{% endblock %}
+{% block title %}Execution Tasks{% endblock %}
 {% block content %}
-<div class="max-w-7xl mx-auto">
-    <h1 class="text-2xl font-semibold text-white mb-6">Pipeline Schedule{% set tooltip_text = "Full view of all scheduled pipeline tasks with their next run time, last execution results, and manual trigger controls." %}{% include "partials/block_tooltip.html" %}</h1>
+<div class="p-6">
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-bold text-white">Execution Tasks</h1>
+        <div class="flex gap-2 text-sm">
+            <a href="/admin/tasks" class="px-3 py-1.5 rounded-lg {% if not current_status %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">All ({{ all_count }})</a>
+            <a href="/admin/tasks?status=emailed" class="px-3 py-1.5 rounded-lg {% if current_status == 'emailed' %}bg-blue-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">Active ({{ active_count }})</a>
+            <a href="/admin/tasks?status=verified" class="px-3 py-1.5 rounded-lg {% if current_status == 'verified' %}bg-green-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">Verified ({{ verified_count }})</a>
+            <a href="/admin/tasks?status=expired" class="px-3 py-1.5 rounded-lg {% if current_status == 'expired' %}bg-red-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">Expired ({{ expired_count }})</a>
+            <a href="/admin/tasks/metrics" class="px-3 py-1.5 rounded-lg bg-slate-700 text-gray-300 hover:bg-slate-600">SLA Metrics</a>
+        </div>
+    </div>
 
-    {% if error %}
-    <div class="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-300 text-sm">{{ error }}</div>
+    {% if not tasks %}
+    <div class="text-center py-12 text-gray-400">
+        <p class="text-lg">No execution tasks yet.</p>
+        <p class="text-sm mt-2">Tasks are created when email_tasks_enabled = true and drafts are approved.</p>
+    </div>
+    {% else %}
+    <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-slate-900 text-gray-400 uppercase text-xs tracking-wide">
+                <tr>
+                    <th class="px-4 py-3 text-left">Task</th>
+                    <th class="px-4 py-3 text-left">Client / Avatar</th>
+                    <th class="px-4 py-3 text-left">Subreddit</th>
+                    <th class="px-4 py-3 text-left">Status</th>
+                    <th class="px-4 py-3 text-left">Recipient</th>
+                    <th class="px-4 py-3 text-left">Deadline</th>
+                    <th class="px-4 py-3 text-left">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-700">
+                {% for task in tasks %}
+                <tr class="hover:bg-slate-750">
+                    <td class="px-4 py-3">
+                        <a href="/admin/tasks/{{ task.id }}" class="text-indigo-400 hover:text-indigo-300 font-mono text-xs">{{ task.task_code }}</a>
+                    </td>
+                    <td class="px-4 py-3 text-gray-300">
+                        <div>{{ task.client_name }}</div>
+                        <div class="text-xs text-gray-500">u/{{ task.avatar_username }}</div>
+                    </td>
+                    <td class="px-4 py-3 text-gray-300">r/{{ task.subreddit }}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-0.5 rounded text-xs font-medium
+                            {% if task.status == 'verified' %}bg-green-900 text-green-300
+                            {% elif task.status in ('emailed', 'accepted') %}bg-blue-900 text-blue-300
+                            {% elif task.status in ('submitted', 'url_verified') %}bg-yellow-900 text-yellow-300
+                            {% elif task.status in ('failed', 'expired') %}bg-red-900 text-red-300
+                            {% elif task.status == 'cancelled' %}bg-gray-700 text-gray-400
+                            {% else %}bg-slate-700 text-gray-300{% endif %}">
+                            {{ task.status }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-gray-400 text-xs">{{ task.executor_contact }}</td>
+                    <td class="px-4 py-3 text-gray-400 text-xs">{{ task.deadline.strftime('%m/%d %H:%M') if task.deadline else '-' }}</td>
+                    <td class="px-4 py-3">
+                        {% if task.status not in ('verified', 'expired', 'cancelled') %}
+                        <button hx-post="/admin/tasks/{{ task.id }}/resend" hx-swap="innerHTML" hx-target="#msg-{{ task.id }}"
+                                class="text-xs text-indigo-400 hover:text-indigo-300">Resend</button>
+                        {% endif %}
+                        <span id="msg-{{ task.id }}"></span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
     {% endif %}
-    {% if success %}
-    <div class="mb-4 p-3 bg-emerald-900/50 border border-emerald-700 rounded-lg text-emerald-300 text-sm">{{ success }}</div>
-    {% endif %}
-
-    <!-- Schedule Overview with Last Run -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-6">
-        <h2 class="text-lg font-medium text-white mb-4">Upcoming Runs{% set tooltip_text = "Scheduled cron tasks sorted by next execution time. Shows last run result and previous run for each task. The 'next' badge marks the soonest task." %}{% include "partials/block_tooltip.html" %}</h2>
-        {% if schedule %}
-        <div class="space-y-3">
-            {% for entry in schedule %}
-            <div class="flex flex-col md:flex-row md:items-center gap-3 px-4 py-3 rounded-lg border {% if entry.is_next %}bg-indigo-900/20 border-indigo-700{% else %}bg-slate-night border-slate-700{% endif %}">
-                <!-- Left: label + next run -->
-                <div class="flex items-center justify-between md:justify-start gap-4 md:w-1/3">
-                    <div class="min-w-0">
-                        <div class="text-sm text-gray-200 truncate">{{ entry.label }}</div>
-                        <div class="text-xs text-gray-500 font-mono mt-0.5">{{ entry.next_at.strftime('%H:%M UTC') }}</div>
-                    </div>
-                    <div class="text-right md:text-left shrink-0">
-                        <div class="text-sm font-mono {% if entry.is_next %}text-indigo-300{% else %}text-gray-400{% endif %}">in {{ entry.in_human }}</div>
-                        {% if entry.is_next %}<div class="text-[10px] text-indigo-400 uppercase tracking-wider font-semibold">next</div>{% endif %}
-                    </div>
-                </div>
-
-                <!-- Middle: last run -->
-                <div class="md:w-1/3 md:border-l md:border-slate-700 md:pl-4">
-                    {% if entry.last_run_at %}
-                    <div class="text-[11px] text-gray-500 uppercase tracking-wider mb-0.5">Last run</div>
-                    <div class="text-xs text-gray-300 truncate" title="{{ entry.last_run_message }}">{{ entry.last_run_message }}</div>
-                    <div class="text-[11px] text-gray-500 font-mono">{{ entry.last_run_since }}</div>
-                    {% else %}
-                    <div class="text-[11px] text-gray-500 uppercase tracking-wider mb-0.5">Last run</div>
-                    <div class="text-xs text-gray-500 italic">Never</div>
-                    {% endif %}
-                </div>
-
-                <!-- Right: previous run -->
-                <div class="md:w-1/3 md:border-l md:border-slate-700 md:pl-4">
-                    {% if entry.prev_run_at %}
-                    <div class="text-[11px] text-gray-500 uppercase tracking-wider mb-0.5">Previous</div>
-                    <div class="text-xs text-gray-300 truncate" title="{{ entry.prev_run_message }}">{{ entry.prev_run_message }}</div>
-                    <div class="text-[11px] text-gray-500 font-mono">{{ entry.prev_run_since }}</div>
-                    {% else %}
-                    <div class="text-[11px] text-gray-500 uppercase tracking-wider mb-0.5">Previous</div>
-                    <div class="text-xs text-gray-500 italic">—</div>
-                    {% endif %}
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <p class="text-gray-500 text-sm">No schedule entries configured.</p>
-        {% endif %}
-    </div>
-
-    <!-- Recent Run History -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-6">
-        <h2 class="text-lg font-medium text-white mb-4">Recent Activity{% set tooltip_text = "Log of all pipeline events (scrapes, scoring, generation, reviews, errors). Status shows whether each task succeeded, failed, or hit a rate limit." %}{% include "partials/block_tooltip.html" %}</h2>
-        {% if run_history %}
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left">
-                <thead>
-                    <tr class="border-b border-slate-700">
-                        <th class="px-3 py-2 text-gray-400 uppercase text-xs font-medium">Time</th>
-                        <th class="px-3 py-2 text-gray-400 uppercase text-xs font-medium">Type</th>
-                        <th class="px-3 py-2 text-gray-400 uppercase text-xs font-medium">Status</th>
-                        <th class="px-3 py-2 text-gray-400 uppercase text-xs font-medium">Trigger</th>
-                        <th class="px-3 py-2 text-gray-400 uppercase text-xs font-medium">Client</th>
-                        <th class="px-3 py-2 text-gray-400 uppercase text-xs font-medium">Message</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for event in run_history %}
-                    <tr class="border-b border-slate-700/50 hover:bg-slate-700/20">
-                        <td class="px-3 py-2 text-gray-500 font-mono text-xs whitespace-nowrap">{{ event.since_human }}</td>
-                        <td class="px-3 py-2">
-                            <span class="px-2 py-0.5 rounded text-xs font-medium
-                                {% if event.event_type == 'scrape' %}bg-cyan-900/50 text-cyan-400
-                                {% elif event.event_type == 'score' %}bg-amber-900/50 text-amber-400
-                                {% elif event.event_type == 'generate' %}bg-violet-900/50 text-violet-400
-                                {% elif event.event_type == 'review' %}bg-green-900/50 text-green-400
-                                {% elif event.event_type == 'karma_tracking' %}bg-blue-900/50 text-blue-400
-                                {% else %}bg-slate-700 text-gray-400{% endif %}">
-                                {{ event.event_type }}
-                            </span>
-                        </td>
-                        <td class="px-3 py-2">
-                            <span class="px-2 py-0.5 rounded text-xs font-medium
-                                {% if event.status == 'success' %}bg-green-900/40 text-green-400
-                                {% elif event.status == 'error' %}bg-red-900/40 text-red-400
-                                {% elif event.status == 'warning' %}bg-amber-900/40 text-amber-400
-                                {% else %}bg-slate-700 text-gray-400{% endif %}">
-                                {{ event.status }}
-                            </span>
-                        </td>
-                        <td class="px-3 py-2">
-                            <span class="px-2 py-0.5 rounded text-xs font-medium
-                                {% if event.trigger == 'manual' %}bg-orange-900/40 text-orange-400
-                                {% else %}bg-slate-700 text-gray-400{% endif %}">
-                                {{ event.trigger }}
-                            </span>
-                        </td>
-                        <td class="px-3 py-2 text-gray-300 text-xs">{{ event.client_name }}</td>
-                        <td class="px-3 py-2 text-gray-300 text-xs truncate max-w-xs" title="{{ event.message }}">{{ event.message }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <p class="text-gray-500 text-sm">No recent pipeline activity.</p>
-        {% endif %}
-    </div>
-
-    <!-- Trigger Pipeline -->
-    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5">
-        <h2 class="text-lg font-medium text-white mb-4">Manual Trigger{% set tooltip_text = "Run pipeline on-demand for a specific client or all clients. Full Pipeline = scrape + score + generate. Hobby = scrape hobby subreddits only." %}{% include "partials/block_tooltip.html" %}</h2>
-
-        <!-- Single client trigger -->
-        <div class="flex flex-wrap items-end gap-3 mb-4">
-            <div>
-                <label class="block text-xs text-gray-500 mb-1">Client</label>
-                <select id="trigger-client-select"
-                        class="bg-slate-night border border-slate-600 text-gray-200 text-sm rounded-lg px-3 py-2 min-w-[200px] focus:outline-none focus:border-indigo-500">
-                    {% for c in clients %}
-                    <option value="{{ c.id }}">{{ c.client_name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div>
-                <label class="block text-xs text-gray-500 mb-1">Action</label>
-                <div class="flex gap-2">
-                    <button onclick="triggerPipeline('full')"
-                            class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                        🚀 Full Pipeline
-                    </button>
-                    <button onclick="triggerPipeline('scrape')"
-                            class="bg-slate-700 hover:bg-slate-600 text-gray-200 border border-slate-600 px-3 py-2 rounded-lg text-sm font-medium transition-colors">
-                        🔍 Scrape
-                    </button>
-                    <button onclick="triggerPipeline('score')"
-                            class="bg-slate-700 hover:bg-slate-600 text-gray-200 border border-slate-600 px-3 py-2 rounded-lg text-sm font-medium transition-colors">
-                        📊 Score
-                    </button>
-                    <button onclick="triggerPipeline('generate')"
-                            class="bg-slate-700 hover:bg-slate-600 text-gray-200 border border-slate-600 px-3 py-2 rounded-lg text-sm font-medium transition-colors">
-                        ✍️ Generate
-                    </button>
-                    <button onclick="triggerPipeline('hobby')"
-                            class="bg-violet-600 hover:bg-violet-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors">
-                        🎯 Hobby
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Bulk trigger (all clients) -->
-        <div class="flex items-center gap-3 pt-3 border-t border-slate-700">
-            <span class="text-xs text-gray-500 uppercase tracking-wider font-medium">All clients:</span>
-            <button onclick="triggerAll('full-pipeline')"
-                    class="bg-indigo-600/80 hover:bg-indigo-600 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors">
-                🚀 Full Pipeline All
-            </button>
-            <button onclick="triggerAll('scrape')"
-                    class="bg-slate-700 hover:bg-slate-600 text-gray-300 border border-slate-600 px-3 py-1.5 rounded text-xs font-medium transition-colors">
-                🔍 Scrape All
-            </button>
-            <button onclick="triggerAll('score')"
-                    class="bg-slate-700 hover:bg-slate-600 text-gray-300 border border-slate-600 px-3 py-1.5 rounded text-xs font-medium transition-colors">
-                📊 Score All
-            </button>
-            <button onclick="triggerAll('generate')"
-                    class="bg-slate-700 hover:bg-slate-600 text-gray-300 border border-slate-600 px-3 py-1.5 rounded text-xs font-medium transition-colors">
-                ✍️ Generate All
-            </button>
-            <span id="trigger-status" class="text-xs text-gray-400 ml-2"></span>
-        </div>
-    </div>
-
-    <script>
-    function triggerPipeline(action) {
-        const clientId = document.getElementById('trigger-client-select').value;
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '/admin/tasks/trigger/' + action + '/' + clientId;
-        document.body.appendChild(form);
-        form.submit();
-    }
-    function triggerAll(action) {
-        if (!confirm('Run ' + action + ' for all active clients?')) return;
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '/admin/dashboard/run-all/' + action;
-        document.body.appendChild(form);
-        form.submit();
-    }
-    </script>
 </div>
 {% endblock %}

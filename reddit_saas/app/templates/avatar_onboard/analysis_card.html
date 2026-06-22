@@ -1,0 +1,195 @@
+<!-- Avatar Analysis Card — HTMX partial (loaded into #analysis-result) -->
+<div class="surface" style="padding:var(--space-4);border-radius:var(--radius-card);border:1px solid var(--color-green);">
+
+    <!-- Header: success + cost -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-3);">
+        <div>
+            <p style="color:var(--color-green);font-weight:600;">✓ Analysis complete for u/{{ username }}</p>
+            <p class="text-micro" style="color:var(--color-muted);margin-top:2px;">
+                {{ profile.account_age_days }} days old · {{ profile.karma_comment }} comment karma · {{ profile.karma_post }} post karma · {{ profile.comments | length }} comments analyzed
+            </p>
+        </div>
+        <span class="text-micro" style="color:var(--color-muted);">
+            ${{ "%.4f" | format(cost_usd) }} · {{ duration_ms }}ms
+        </span>
+    </div>
+
+    <!-- Classification badge row -->
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:var(--space-3);">
+        <span style="padding:4px 12px;border-radius:var(--radius-pill);background:rgba(99,102,241,0.15);color:#a5b4fc;font-size:var(--text-small);font-weight:500;">
+            {{ analysis.classification.avatar_type | replace("_", " ") | title }}
+        </span>
+        <span style="padding:4px 12px;border-radius:var(--radius-pill);background:rgba(99,102,241,0.15);color:#a5b4fc;font-size:var(--text-small);font-weight:500;">
+            {{ analysis.classification.primary_role | replace("_", " ") | title }}
+        </span>
+        <span style="padding:4px 12px;border-radius:var(--radius-pill);{% if analysis.classification.synthetic_likelihood > 50 %}background:rgba(239,68,68,0.15);color:var(--color-red);{% else %}background:rgba(34,197,94,0.15);color:var(--color-green);{% endif %}font-size:var(--text-small);font-weight:500;">
+            Synthetic: {{ analysis.classification.synthetic_likelihood }}%
+        </span>
+        <span style="padding:4px 12px;border-radius:var(--radius-pill);background:rgba(255,107,53,0.15);color:var(--color-orange);font-size:var(--text-small);font-weight:500;">
+            Phase {{ analysis.suggested_phase }}
+        </span>
+        <span style="padding:4px 12px;border-radius:var(--radius-pill);background:rgba(34,197,94,0.15);color:var(--color-green);font-size:var(--text-small);font-weight:500;">
+            Confidence: {{ analysis.classification.confidence }}%
+        </span>
+    </div>
+
+    {% if analysis.classification.notes %}
+    <p class="text-small" style="color:var(--color-muted);margin-bottom:var(--space-3);font-style:italic;">
+        {{ analysis.classification.notes }}
+    </p>
+    {% endif %}
+
+    <!-- Editable form -->
+    <form method="post" action="/clients/{{ client_id }}/avatar-onboard/approve">
+        <input type="hidden" name="reddit_username" value="{{ username }}">
+        <input type="hidden" name="avatar_type" value="{{ analysis.classification.avatar_type }}">
+        <input type="hidden" name="synthetic_likelihood" value="{{ analysis.classification.synthetic_likelihood }}">
+
+        <div style="display:grid;gap:16px;">
+
+            <!-- Row 1: Display Name + Phase -->
+            <div style="display:grid;grid-template-columns:1fr 120px;gap:12px;">
+                <div>
+                    <label class="text-micro" style="color:var(--color-muted);display:block;margin-bottom:4px;">Display Name (client-facing)</label>
+                    <input type="text" name="display_name" value="{{ analysis.display_name or '' }}"
+                           class="field-input" style="width:100%;" placeholder="e.g. Alex, Dan">
+                </div>
+                <div>
+                    <label class="text-micro" style="color:var(--color-muted);display:block;margin-bottom:4px;">Phase</label>
+                    <select name="suggested_phase" class="field-input" style="width:100%;">
+                        <option value="1" {% if analysis.suggested_phase == 1 %}selected{% endif %}>Phase 1</option>
+                        <option value="2" {% if analysis.suggested_phase == 2 %}selected{% endif %}>Phase 2</option>
+                        <option value="3" {% if analysis.suggested_phase == 3 %}selected{% endif %}>Phase 3</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Persona Bio -->
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);display:block;margin-bottom:4px;">Persona Bio (client-facing, max 200 chars)</label>
+                <input type="text" name="persona_bio" value="{{ analysis.persona_bio or '' }}"
+                       class="field-input" style="width:100%;" maxlength="200"
+                       placeholder="One sentence: who this person is">
+            </div>
+
+            <!-- Voice Profile -->
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);display:block;margin-bottom:4px;">Voice Profile</label>
+                <textarea name="voice_profile_md" rows="4" class="field-input" style="width:100%;font-family:monospace;font-size:12px;">Tone: {{ analysis.voice_profile.tone or '' }}
+Style: {{ analysis.voice_profile.style or '' }}
+Vocabulary: {{ analysis.voice_profile.vocabulary_lean or '' }}
+Patterns: {{ analysis.voice_profile.speech_patterns or '' }}</textarea>
+            </div>
+
+            <!-- Tone Principles -->
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);display:block;margin-bottom:4px;">Tone Principles</label>
+                <textarea name="tone_principles" rows="3" class="field-input" style="width:100%;">{{ analysis.voice_profile.tone_principles or '' }}</textarea>
+            </div>
+
+            <!-- Hill I Die On -->
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);display:block;margin-bottom:4px;">Hill I Die On (core position)</label>
+                <input type="text" name="hill_i_die_on" value="{{ analysis.strategy.hill_i_die_on or '' }}"
+                       class="field-input" style="width:100%;">
+            </div>
+
+            <!-- Helpful Mode Topics -->
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);display:block;margin-bottom:4px;">Helpful Mode Topics</label>
+                <input type="text" name="helpful_mode_topics" value="{{ analysis.strategy.helpful_mode_topics or '' }}"
+                       class="field-input" style="width:100%;">
+            </div>
+
+            <!-- Constraints -->
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);display:block;margin-bottom:4px;">Constraints (what to avoid)</label>
+                <textarea name="constraints" rows="2" class="field-input" style="width:100%;">{{ analysis.strategy.weaknesses or '' }}</textarea>
+            </div>
+
+            <!-- Subreddits: Hobby -->
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);display:block;margin-bottom:4px;">Hobby Subreddits (comma-separated, for credibility building)</label>
+                <input type="text" name="hobby_subreddits"
+                       value="{{ analysis.subreddits.hobby | join(', ') if analysis.subreddits and analysis.subreddits.hobby else '' }}"
+                       class="field-input" style="width:100%;" placeholder="todayilearned, AskReddit, etc.">
+            </div>
+
+            <!-- Subreddits: Business -->
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);display:block;margin-bottom:4px;">Business Subreddits (comma-separated, professional engagement)</label>
+                <input type="text" name="business_subreddits"
+                       value="{{ analysis.subreddits.business | join(', ') if analysis.subreddits and analysis.subreddits.business else '' }}"
+                       class="field-input" style="width:100%;" placeholder="cybersecurity, netsec, etc.">
+            </div>
+
+            <!-- Compatibility Warnings -->
+            {% if compatibility_warnings %}
+            <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:12px 16px;">
+                <p class="text-micro" style="color:var(--color-red);font-weight:600;margin-bottom:8px;">⚠ Subreddit Compatibility Warnings</p>
+                {% for warn in compatibility_warnings %}
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                    <span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;
+                        {% if warn.severity == 'high' %}background:rgba(239,68,68,0.2);color:var(--color-red);
+                        {% else %}background:rgba(255,107,53,0.2);color:var(--color-orange);{% endif %}">
+                        r/{{ warn.subreddit }}
+                    </span>
+                    <span class="text-small" style="color:var(--color-muted);">{{ warn.warning }}</span>
+                </div>
+                {% endfor %}
+                <p class="text-micro" style="color:var(--color-muted);margin-top:8px;font-style:italic;">
+                    Consider removing flagged subreddits or adjusting avatar's tone before approving.
+                </p>
+            </div>
+            {% endif %}
+
+            <!-- Strategy summary (read-only context) -->
+            {% if analysis.strategy %}
+            <div style="background:var(--color-surface-alt);border-radius:8px;padding:12px 16px;">
+                <p class="text-micro" style="color:var(--color-muted);margin-bottom:6px;">AI Strategy Notes</p>
+                <p class="text-small" style="color:var(--color-white);">
+                    <strong>Approach:</strong> {{ analysis.strategy.suggested_approach or 'N/A' }}
+                </p>
+                <p class="text-small" style="color:var(--color-muted);margin-top:4px;">
+                    <strong>Strengths:</strong> {{ analysis.strategy.strengths or 'N/A' }}
+                </p>
+                {% if analysis.phase_reasoning %}
+                <p class="text-small" style="color:var(--color-muted);margin-top:4px;">
+                    <strong>Phase reasoning:</strong> {{ analysis.phase_reasoning }}
+                </p>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Top subreddits from actual history -->
+            {% if profile.active_subreddits %}
+            <div style="background:var(--color-surface-alt);border-radius:8px;padding:12px 16px;">
+                <p class="text-micro" style="color:var(--color-muted);margin-bottom:8px;">Actual Reddit Activity (top subreddits by karma)</p>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                    {% for sub, stats in profile.active_subreddits.items() %}
+                    {% if loop.index <= 15 %}
+                    <span style="padding:2px 8px;border-radius:var(--radius-pill);background:var(--color-bg);font-size:var(--text-micro);color:var(--color-muted);">
+                        r/{{ sub }} <span style="color:var(--color-green);">{{ stats.total_karma }}</span>
+                    </span>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+
+        <!-- Action buttons -->
+        <div style="display:flex;gap:12px;margin-top:var(--space-4);padding-top:var(--space-3);border-top:1px solid var(--color-border);">
+            <button type="submit"
+                    style="flex:1;height:48px;background:var(--color-green);color:#fff;border:none;border-radius:var(--radius-input);font-weight:600;font-size:var(--text-body);cursor:pointer;">
+                ✓ Approve & Create Avatar
+            </button>
+            <button type="button"
+                    onclick="document.getElementById('analysis-result').innerHTML=''"
+                    style="padding:0 20px;height:48px;background:transparent;color:var(--color-muted);border:1px solid var(--color-border);border-radius:var(--radius-input);font-size:var(--text-small);cursor:pointer;">
+                Cancel
+            </button>
+        </div>
+    </form>
+</div>

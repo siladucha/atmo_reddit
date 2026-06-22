@@ -1,10 +1,11 @@
 /* RAMP Client Portal — Design Token System
  * Based on UX Developer Spec v3
- * All UI values as CSS custom properties — no hardcoded hex in templates.
+ *
+ * IMPORTANT: Uses !important on form controls to guarantee override of
+ * Tailwind CDN runtime-injected preflight styles.
  */
 
 :root {
-  /* Colors */
   --color-bg: #0D0D1A;
   --color-surface: #1A1A2E;
   --color-surface-alt: #1E1E32;
@@ -20,7 +21,6 @@
   --color-phase2: #FF6B35;
   --color-phase3: #22C55E;
 
-  /* Typography */
   --text-display: 48px;
   --text-h1: 30px;
   --text-h2: 22px;
@@ -29,7 +29,6 @@
   --text-small: 13px;
   --text-micro: 11px;
 
-  /* Font weights */
   --weight-display: 700;
   --weight-h1: 700;
   --weight-h2: 600;
@@ -38,7 +37,6 @@
   --weight-small: 400;
   --weight-micro: 500;
 
-  /* Spacing (8px base) */
   --space-1: 8px;
   --space-2: 16px;
   --space-3: 24px;
@@ -46,23 +44,161 @@
   --space-5: 40px;
   --space-6: 48px;
 
-  /* Radius */
   --radius-card: 8px;
   --radius-input: 4px;
   --radius-pill: 999px;
 
-  /* Shadows */
   --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.4);
-
-  /* Transitions */
   --transition-fast: 150ms ease-out;
-
-  /* Focus */
   --focus-ring: 2px solid var(--color-orange);
   --focus-offset: 2px;
 }
 
-/* Skeleton loading animation */
+/* ==========================================================================
+   FORM CONTROLS — !important to override Tailwind CDN preflight
+   ========================================================================== */
+
+.client-portal input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+.client-portal textarea,
+.client-portal select {
+  background-color: #1E1E32 !important;
+  border: 1px solid #2E2E4A !important;
+  border-radius: 4px !important;
+  color: #FFFFFF !important;
+  font-size: 15px !important;
+  font-family: inherit !important;
+  padding: 10px 12px !important;
+  transition: border-color 150ms ease-out;
+}
+
+.client-portal input::placeholder,
+.client-portal textarea::placeholder {
+  color: #AAAAAA !important;
+  opacity: 0.7 !important;
+}
+
+.client-portal input:focus,
+.client-portal textarea:focus,
+.client-portal select:focus {
+  outline: none !important;
+  border-color: #FF6B35 !important;
+  box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.15) !important;
+}
+
+.client-portal input:disabled,
+.client-portal textarea:disabled,
+.client-portal select:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+  background-color: #1A1A2E !important;
+}
+
+/* Autofill override (Chrome/Safari inject white bg) */
+.client-portal input:-webkit-autofill,
+.client-portal input:-webkit-autofill:hover,
+.client-portal input:-webkit-autofill:focus,
+.client-portal textarea:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #1E1E32 inset !important;
+  -webkit-text-fill-color: #FFFFFF !important;
+  caret-color: #FFFFFF !important;
+}
+
+/* Select dropdown arrow */
+.client-portal select {
+  appearance: none !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23AAAAAA' d='M6 8L1 3h10z'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 12px center !important;
+  padding-right: 32px !important;
+}
+
+/* ==========================================================================
+   .field-input — explicit class (same effect, extra specificity)
+   ========================================================================== */
+
+.field-input {
+  background-color: #1E1E32 !important;
+  border: 1px solid #2E2E4A !important;
+  border-radius: 4px !important;
+  color: #FFFFFF !important;
+  font-size: 15px !important;
+  padding: 10px 12px !important;
+}
+
+.field-input::placeholder {
+  color: #AAAAAA !important;
+  opacity: 0.7 !important;
+}
+
+.field-input:focus {
+  outline: none !important;
+  border-color: #FF6B35 !important;
+  box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.15) !important;
+}
+
+/* ==========================================================================
+   BUTTONS
+   ========================================================================== */
+
+.client-portal .btn-primary,
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  background: #FF6B35 !important;
+  color: #fff !important;
+  text-decoration: none;
+  transition: background 150ms ease-out;
+}
+
+.client-portal .btn-primary:hover,
+.btn-primary:hover {
+  background: #FF8C5A !important;
+}
+
+.client-portal .btn-primary:disabled,
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.client-portal .btn-ghost,
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent !important;
+  color: #AAAAAA !important;
+  border: 1px solid #2E2E4A !important;
+  text-decoration: none;
+  transition: all 150ms ease-out;
+}
+
+.client-portal .btn-ghost:hover,
+.btn-ghost:hover {
+  color: #FFFFFF !important;
+  border-color: #AAAAAA !important;
+}
+
+/* ==========================================================================
+   SKELETON & ANIMATIONS
+   ========================================================================== */
+
 @keyframes skeleton-pulse {
   0%, 100% { opacity: 0.4; }
   50% { opacity: 0.7; }
@@ -74,22 +210,14 @@
   border-radius: var(--radius-card);
 }
 
-/* Focus ring (WCAG 2.1 AA) */
 .client-portal *:focus-visible {
   outline: 2px solid var(--color-orange);
   outline-offset: 2px;
 }
 
-/* Toast animations */
 @keyframes toast-slide-in {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }
 
 @keyframes toast-fade-out {
@@ -97,20 +225,12 @@
   to { opacity: 0; }
 }
 
-.toast-enter {
-  animation: toast-slide-in var(--transition-fast);
-}
+.toast-enter { animation: toast-slide-in 150ms ease-out; }
+.toast-exit { animation: toast-fade-out 150ms ease-out forwards; }
 
-.toast-exit {
-  animation: toast-fade-out var(--transition-fast) forwards;
-}
-
-/* Card fade-out for optimistic updates */
 @keyframes card-fade-out {
   from { opacity: 1; transform: scale(1); }
   to { opacity: 0; transform: scale(0.98); }
 }
 
-.card-removing {
-  animation: card-fade-out 150ms ease-out forwards;
-}
+.card-removing { animation: card-fade-out 150ms ease-out forwards; }

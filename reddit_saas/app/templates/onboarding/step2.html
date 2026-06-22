@@ -9,7 +9,21 @@
     <p class="text-small" style="color:var(--color-muted);margin-bottom:var(--space-4);">Answer these like you're explaining to a smart colleague over coffee. The AI uses your language to sound authentic on Reddit.</p>
 
     <form method="post" action="/onboard/step/2/save">
-        <div style="display:flex;flex-direction:column;gap:var(--space-3);">
+        <div style="margin-bottom:var(--space-3);display:flex;align-items:center;gap:12px;">
+            <button type="button"
+                    hx-post="/onboard/step/2/suggest"
+                    hx-target="#step2-fields"
+                    hx-swap="innerHTML"
+                    hx-indicator="#step2-loading"
+                    hx-on::after-request="this.disabled=true;this.textContent='✓ AI Suggested';this.style.opacity='0.4'"
+                    class="btn-primary" style="padding:8px 20px;font-size:var(--text-small);"
+                    {% if client.company_worldview and client.company_problem %}disabled style="padding:8px 20px;font-size:var(--text-small);opacity:0.4;cursor:not-allowed;"{% endif %}>
+                {% if client.company_worldview and client.company_problem %}✓ AI Suggested{% else %}✨ Suggest with AI{% endif %}
+            </button>
+            <span id="step2-loading" class="htmx-indicator text-small" style="color:var(--color-orange);">Thinking...</span>
+        </div>
+
+        <div id="step2-fields" style="display:flex;flex-direction:column;gap:var(--space-3);">
             <div class="surface" style="padding:var(--space-3);">
                 <label style="color:var(--color-white);font-weight:500;font-size:var(--text-body);display:block;margin-bottom:8px;">What does your best customer say their life was like before using you?</label>
                 <p class="text-micro" style="color:var(--color-muted);margin-bottom:8px;">Think: their frustrations, time wasted, risks they faced</p>

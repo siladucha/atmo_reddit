@@ -1,0 +1,36 @@
+<div id="byoa-result"
+     hx-get="/onboard/step/5/draft-status"
+     hx-trigger="every 2s"
+     hx-swap="innerHTML"
+     data-poll-count="0">
+    <div class="surface" style="padding:24px;border-radius:8px;text-align:center;">
+        <div class="animate-pulse" style="margin-bottom:12px;">
+            <div style="width:48px;height:48px;border-radius:50%;border:3px solid var(--color-orange);border-top-color:transparent;margin:0 auto;animation:spin 1s linear infinite;"></div>
+        </div>
+        {% if draft.status == "pending_fetch" %}
+        <p style="color:var(--color-white);font-weight:500;">Fetching your Reddit profile...</p>
+        <p style="color:var(--color-muted);font-size:var(--text-small);margin-top:4px;">Analyzing comments, posts, and activity</p>
+        {% else %}
+        <p style="color:var(--color-white);font-weight:500;">Running AI analysis...</p>
+        <p style="color:var(--color-muted);font-size:var(--text-small);margin-top:4px;">Detecting tone, expertise, and strategy fit</p>
+        {% endif %}
+    </div>
+</div>
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+<script>
+// Timeout: stop polling after 45 iterations (90 seconds)
+document.addEventListener("htmx:afterSwap", function(e) {
+    var el = document.querySelector("[data-poll-count]");
+    if (el) {
+        var count = parseInt(el.getAttribute("data-poll-count") || "0") + 1;
+        el.setAttribute("data-poll-count", count);
+        if (count > 45) {
+            el.removeAttribute("hx-trigger");
+            el.innerHTML = '<div class="surface" style="padding:24px;border-radius:8px;text-align:center;border:1px solid var(--color-orange);">' +
+                '<p style="color:var(--color-orange);font-weight:500;">Analysis is taking longer than expected</p>' +
+                '<p style="color:var(--color-muted);font-size:var(--text-small);margin-top:8px;">You can refresh the page to check again, or try a different username.</p>' +
+                '</div>';
+        }
+    }
+});
+</script>

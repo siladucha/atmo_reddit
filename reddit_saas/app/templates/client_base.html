@@ -1,12 +1,13 @@
 <!DOCTYPE html>
-<html lang="en" class="client-portal">
+<html lang="en" class="client-portal" data-theme="client">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}RAMP{% endblock %}</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-    <link rel="stylesheet" href="/static/css/client-tokens.css">
+    <link rel="stylesheet" href="/static/css/tokens.css">
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/css/client-tokens.css?v=20260619b">
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <script src="/static/js/toast.js" defer></script>
     <script src="/static/js/portal-actions.js" defer></script>
@@ -175,10 +176,67 @@
             opacity: 1;
             visibility: visible;
         }
+
+        /* === FORM CONTROLS (inline to guarantee no cache issues) === */
+        .client-portal input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+        .client-portal textarea,
+        .client-portal select {
+          background-color: #1E1E32 !important;
+          border: 1px solid #2E2E4A !important;
+          border-radius: 4px !important;
+          color: #FFFFFF !important;
+          font-size: 15px !important;
+          font-family: inherit !important;
+          padding: 10px 12px !important;
+        }
+        .client-portal input::placeholder,
+        .client-portal textarea::placeholder {
+          color: #AAAAAA !important;
+          opacity: 0.7 !important;
+        }
+        .client-portal input:focus,
+        .client-portal textarea:focus,
+        .client-portal select:focus {
+          outline: none !important;
+          border-color: #FF6B35 !important;
+          box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.15) !important;
+        }
+        .client-portal input:-webkit-autofill,
+        .client-portal input:-webkit-autofill:hover,
+        .client-portal input:-webkit-autofill:focus,
+        .client-portal textarea:-webkit-autofill {
+          -webkit-box-shadow: 0 0 0 1000px #1E1E32 inset !important;
+          -webkit-text-fill-color: #FFFFFF !important;
+        }
+        .field-input {
+          background-color: #1E1E32 !important;
+          border: 1px solid #2E2E4A !important;
+          border-radius: 4px !important;
+          color: #FFFFFF !important;
+          font-size: 15px !important;
+          padding: 10px 12px !important;
+        }
+        .btn-primary {
+          background: #FF6B35 !important;
+          color: #fff !important;
+          border: none !important;
+          border-radius: 4px;
+          font-weight: 600;
+          cursor: pointer;
+          min-height: 44px;
+          padding: 10px 20px;
+          font-size: 15px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          text-decoration: none;
+        }
+        .btn-primary:hover { background: #FF8C5A !important; }
+
     </style>
     {% block extra_head %}{% endblock %}
 </head>
-<body data-client-id="{{ client_id }}">
+<body data-client-id="{{ client_id }}" data-debug-ui="{{ 'true' if app_env != 'production' else 'false' }}">
     <div class="portal-layout">
         <!-- Sidebar -->
         {% include "partials/client/sidebar.html" %}
@@ -232,6 +290,9 @@
     </div>
 
     <!-- Toast container injected by toast.js -->
+    {% include "partials/ux_manual.html" %}
+    <script src="/static/js/ux-manual.js" defer></script>
+        {% if app_env != "production" %}<script src="/static/js/debug-overlay.js" defer></script>{% endif %}
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>

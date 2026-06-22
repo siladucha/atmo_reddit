@@ -1,0 +1,23 @@
+{#
+  Error State Component — RAMP Design System
+  
+  Usage:
+    {% from "_macros/_error.html" import error_banner, error_inline %}
+    {{ error_banner("Something went wrong", dismissible=true) }}
+    {{ error_inline("This field is required") }}
+#}
+{% from "_macros/_component_attrs.html" import component_attrs %}
+
+{% macro error_banner(message, dismissible=true, cls="") -%}
+<div {{ component_attrs("error_banner", "_macros/_error.html", variant="banner") }} class="flex items-center gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm {{ cls }}">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  <span class="flex-1">{{ message }}</span>
+  {% if dismissible %}
+  <button type="button" onclick="this.parentElement.remove()" class="text-red-400 hover:opacity-70 cursor-pointer">&times;</button>
+  {% endif %}
+</div>
+{%- endmacro %}
+
+{% macro error_inline(message, cls="") -%}
+<span {{ component_attrs("error_inline", "_macros/_error.html", variant="inline") }} class="text-sm text-red-400 {{ cls }}">{{ message }}</span>
+{%- endmacro %}

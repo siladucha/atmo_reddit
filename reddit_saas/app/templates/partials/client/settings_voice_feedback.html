@@ -12,6 +12,8 @@
 <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:12px;">Our recent comments didn't feel right — here's what to change</p>
 
 <form hx-post="/clients/{{ client_id }}/settings/voice-feedback" hx-target="#settings-voice-feedback" hx-swap="innerHTML">
+    <!-- Honeypot anti-spam -->
+    <input type="text" name="gotcha" style="display:none" tabindex="-1" autocomplete="off">
     <div style="margin-bottom:12px;">
         <textarea id="voice-feedback-text" name="feedback_text" rows="4" maxlength="500" style="width:100%;padding:10px 12px;background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius-input);color:var(--color-white);font-size:var(--text-body);resize:vertical;" placeholder="e.g. Too formal for r/startup, needs more casual tech depth..." oninput="document.getElementById('char-count').textContent = this.value.length"></textarea>
         <div style="text-align:right;margin-top:4px;">

@@ -5,9 +5,17 @@
 
 {% block content %}
 <div id="portal-content">
-    <div style="margin-bottom:var(--space-4);">
-        <h1 class="text-h1">Avatars{{ tooltip("Managed Reddit personas working for your brand. Each has a unique voice, warming phase, and karma tier reflecting community trust.") }}</h1>
-        <p class="text-small" style="margin-top:4px;">Your brand personas on Reddit. {{ avatars | length }} total.</p>
+    <div style="margin-bottom:var(--space-4);display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+            <h1 class="text-h1">Avatars{{ tooltip("Managed Reddit personas working for your brand. Each has a unique voice, warming phase, and karma tier reflecting community trust.") }}</h1>
+            <p class="text-small" style="margin-top:4px;">Your brand personas on Reddit. {{ avatars | length }} total.</p>
+        </div>
+        {% if can_onboard %}
+        <a href="/clients/{{ client_id }}/avatar-onboard"
+           style="padding:8px 16px;border-radius:var(--radius-pill);background:var(--color-orange);color:#fff;font-size:var(--text-small);font-weight:600;text-decoration:none;white-space:nowrap;">
+            + Add Avatar
+        </a>
+        {% endif %}
     </div>
 
     <!-- Info block -->

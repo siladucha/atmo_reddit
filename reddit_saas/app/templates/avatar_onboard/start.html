@@ -1,0 +1,108 @@
+{% extends "client_base.html" if is_portal else "admin_base.html" %}
+
+{% block title %}Onboard Avatar — {{ client.client_name }}{% endblock %}
+
+{% block content %}
+<div style="max-width:720px;margin:0 auto;padding:var(--space-4) var(--space-3);">
+    <!-- Header -->
+    <div style="margin-bottom:var(--space-4);">
+        <h1 class="text-h1">Onboard New Avatar</h1>
+        <p class="text-small" style="margin-top:4px;color:var(--color-muted);">
+            Add a Reddit account to work for <strong style="color:var(--color-white);">{{ client.client_name }}</strong>.
+            The system will analyze the account and suggest a configuration.
+        </p>
+    </div>
+
+    <!-- Existing avatars count -->
+    {% if existing_avatars > 0 %}
+    <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-3);">
+        <p style="font-size:var(--text-small);color:#a5b4fc;">
+            This client currently has <strong>{{ existing_avatars }}</strong> active avatar{{ "s" if existing_avatars > 1 else "" }}.
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- Trial limit warning -->
+    {% if trial_error %}
+    <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:var(--radius-card);padding:var(--space-3);margin-bottom:var(--space-3);">
+        <p style="color:var(--color-red);font-weight:500;">{{ trial_error }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Success message (after creating an avatar) -->
+    {% if request.query_params.get('success') %}
+    <div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:var(--radius-card);padding:var(--space-3);margin-bottom:var(--space-3);">
+        <p style="color:var(--color-green);font-weight:500;">
+            ✓ Avatar u/{{ request.query_params.get('success') }} onboarded successfully. Strategy generation started.
+        </p>
+        <p style="color:var(--color-muted);font-size:var(--text-small);margin-top:4px;">
+            Add another avatar below, or
+            <a href="/clients/{{ client_id }}/avatars" style="color:var(--color-orange);text-decoration:underline;">view all avatars →</a>
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- Username input form -->
+    {% if not trial_error %}
+    <div class="surface" style="padding:var(--space-4);border-radius:var(--radius-card);">
+        <form hx-post="/clients/{{ client_id }}/avatar-onboard/analyze"
+              hx-target="#analysis-result"
+              hx-swap="innerHTML"
+              hx-indicator="#analyze-spinner">
+
+            <label style="display:block;margin-bottom:8px;">
+                <span class="text-small" style="color:var(--color-muted);">Reddit Username</span>
+            </label>
+
+            <div style="display:flex;gap:12px;align-items:flex-start;">
+                <div style="flex:1;position:relative;">
+                    <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--color-muted);font-size:var(--text-body);">u/</span>
+                    <input type="text"
+                           name="reddit_username"
+                           placeholder="username"
+                           required
+                           class="field-input"
+                           style="width:100%;padding-left:32px;height:48px;font-size:var(--text-body);">
+                </div>
+                <button type="submit"
+                        style="height:48px;padding:0 24px;background:var(--color-orange);color:#fff;border:none;border-radius:var(--radius-input);font-weight:600;font-size:var(--text-body);cursor:pointer;white-space:nowrap;">
+                    Analyze Account
+                </button>
+            </div>
+
+            <p class="text-micro" style="color:var(--color-muted);margin-top:8px;">
+                We'll fetch their posting history, analyze their voice and expertise, and suggest a full configuration.
+                Takes ~10 seconds.
+            </p>
+        </form>
+
+        <!-- Loading indicator -->
+        <div id="analyze-spinner" class="htmx-indicator" style="margin-top:16px;text-align:center;">
+            <div style="display:inline-flex;align-items:center;gap:8px;padding:12px 20px;background:var(--color-surface-alt);border-radius:var(--radius-pill);">
+                <span style="animation:pulse 1.5s infinite;color:var(--color-orange);">●</span>
+                <span class="text-small" style="color:var(--color-muted);">Fetching Reddit data & running AI analysis...</span>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Analysis result (HTMX target) -->
+    <div id="analysis-result" style="margin-top:var(--space-3);"></div>
+
+    <!-- Back link -->
+    <div style="margin-top:var(--space-4);">
+        {% if is_portal %}
+        <a href="/clients/{{ client_id }}/avatars" style="color:var(--color-muted);font-size:var(--text-small);text-decoration:none;">← Back to Avatars</a>
+        {% else %}
+        <a href="/admin/clients/{{ client_id }}" style="color:var(--color-muted);font-size:var(--text-small);text-decoration:none;">← Back to Client</a>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+</style>
+{% endblock %}

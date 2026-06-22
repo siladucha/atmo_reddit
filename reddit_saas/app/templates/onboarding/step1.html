@@ -22,8 +22,10 @@
                     hx-target="#profile-card"
                     hx-swap="innerHTML"
                     hx-indicator="#scrape-loading"
-                    class="btn-primary" style="padding:10px 20px;white-space:nowrap;">
-                Analyze
+                    hx-on::after-request="this.disabled=true;this.textContent='✓ Analyzed';this.style.opacity='0.4'"
+                    class="btn-primary" style="padding:10px 20px;white-space:nowrap;"
+                    {% if client.company_profile %}disabled style="padding:10px 20px;white-space:nowrap;opacity:0.4;cursor:not-allowed;"{% endif %}>
+                {% if client.company_profile %}✓ Analyzed{% else %}Analyze{% endif %}
             </button>
         </div>
         <div id="scrape-loading" class="htmx-indicator" style="margin-top:8px;">

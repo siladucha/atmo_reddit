@@ -1,0 +1,23 @@
+{#
+  Loading State Component — RAMP Design System
+  
+  Usage:
+    {% from "_macros/_loading.html" import loading_spinner, loading_skeleton %}
+    {{ loading_spinner() }}
+    {{ loading_skeleton(lines=3) }}
+#}
+{% from "_macros/_component_attrs.html" import component_attrs %}
+
+{% macro loading_spinner(size="24px", cls="") -%}
+<div {{ component_attrs("loading_spinner", "_macros/_loading.html", variant="spinner") }} class="flex items-center justify-center min-h-[48px] {{ cls }}">
+  <div class="rounded-full border-2 border-[var(--color-border)] border-t-[var(--color-primary)] animate-spin" style="width:{{ size }};height:{{ size }};"></div>
+</div>
+{%- endmacro %}
+
+{% macro loading_skeleton(lines=3, cls="") -%}
+<div {{ component_attrs("loading_skeleton", "_macros/_loading.html", variant="skeleton") }} class="flex flex-col gap-3 {{ cls }}">
+  {% for i in range(lines) %}
+  <di  <di  <di  <di  <di  <di  <di  <di  <lt)] rounded animate-pulse" style="width:{{ [100, 85, 70, 90, 60][i % 5] }}%;"></div>
+  {% endfor %}
+</div>
+{%- endmacro %}

@@ -1,0 +1,18 @@
+{#
+  Component Marker Macro — UI Observability System
+  
+  Outputs data-component, data-owner, and data-variant attributes
+  on component root elements. Stripped in production to prevent
+  information leakage.
+
+  Usage:
+    {% from "_macros/_component_attrs.html" import component_attrs %}
+    <div {{ component_attrs("avatar_card", "partials/_avatar_card.html") }}>
+    <div {{ component_attrs("button", "_macros/_button.html", variant="primary") }}>
+#}
+
+{% macro component_attrs(name, owner, variant=None) -%}
+{% if app_env != 'production' -%}
+data-component="{{ name }}" data-owner="{{ owner }}"{% if variant %} data-variant="{{ variant }}"{% endif %}
+{%- endif %}
+{%- endmacro %}

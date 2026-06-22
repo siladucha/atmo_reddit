@@ -1,0 +1,18 @@
+{#
+  Empty State Component — RAMP Design System
+  
+  Usage:
+    {% from "_macros/_empty.html" import empty_state %}
+    {{ empty_state("No clients yet", cta_text="Add Client", cta_href="/admin/clients/new") }}
+#}
+{% from "_macros/_component_attrs.html" import component_attrs %}
+
+{% macro empty_state(message, icon="📭", cta_text=None, cta_href=None, cls="") -%}
+<div {{ component_attrs("empty_state", "_macros/_empty.html") }} class="text-center py-12 px-6 {{ cls }}">
+  <div class="text-5xl mb-4">{{ icon }}</div>
+  <p class="text-base text-gray-400 mb-4">{{ message }}</p>
+  {% if cta_text and cta_href %}
+  <a href="{{ cta_href }}" class="inline-flex items-center gap-2 px-5 py-2.5 rounded text-sm font-semibold bg-indigo-500 text-white hover:bg-indigo-400 transition-colors">{{ cta_text }}</a>
+  {% endif %}
+</div>
+{%- endmacro %}

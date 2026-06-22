@@ -191,6 +191,21 @@
         </a>
     </nav>
 
+    <!-- Help link -->
+    <div style="padding:0 var(--space-3) var(--space-2);">
+        <a href="/clients/{{ client_id }}/help"
+           class="sidebar-nav-item {% if active_page == 'help' %}active{% endif %}"
+           style="display:flex;align-items:center;gap:12px;padding:10px 0;text-decoration:none;color:var(--color-muted);transition:all var(--transition-fast);font-size:var(--text-small);
+                  {% if active_page == 'help' %}color:var(--color-white);{% endif %}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            Help & Docs
+        </a>
+    </div>
+
     <!-- Footer: logout -->
     <div style="padding:var(--space-2) var(--space-3);border-top:1px solid var(--color-border);">
         <a href="/logout" style="display:flex;align-items:center;gap:8px;font-size:var(--text-small);color:var(--color-muted);text-decoration:none;padding:6px 0;"

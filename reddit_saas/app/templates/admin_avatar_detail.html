@@ -294,9 +294,14 @@
                             <div class="text-[11px] text-gray-500">{{ c.brand_name }}</div>
                         </div>
                     </div>
-                    <span class="px-2.5 py-1 rounded text-xs font-medium bg-slate-800 text-gray-500 border border-slate-700">
-                        Client lifecycle
-                    </span>
+                    <form method="post" action="/admin/avatars/{{ avatar.id }}/unassign-from-client" class="inline"
+                          onsubmit="return confirm('Unassign this avatar from {{ c.client_name }}?');">
+                        <input type="hidden" name="client_id" value="{{ c.id }}">
+                        <button type="submit"
+                                class="px-2.5 py-1 rounded text-xs font-medium bg-red-900/30 hover:bg-red-800/50 text-red-400 hover:text-red-300 border border-red-800/50 transition-colors">
+                            Unassign
+                        </button>
+                    </form>
                 </div>
                 {% endfor %}
             </div>

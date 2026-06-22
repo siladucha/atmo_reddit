@@ -1,0 +1,33 @@
+{#
+  Parametric Input Component — RAMP Design System
+  
+  Usage:
+    {% from "_macros/_input.html" import input_field %}
+    {{ input_field("email", label="Email", type="email", placeholder="you@company.com") }}
+    {{ input_field("name", label="Name", required=true, error="Name is required") }}
+#}
+{% from "_macros/_component_attrs.html" import component_attrs %}
+
+{% macro input_field(name, label=None, type="text", placeholder="", value="", required=false, disabled=false, error=None, cls="", id=None, autocomplete=None) -%}
+<div {{ component_attrs("input_field", "_macros/_input.html") }} class="flex flex-col gap-[var(--form-label-gap)]">
+  {% if label %}
+  <label for="{{ id or name }}" class="text-[var(--text-sm)] font-medium text-[var(--color-text)]">
+    {{ label }}{% if required %}<span class="text-[var(--color-error)] ml-0.5">*</span>{% endif %}
+  </label>
+  {% endif %}
+  <input
+    type="{{ type }}"
+    name="{{ name }}"
+    {% if id %}id="{{ id }}"{% else %}id="{{ name }}"{% endif %}
+    {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}
+    {% if value %}value="{{ value }}"{% endif %}
+    {% if required %}required{% endif %}
+    {% if disabled %}disabled{% endif %}
+    {% if autocomplete %}autocomplete="{{ autocomplete }}"{% endif %}
+    class="min-h-[44px] px-3 py-2.5 rounded bg-[var(--color-input-bg)] border border-[var(--color-input-border)] text-[var(--color-text)] text-[var(--text-base)] placeholder:text-[var(--color-input-placeholder)] placeholder:opacity-70 focus:outline-none focus:border-[var(--color-input-border-focus)] focus:ring-2 focus:ring-[var(--focus-ring-color)]/15 disabled:opacity-[var(--color-disabled-opacity)] disabled:cursor-not-allowed transition-[border-color] duration-[var(--transition-fast)] {{ cls }}{% if error %} border-[var(--color-input-border-error)]{% endif %}"
+  >
+  {% if error %}
+  <span class="text-[var(--text-sm)] text-[var(--color-error)]">{{ error }}</span>
+  {% endif %}
+</div>
+{%- endmacro %}

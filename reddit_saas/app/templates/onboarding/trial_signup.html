@@ -28,6 +28,12 @@
     <!-- Main Content -->
     <main class="flex-1 flex items-center">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full">
+            <!-- Redirect message (shown when user hits /onboard/step/* without auth) -->
+            <script>
+            if (window.location.search.includes('next=onboarding')) {
+                document.write('<div class="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-800 text-sm"><strong>Start your free trial first.</strong> Create an account below to begin the onboarding wizard — it takes 3 minutes.</div>');
+            }
+            </script>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
 
                 <!-- Left: Value prop -->
@@ -84,6 +90,8 @@
                         {% endif %}
 
                         <form method="POST" action="/onboard/trial/signup" class="space-y-4">
+                            <!-- Honeypot anti-spam (hidden from humans, bots fill it) -->
+                            <input type="text" name="gotcha" style="display:none" tabindex="-1" autocomplete="off">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
                                 <input type="text" name="full_name" required

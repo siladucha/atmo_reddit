@@ -1,0 +1,38 @@
+{#
+  Parametric Button Component — RAMP Design System
+  
+  Variants: primary | secondary | danger | ghost
+  
+  Usage:
+    {% from "_macros/_button.html" import button %}
+    {{ button("Save", variant="primary") }}
+    {{ button("Cancel", variant="ghost") }}
+    {{ button("Delete", variant="danger", icon="🗑") }}
+    {{ button("Loading...", variant="primary", loading=true) }}
+    {{ button("Go", variant="primary", href="/somewhere") }}
+#}
+{% from "_macros/_component_attrs.html" import component_attrs %}
+
+{% macro button(text, variant="primary", type="button", disabled=false, loading=false, icon=None, href=None, cls="", id=None) -%}
+{% set base_cls = "inline-flex items-center justify-center gap-1.5 font-semibold cursor-pointer transition-all border-none disabled:opacity-40 disabled:cursor-not-allowed" %}
+{% set size_cls = "min-h-[44px] px-5 py-2.5 rounded text-[15px]" %}
+{% set variant_map = {
+  "primary": "bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)]",
+  "secondary": "bg-[var(--color-surface-alt)] text-[var(--color-text)] border border-[var(--color-border)] hover:border-[var(--color-text-muted)]",
+  "danger": "bg-[var(--color-error)] text-white hover:opacity-90",
+  "ghost": "bg-transparent text-[var(--color-text-muted)] border border-[var(--color-border)] hover:text-[var(--color-text)] hover:border-[var(--color-text-muted)]"
+} %}
+{% set v_cls = variant_map.get(variant, variant_map.primary) %}
+{% set tag = "a" if href else "button" %}
+<{{ tag }} {{ component_attrs("button", "_macros/_button.html", variant=variant) }}
+  {% if href %}href="{{ href }}"{% endif %}
+  {% if tag == "button" %}type="{{ type }}"{% endif %}
+  {% if disabled or loading %}disabled{% endif %}
+  {% if id %}id="{{ id }}"{% endif %}
+  class="{{ base_cls }} {{ size_cls }} {{ v_cls }} {{ cls }}"
+>
+  {%- if loading %}<span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>{% endif -%}
+  {%- if icon %}<span>{{ icon }}</span>{% endif -%}
+  {{ text }}
+</{{ tag }}>
+{%- endmacro %}

@@ -108,6 +108,8 @@
                         {% endif %}
 
                         <form method="POST" action="/login" class="space-y-4">
+                            <!-- Honeypot anti-spam (hidden from humans, bots fill it) -->
+                            <input type="text" name="gotcha" style="display:none" tabindex="-1" autocomplete="off">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
                                 <input type="email" name="email" required autofocus

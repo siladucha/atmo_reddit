@@ -131,7 +131,7 @@
             <textarea name="edited_text" rows="2"
                       class="flex-1 px-2 py-1.5 bg-slate-night border border-slate-600 text-gray-200 rounded text-sm resize-none focus:outline-none focus:border-indigo-500"
                       placeholder="Edit…">{{ item.draft.edited_draft or item.draft.ai_draft or '' }}</textarea>
-            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded text-xs">Save</button>
+            <button type="submit" class="bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded text-xs">Save & Approve ✓</button>
         </form>
         <span id="edit-status-{{ item.draft.id }}" class="text-xs"></span>
     </div>

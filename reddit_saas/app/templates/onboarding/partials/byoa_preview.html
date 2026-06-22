@@ -1,0 +1,77 @@
+<div id="byoa-result">
+    <div class="surface" style="padding:20px;border-radius:8px;border:1px solid var(--color-green);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+            <span style="color:var(--color-green);font-size:18px;">✓</span>
+            <h3 style="color:var(--color-white);font-weight:600;margin:0;">Profile analyzed: u/{{ draft.reddit_username }}</h3>
+        </div>
+
+        {% if profile %}
+        <div style="display:flex;gap:16px;margin-bottom:16px;font-size:var(--text-small);color:var(--color-muted);">
+            <span>Karma: {{ profile.get("karma_comment", 0) + profile.get("karma_post", 0) }}</span>
+            <span>Account age: {{ profile.get("account_age_days", 0) }} days</span>
+            <span>Active subs: {{ profile.get("active_subreddits", {})|length }}</span>
+        </div>
+        {% endif %}
+
+        <form hx-post="/onboard/step/5/confirm" hx-target="#byoa-result" hx-swap="innerHTML">
+            <input type="hidden" name="draft_id" value="{{ draft.id }}">
+
+            <div style="display:grid;gap:12px;margin-bottom:16px;">
+                <div>
+                    <label class="text-micro" style="color:var(--color-muted);">Display Name</label>
+                    <input type="text" name="display_name" maxlength="50"
+                           value="{{ analysis.get('display_name', '') }}"
+                           class="field-input" style="width:100%;">
+                </div>
+                <div>
+                    <label class="text-micro" style="color:var(--color-muted);">Persona Bio</label>
+                    <textarea name="persona_bio" rows="2" maxlength="200"
+                              class="field-input" style="width:100%;">{{ analysis.get('persona_bio', '') }}</textarea>
+                </div>
+                <div>
+                    <label class="text-micro" style="color:var(--color-muted);">Tone Principles</label>
+                    <textarea name="tone_principles" rows="2"
+                              class="field-input" style="width:100%;">{{ analysis.get('voice_profile', {}).get('tone_principles', '') }}</textarea>
+                </div>
+                <div>
+                    <label class="text-micro" style="color:var(--color-muted);">Hill I Die On</label>
+                    <input type="text" name="hill_i_die_on"
+                           value="{{ analysis.get('strategy', {}).get('hill_i_die_on', '') }}"
+                           class="field-input" style="width:100%;">
+                </div>
+                <div>
+                    <label class="text-micro" style="color:var(--color-muted);">Helpful Topics</label>
+                    <input type="text" name="helpful_mode_topics"
+                           value="{{ analysis.get('strategy', {}).get('helpful_mode_topics', '') }}"
+                           class="field-input" style="width:100%;">
+                </div>
+                <div>
+                    <label class="text-micro" style="color:var(--color-muted);">Hobby Subreddits (comma-separated)</label>
+                    <input type="text" name="hobby_subreddits"
+                           value="{{ analysis.get('subreddits', {}).get('hobby', [])|join(', ') }}"
+                           class="field-input" style="width:100%;">
+                </div>
+                <div>
+                    <label class="text-micro" style="color:var(--color-muted);">Business Subreddits (comma-separated)</label>
+                    <input type="text" name="business_subreddits"
+                           value="{{ analysis.get('subreddits', {}).get('business', [])|join(', ') }}"
+                           class="field-input" style="width:100%;">
+                </div>
+            </div>
+
+            <div style="display:flex;gap:12px;">
+                <button type="submit" class="btn-primary" style="padding:10px 20px;">
+                    Confirm Avatar
+                </button>
+                <button type="button"
+                        hx-post="/onboard/step/5/reject"
+                        hx-target="#byoa-result"
+                        hx-swap="innerHTML"
+                        hx-vals='{"draft_id": "{{ draft.id }}"}'
+                        style="padding:10px 20px;background:transparent;border:1px solid var(--color-border);color:var(--color-muted);border-radius:var(--radius-input);cursor:pointer;">
+                    Try Different Account
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

@@ -129,6 +129,20 @@
     {% endif %}
 
     </div>
+
+    <!-- Emotional Profile (lazy-loaded via HTMX) -->
+    <div hx-get="/admin/subreddits/detail/{{ subreddit_name }}/emotional-profile"
+         hx-trigger="load"
+         hx-swap="innerHTML"
+         class="bg-dark-steel rounded-lg border border-slate-700 p-4">
+        <div class="animate-pulse flex space-x-4">
+            <div class="flex-1 space-y-3">
+                <div class="h-3 bg-slate-700 rounded w-1/4"></div>
+                <div class="h-3 bg-slate-700 rounded w-3/4"></div>
+            </div>
+        </div>
+    </div>
+
     <div data-subreddit-detail-panel="avatars" class="subreddit-detail-panel hidden space-y-6">
 
     <!-- Avatar Performance (Our Avatars) -->

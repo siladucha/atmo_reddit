@@ -21,34 +21,51 @@
             </label>
         </div>
 
+        <div style="margin-bottom:var(--space-3);display:flex;align-items:center;gap:12px;">
+            <button type="button"
+                    hx-post="/onboard/step/3/suggest"
+                    hx-target="#step3-fields"
+                    hx-swap="innerHTML"
+                    hx-indicator="#step3-loading"
+                    hx-on::after-request="this.disabled=true;this.textContent='✓ AI Suggested';this.style.opacity='0.4'"
+                    class="btn-primary" style="padding:8px 20px;font-size:var(--text-small);"
+                    {% if ai_icp is defined and ai_icp and ai_icp.job_titles %}disabled style="padding:8px 20px;font-size:var(--text-small);opacity:0.4;cursor:not-allowed;"{% endif %}>
+                {% if ai_icp is defined and ai_icp and ai_icp.job_titles %}✓ AI Suggested{% else %}✨ Suggest with AI{% endif %}
+            </button>
+            <span id="step3-loading" class="htmx-indicator text-small" style="color:var(--color-orange);">Thinking...</span>
+        </div>
+
         <!-- B2B fields -->
-        <div id="b2b-fields" class="surface" style="padding:var(--space-3);display:flex;flex-direction:column;gap:12px;">
-            <div>
-                <label class="text-micro" style="color:var(--color-muted);">Job titles of your buyers *</label>
-                <input type="text" name="job_titles" class="field-input" style="width:100%;" placeholder="e.g. CISO, VP Security, Security Architect" value="">
-            </div>
-            <div>
-                <label class="text-micro" style="color:var(--color-muted);">Seniority level</label>
-                <select name="seniority" class="field-input" style="width:100%;">
-                    <option value="c-level">C-Level / VP</option>
-                    <option value="director">Director</option>
-                    <option value="manager" selected>Manager / Lead</option>
-                    <option value="individual">Individual Contributor</option>
-                    <option value="mixed">Mixed levels</option>
-                </select>
-            </div>
-            <div>
-                <label class="text-micro" style="color:var(--color-muted);">Their day-to-day frustration *</label>
-                <textarea name="frustration" rows="2" class="field-input" style="width:100%;" placeholder="e.g. Drowning in alerts, can't prioritize, board asks 'are we secure?' and they can't answer confidently"></textarea>
-            </div>
-            <div>
-                <label class="text-micro" style="color:var(--color-muted);">What do they search before finding you? *</label>
-                <textarea name="search_query" rows="2" class="field-input" style="width:100%;" placeholder="e.g. 'how to prioritize vulnerabilities', 'attack path analysis tools', 'CTEM vs vulnerability scanning'"></textarea>
-                <p class="text-micro" style="color:var(--color-muted);margin-top:4px;">This becomes the seed for keyword suggestions in the next step.</p>
-            </div>
-            <div>
-                <label class="text-micro" style="color:var(--color-muted);">Adjacent buyer (optional)</label>
-                <textarea name="adjacent_icp" rows="2" class="field-input" style="width:100%;" placeholder="e.g. Cloud Security Engineers who evaluate tools for their CISO"></textarea>
+        <div id="b2b-fields" class="surface" style="padding:var(--space-3);">
+            <div id="step3-fields" style="display:flex;flex-direction:column;gap:12px;">
+                <div>
+                    <label class="text-micro" style="color:var(--color-muted);">Job titles of your buyers *</label>
+                    <input type="text" name="job_titles" class="field-input" style="width:100%;" placeholder="e.g. CISO, VP Security, Security Architect" value="{{ (ai_icp.job_titles if ai_icp is defined and ai_icp) or '' }}">
+                </div>
+                <div>
+                    <label class="text-micro" style="color:var(--color-muted);">Seniority level</label>
+                    <select name="seniority" class="field-input" style="width:100%;">
+                        {% set sel = (ai_icp.seniority if ai_icp is defined and ai_icp and ai_icp.seniority) or 'manager' %}
+                        <option value="c-level" {{ 'selected' if sel == 'c-level' else '' }}>C-Level / VP</option>
+                        <option value="director" {{ 'selected' if sel == 'director' else '' }}>Director</option>
+                        <option value="manager" {{ 'selected' if sel == 'manager' else '' }}>Manager / Lead</option>
+                        <option value="individual" {{ 'selected' if sel in ('individual', 'ic') else '' }}>Individual Contributor</option>
+                        <option value="mixed" {{ 'selected' if sel == 'mixed' else '' }}>Mixed levels</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-micro" style="color:var(--color-muted);">Their day-to-day frustration *</label>
+                    <textarea name="frustration" rows="2" class="field-input" style="width:100%;" placeholder="e.g. Drowning in alerts, can't prioritize, board asks 'are we secure?' and they can't answer confidently">{{ (ai_icp.frustration if ai_icp is defined and ai_icp) or '' }}</textarea>
+                </div>
+                <div>
+                    <label class="text-micro" style="color:var(--color-muted);">What do they search before finding you? *</label>
+                    <textarea name="search_query" rows="2" class="field-input" style="width:100%;" placeholder="e.g. 'how to prioritize vulnerabilities', 'attack path analysis tools', 'CTEM vs vulnerability scanning'">{{ (ai_icp.search_query if ai_icp is defined and ai_icp) or '' }}</textarea>
+                    <p class="text-micro" style="color:var(--color-muted);margin-top:4px;">This becomes the seed for keyword suggestions in the next step.</p>
+                </div>
+                <div>
+                    <label class="text-micro" style="color:var(--color-muted);">Adjacent buyer (optional)</label>
+                    <textarea name="adjacent_icp" rows="2" class="field-input" style="width:100%;" placeholder="e.g. Cloud Security Engineers who evaluate tools for their CISO">{{ (ai_icp.adjacent_icp if ai_icp is defined and ai_icp) or '' }}</textarea>
+                </div>
             </div>
         </div>
 

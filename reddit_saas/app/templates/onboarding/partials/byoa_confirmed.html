@@ -1,0 +1,10 @@
+<div id="byoa-result">
+    <div class="surface" style="padding:20px;border-radius:8px;border:1px solid var(--color-green);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <span style="color:var(--color-green);font-size:18px;">✓</span>
+            <p style="color:var(--color-green);font-weight:600;">Avatar confirmed</p>
+        </div>
+        <p style="color:var(--color-white);">{{ avatar.display_name or avatar.reddit_username }}</p>
+        <p style="color:var(--color-muted);font-size:var(--text-small);">u/{{ avatar.reddit_username }}</p>
+    </div>
+</div>
