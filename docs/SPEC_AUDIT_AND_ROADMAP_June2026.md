@@ -143,7 +143,7 @@
 ### P0 — Before Next Paid Client (Now)
 | What | Effort | Blocker For |
 |------|--------|-------------|
-| Automated Proxy Posting (buy ProxyJet) | 2-3d | Full automation |
+| ~~Automated Proxy Posting (buy ProxyJet)~~ | ~~2-3d~~ | **🧊 FROZEN** — waiting for business decision |
 | Trial Conversion Intelligence (complete) | 3-5d | Sales conversion |
 | Production Readiness Audit (Go/No-Go) | 2d | ControlUp onboard |
 | AI-Native Expert Warming (start) | 5-7d | Core moat |
