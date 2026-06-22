@@ -82,11 +82,22 @@ __all__ = [
     "ClientActionLog",
     "VoiceFeedback",
     "SubredditRequest",
+    "ExecutionTask",
+    "DeliveryAttempt",
     "GeoPrompt",
     "GeoCompetitor",
     "GeoExecutionBatch",
     "GeoQueryResult",
     "GeoFrequencyMetric",
+    "AvatarDraft",
+    "TrialSignal",
+    "TrialScore",
+    "TrialFailure",
+    "TrialSalesSummary",
+    "TrialIntelligenceEvent",
+    "AuditRun",
+    "AuditFinding",
+    "LLMTaskRecord",
 ]
 
 # GEO/AEO Prompt Monitoring
@@ -94,3 +105,19 @@ from app.models.geo_prompt import GeoPrompt
 from app.models.geo_competitor import GeoCompetitor
 from app.models.geo_execution import GeoExecutionBatch, GeoQueryResult, GeoFrequencyMetric
 from app.models.notification import Notification
+
+# Execution Task Delivery
+from app.models.execution_task import ExecutionTask, DeliveryAttempt
+
+# BYOA Avatar Provisioning
+from app.models.avatar_draft import AvatarDraft
+
+# Trial Conversion Intelligence
+from app.models.trial_signal import TrialSignal
+from app.models.trial_score import TrialScore
+from app.models.trial_failure import TrialFailure
+from app.models.trial_sales_summary import TrialSalesSummary
+from app.models.trial_intelligence_event import TrialIntelligenceEvent
+
+# Production Readiness Audit
+from app.models.audit_finding import AuditRun, AuditFinding, LLMTaskRecord

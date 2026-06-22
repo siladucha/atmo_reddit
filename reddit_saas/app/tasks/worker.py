@@ -27,6 +27,10 @@ celery_app = Celery(
         "app.tasks.performance_metrics",
         "app.tasks.snapshot_outcomes",
         "app.tasks.feedback",
+        "app.tasks.emotional_profile",
+        "app.tasks.trial_scoring",
+        "app.tasks.trial_negative_signals",
+        "app.tasks.byoa",
     ],
 )
 
@@ -122,6 +126,30 @@ celery_app.conf.update(
         "run-feedback-loop-daily": {
             "task": "run_feedback_loop_all",
             "schedule": crontab(hour=2, minute=0),  # 02:00 daily — after outcomes collected, before next EPG
+        },
+        "check-trial-negative-signals-4h": {
+            "task": "check_trial_negative_signals",
+            "schedule": crontab(hour="*/4", minute=30),  # Every 4h at :30 — negative signal detection
+        },
+        "classify-expired-trials-daily": {
+            "task": "classify_expired_trials",
+            "schedule": crontab(hour=2, minute=30),  # 02:30 daily — after feedback loop (02:00)
+        },
+        "refresh-emotional-profiles-weekly": {
+            "task": "refresh_subreddit_emotional_profiles",
+            "schedule": crontab(hour=4, minute=30, day_of_week="sunday"),  # Weekly, after continuous discovery
+        },
+        "check-stale-avatar-drafts": {
+            "task": "check_stale_avatar_drafts",
+            "schedule": 600.0,  # Every 10 minutes - fail stuck BYOA drafts
+        },
+        "check-avatar-invariant-daily": {
+            "task": "check_avatar_invariant",
+            "schedule": crontab(hour=2, minute=30),  # 02:30 daily - verify active clients have avatars
+        },
+        "check-onboarding-stall-hourly": {
+            "task": "check_onboarding_stall",
+            "schedule": crontab(minute=45),  # Every hour at :45 - detect stalled onboardings
         },
         "continuous-discovery-weekly": {
             "task": "run_continuous_discovery_all",

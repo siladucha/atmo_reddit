@@ -1,0 +1,12 @@
+<tr class="border-b border-gray-800 hover:bg-gray-800/50">
+  <td class="py-3 px-3">
+    <div class="text-white font-medium">{{ row.client.client_name }}</div>
+    <div class="text-gray-500 text-xs">{{ row.client.brand_domain or '' }}</div>
+  </td>
+  <td class="py-3 px-3"><span class="px-2 py-0.5 rounded text-xs bg-gray-700 text-gray-300">{{ row.lifecycle_state }}</span></td>
+  <td class="py-3 px-3 text-white">{{ row.days_remaining }}d</td>
+  <td class="py-3 px-3 text-white">{{ row.conversion_score }}</td>
+  <td class="py-3 px-3 text-white">{{ row.priority_score }}</td>
+  <td class="py-3 px-3 text-blue-300">${{ "%.0f"|format(row.opportunity_value / 100) }}</td>
+  <td class="py-3 px-3 text-green-400 text-xs">{% if row.get('contacted') %}✓ Contacted{% endif %}</td>
+</tr>

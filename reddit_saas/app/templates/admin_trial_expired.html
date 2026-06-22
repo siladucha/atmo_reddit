@@ -1,0 +1,68 @@
+{% extends "admin_base.html" %}
+{% block title %}Expired Trials — RAMP{% endblock %}
+{% block content %}
+<div class="p-6">
+  <div class="flex items-center gap-4 mb-6">
+    <a href="/admin/trial-intelligence" class="text-gray-400 hover:text-white">&larr; Back</a>
+    <h1 class="text-2xl font-bold text-white">Expired Trials</h1>
+    <span class="text-gray-400 ml-2">({{ total }} total)</span>
+  </div>
+
+  <table class="w-full text-sm text-left">
+    <thead class="text-gray-400 border-b border-gray-700">
+      <tr>
+        <th class="py-2 px-3">Client</th>
+        <th class="py-2 px-3">Category</th>
+        <th class="py-2 px-3">AI Status</th>
+        <th class="py-2 px-3">Reactivate?</th>
+        <th class="py-2 px-3">Win-Back Window</th>
+        <th class="py-2 px-3">Next Action</th>
+        <th class="py-2 px-3">Classified</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for failure, client in failures %}
+      <tr class="border-b border-gray-800 hover:bg-gray-800/50">
+        <td class="py-3 px-3">
+          <div class="text-white">{{ client.client_name }}</div>
+          <div class="text-gray-500 text-xs">{{ client.brand_domain or '' }}</div>
+        </td>
+        <td class="py-3 px-3">
+          <span class="px-2 py-0.5 rounded text-xs
+            {% if failure.failure_category == 'no_engagement' %}bg-red-900 text-red-300
+            {% elif failure.failure_category == 'wrong_icp' %}bg-yellow-900 text-yellow-300
+            {% elif failure.failure_category == 'product_confusion' %}bg-orange-900 text-orange-300
+            {% else %}bg-gray-700 text-gray-300{% endif %}">
+            {{ failure.failure_category }}
+          </span>
+        </td>
+        <td class="py-3 px-3 text-sm {% if failure.ai_analysis_status == 'completed' %}text-green-400{% elif failure.ai_analysis_status == 'failed' %}text-red-400{% else %}text-gray-400{% endif %}">
+          {{ failure.ai_analysis_status }}
+        </td>
+        <td class="py-3 px-3">
+          {% if failure.reactivation_recommended %}
+          <span class="text-green-400">Yes</span>
+          {% else %}
+          <span class="text-gray-500">No</span>
+          {% endif %}
+        </td>
+        <td class="py-3 px-3 text-white">{{ failure.win_back_window_days or '-' }}d</td>
+        <td class="py-3 px-3 text-yellow-300 text-xs">{{ failure.next_best_action or '-' }}</td>
+        <td class="py-3 px-3 text-gray-400 text-xs">{{ failure.classified_at.strftime('%m/%d') if failure.classified_at else '-' }}</td>
+      </tr>
+      {% endfor %}
+      {% if not failures %}
+      <tr><td colspan="7" class="py-8 text-center text-gray-500">No expired trials classified yet</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  {% if total_pages > 1 %}
+  <div class="flex justify-center gap-2 mt-4">
+    {% if page > 1 %}<a href="?page={{ page-1 }}" class="text-blue-400 hover:underline">← Prev</a>{% endif %}
+    <span class="text-gray-400">Page {{ page }}/{{ total_pages }}</span>
+    {% if page < total_pages %}<a href="?page={{ page+1 }}" class="text-blue-400 hover:underline">Next →</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

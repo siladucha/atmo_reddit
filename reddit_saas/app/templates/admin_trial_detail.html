@@ -1,0 +1,120 @@
+{% extends "admin_base.html" %}
+{% block title %}Trial Detail — {{ client.client_name }}{% endblock %}
+{% block content %}
+<div class="p-6">
+  <div class="flex items-center gap-4 mb-6">
+    <a href="/admin/trial-intelligence" class="text-gray-400 hover:text-white">&larr; Back</a>
+    <h1 class="text-2xl font-bold text-white">{{ client.client_name }}</h1>
+    <span class="text-gray-400">{{ client.brand_domain or '' }}</span>
+    <span class="ml-auto px-3 py-1 rounded text-sm
+      {% if score and score.lifecycle_state == 'high_intent' %}bg-green-900 text-green-300
+      {% elif score and score.lifecycle_state == 'at_risk' %}bg-red-900 text-red-300
+      {% else %}bg-gray-700 text-gray-300{% endif %}">
+      {{ score.lifecycle_state if score else 'unknown' }}
+    </span>
+  </div>
+
+  <!-- Score Cards -->
+  <div class="grid grid-cols-4 gap-4 mb-6">
+    <div class="bg-gray-800 rounded-lg p-4">
+      <div class="text-gray-400 text-xs">Conversion Score</div>
+      <div class="text-2xl font-bold text-green-400">{{ score.conversion_score if score else 0 }}</div>
+    </div>
+    <div class="bg-gray-800 rounded-lg p-4">
+      <div class="text-gray-400 text-xs">Priority Score</div>
+      <div class="text-2xl font-bold text-white">{{ score.priority_score if score else 0 }}</div>
+    </div>
+    <div class="bg-gray-800 rounded-lg p-4">
+      <div class="text-gray-400 text-xs">Opportunity Value</div>
+      <div class="text-2xl font-bold text-blue-400">${{ "%.0f"|format((score.opportunity_value_cents or 0) / 100) }}</div>
+    </div>
+    <div class="bg-gray-800 rounded-lg p-4">
+      <div class="text-gray-400 text-xs">Days Remaining</div>
+      <div class="text-2xl font-bold {% if days_remaining <= 3 %}text-red-400{% else %}text-white{% endif %}">{{ days_remaining }}d</div>
+    </div>
+  </div>
+
+  <!-- Action Buttons -->
+  <div class="flex gap-3 mb-6">
+    <button hx-post="/admin/trial-intelligence/{{ client.id }}/summary" hx-target="#summary-result" hx-indicator="#summary-loading"
+      class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded text-sm">
+      Generate Sales Summary
+    </button>
+    <button hx-post="/admin/trial-intelligence/{{ client.id }}/outreach" hx-target="#outreach-result" hx-indicator="#outreach-loading"
+      class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm">
+      Generate Outreach
+    </button>
+    <button hx-post="/admin/trial-intelligence/{{ client.id }}/mark-contacted" hx-swap="outerHTML"
+      class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded text-sm">
+      Mark Contacted
+    </button>
+  </div>
+
+  <!-- Summary Result -->
+  <div id="summary-result" class="mb-4"></div>
+  <div id="summary-loading" class="htmx-indicator text-gray-400 text-sm mb-4">Generating summary...</div>
+
+  <!-- Outreach Result -->
+  <div id="outreach-result" class="mb-4"></div>
+  <div id="outreach-loading" class="htmx-indicator text-gray-400 text-sm mb-4">Generating outreach...</div>
+
+  <!-- Score Explanation -->
+  {% if score and score.score_explanation %}
+  <div class="bg-gray-800 rounded-lg p-4 mb-6">
+    <h3 class="text-white font-medium mb-3">Score Explanation</h3>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <div class="text-green-400 text-xs font-medium mb-2">Top Positive Signals</div>
+        {% for sig in (score.score_explanation.get('top_positive', []) if score.score_explanation is mapping else [])[:5] %}
+        <div class="text-sm text-gray-300 mb-1">+ {{ sig.get('signal_type', '') }} <span class="text-green-400">(+{{ sig.get('contribution', 0) }})</span></div>
+        {% endfor %}
+      </div>
+      <div>
+        <div class="text-red-400 text-xs font-medium mb-2">Top Negative Signals</div>
+        {% for sig in (score.score_explanation.get('top_negative', []) if score.score_explanation is mapping else [])[:5] %}
+        <div class="text-sm text-gray-300 mb-1">- {{ sig.get('signal_type', '') }} <span class="text-red-400">({{ sig.get('penalty', 0) }})</span></div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Signals Timeline -->
+  <div class="bg-gray-800 rounded-lg p-4 mb-6">
+    <h3 class="text-white font-medium mb-3">Signal Timeline ({{ total_signals }} total)</h3>
+    <div class="space-y-2 max-h-64 overflow-y-auto">
+      {% for sig in signals %}
+      <div class="flex items-center gap-3 text-sm">
+        <span class="text-gray-500 w-32">{{ sig.created_at.strftime('%m/%d %H:%M') }}</span>
+        <span class="px-2 py-0.5 rounded text-xs
+          {% if sig.signal_category == 'negative' %}bg-red-900 text-red-300
+          {% elif sig.signal_category == 'conversion' %}bg-green-900 text-green-300
+          {% elif sig.signal_category == 'value_realization' %}bg-purple-900 text-purple-300
+          {% elif sig.signal_category == 'intent' %}bg-yellow-900 text-yellow-300
+          {% else %}bg-gray-700 text-gray-300{% endif %}">{{ sig.signal_category }}</span>
+        <span class="text-white">{{ sig.signal_type }}</span>
+      </div>
+      {% endfor %}
+      {% if not signals %}
+      <div class="text-gray-500 text-center py-4">No signals recorded</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Intelligence Events -->
+  <div class="bg-gray-800 rounded-lg p-4">
+    <h3 class="text-white font-medium mb-3">Intelligence Events</h3>
+    <div class="space-y-2 max-h-48 overflow-y-auto">
+      {% for event in events %}
+      <div class="flex items-center gap-3 text-sm">
+        <span class="text-gray-500 w-32">{{ event.created_at.strftime('%m/%d %H:%M') }}</span>
+        <span class="text-gray-300">{{ event.event_type }}</span>
+      </div>
+      {% endfor %}
+      {% if not events %}
+      <div class="text-gray-500 text-center py-4">No events yet</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

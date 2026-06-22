@@ -9,11 +9,13 @@ from fastapi.templating import Jinja2Templates
 from app.config import get_settings, get_config
 from app.logging_config import setup_logging, get_logger
 from app.middleware.auth import AuthMiddleware
+from app.middleware.trial_signals import TrialSignalMiddleware
 from app.version import __version__
 from app.middleware.errors import ErrorMiddleware
 from app.middleware.security import SecurityHeadersMiddleware, RateLimitMiddleware
-from app.routes import admin, auth, dashboard, review, pipeline, avatars, avatar_analysis, avatar_pipeline, avatar_workflow, clients, pages, dry_run, export, decision_center, portal, portal_actions, onboarding, oauth, posting_dashboard, discovery, admin_geo, sse
+from app.routes import admin, auth, dashboard, review, pipeline, avatars, avatar_analysis, avatar_pipeline, avatar_workflow, clients, pages, dry_run, export, decision_center, portal, portal_actions, onboarding, oauth, posting_dashboard, discovery, admin_geo, sse, avatar_onboard, admin_tasks, executor_tasks, trial_intelligence
 from app.routes import notifications as notifications_routes
+from app.routes import manual as manual_routes
 from app.services.metrics_collector import (
     get_metrics_collector,
     install_metrics_logging_handler,
@@ -105,6 +107,7 @@ app.add_middleware(
 )
 app.add_middleware(ErrorMiddleware, debug=(app_env != "production"))
 app.add_middleware(AuthMiddleware)
+app.add_middleware(TrialSignalMiddleware)
 
 # Expose the metrics collector to route handlers via app.state
 app.state.metrics_collector = metrics_collector
@@ -130,15 +133,20 @@ app.include_router(avatar_pipeline.router, tags=["avatar-pipeline"])
 app.include_router(avatar_workflow.router, tags=["avatar-workflow"])
 app.include_router(dry_run.router, tags=["dry-run"])
 app.include_router(portal.router, tags=["client-portal"])
+app.include_router(manual_routes.router)
 app.include_router(portal_actions.router, tags=["client-portal-actions"])
 app.include_router(sse.router, tags=["sse"])
 app.include_router(notifications_routes.router, tags=["notifications"])
 app.include_router(onboarding.router, tags=["onboarding"])
+app.include_router(avatar_onboard.router, tags=["avatar-onboard"])
 app.include_router(pages.router, tags=["pages"])
 app.include_router(posting_dashboard.router, tags=["posting-dashboard"])
 app.include_router(discovery.router, tags=["discovery"])
 app.include_router(export.router, tags=["export"])
 app.include_router(admin_geo.router, tags=["admin-geo"])
+app.include_router(admin_tasks.router, tags=["admin-tasks"])
+app.include_router(executor_tasks.router, tags=["executor-tasks"])
+app.include_router(trial_intelligence.router, tags=["trial-intelligence"])
 
 
 @app.get("/health")

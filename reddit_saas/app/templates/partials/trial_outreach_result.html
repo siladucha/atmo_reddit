@@ -1,0 +1,27 @@
+<div class="bg-gray-800 rounded-lg p-4">
+  {% if error %}
+  <div class="text-red-400 text-sm">{{ error }}</div>
+  {% elif drafts %}
+  <h3 class="text-white font-medium mb-3">Outreach Drafts</h3>
+  <div class="space-y-4">
+    {% for draft in drafts %}
+    <div class="border border-gray-700 rounded p-3">
+      <div class="flex justify-between items-center mb-2">
+        <span class="text-sm font-medium text-blue-300">{{ draft.draft_type|title }}</span>
+        <button hx-post="/admin/trial-intelligence/{{ client_id }}/copy-outreach"
+                hx-vals='{"draft_type": "{{ draft.draft_type }}"}'
+                hx-swap="outerHTML"
+                onclick="navigator.clipboard.writeText(this.closest('.border').querySelector('.draft-content').textContent)"
+                class="text-xs text-gray-400 hover:text-white px-2 py-1 bg-gray-700 rounded">
+          Copy
+        </button>
+      </div>
+      {% if draft.subject %}<div class="text-xs text-gray-400 mb-1">Subject: {{ draft.subject }}</div>{% endif %}
+      <div class="text-sm text-gray-300 whitespace-pre-wrap draft-content">{{ draft.body }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-gray-500 text-sm">No drafts generated.</div>
+  {% endif %}
+</div>
