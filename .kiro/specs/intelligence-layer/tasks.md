@@ -268,3 +268,35 @@ Implement the Intelligence Layer as an analytical subsystem that aggregates exis
     - Test: RBAC enforcement on API endpoints (client users cannot see other clients' data)
     - Test: cap enforcement (11th recommendation for same client triggers expire of lowest priority)
     - _Validates: R1-R12 end-to-end_
+
+## Notes
+
+- Run Alembic migration on an empty/dev DB first to validate table creation before applying to production
+- Property-based tests use the Hypothesis library (`hypothesis` Python package) — add to dev dependencies
+- Intelligence Celery tasks (03:00–04:30) are scheduled to avoid overlap with existing pipeline runs (08:00, 14:00)
+- Anomaly detection runs at :50 past each 4h mark to align with existing `snapshot_comment_outcomes` schedule at :45
+- All intelligence services follow the existing pattern: thin service modules, no direct DB access from routes
+- Tasks marked with `*` are optional and can be skipped for faster MVP delivery
+- Each task references specific requirements for traceability
+- Checkpoints ensure incremental validation between major implementation phases
+- Strategic observations (Task 9) require Gemini Flash API access — ensure `GOOGLE_API_KEY` is configured
+- Archival task (Task 13) should be tested with small datasets first to validate batch deletion logic
+
+## Task Dependency Graph
+
+```json
+{
+  "waves": [
+    { "id": 0, "tasks": ["1.1", "1.2", "1.3"] },
+    { "id": 1, "tasks": ["2.1", "3.1"] },
+    { "id": 2, "tasks": ["2.2", "3.2", "4.1", "5.1", "6.1", "9.1"] },
+    { "id": 3, "tasks": ["4.2", "5.2", "6.2"] },
+    { "id": 4, "tasks": ["7.1"] },
+    { "id": 5, "tasks": ["7.2", "8.1"] },
+    { "id": 6, "tasks": ["8.2", "10.1", "11.1"] },
+    { "id": 7, "tasks": ["10.2", "11.2"] },
+    { "id": 8, "tasks": ["12.1", "12.2", "13.1"] },
+    { "id": 9, "tasks": ["14.1"] }
+  ]
+}
+```

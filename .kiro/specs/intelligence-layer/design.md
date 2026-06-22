@@ -127,7 +127,42 @@ flowchart LR
 end
 ```
 
-## Database Schema
+## Components and Interfaces
+
+### Service Components
+
+| Component | Module | Responsibility |
+|-----------|--------|---------------|
+| Event Collector | `intel_collector.py` | Captures structured intelligence events from all subsystems |
+| Baseline Engine | `intel_baseline.py` | Computes rolling statistical baselines per entity per metric |
+| Anomaly Detector | `intel_anomaly.py` | Detects deviations from baselines using z-score analysis |
+| Trend Analyzer | `intel_trends.py` | Identifies 7d and 30d directional trends with acceleration |
+| Strategy Observer | `intel_strategy.py` | Produces weekly strategic observations via LLM synthesis |
+| Health Index Computer | `intel_health_index.py` | Computes composite avatar health scores (0-100) |
+| Recommendation Engine | `intel_recommendations.py` | Generates actionable recommendations with reasoning |
+| Learning Loop | `intel_learning.py` | Tracks outcomes and adjusts confidence multipliers |
+| Query Service | `intel_query.py` | Provides paginated read access for dashboard and API |
+
+### External Interfaces (API)
+
+| Endpoint | Method | Response | Auth |
+|----------|--------|----------|------|
+| `/api/intelligence/anomalies` | GET | JSON (paginated) | JWT + RBAC scope |
+| `/api/intelligence/trends` | GET | JSON (paginated) | JWT + RBAC scope |
+| `/api/intelligence/recommendations` | GET | JSON (paginated) | JWT + RBAC scope |
+| `/api/intelligence/health/{avatar_id}` | GET | JSON (single + history) | JWT + RBAC scope |
+| `/api/intelligence/observations` | GET | JSON (paginated) | JWT + RBAC scope |
+| `/api/intelligence/summary` | GET | JSON (dashboard summary) | JWT + RBAC scope |
+| `/admin/intelligence/recommendations/{id}/decide` | POST | HTMX partial | platform_admin or client_admin |
+
+### Integration Points
+
+- **Transparency service** (`app/services/transparency.py`): Hook `record_activity_event()` to emit intelligence events alongside
+- **Review route** (`app/routes/review.py`): Record review decisions (approve/reject/edit)
+- **Snapshot outcomes** (`app/tasks/snapshot_outcomes.py`): Record karma observations on each snapshot
+- **Karma feedback** (`app/services/karma_feedback.py`): Record avatar health state transitions
+
+## Data Models
 
 ### New Tables
 
@@ -572,23 +607,111 @@ app/
 
 ## Correctness Properties
 
+*A property is a characteristic or behavior that should hold true across all valid executions of a system-essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
+
 ### Property 1: Baseline Statistical Validity
-For any set of metric values, the computed baseline mean and stddev SHALL satisfy: mean equals the weighted average of all values with exponential decay, and stddev equals the weighted standard deviation. Round-trip: applying the formula twice with the same data produces identical results.
+
+*For any* set of metric values, the computed baseline mean and stddev SHALL satisfy: mean equals the weighted average of all values with exponential decay, and stddev equals the weighted standard deviation. Round-trip: applying the formula twice with the same data produces identical results.
+
+**Validates: Requirements 2.2, 2.3**
 
 ### Property 2: Anomaly Detection Symmetry
-For any metric value V and baseline (mean, stddev): if |V - mean| / stddev > 2, an anomaly is detected. The detection function is deterministic — same inputs always produce same severity classification.
+
+*For any* metric value V and baseline (mean, stddev): if |V - mean| / stddev > 2, an anomaly is detected. The detection function is deterministic — same inputs always produce same severity classification.
+
+**Validates: Requirements 3.1, 3.4**
 
 ### Property 3: Trend Direction Consistency
-For any monotonically increasing sequence of 5+ values, the trend direction SHALL be "improving" (for positive metrics) or "declining" (for negative metrics like removal_rate). The classification is invariant to uniform scaling of the values.
+
+*For any* monotonically increasing sequence of 5+ values, the trend direction SHALL be "improving" (for positive metrics) or "declining" (for negative metrics like removal_rate). The classification is invariant to uniform scaling of the values.
+
+**Validates: Requirements 4.1, 4.2**
 
 ### Property 4: Recommendation Cap Enforcement
-For any client, the number of recommendations with status "pending" SHALL never exceed 10. If a new recommendation would breach the cap, the lowest-priority recommendation is expired.
+
+*For any* client, the number of recommendations with status "pending" SHALL never exceed 10. If a new recommendation would breach the cap, the lowest-priority recommendation is expired.
+
+**Validates: Requirements 6.4, 6.5**
 
 ### Property 5: Learning Loop Completeness
-For any accepted recommendation: exactly one outcome record is created, observation_end equals observation_start + 7 days, and outcome_score is computed after observation_end passes.
+
+*For any* accepted recommendation: exactly one outcome record is created, observation_end equals observation_start + 7 days, and outcome_score is computed after observation_end passes.
+
+**Validates: Requirements 7.1, 7.2, 7.3**
 
 ### Property 6: Health Index Bounds
-For any combination of component scores: the final Avatar_Health_Index is always in [0, 100]. Each component contributes exactly its specified weight percentage to the total.
+
+*For any* combination of component scores: the final Avatar_Health_Index is always in [0, 100]. Each component contributes exactly its specified weight percentage to the total.
+
+**Validates: Requirements 9.1**
 
 ### Property 7: Archival Data Preservation
-For any day of intelligence events: after archival, the summary table contains the exact event count and correct aggregated averages for that day. No data loss in the aggregation.
+
+*For any* day of intelligence events: after archival, the summary table contains the exact event count and correct aggregated averages for that day. No data loss in the aggregation.
+
+**Validates: Requirements 12.1, 12.5**
+
+## Error Handling
+
+### Service-Level Error Handling
+
+| Error Scenario | Handling Strategy | Reference |
+|---------------|-------------------|-----------|
+| Intelligence event fails to persist | Log warning (event_type, error, timestamp), continue without affecting source workflow | R1.6 |
+| Baseline computation fails for entity | Log failure with entity ID and error context, preserve last valid baseline, continue with remaining entities | R2.7 |
+| Anomaly detection encounters insufficient data | Skip detection for that entity-metric pair, do not generate anomaly record | R3.3 |
+| Recommendation action (accept/reject/defer) fails | Preserve recommendation in prior state, display error message to operator | R8.7 |
+| Outcome metrics cannot be retrieved within 48h after observation_end | Mark outcome as inconclusive, exclude from accuracy calculation | R7.6 |
+
+### Task-Level Error Handling
+
+All scheduled intelligence tasks follow a consistent error handling pattern:
+
+1. **Timeout**: If a task exceeds 10-minute execution timeout, emit an `intelligence_task_failed` ActivityEvent with task name and error description
+2. **Retry**: Exponential backoff (base 60 seconds, multiplier 2x, max 3 retries)
+3. **Exhaustion**: After 3 failed retries, emit `intelligence_task_exhausted` ActivityEvent, do not retry until next scheduled run
+4. **Concurrency**: Redis distributed lock per task name prevents overlapping execution
+
+### Data Integrity Safeguards
+
+- **Archival batching**: Deletions processed in batches of 1000 records per transaction to avoid lock contention
+- **Archival idempotency**: If archival fails mid-execution, it logs the last successfully processed date and does not re-delete records whose summaries were already persisted on retry
+- **Recommendation cap**: Always checked before insertion — never exceeds 10 pending per client
+- **Baseline preservation**: If recomputation fails, the previous valid baseline remains active
+
+## Testing Strategy
+
+### Unit Tests
+
+Unit tests cover specific examples and edge cases for each service module:
+
+- **Baseline computation**: Verify correct weighted mean/stddev for known input sets, test insufficient_data threshold (< 7 points), test exponential decay weights
+- **Anomaly detection**: Verify severity classification at exact 2σ and 3σ boundaries, test clustering logic, test escalation after 3 consecutive periods, test resolution conditions
+- **Trend analysis**: Verify direction classification at ±5% thresholds, test acceleration computation, test threshold intersection prediction
+- **Health index**: Verify component weight contributions, test boundary clamping at 0 and 100, test account age linear interpolation
+- **Recommendation engine**: Verify cap enforcement at exactly 10, test priority replacement logic, test expiry after 7 days
+- **Learning loop**: Verify outcome_score calculation, test success threshold at 0.8, test accuracy multiplier reduction at 50%
+- **Archival**: Verify batch processing, test summary aggregation correctness, test idempotent retry behavior
+
+### Property-Based Tests
+
+Property-based testing library: **Hypothesis** (Python)
+
+Each property test runs a minimum of 100 iterations and references its design document property:
+
+- **Property 1** (Baseline Statistical Validity): Generate random metric value sequences, verify weighted mean/stddev formula produces deterministic and mathematically correct results
+- **Property 2** (Anomaly Detection Symmetry): Generate random (value, mean, stddev) triples, verify detection is deterministic and severity classification follows z-score thresholds exactly
+- **Property 3** (Trend Direction Consistency): Generate monotonic sequences of varying lengths and scales, verify direction classification is consistent and scale-invariant
+- **Property 4** (Recommendation Cap Enforcement): Generate random sequences of recommendation insertions for a client, verify pending count never exceeds 10
+- **Property 5** (Learning Loop Completeness): Generate random recommendation acceptance events, verify exactly one outcome record with correct observation_end
+- **Property 6** (Health Index Bounds): Generate random component score combinations (each 0-100), verify final index is always in [0, 100] with correct weight distribution
+- **Property 7** (Archival Data Preservation): Generate random event sets for a day, verify summary contains exact count and correct averages after archival
+
+Tag format: **Feature: intelligence-layer, Property {number}: {property_text}**
+
+### Integration Tests
+
+- **Celery task scheduling**: Verify tasks fire at correct times and respect Redis locks
+- **RBAC scoping**: Verify API endpoints return only data within user scope, return 403 for unauthorized entities
+- **Dashboard rendering**: Verify HTMX partials load correctly with filter parameters
+- **End-to-end pipeline**: Event collection → baseline → anomaly detection → recommendation generation flow

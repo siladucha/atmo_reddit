@@ -136,8 +136,8 @@ def test_e2e_onboarding_pipeline(db: Session):
         subreddit="test_subreddit",
         type="professional",
         reddit_native_id=f"t3_e2e_{uuid.uuid4().hex[:8]}",
-        post_title="How do you handle X in production?",
-        post_body="Looking for advice on handling X at scale...",
+        post_title="How do you handle test deployments in production?",
+        post_body="Looking for advice on test frameworks at scale...",
         url="https://reddit.com/r/test_subreddit/comments/abc123",
         author="someone",
     )

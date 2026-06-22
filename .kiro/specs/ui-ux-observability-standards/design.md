@@ -542,3 +542,228 @@ No changes to route Python files. Template rendering logic unchanged — only te
 | 2 | UI_MAP Generator | `scripts/generate_ui_map.py`, `UI_MAP.md` | 3-5 days |
 | 3 | Debug Overlay | `static/js/debug-overlay.js`, base template mods | 5-7 days |
 | 4 | Screen Specs | `scripts/validate_screen_specs.py`, `docs/screen_specs/*.yaml`, contracts | 3-5 days |
+
+## Components and Interfaces
+
+### Component: UILinter (`scripts/lint_ui.py`)
+
+**Interface:**
+```
+CLI: python scripts/lint_ui.py <template_dir> [--fix] [--fix --write] [--allowlist <path>]
+Exit: 0 (pass) | 1 (violations found)
+Output: stdout (violation report in format: file:line:type:snippet)
+```
+
+**Public API (if imported):**
+```python
+class Violation:
+    file: Path
+    line: int
+    violation_type: str  # "inline-style" | "arbitrary-tailwind" | "duplicate-pattern" | "missing-marker"
+    snippet: str
+    suggested_fix: str | None
+
+class UILinter:
+    def __init__(self, template_dir: Path, allowlist_path: Path | None = None): ...
+    def run_all_checks(self) -> list[Violation]: ...
+    def get_exit_code(self) -> int: ...
+```
+
+### Component: UIMapGenerator (`scripts/generate_ui_map.py`)
+
+**Interface:**
+```
+CLI: python scripts/generate_ui_map.py [--output <path>] [--check] [--strict]
+  --output: Write generated UI_MAP to path (default: stdout)
+  --check: Compare against existing UI_MAP and report drift
+  --strict: Exit non-zero on drift (for CI blocking mode)
+Exit: 0 (no drift or output mode) | 1 (drift detected in strict mode)
+Output: Markdown (generated map) or drift report to stdout
+```
+
+**Public API:**
+```python
+class PageEntry:
+    name: str
+    url: str
+    template: str
+    theme: str  # "admin" | "client" | "public"
+    components_used: list[str]
+
+class ComponentEntry:
+    name: str
+    owner_file: str
+    used_in_pages: list[str]
+    variants: list[str]
+
+class UIMapGenerator:
+    def __init__(self, template_dir: Path, routes_dir: Path): ...
+    def scan(self) -> tuple[list[PageEntry], list[ComponentEntry]]: ...
+    def render_markdown(self) -> str: ...
+    def diff_against(self, existing_map_path: Path) -> DriftReport: ...
+
+class DriftReport:
+    new_components: list[str]
+    removed_components: list[str]
+    new_pages: list[str]
+    removed_pages: list[str]
+    missing_descriptions: list[str]
+    def has_drift(self) -> bool: ...
+```
+
+### Component: ScreenSpecValidator (`scripts/validate_screen_specs.py`)
+
+**Interface:**
+```
+CLI: python scripts/validate_screen_specs.py <specs_dir> [--routes-dir <path>]
+Exit: 0 (all valid) | 1 (schema violations found)
+Output: Validation errors to stdout, coverage warnings to stderr
+```
+
+**Public API:**
+```python
+class ValidationError:
+    file: Path
+    field: str
+    message: str
+
+class ScreenSpecValidator:
+    def __init__(self, specs_dir: Path, routes_dir: Path | None = None): ...
+    def validate_all(self) -> list[ValidationError]: ...
+    def check_coverage(self) -> list[str]: ...  # Templates without specs
+```
+
+### Component: DebugOverlayEngine (`static/js/debug-overlay.js`)
+
+**Interface (JavaScript):**
+```javascript
+// Global namespace
+window.RampDebug = {
+  activate(): void,    // Initialize all layers
+  deactivate(): void,  // Remove all overlays
+  toggle(layer: 'borders' | 'labels' | 'grid'): void,
+  rescan(): void,      // Full DOM re-scan
+  rescanSubtree(element: HTMLElement): void,  // Partial re-scan
+};
+```
+
+**Events emitted:**
+- None (internal only)
+
+**Events consumed:**
+- `htmx:afterSwap` — triggers `rescanSubtree(evt.detail.target)`
+- `htmx:beforeSwap` — triggers overlay cleanup for target container
+- `scroll`, `resize` — triggers position recalculation via rAF
+
+### Component: ComponentAttrs Macro (`_macros/_component_attrs.html`)
+
+**Jinja2 Interface:**
+```jinja2
+{% from "_macros/_component_attrs.html" import component_attrs %}
+
+{# Usage: #}
+<div {{ component_attrs("avatar_card", "partials/_avatar_card.html", variant="compact") }}>
+```
+
+**Output (development):**
+```html
+<div data-component="avatar_card" data-owner="partials/_avatar_card.html" data-variant="compact">
+```
+
+**Output (production):**
+```html
+<div>
+```
+
+### Interface: Makefile Targets
+
+| Target | Description | Blocking |
+|--------|-------------|----------|
+| `make lint-ui` | Run UI linter on all templates | Yes (exit 1 on violation) |
+| `make generate-ui-map` | Regenerate UI_MAP.md | No |
+| `make validate-specs` | Validate screen spec YAMLs | Yes (exit 1 on schema error) |
+| `make ci-ui` | Run all checks sequentially | Yes (exit on first failure) |
+
+## Correctness Properties
+
+### Property 1: Environment Isolation
+**Validates: Requirements 3.5, 3.6, 6.10**
+No debug artifacts (markers, overlay script, debug attributes) appear in production HTML. Guaranteed by `{% if app_env != 'production' %}` guards.
+
+### Property 2: Token Completeness
+**Validates: Requirements 1.1, 5.1**
+Every CSS property used in component contracts must have a corresponding token in `tokens.css`. Validated by contract-to-token cross-reference in lint.
+
+### Property 3: Marker Consistency
+**Validates: Requirements 3.1, 3.2**
+Every `data-component` value in HTML must match exactly one entry in the Component_Registry. UIMapGenerator validates this during scan.
+
+### Property 4: Deterministic Generation
+**Validates: Requirements 2.12**
+UIMapGenerator produces byte-identical output for identical input (sorted alphabetically by page URL, then by component name).
+
+### Property 5: HTMX Coherence
+**Validates: Requirements 6.8**
+After any `htmx:afterSwap`, all new `[data-component]` elements in the swapped subtree gain overlay within 200ms.
+
+### Property 6: Variant Safety
+**Validates: Requirements 4.6, 4.7**
+Invalid variant values fall back to default (first enum value) at render time. No runtime error produced.
+
+### Property 7: Allowlist Soundness
+**Validates: Requirements 1.11, 8.1**
+Each allowlist entry must reference an existing file path. Stale entries (file deleted) produce a warning during lint.
+
+## Error Handling
+
+| Scenario | Handling | User Impact |
+|----------|----------|-------------|
+| Malformed HTML in template (lint) | Skip file, log warning, continue scanning | No block — reported as parse warning |
+| Missing allowlist file | Treat as empty allowlist (all violations reported) | Stricter checking |
+| Invalid variant passed to component | Render with default variant, no error | Silent fallback |
+| YAML parse error in screen spec | Report file + error message, exit 1 | CI blocks merge |
+| Route file without template reference | Skip in UIMapGenerator (no page entry created) | Gap reported in coverage |
+| Debug overlay JS error | Caught in try/catch, overlay deactivated gracefully | No user-facing impact |
+| >200 components on page | IntersectionObserver limits rendering to viewport | Degraded debug experience, not broken |
+| Template with no {% extends %} | Classified as "unknown" theme, placed in Uncategorized | Listed with warning flag |
+
+## Testing Strategy
+
+Since no test framework exists for frontend and the system is primarily tooling (Python scripts + static JS), testing follows this approach:
+
+### Unit Tests (Python scripts)
+
+```python
+# tests/test_lint_ui.py
+class TestInlineStyleDetection:
+    def test_detects_plain_style_attr(self): ...
+    def test_ignores_jinja2_dynamic_width(self): ...
+    def test_allowlist_suppresses_violation(self): ...
+
+class TestArbitraryTailwindDetection:
+    def test_detects_text_bracket(self): ...
+    def test_detects_p_bracket(self): ...
+    def test_ignores_standard_tailwind_class(self): ...
+
+class TestComponentMarkerCheck:
+    def test_reports_missing_data_component(self): ...
+    def test_passes_with_marker_present(self): ...
+
+class TestUIMapGenerator:
+    def test_extracts_route_from_decorator(self): ...
+    def test_detects_theme_from_extends(self): ...
+    def test_deterministic_output(self): ...
+    def test_drift_detection_finds_new_template(self): ...
+```
+
+### Integration Tests
+
+- Run `make ci-ui` against a fixture directory of test templates (valid + invalid)
+- Verify exit codes match expected results
+- Verify drift report format against known baseline
+
+### Manual Verification
+
+- Debug overlay: Open any page with `?debug=ui` in development, verify overlays render
+- HTMX re-scan: Navigate a page with HTMX partials, verify overlays update on swap
+- Production safety: Deploy to server, verify no `data-component` or debug script in HTML source
