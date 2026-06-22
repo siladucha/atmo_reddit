@@ -135,3 +135,99 @@ def send_email(
 def compute_payload_hash(body_text: str) -> str:
     """Compute SHA-256 hash of email body for dedup/audit."""
     return hashlib.sha256(body_text.encode("utf-8")).hexdigest()
+
+
+
+def send_email_brevo_api(
+    to: str,
+    subject: str,
+    body_text: str,
+    body_html: str | None = None,
+    headers: dict[str, str] | None = None,
+    reply_to: str | None = None,
+) -> tuple[bool, str | None]:
+    """Send email via Brevo HTTP API (port 443, bypasses DO SMTP block).
+
+    Falls back to this when SMTP ports 587/465 are blocked (DigitalOcean default).
+    Uses brevo_api_key from system_settings.
+
+    Returns:
+        Tuple of (success: bool, message_id: str | None)
+    """
+    import json
+    import urllib.request
+    import urllib.error
+
+    from app.config import get_config
+
+    api_key = get_config("brevo_api_key") or ""
+    if not api_key:
+        logger.error("Brevo API key not configured (brevo_api_key setting)")
+        return False, None
+
+    from_email = get_config("smtp_from_email") or "tasks@gorampit.com"
+    from_name = get_config("smtp_from_name") or "RAMP Task System"
+
+    payload: dict = {
+        "sender": {"name": from_name, "email": from_email},
+        "to": [{"email": to}],
+        "subject": subject,
+        "textContent": body_text,
+    }
+
+    if body_html:
+        payload["htmlContent"] = body_html
+
+    if reply_to:
+        payload["replyTo"] = {"email": reply_to}
+
+    if headers:
+        payload["headers"] = headers
+
+    url = "https://api.brevo.com/v3/smtp/email"
+    req_headers = {
+        "accept": "application/json",
+        "api-key": api_key,
+        "content-type": "application/json",
+    }
+
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers=req_headers, method="POST")
+
+    try:
+        resp = urllib.request.urlopen(req, timeout=30)
+        result = json.loads(resp.read())
+        message_id = result.get("messageId", "")
+        logger.info("Brevo email sent: to=%s subject=%s messageId=%s", to, subject[:80], message_id)
+        return True, message_id
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()[:500]
+        logger.error("Brevo API error %d: %s", e.code, body)
+        return False, None
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        logger.error("Brevo API connection error: %s", str(e)[:200])
+        return False, None
+
+
+# Default send function — tries Brevo API first (works on DO), falls back to SMTP
+def send_task_email(
+    to: str,
+    subject: str,
+    body_text: str,
+    body_html: str | None = None,
+    headers: dict[str, str] | None = None,
+    reply_to: str | None = None,
+) -> tuple[bool, str | None]:
+    """Send email using best available method.
+
+    Priority: Brevo HTTP API (works on DO) → SMTP (if ports unblocked).
+    """
+    from app.config import get_config
+
+    # Try Brevo API first (always works on DO)
+    api_key = get_config("brevo_api_key")
+    if api_key:
+        return send_email_brevo_api(to, subject, body_text, body_html, headers, reply_to)
+
+    # Fallback to SMTP (only works if ports are unblocked)
+    return send_email(to, subject, body_text, body_html, headers, reply_to)

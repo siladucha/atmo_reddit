@@ -492,6 +492,7 @@ _P1_WINDOW_DAYS = 60
 _P2_WINDOW_DAYS = 90
 _DEMOTION_WINDOW_DAYS = 7
 _DEMOTION_MIN_SURVIVAL_RATE = 70
+_DEMOTION_MIN_SAMPLE_SIZE = 5  # Minimum posted comments to evaluate survival rate
 
 
 class PhaseEvaluator:
@@ -574,6 +575,11 @@ class PhaseEvaluator:
         ) or 0
 
         if total_posted == 0:
+            return 1.0
+
+        # Minimum sample size — with <5 posted comments, a single moderator
+        # removal can cause statistically unreliable demotion (1/2 = 50%).
+        if total_posted < _DEMOTION_MIN_SAMPLE_SIZE:
             return 1.0
 
         deleted_count = (

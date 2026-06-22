@@ -20,7 +20,7 @@ from app.logging_config import get_logger
 from app.models.comment_draft import CommentDraft
 from app.models.epg_slot import EPGSlot
 from app.models.execution_task import DeliveryAttempt, ExecutionTask
-from app.services.email_sender import compute_payload_hash, send_email
+from app.services.email_sender import compute_payload_hash, send_email, send_task_email
 from app.services.settings import get_setting, get_setting_int
 
 logger = get_logger(__name__)
@@ -272,7 +272,7 @@ def dispatch_delivery(db: Session, task_id: uuid.UUID, force: bool = False) -> D
     }
     reply_to = f"task+{task.task_code}@gorampit.com"
 
-    success, message_id = send_email(
+    success, message_id = send_task_email(
         to=task.executor_contact,
         subject=subject,
         body_text=body_text,

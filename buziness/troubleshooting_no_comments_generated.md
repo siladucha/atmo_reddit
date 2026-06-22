@@ -97,3 +97,52 @@ Verify:
 The AI pipeline (score → generate) runs automatically at **08:00** and **14:00** (Israel time).
 
 After fixing any issue above, the next scheduled run will pick up the client and generate new drafts.
+
+---
+
+## Step 6 — Check Phase Demotions (NEW — learned June 22, 2026)
+
+**Go to:** Admin → Avatars → [Avatar Name] → Phase History section
+
+**Background:** The system automatically demotes avatars from Phase 2→1 if their comment survival rate drops below 70% in a 7-day window. With low comment volumes (2-3 comments), even ONE moderator removal can trigger demotion.
+
+**What to look for:**
+- Avatar was Phase 2 but is now Phase 1
+- `phase_changed_at` is recent (within the problem timeframe)
+- Activity feed shows `auto_downgrade` event
+
+**Why this matters:** Phase 1 avatars can ONLY score/generate from hobby subreddits. If hobby subs are not in the scraping system → 0 threads → 0 generation → client gets nothing.
+
+**Fix:** Promote the avatar back to Phase 2 via admin (Edit Avatar → warming_phase = 2).
+
+**Prevention:** A minimum sample size check will be added to prevent demotion on <5 posted comments.
+
+---
+
+## Updated Quick Summary
+
+| # | Check | Where | Most common fix |
+|---|-------|-------|-----------------|
+| 1 | Plan type not "trial" | Client page | Change plan_type to "paid" |
+| 2 | At least one healthy avatar | Client → Avatars | Unfreeze or assign new avatar |
+| 3 | Kill switches ON | Admin → Settings | Set to true |
+| 4 | Activity events exist | Client → Transparency | Fix steps 1-3 |
+| 5 | Subreddits being scraped | Client → Subreddits | Activate assignments |
+| **6** | **Avatars not demoted to Phase 1** | **Avatar detail → phase_changed_at** | **Promote back to Phase 2** |
+
+---
+
+## Architecture Note: Two Pipelines
+
+The system has two independent content pipelines:
+
+| Pipeline | What it generates | Who uses it | Volume |
+|----------|-------------------|-------------|--------|
+| **Professional** | Brand-relevant comments in client subreddits | Phase 2+ avatars | 5-15 drafts/day |
+| **Hobby** | Karma-building comments in hobby subreddits | Phase 1+ avatars | 1-3 drafts/day |
+
+**When an avatar is demoted to Phase 1**, the Professional pipeline stops for that avatar. Only Hobby pipeline continues (much lower volume).
+
+This means: **Phase demotion for all avatars = client effectively receives 1-3 hobby drafts/day instead of 10-15 professional ones.**
+
+If a client reports "no comments being generated" and all avatars are Phase 1 — the system IS generating (hobby), but at reduced volume that may not be visible or useful.

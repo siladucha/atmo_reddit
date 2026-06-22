@@ -361,6 +361,9 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - Content safety checks (brand ratio, phase gates, promotional language)
 - Client deactivation cascade (is_active=false → assignments deactivated → avatars unassigned → all tasks skip)
 - **Automated posting safety gates** (9 checks): kill switch, posting_mode, frozen, health, phase 0 exclusion, daily cap, proxy configured, user-agent configured, /24 subnet consistency
+- **Phase demotion safety** (June 22): minimum sample size (5 posted) for survival rate evaluation — prevents false demotions from single moderator removals
+- **Thread safety filters** (June 22): hot thread filter (skip >200 ups when avatar karma <100 in sub) + link/video/image post filter (skip external URLs)
+- **Dual pipeline architecture**: Professional pipeline (reddit_threads → smart_scoring → generate_comments, Phase 2+) and Hobby pipeline (hobby_subreddits → generate_hobby_comments, Phase 1+). Phase 1 avatars only get hobby comments (1-3/day)
 
 ### Automated Posting (June 1, 2026)
 - **Core posting service** — full orchestration: load slot → safety gates → PRAW → post → audit

@@ -280,6 +280,12 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
                     RedditThread.is_locked.is_(False),
                     RedditThread.post_body.isnot(None),
                     func.length(RedditThread.post_body) > 20,
+                    # Skip link/video/image posts (external URLs)
+                    sa.or_(
+                        RedditThread.url.is_(None),
+                        RedditThread.url == "",
+                        RedditThread.url.like("%reddit.com%"),
+                    ),
                     ~RedditThread.id.in_(db.query(threads_with_drafts.c.thread_id)),
                     # Thread age filter: prefer reddit_created_at, fallback to created_at
                     sa.or_(

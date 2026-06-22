@@ -22,6 +22,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 
+import sqlalchemy as sa
 from sqlalchemy import func as sa_func
 from sqlalchemy.orm import Session
 
@@ -247,11 +248,46 @@ def get_candidate_threads(
             ~RedditThread.id.in_(scored_thread_ids),
             RedditThread.post_body.isnot(None),
             sa_func.length(RedditThread.post_body) > 20,
+            # Skip link/video/image posts — url pointing to external domain
+            # indicates non-self post that slipped through older scraping logic.
+            sa.or_(
+                RedditThread.url.is_(None),
+                RedditThread.url == "",
+                RedditThread.url.like("%reddit.com%"),
+            ),
         )
         .order_by(RedditThread.ups.desc())
         .limit(limit)
         .all()
     )
+
+    # Hot thread filter: skip viral threads when avatar has low subreddit karma.
+    # Strictly moderated subs (sysadmin, etc.) remove new accounts on popular posts.
+    HOT_THREAD_UPS_THRESHOLD = 200
+    LOW_KARMA_THRESHOLD = 100
+
+    if threads:
+        avatar_karma_map: dict[str, int] = {}
+        karma_rows = (
+            db.query(SubredditKarma.subreddit_name, SubredditKarma.comment_karma)
+            .filter(SubredditKarma.avatar_id == avatar.id)
+            .all()
+        )
+        for row in karma_rows:
+            avatar_karma_map[row[0].lower()] = row[1] or 0
+
+        filtered = []
+        for t in threads:
+            if t.ups >= HOT_THREAD_UPS_THRESHOLD:
+                sub_karma = avatar_karma_map.get(t.subreddit.lower(), 0)
+                if sub_karma < LOW_KARMA_THRESHOLD:
+                    logger.debug(
+                        "hot_thread_filter: skipping %s (ups=%d) — avatar %s karma=%d in r/%s",
+                        t.reddit_native_id, t.ups, avatar.reddit_username, sub_karma, t.subreddit,
+                    )
+                    continue
+            filtered.append(t)
+        threads = filtered
 
     return threads
 

@@ -57,6 +57,7 @@ PUBLIC_PREFIXES = (
     "/auth/",
     "/static/",
     "/api/oauth/",
+    "/tasks/",
 )
 
 

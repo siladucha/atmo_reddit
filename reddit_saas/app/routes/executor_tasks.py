@@ -66,7 +66,7 @@ def view_task(
     """View execution task details (no login required)."""
     task = _get_task_by_token(db, task_code, token)
 
-    return templates.TemplateResponse("executor_task_view.html", {
+    return templates.TemplateResponse(request, "executor_task_view.html", context={
         "request": request,
         "task": task,
         "token": token,
@@ -85,7 +85,7 @@ def accept_task_route(
     task = _get_task_by_token(db, task_code, token)
 
     if task.status == "verified":
-        return templates.TemplateResponse("executor_task_view.html", {
+        return templates.TemplateResponse(request, "executor_task_view.html", context={
             "request": request,
             "task": task,
             "token": token,
@@ -95,7 +95,7 @@ def accept_task_route(
         })
 
     if task.status not in ("emailed", "accepted"):
-        return templates.TemplateResponse("executor_task_view.html", {
+        return templates.TemplateResponse(request, "executor_task_view.html", context={
             "request": request,
             "task": task,
             "token": token,
@@ -114,7 +114,7 @@ def accept_task_route(
         task.status_history = history
         db.commit()
 
-    return templates.TemplateResponse("executor_task_view.html", {
+    return templates.TemplateResponse(request, "executor_task_view.html", context={
         "request": request,
         "task": task,
         "token": token,
@@ -138,7 +138,7 @@ def submit_url_route(
     # Validate URL format
     reddit_url = reddit_url.strip()
     if not reddit_url:
-        return templates.TemplateResponse("executor_task_view.html", {
+        return templates.TemplateResponse(request, "executor_task_view.html", context={
             "request": request,
             "task": task,
             "token": token,
@@ -148,7 +148,7 @@ def submit_url_route(
         })
 
     if "reddit.com" not in reddit_url.lower() and "redd.it" not in reddit_url.lower():
-        return templates.TemplateResponse("executor_task_view.html", {
+        return templates.TemplateResponse(request, "executor_task_view.html", context={
             "request": request,
             "task": task,
             "token": token,
@@ -158,7 +158,7 @@ def submit_url_route(
         })
 
     if task.status in ("verified",):
-        return templates.TemplateResponse("executor_task_view.html", {
+        return templates.TemplateResponse(request, "executor_task_view.html", context={
             "request": request,
             "task": task,
             "token": token,
@@ -187,7 +187,7 @@ def submit_url_route(
     if result.passed:
         # Reload task after verification updated it
         db.refresh(task)
-        return templates.TemplateResponse("executor_task_view.html", {
+        return templates.TemplateResponse(request, "executor_task_view.html", context={
             "request": request,
             "task": task,
             "token": token,
@@ -197,7 +197,7 @@ def submit_url_route(
         })
     else:
         db.refresh(task)
-        return templates.TemplateResponse("executor_task_view.html", {
+        return templates.TemplateResponse(request, "executor_task_view.html", context={
             "request": request,
             "task": task,
             "token": token,
