@@ -1,7 +1,7 @@
 # User Manual — Client Admin
 
 > **Audience:** Client company administrators  
-> **Last updated:** 2026-05-28
+> **Last updated:** 2026-06-20
 
 ---
 
@@ -129,10 +129,29 @@ The voice profile determines how AI writes as this avatar. Fill in ALL fields:
    - Target subreddit and thread
    - Generated comment text
    - Comment approach used
+   - Confidence score
 3. Actions:
-   - ✅ **Approve** — ready for posting
-   - ✏️ **Edit** — modify text, then approve
-   - ❌ **Reject** — discard (with optional reason)
+   - **✓ Approve** — comment is good as-is, moves to posting queue
+   - **✎ Edit → Save & Approve** — edit text and approve in one step
+   - **✗ Reject** — discard (system learns to avoid this style)
+
+### How Edit & Approve Works
+
+1. Click **✎ Edit** — opens the text editor
+2. Make your changes (shorten, adjust tone, fix wording)
+3. Click **Save & Approve ✓** — saves, approves, AND triggers learning in one click
+
+No separate Approve step needed after editing.
+
+### Self-Learning Loop
+
+The system learns from every review action:
+- Approved edits become training examples (before/after pairs)
+- Rejections become negative examples
+- After 5+ consistent edits → system extracts patterns automatically
+- Patterns are injected into future AI prompts → quality improves over time
+
+**Full details:** [Content Review & Self-Learning Loop](../guides/content-review-and-learning.md)
 
 ### Review Best Practices
 
@@ -140,7 +159,7 @@ The voice profile determines how AI writes as this avatar. Fill in ALL fields:
 - **Check relevance** — is the comment actually helpful to the thread?
 - **Check brand mentions** — appropriate for the avatar's phase?
 - **Check length** — Reddit users prefer concise, valuable comments
-- **Edit freely** — the system learns from your edits and improves over time
+- **Edit consistently** — the system learns patterns from your corrections
 
 ---
 
@@ -209,6 +228,34 @@ The activity feed shows everything that happened:
 | `draft_rejected` | You/team rejected a draft |
 | `draft_posted` | Comment posted on Reddit |
 | `avatar_frozen` | Avatar excluded from pipeline (issue detected) |
+---
+
+## Content Execution
+
+### How Approved Comments Get Posted
+
+When you approve a draft, RAMP handles execution automatically. You don't need to know or manage the details — but here's what happens:
+
+| Method | How | Speed |
+|--------|-----|-------|
+| Automated posting | System posts via avatar's configured proxy | Minutes |
+| Email task delivery | System emails a human executor who posts manually | 30-120 min |
+
+Both methods may be active simultaneously. The first to confirm the post wins. You see the same result: "Comment posted on r/..." notification.
+
+### What You Don't Need to Do
+
+- ❌ Post comments yourself (unless you want to)
+- ❌ Manage executors or delivery
+- ❌ Track execution tasks
+- ❌ Configure SMTP or email delivery
+
+### What You See
+
+After approval, the draft appears as "posted" once confirmed. Timeline:
+- Immediate (auto-posting) or 30-120 min (email executor)
+- Maximum 4 hours before task expires (configurable by platform admin)
+- Notification in your portal when confirmed
 
 ---
 

@@ -1,7 +1,7 @@
 # Guide — Daily Operations
 
 > **Audience:** Owner, Partner, Client Admin, Client Manager  
-> **Last updated:** 2026-05-29
+> **Last updated:** 2026-06-20
 
 ---
 
@@ -96,10 +96,15 @@ Dashboard → Activity Feed:
 
 ### Learning Impact
 
-Every edit you make teaches the system:
-- After ~5 consistent edits of the same type → system extracts a pattern
-- After ~10 edits → pattern injected into future prompts
-- Result: fewer edits needed over time
+Every review action teaches the system:
+- **Edit → Save & Approve** = strongest signal (before/after pair captured)
+- **Approve** (no edit) = reinforces current AI style
+- **Reject** = negative example (AI avoids this approach)
+- After ~5 consistent edits → system extracts a pattern automatically
+- After ~10 edits → pattern injected into future prompts, confidence rises to 90%+
+- Result: fewer edits needed over time, Bulk Approve starts working
+
+**Full guide:** [Content Review & Self-Learning Loop](./content-review-and-learning.md)
 
 ---
 

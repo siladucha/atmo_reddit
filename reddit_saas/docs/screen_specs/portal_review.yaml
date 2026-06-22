@@ -1,0 +1,51 @@
+page: /clients/{client_id}/review
+theme: client
+entry: Login (client_admin/client_manager) -> Sidebar -> Review
+states:
+  loading:
+    description: Skeleton draft cards
+    visible_elements:
+    - Page title Review Queue
+    - Skeleton card placeholders
+  empty:
+    description: No pending drafts
+    visible_elements:
+    - Page title Review Queue
+    - No drafts pending review message
+    - Explanation text
+  error:
+    description: Error loading drafts
+    visible_elements:
+    - Error banner with retry
+  filled:
+    description: List of draft cards with approve/reject/edit actions
+    visible_elements:
+    - Draft cards with comment text
+    - Avatar name + subreddit badge
+    - Thread title link
+    - Approve/Skip/Edit buttons per card
+sections:
+  header:
+    elements:
+    - 'h1: Review Queue'
+    - Count badge showing pending total
+  draft_cards:
+    elements:
+    - Comment text preview
+    - Avatar badge
+    - Subreddit + thread info
+    - Action buttons
+    card_actions:
+    - approve
+    - skip
+    - edit
+    empty_state: No drafts pending review. The pipeline will generate new ones.
+  filters:
+    elements:
+    - Avatar filter dropdown
+    - Status filter
+    visible_when: More than 5 drafts pending
+verifiable_by: visual_with_test_data
+test_data:
+  seed: python3 scripts/seed_demo_data.py
+  setup: Ensure pending drafts exist for the test client

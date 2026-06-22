@@ -1,7 +1,7 @@
 # System Settings Reference
 
 > **Audience:** Owner only  
-> **Last updated:** 2026-05-28
+> **Last updated:** 2026-06-20
 
 ---
 
@@ -110,6 +110,51 @@ Settings are stored in the `system_settings` table as key-value pairs, grouped b
 |---------|------|---------|-------------|
 | `brand_ratio_max_percent` | int | `15` | Max % of avatar's weekly comments mentioning brand |
 | `max_posts_per_subreddit_per_day` | int | `3` | Posting frequency cap per subreddit |
+---
+
+## Automated Posting
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `auto_posting_enabled` | bool | `true` | Global kill switch for automated (proxy) posting |
+| `auto_posting_daily_cap` | int | `8` | Max automated posts per avatar per day |
+
+---
+
+## Email Task Delivery
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `email_tasks_enabled` | bool | `false` | Enable email-based task delivery on draft approval |
+| `email_tasks_default_recipient` | string | — | Default executor email (who receives tasks) |
+| `email_tasks_max_resends` | int | `3` | Anti-spam: max email resend attempts per task |
+| `email_tasks_cooldown_minutes` | int | `10` | Anti-spam: min minutes between resends |
+| `email_tasks_deadline_hours` | int | `4` | Hours before task expires if not completed |
+
+### SMTP Configuration
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `smtp_host` | string | — | SMTP server hostname (e.g. `mail.gorampit.com`) |
+| `smtp_port` | int | `587` | SMTP port (587=STARTTLS, 465=SSL) |
+| `smtp_user` | string | — | SMTP authentication username |
+| `smtp_password` | secret | — | SMTP password (encrypted in DB via Fernet) |
+| `smtp_from_email` | string | `tasks@gorampit.com` | Sender email address |
+| `smtp_from_name` | string | `RAMP Task System` | Sender display name |
+| `smtp_use_tls` | bool | `true` | Use TLS for SMTP connection |
+
+### How to activate
+
+1. Fill in all SMTP fields (host, port, user, password)
+2. Set `email_tasks_default_recipient` to the executor's email
+3. Set `email_tasks_enabled` = `true`
+4. Save — approved drafts now generate email tasks
+
+### Monitoring
+
+- Task list: `/admin/tasks`
+- SLA metrics: `/admin/tasks/metrics`
+- Delivery log: visible in task detail page
 
 ---
 

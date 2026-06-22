@@ -14,8 +14,8 @@ A Reddit marketing SaaS platform. AI monitors subreddits, scores posts, generate
 
 ## Business Model
 - **Agency clients** — we manage everything for them (onboarding, config, monitoring, posting)
-- **Self-service clients** — they manage their own setup (future, not yet implemented)
-- **RBAC implemented** — 6 roles (owner/partner/client_admin/client_manager/client_viewer/b2c_user) with full data isolation
+- **Self-service clients** — AI-driven 6-step onboarding wizard live (14-day trial)
+- **RBAC implemented** — 7 roles (owner/partner/client_admin/client_manager/client_viewer/avatar_manager/b2c_user) with full data isolation
 - **Revenue model**: Monthly SaaS subscription ($149–$1,499) + managed service upsell (+$1,200–$1,800) + pre-warmed avatar fees (one-time $199–$499)
 - **Agency model**: Per-client-slot pricing ($999–$3,499/mo for 3–20 clients). Annual contracts only.
 - **Key moat**: Pre-warmed avatar inventory (aged accounts with karma) + AI-Native Expert authority (avatars cited by external LLMs as grounding sources). Cannot be replicated overnight by competitors.
@@ -25,12 +25,13 @@ A Reddit marketing SaaS platform. AI monitors subreddits, scores posts, generate
 - **Backend:** Python 3.11+ / FastAPI
 - **Templates/UI:** Jinja2 + HTMX
 - **CSS:** Tailwind CSS (CDN)
-- **Database:** PostgreSQL 16 / SQLAlchemy 2.0 / Alembic (Docker on DO Droplet)
-- **Auth:** JWT (python-jose + passlib), RBAC with 6 roles (owner/partner/client_admin/client_manager/client_viewer/b2c_user)
+- **Database:** PostgreSQL 16 (pgvector) / SQLAlchemy 2.0 / Alembic (Docker on DO Droplet)
+- **Auth:** JWT (python-jose + passlib), RBAC with 7 roles (owner/partner/client_admin/client_manager/client_viewer/avatar_manager/b2c_user)
 - **Task Queue:** Celery + Redis
 - **Cache/Locks:** Redis 7
 - **Reddit:** PRAW
 - **AI/LLM:** LiteLLM (Gemini Flash for scoring, Claude Sonnet for generation)
+- **Real-time:** Server-Sent Events (SSE) + Redis PubSub (notifications)
 - **Mobile App:** Flutter (Dart) — posting app for avatar owners
 - **Deploy:** DigitalOcean Droplet + Docker Compose (app + PostgreSQL + Redis + Celery)
 - **Observability:** Logging + admin dashboard
@@ -43,7 +44,7 @@ A Reddit marketing SaaS platform. AI monitors subreddits, scores posts, generate
 - **Cost:** ~$23/mo (with backups)
 - **Docker Compose:** `docker-compose.yml` + `docker-compose.prod.yml` (memory limits, reduced concurrency)
 - **Access:** `ssh root@161.35.27.165`, project at `/app/`
-- **Domain:** None yet (access via IP:8000)
+- **Domain:** gorampit.com (SSL via Let's Encrypt)
 - **Backups:** DO weekly backups enabled
 
 ### Deployment Commands (from local Mac)
@@ -80,9 +81,9 @@ ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docke
 - **Timezone**: All containers, PostgreSQL, Celery Beat, and logs use `Asia/Jerusalem` (IDT/IST). Set via `TZ` env var in docker-compose + `PGTZ` for PostgreSQL + `-c timezone=Asia/Jerusalem` in postgres command + Celery `timezone="Asia/Jerusalem"` config.
 
 ### Versioning & Environment Controls (June 2026)
-- **VERSION file**: `reddit_saas/VERSION` — single source of truth (e.g. `0.2.0`)
+- **VERSION file**: `reddit_saas/VERSION` — single source of truth (currently `0.3.0`)
 - **`app/version.py`**: reads VERSION file, exposes `__version__`
-- **Health endpoint**: `/health` returns `{"version": "0.2.0", "env": "...", "posting_disabled": true/false, ...}`
+- **Health endpoint**: `/health` returns `{"version": "0.3.0", "env": "...", "posting_disabled": true/false, ...}`
 - **UI footer**: version + env + posting status shown in both `base.html` and `admin_base.html` (sidebar) for all roles
 - **`POSTING_DISABLED` env var**: env-level kill switch for automated posting. Cannot be toggled from admin UI.
   - Server `.env`: `POSTING_DISABLED=true` (posting blocked until business decision)
@@ -120,10 +121,11 @@ reddit_saas/
 │   │   └── permissions.py     # RBAC guards (require_owner, require_platform_admin, require_client_access, etc.)
 │   ├── middleware/
 │   │   ├── auth.py            # JWT auth middleware
-│   │   └── errors.py          # Error handling middleware
-│   ├── models/                # SQLAlchemy models (40 models)
+│   │   ├── errors.py          # Error handling middleware
+│   │   └── security.py        # Security headers + rate limiting middleware
+│   ├── models/                # SQLAlchemy models (47 models)
 │   │   ├── user.py            # User (role, is_active, client_id)
-│   │   ├── user_role.py       # UserRole enum (owner/partner/client_admin/client_manager/client_viewer/b2c_user)
+│   │   ├── user_role.py       # UserRole enum (owner/partner/client_admin/client_manager/client_viewer/avatar_manager/b2c_user)
 │   │   ├── user_client_assignment.py # UserClientAssignment (user↔client mapping)
 │   │   ├── client.py          # Client (keywords JSONB, profiles, max_avatars, plan_type, draft_approval_enabled)
 │   │   ├── avatar.py          # Avatar (client_ids, voice, is_frozen, warming_phase, is_farm_avatar)
@@ -162,7 +164,13 @@ reddit_saas/
 │   │   ├── geo_competitor.py  # GeoCompetitor (competitor tracking)
 │   │   ├── geo_execution.py   # GeoExecution (monitoring run results)
 │   │   ├── visibility_report.py # VisibilityReport
-│   │   └── zero_day_report.py # ZeroDayReport
+│   │   ├── zero_day_report.py # ZeroDayReport
+│   │   ├── notification.py    # Notification (client-scoped real-time SSE notifications)
+│   │   ├── avatar_pool.py     # AvatarPool enum (b2b/b2c/mentor/warm)
+│   │   ├── voice_feedback.py  # VoiceFeedback (client voice/tone training signals)
+│   │   ├── client_action_log.py # ClientActionLog (rate-limited portal actions)
+│   │   ├── subreddit_request.py # SubredditRequest (client requests: pending → approved/rejected)
+│   │   └── avatar_subreddit_compatibility.py # AvatarSubredditCompatibility (emotional profile scoring)
 │   ├── schemas/               # Pydantic validation schemas
 │   │   ├── avatar_analysis.py # BehavioralProfile, AvatarAnalysisRequest
 │   │   └── llm_outputs.py     # ScoringOutput, CommentOutput
@@ -187,8 +195,13 @@ reddit_saas/
 │   │   ├── admin_geo.py       # GEO/AEO monitoring admin
 │   │   ├── discovery.py       # Discovery Engine (sessions, research, reports)
 │   │   ├── avatar_workflow.py # Avatar workflow routes
+│   │   ├── avatar_onboard.py  # Avatar onboarding (Reddit profile → AI classification → approval)
+│   │   ├── onboarding.py      # AI-driven 6-step client self-service wizard + trial signup
+│   │   ├── portal_actions.py  # Client Portal rate-limited actions (pipeline, EPG, strategy triggers)
+│   │   ├── notifications.py   # Notification feed + unread count + mark read
+│   │   ├── sse.py             # Server-Sent Events for real-time notifications (Redis PubSub)
 │   │   └── oauth.py           # OAuth callback for Reddit
-│   ├── services/              # Business logic (80+ services)
+│   ├── services/              # Business logic (95+ services)
 │   │   ├── admin.py           # Admin CRUD
 │   │   ├── ai.py              # LLM calls (LiteLLM) + schema validation
 │   │   ├── audit.py           # Audit logging
@@ -244,7 +257,17 @@ reddit_saas/
 │   │   ├── posting_safety.py  # 9 pre-posting safety gates
 │   │   ├── timing_engine.py   # Jitter, active hours, daily cap, peak bias
 │   │   ├── praw_factory.py    # Dual-mode PRAW client (password + OAuth) with proxy
-│   │   └── posting.py         # Core posting orchestration (load → safety → post → audit)
+│   │   ├── posting.py         # Core posting orchestration (load → safety → post → audit)
+│   │   ├── notifications.py   # Notification creation + Redis PubSub publishing
+│   │   ├── task_notifications.py # Celery-safe notification helpers (pipeline, EPG, draft, avatar)
+│   │   ├── smart_scoring.py   # Budget-aware scoring (N threads per avatar, 90% cost reduction)
+│   │   ├── risk_prediction.py # AI ban risk forecasting (6-factor composite + prescriptive actions)
+│   │   ├── billing_dashboard.py # Cost/usage analytics (AI costs, plan usage, P&L, trends)
+│   │   ├── trial_guard.py     # 14-day trial expiry check (gates pipeline tasks)
+│   │   ├── team_management.py # Team RBAC enforcement (user create/edit permissions by role)
+│   │   ├── safety_blocks.py   # Brand mention protection (blocks Phase 1/2 brand drafts)
+│   │   ├── avatar_onboard_analysis.py # PRAW fetch + Claude AI classification for avatar onboarding
+│   │   └── onboarding/        # AI-driven onboarding subsystem (prompts, scraper, quality gate, landscape)
 │   ├── tasks/                 # Celery background tasks
 │   │   ├── ai_pipeline.py     # AI scoring/generation (retry, kill switches)
 │   │   ├── health_check.py    # Avatar health checks
@@ -263,8 +286,9 @@ reddit_saas/
 │   │   ├── performance_metrics.py # Daily performance aggregation + archival
 │   │   ├── snapshot_outcomes.py # Comment karma/deletion snapshots (4h/24h/48h/7d)
 │   │   ├── feedback.py        # Feedback loop (outcome analysis → model correction)
+│   │   ├── emotional_profile.py # Subreddit emotional profile refresh (weekly)
 │   │   └── worker.py          # Celery worker configuration
-│   ├── templates/             # Jinja2 templates (50 pages + 65 partials)
+│   ├── templates/             # Jinja2 templates (60+ pages + 100+ partials)
 │   │   ├── base.html          # Light theme (user pages)
 │   │   ├── admin_base.html    # Dark theme (admin panel)
 │   │   ├── admin_*.html       # Admin pages (35+ templates)
@@ -297,14 +321,14 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 └── README.md
 ```
 
-## What's Built (Status — June 13, 2026)
+## What's Built (Status — June 19, 2026)
 
 ### Core Platform
 - **Admin panel** (dark theme): dashboard, user/client/persona/keyword/subreddit CRUD, task monitoring, system health, AI costs, audit logs, billing placeholder
 - **7-step onboarding wizard**: client profile → subreddits → keywords → avatars → personas → pipeline config → test run
 - **NeuroYoga seed data**: first client (ATMO) with subreddits, keywords, persona
 - **User-facing pages**: dashboard, review queue, threads, avatars, settings
-- **RBAC** (6 roles): owner, partner, client_admin, client_manager, client_viewer, b2c_user — with query scoping, permission guards, LLM context isolation
+- **RBAC** (7 roles): owner, partner, client_admin, client_manager, client_viewer, avatar_manager, b2c_user — with query scoping, permission guards, LLM context isolation
 - **JWT authentication** + role-based access control + client data isolation
 - **Avatar Farm & Rentals**: farm avatars, rental model, client-scoped access
 - **Docker workflow**: Makefile with `db-sync`, `fresh-start`, `db-dump`/`db-restore` commands
@@ -408,6 +432,46 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **Insights** — system-generated recommendations and alerts
 - **Bulk approve** — batch operations
 - **Execute action** — trigger pipeline ops from Decision Center
+- **Risk Prediction** — 6-factor ban risk scoring + prescriptive actions per avatar
+
+### Self-Service Onboarding (June 2026)
+- **6-step AI wizard** — website URL → AI scrapes → ICP synthesis → keywords/subreddits suggestions → avatar config → quality gate → activate
+- **Trial signup** — work-email-only, 14-day free trial (plan_type="trial")
+- **Quality gate** — validates minimum config before activation
+- **Landscape report** — competitive analysis generated during onboarding
+- **Trial guard** — pipeline tasks automatically skip expired trial clients
+
+### Avatar Onboarding (June 2026)
+- **One-click flow** — enter Reddit username → PRAW fetches profile → Claude classifies → pre-filled card
+- **AI classification** — voice, strategy, persona_bio, display_name auto-generated
+- **Inline editing** — user can edit before approval
+- **Avatar creation** — creates avatar + assigns to client + triggers pipeline
+
+### Real-Time Notifications (June 2026)
+- **Notification model** — client-scoped (type, title, body, link, is_read)
+- **SSE delivery** — Server-Sent Events via Redis PubSub for instant push
+- **Bell badge** — unread count in portal header
+- **Task notifications** — pipeline_complete, epg_rebuilt, draft_posted, avatar_frozen events
+
+### Portal Actions (June 2026)
+- **Rate-limited triggers** — clients can trigger pipeline/EPG/strategy from portal
+- **ClientActionLog** — tracks all triggers with daily/weekly limits
+- **Action types** — pipeline (max 2/day), epg_rebuild (max 1/day), strategy (max 1/week), regenerate (unlimited)
+
+### Smart Scoring (June 2026)
+- **Budget-aware** — scores only N threads per avatar (not all unscored threads)
+- **Formula** — remaining_budget × 3 = threads to score (HARD_CAP = 15)
+- **90% cost reduction** — from 300+ scoring calls/day to 10-30 per avatar
+
+### Subreddit Emotional Profiles (June 2026)
+- **Weekly refresh** — Celery task Sunday 04:30 (after continuous discovery)
+- **Compatibility scoring** — AvatarSubredditCompatibility model (0-100 score per pair)
+- **Mismatch detection** — score < 40 triggers tone mismatch warning
+
+### Security Hardening (June 2026)
+- **SecurityHeadersMiddleware** — X-Frame-Options, X-Content-Type-Options, HSTS, Referrer-Policy, Permissions-Policy
+- **RateLimitMiddleware** — 5 auth attempts per 15 min per IP (production only), global 100 req/min per IP
+- **Custom 403 page** — friendly HTML error page instead of raw JSON
 
 ## What's NOT Built Yet
 - ~~Production deployment~~ → **DONE** (gorampit.com, DigitalOcean, SSL)
@@ -416,6 +480,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **Automated Posting — OAuth mode** — pending Reddit approval for web app creation
 - ~~Comment outcome tracking~~ → **DONE** (KarmaSnapshot at 4h/24h/48h/7d + deletion detection)
 - ~~Budget engine~~ → **DONE** (EPG 2.0 AttentionBudget + daily cap + portfolio allocation)
+- ~~Self-service onboarding~~ → **DONE** (6-step AI wizard + 14-day trial)
 - Strategy Questions feedback loop — future: multiple-choice answers, saved as client preferences
 - Subreddit rule extraction (PRAW sidebar/wiki → LLM parsing → compliance checks)
 - Cross-avatar deduplication (prevent two avatars commenting on same thread)
@@ -471,7 +536,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **Rate Limiter**: Redis sorted set sliding window
 - **Retry**: bind=True, max_retries=3, countdown=60×2^attempt (AI tasks only)
 
-### Celery Beat Schedule (Israel Time — Asia/Jerusalem) — Updated June 13, 2026
+### Celery Beat Schedule (Israel Time — Asia/Jerusalem) — Updated June 19, 2026
 | Time | Task | Purpose |
 |------|------|---------|
 | every 60s | `queue_tick` | Scrape scheduling (gated by DB interval) |
@@ -493,6 +558,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 | 08:15, 14:15 | `build_and_generate_epg_all_avatars` | EPG plan + generate |
 | 12:15, 18:15 | `check_karma_outcomes` | 4h karma outcome check |
 | 00:15, 06:15 | `check_karma_outcomes` | 24-28h karma outcome check |
+| 04:30 Sun | `refresh_subreddit_emotional_profiles` | Weekly subreddit emotional profile refresh |
 
 ## Comment Draft Status Workflow
 `pending` → `approved` / `rejected` → `posted`
@@ -533,7 +599,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - `docs/TODO.md` — Full product roadmap with diagrams, sprint plans, milestones
 - `docs/roadmap.html` — Standalone dark-theme roadmap (for local viewing)
 - `docs/memory.md` — Legacy project knowledge base (being superseded by docs/kb/)
-- `docs/permission_matrix.md` — RBAC permission matrix (6 roles × 16 resource categories)
+- `docs/permission_matrix.md` — RBAC permission matrix (7 roles × 16 resource categories)
 - `docs/aws_budget_may2026.md` — Detailed AWS budget with SQS/Valkey calculations
 - `docs/aws_cost_estimate.md` — AWS cost estimate (summary, scaling projections)
 - `docs/adr_sqs_valkey_migration.md` — Architecture Decision Record: SQS+Valkey migration
@@ -549,6 +615,10 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - `.kiro/specs/rbac-client-isolation/` — RBAC spec (DONE)
 - `.kiro/specs/ai-native-expert-warming/` — AI-Native Expert warming system (niche authority, citability, entity linking)
 - `.kiro/specs/automated-proxy-posting/` — Automated proxy posting (FRD complete)
+- `.kiro/specs/subreddit-emotional-profile/` — Subreddit emotional profiling + avatar compatibility
+- `.kiro/specs/quality-sentinel/` — Quality monitoring system
+- `.kiro/specs/pipeline-resilience-hardening/` — Pipeline fault tolerance
+- `.kiro/specs/intelligence-layer/` — Intelligence layer (in progress)
 
 ### Legacy / Ori Handoff
 - `docs/file_index.md` — Index of all Ori's handoff files

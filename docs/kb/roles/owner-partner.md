@@ -1,7 +1,7 @@
 # User Manual — Owner & Partner
 
 > **Audience:** Owner (Max), Partner (Tzvi, Jenny)  
-> **Last updated:** 2026-05-28
+> **Last updated:** 2026-06-20
 
 ---
 
@@ -46,6 +46,8 @@ Both roles see all clients and can manage the entire business operation.
 | Settings | `/admin/settings` | System settings (Owner only) |
 | AI Costs | `/admin/ai-costs` | LLM usage and cost tracking |
 | Audit Logs | `/admin/audit-logs` | Full action history |
+| Execution Tasks | `/admin/tasks` | Email task delivery — manage, resend, verify, cancel |
+| Task Metrics | `/admin/tasks/metrics` | SLA dashboard — accept/submit/verify rates |
 
 ---
 
@@ -61,6 +63,20 @@ Both roles see all clients and can manage the entire business operation.
 5. **Strategy review** → check/update strategy documents per avatar
 6. **Avatar health** → review any frozen/shadowbanned avatars
 7. **Reports** → export data for client meetings
+
+---
+
+## Content Review & Learning
+
+For the full guide on how to review drafts and how the self-learning loop works, see:  
+**→ [Content Review & Self-Learning Loop](../guides/content-review-and-learning.md)**
+
+Key points:
+- **✓ Approve** — AI got it right, approve as-is
+- **✗ Reject** — bad quality, system learns to avoid this style
+- **✎ Edit → Save & Approve** — edit text and approve in one step (strongest learning signal)
+- After 5+ consistent edits, the system extracts patterns and improves future drafts automatically
+- Bulk Approve (≥90%) only works after the learning loop has enough data
 
 ---
 
@@ -157,6 +173,52 @@ owner → can do everything
               └── client_manager → own company, review only
                     └── client_viewer → own company, read-only
 ```
+
+---
+
+## Execution Tasks (Email Task Delivery)
+
+### What It Does
+
+When `email_tasks_enabled = true`, every approved draft generates an email task sent to a human executor. The executor posts manually on Reddit, submits the permalink, and the system verifies independently via Reddit API.
+
+### Setup
+
+1. `/admin/settings` → scroll to **email_tasks** group
+2. Set `email_tasks_enabled` = `true`
+3. Configure SMTP (host, port, user, password, from_email)
+4. Set `email_tasks_default_recipient` (who gets the emails)
+5. Save — system is active
+
+### Managing Tasks
+
+Go to `/admin/tasks`:
+
+| Action | Description |
+|--------|-------------|
+| View list | All tasks with status filters (Active / Verified / Expired) |
+| Resend | Re-send email (max 3 resends, 10 min cooldown) |
+| Verify URL | Submit a Reddit permalink to run two-stage verification |
+| Cancel | Soft-cancel with reason (tasks never deleted) |
+| Metrics | `/admin/tasks/metrics` — SLA dashboard |
+
+### Verification (automatic)
+
+When executor submits a URL, the system checks:
+1. Comment exists on Reddit (not 404/removed/deleted)
+2. Correct subreddit + correct author (avatar username)
+3. Text similarity >60% (allows minor edits)
+4. URL not already used for another task
+5. Slot not already posted by auto-posting
+
+### Kill Switches
+
+| Switch | Location | Effect |
+|--------|----------|--------|
+| `email_tasks_enabled` | System Settings | Stops new tasks from being created |
+| `auto_posting_enabled` | System Settings | Stops automated posting (email tasks unaffected) |
+
+Both can be enabled simultaneously — first to succeed wins.
 
 ---
 

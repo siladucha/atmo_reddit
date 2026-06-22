@@ -1,0 +1,21 @@
+# Empty State Contract — RAMP Design System
+name: empty
+description: Standard display when a list or table has no data
+
+properties:
+  text_align: center
+  padding: "48px 24px"
+  icon_size: "48px"
+  icon_color: var(--color-text-dim)
+  message_color: var(--color-text-muted)
+  message_font_size: var(--text-base)
+  cta_position: "below message with var(--space-md) gap"
+
+layout:
+  - icon_or_illustration
+  - message_text
+  - optional_cta_button
+
+cta_button:
+  variant: "primary or ghost"
+  size: "standard (44px min-height)"

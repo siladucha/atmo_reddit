@@ -1,7 +1,7 @@
 # User Manual — Client Manager
 
 > **Audience:** Client team members responsible for daily content review  
-> **Last updated:** 2026-05-28
+> **Last updated:** 2026-06-20
 
 ---
 
@@ -43,9 +43,11 @@ As **Client Manager**, you're the daily operator. Your main job is reviewing AI-
 
 | Decision | When to Use | What Happens |
 |----------|-------------|--------------|
-| ✅ **Approve** | Comment is good as-is | Goes to posting queue |
-| ✏️ **Edit** | Good idea, needs tweaking | You fix it, then approve |
-| ❌ **Reject** | Wrong tone, irrelevant, or low quality | Discarded, system learns |
+| **✓ Approve** | Comment is good as-is | Goes to posting queue, AI reinforced |
+| **✎ Edit → Save & Approve** | Good idea, needs tweaking | You fix it, one click saves + approves + teaches AI |
+| **✗ Reject** | Wrong tone, irrelevant, or low quality | Discarded, AI learns to avoid this style |
+
+> **Edit is one step:** Click ✎, modify text, click "Save & Approve ✓" — done. No separate approve needed.
 
 ### What Makes a Good Comment?
 
@@ -97,9 +99,17 @@ Each draft card shows:
 
 ---
 
-## Editing Tips
+## Editing & The Learning Loop
 
-When you edit a draft, the system captures your changes and learns from them. This means:
+When you edit and approve a draft, the system captures your changes and learns from them automatically.
+
+### How Learning Works
+
+1. You edit + approve → system records before/after pair
+2. After 5+ similar edits → system detects a pattern (e.g., "always shortens to under 60 words")
+3. Pattern gets injected into future AI prompts → fewer edits needed over time
+
+### Tips for Effective Learning
 
 1. **Be consistent** — if you always shorten comments, the AI will learn to write shorter
 2. **Fix patterns, not just instances** — if the tone is wrong, the system will adjust for future drafts
@@ -111,6 +121,8 @@ When you edit a draft, the system captures your changes and learns from them. Th
 - Removing overly formal language
 - Adding a question at the end (drives engagement)
 - Fixing technical accuracy
+
+**Full guide:** [Content Review & Self-Learning Loop](../guides/content-review-and-learning.md)
 
 ---
 
@@ -185,6 +197,20 @@ Shows what happened and when. Useful for:
 - Checking if today's pipeline ran
 - Seeing which drafts were posted
 - Tracking avatar activity
+---
+
+## What Happens After You Approve
+
+When you approve a draft, the system handles posting automatically:
+
+1. **Approved** — your draft enters the execution queue
+2. **Posted** — within minutes (automated) or 1-2 hours (human executor)
+3. **Confirmed** — system verifies the comment exists on Reddit
+4. **Notification** — "Comment posted on r/..." appears in your feed
+
+You don't need to manage execution — just review and approve quality content. The platform handles the rest.
+
+**Tip:** If you don't see "posted" status within 4 hours of approval, the task may have expired. The system will create new opportunities on the next pipeline run.
 
 ---
 
@@ -203,7 +229,7 @@ A: Yes — approved and posted drafts show the Reddit thread link. You can click
 A: The system auto-rejects drafts when the target thread gets locked, removed, or archived. This is a safety feature.
 
 **Q: How do I improve the AI output quality?**  
-A: Edit consistently. The system learns from your edits. After 5-10 edits with a consistent pattern, you'll see improvement in future drafts.
+A: Use Edit → Save & Approve consistently. The system learns from every correction. After 5-10 edits with a consistent pattern (e.g., always shortening), you'll see measurable improvement. See [Learning Loop guide](../guides/content-review-and-learning.md).
 
 **Q: Can I add a new avatar?**  
 A: No — that requires Client Admin access. Ask your company's admin or your RAMP account manager.

@@ -1,0 +1,48 @@
+page: /clients/{client_id}
+theme: client
+entry: Login (client_admin/client_manager) -> Portal home (auto-redirect)
+states:
+  loading:
+    description: Skeleton metrics cards and empty content area
+    visible_elements:
+    - Sidebar with navigation
+    - Skeleton metric cards
+  empty:
+    description: New client with no activity yet
+    visible_elements:
+    - Welcome message
+    - Getting started guide
+    - Zero metric cards
+  error:
+    description: Error loading metrics
+    visible_elements:
+    - Error toast
+    - Sidebar still functional
+    - Retry option
+  filled:
+    description: Full dashboard with client metrics and recent activity
+    visible_elements:
+    - Metric cards (drafts pending, posts this week, avatars active)
+    - Recent drafts list
+    - Pipeline status
+sections:
+  metrics:
+    elements:
+    - Pending Drafts count
+    - Posts This Week
+    - Active Avatars
+    - Karma Total
+    empty_state: All metrics show 0 with encouraging message
+  recent_drafts:
+    elements:
+    - List of latest 5 draft cards with status badge
+    empty_state: No drafts yet - pipeline will generate them soon
+  trial_banner:
+    elements:
+    - Trial days remaining
+    - Upgrade CTA button
+    visible_when: Client plan_type is trial
+verifiable_by: visual_with_test_data
+test_data:
+  seed: python3 scripts/seed_demo_data.py
+  setup: Login as client_admin user for NeuroYoga client

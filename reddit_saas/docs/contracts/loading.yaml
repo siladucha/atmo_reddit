@@ -1,0 +1,36 @@
+# Loading State Contract — RAMP Design System
+name: loading
+description: Standard loading indicators (skeleton or spinner based on context)
+
+variants:
+  skeleton:
+    use_when: "Content layout is known (tables, cards, text blocks)"
+    background: var(--color-surface-alt)
+    animation: "pulse 1.2s ease-in-out infinite"
+    border_radius: var(--radius-md)
+  spinner:
+    use_when: "Content layout is unknown or waiting for action response"
+    size: "24px"
+    border_width: "2px"
+    color: var(--color-primar    color: var(--color-primar    color: var(--color-primar    color: var(--color-primar    color: var(--color-primar    color: var(--color-primar    color: var(--color-primar    color: var(--color-primar    color: var(--color-primar    color: var(--color-primar    color: var(--color-primar    color: var(--color-primar    color: var(--color-primar    color: var(--color-primar    color: var(--color-primar    col"rgba(var(--color-error), 0.08)"
+  border: "1px solid rgba(var(--color-error), 0.3)"
+  border_radius: var(--radius-md)
+  padding: "12px 16px"
+  color: var(--color-error)
+  font_size: var(--text-sm)
+  icon: "warning triangle (inline SVG)"
+  icon_size: "16px"
+
+dismissal:
+  type: "user click on X button"
+  auto_dismiss: "optional, 3-10 seconds configurable per usage"
+
+variants:
+  inline:
+    description: "Positioned below the erroring field"
+    padding: "8px 12px"
+  banner:
+    description: "Full-width banner at top of section"
+    padding: "12px 20px"
+  toast:
+    description: "Floating notification (handled by toast.js)"

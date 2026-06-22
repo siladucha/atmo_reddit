@@ -1,7 +1,7 @@
 # User Manual — Client Viewer
 
 > **Audience:** Client executives and stakeholders with read-only access  
-> **Last updated:** 2026-05-28
+> **Last updated:** 2026-06-20
 
 ---
 
@@ -71,11 +71,14 @@ Your admin may grant you the ability to approve/reject drafts. If so:
 1. Go to Review Queue
 2. Review pending drafts
 3. Actions available:
-   - ✅ Approve — sends to posting queue
-   - ✏️ Edit — modify then approve
-   - ❌ Reject — discard
+   - **✓ Approve** — sends to posting queue (AI learns "this was good")
+   - **✎ Edit → Save & Approve** — modify text, one click saves and approves
+   - **✗ Reject** — discard (AI learns to avoid this style)
 
-Same review guidelines as [Client Manager](./client-manager.md#review-decisions).
+> **Edit is one step:** Click ✎, modify text, click "Save & Approve ✓" — saves, approves, and teaches the AI in one action.
+
+Same review guidelines as [Client Manager](./client-manager.md#review-decisions).  
+Full learning loop details: [Content Review & Self-Learning Loop](../guides/content-review-and-learning.md).
 
 ---
 

@@ -76,6 +76,8 @@ scoring_calls/day = new_threads_per_scrape × scrapes/day × scoring_ratio
 
 **Cost driver:** LLM API cost (Gemini Flash), not AWS infrastructure.
 
+**NOTE (June 2026):** Smart Scoring (`smart_scoring.py`) reduces scoring calls by ~90% — only `remaining_budget × 3` threads scored per avatar (HARD_CAP=15), not all unscored threads.
+
 ---
 
 ### 3. Generation Node
@@ -360,9 +362,9 @@ Hour  | Scraping | Scoring | Generation | Review
 
 ### High Impact (saves $100+/mo at 10 clients)
 
-1. **Replace Claude Sonnet with Claude Haiku for editing** — editing is simple cleanup, doesn't need Sonnet quality. Saves ~$70/mo.
-2. **Skip persona selection for single-avatar clients** — if client has 1 avatar, no routing needed. Saves ~$30/mo per such client.
-3. **Batch scoring calls** — send 10 threads in one prompt instead of 1-by-1. Saves ~30% on scoring tokens.
+1. ~~**Batch scoring calls**~~ → **DONE** (Smart Scoring: budget-aware, only N threads per avatar, 90% reduction)
+2. **Replace Claude Sonnet with Claude Haiku for editing** — editing is simple cleanup, doesn't need Sonnet quality. Saves ~$70/mo.
+3. **Skip persona selection for single-avatar clients** — if client has 1 avatar, no routing needed. Saves ~$30/mo per such client.
 
 ### Medium Impact (saves $10-50/mo)
 

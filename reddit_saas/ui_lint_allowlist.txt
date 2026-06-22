@@ -1,0 +1,236 @@
+# RAMP UI Lint Allowlist
+# Generated: 2026-06-20 (baseline for incremental adoption)
+# Format: path/glob:violation-type  # justification
+# All new code must pass lint without allowlist entries.
+
+# === Legacy admin templates (inline styles + arbitrary Tailwind) ===
+templates/admin_activity.html:missing-marker  # legacy admin template
+templates/admin_ai_costs.html:arbitrary-tailwind  # legacy admin template
+templates/admin_ai_costs.html:missing-marker  # legacy admin template
+templates/admin_audit_logs.html:missing-marker  # legacy admin template
+templates/admin_avatar_detail.html:arbitrary-tailwind  # legacy admin template
+templates/admin_avatar_detail.html:missing-marker  # legacy admin template
+templates/admin_avatars.html:arbitrary-tailwind  # legacy admin template
+templates/admin_avatars.html:missing-marker  # legacy admin template
+templates/admin_base.html:arbitrary-tailwind  # legacy admin template
+templates/admin_billing.html:arbitrary-tailwind  # legacy admin template
+templates/admin_client_detail.html:arbitrary-tailwind  # legacy admin template
+templates/admin_client_detail.html:missing-marker  # legacy admin template
+templates/admin_client_transparency.html:missing-marker  # legacy admin template
+templates/admin_clients.html:missing-marker  # legacy admin template
+templates/admin_dashboard.html:arbitrary-tailwind  # legacy admin template
+templates/admin_dashboard.html:missing-marker  # legacy admin template
+templates/admin_dashboard_client_manager.html:arbitrary-tailwind  # legacy admin template
+templates/admin_dashboard_client_manager.html:missing-marker  # legacy admin template
+templates/admin_dashboard_partner.html:missing-marker  # legacy admin template
+templates/admin_decision_center.html:arbitrary-tailwind  # legacy admin template
+templates/admin_discovery_session.html:missing-marker  # legacy admin template
+templates/admin_geo.html:missing-marker  # legacy admin template
+templates/admin_health.html:arbitrary-tailwind  # legacy admin template
+templates/admin_health.html:missing-marker  # legacy admin template
+templates/admin_inspector.html:missing-marker  # legacy admin template
+templates/admin_keywords.html:missing-marker  # legacy admin template
+templates/admin_keywords_global.html:arbitrary-tailwind  # legacy admin template
+templates/admin_keywords_global.html:missing-marker  # legacy admin template
+templates/admin_onboard_step1.html:missing-marker  # legacy admin template
+templates/admin_onboard_step2.html:missing-marker  # legacy admin template
+templates/admin_onboard_step3.html:missing-marker  # legacy admin template
+templates/admin_onboard_step4.html:missing-marker  # legacy admin template
+templates/admin_onboard_step6.html:missing-marker  # legacy admin template
+templates/admin_onboard_step7.html:missing-marker  # legacy admin template
+templates/admin_posting_dashboard.html:arbitrary-tailwind  # legacy admin template
+templates/admin_review.html:arbitrary-tailwind  # legacy admin template
+templates/admin_review.html:missing-marker  # legacy admin template
+templates/admin_scrape_queue.html:arbitrary-tailwind  # legacy admin template
+templates/admin_scrape_queue.html:missing-marker  # legacy admin template
+templates/admin_subreddit_detail.html:arbitrary-tailwind  # legacy admin template
+templates/admin_subreddits.html:arbitrary-tailwind  # legacy admin template
+templates/admin_subreddits.html:missing-marker  # legacy admin template
+templates/admin_subreddits_all.html:arbitrary-tailwind  # legacy admin template
+templates/admin_subreddits_all.html:missing-marker  # legacy admin template
+templates/admin_threads.html:missing-marker  # legacy admin template
+templates/admin_users.html:arbitrary-tailwind  # legacy admin template
+templates/admin_users.html:missing-marker  # legacy admin template
+
+# === Client portal templates ===
+templates/client/activity_log.html:inline-style  # legacy client template
+templates/client/avatar_detail.html:inline-style  # legacy client template
+templates/client/avatars.html:inline-style  # legacy client template
+templates/client/epg.html:inline-style  # legacy client template
+templates/client/help.html:inline-style  # legacy client template
+templates/client/home.html:inline-style  # legacy client template
+templates/client/keywords.html:inline-style  # legacy client template
+templates/client/keywords.html:missing-marker  # legacy client template
+templates/client/landscape.html:inline-style  # legacy client template
+templates/client/report.html:inline-style  # legacy client template
+templates/client/review.html:inline-style  # legacy client template
+templates/client/settings.html:inline-style  # legacy client template
+templates/client/settings.html:missing-marker  # legacy client template
+templates/client/strategy.html:inline-style  # legacy client template
+templates/client/subreddits.html:inline-style  # legacy client template
+templates/client/trial_expired.html:inline-style  # legacy client template
+templates/client/visibility.html:inline-style  # legacy client template
+templates/client_base.html:inline-style  # legacy client template
+templates/client_base.html:missing-marker  # legacy client template
+templates/client_hub.html:missing-marker  # legacy client template
+
+# === Partials (missing markers — Phase 1 migration) ===
+templates/partials/_review_queue_item.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/activity_feed.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/admin_avatar_card.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/admin_avatars_available.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/admin_avatars_results.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/admin_avatars_results.html:missing-marker  # partial pending marker migration
+templates/partials/admin_avatars_table.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/admin_health_card.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/admin_keyword_section.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/avatar_card.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/avatar_confidence.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/avatar_confidence.html:missing-marker  # partial pending marker migration
+templates/partials/avatar_learned_patterns.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/avatar_learned_patterns.html:missing-marker  # partial pending marker migration
+templates/partials/avatar_learning_panel.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/avatar_learning_panel.html:missing-marker  # partial pending marker migration
+templates/partials/avatar_pattern_performance.html:missing-marker  # partial pending marker migration
+templates/partials/avatar_pipeline_draft.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/avatar_pipeline_panel.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/avatar_pipeline_score_result.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/avatar_pipeline_score_summary.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/avatar_pipeline_scrape_result.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/avatar_pipeline_threads.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/avatar_presence.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/avatar_presence.html:missing-marker  # partial pending marker migration
+templates/partials/avatar_profile_analytics.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/avatar_profile_completeness.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/avatar_profile_completeness.html:missing-marker  # partial pending marker migration
+templates/partials/avatar_profile_panel.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/avatar_removal_analytics.html:missing-marker  # partial pending marker migration
+templates/partials/avatar_row.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/avatar_workflow.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/avatars_client_group.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/avatars_client_group.html:missing-marker  # partial pending marker migration
+templates/partials/avatars_filter_bar.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/avatars_grid.html:missing-marker  # partial pending marker migration
+templates/partials/avatars_results.html:missing-marker  # partial pending marker migration
+templates/partials/avatars_table.html:missing-marker  # partial pending marker migration
+templates/partials/block_tooltip.html:inline-style  # partial pending marker migration
+templates/partials/block_tooltip.html:missing-marker  # partial pending marker migration
+templates/partials/client/draft_card.html:inline-style  # partial pending marker migration
+templates/partials/client/drafts_list.html:inline-style  # partial pending marker migration
+templates/partials/client/karma_growth.html:inline-style  # partial pending marker migration
+templates/partials/client/metric_card.html:inline-style  # partial pending marker migration
+templates/partials/client/momentum_feed.html:inline-style  # partial pending marker migration
+templates/partials/client/settings_guardrails.html:inline-style  # partial pending marker migration
+templates/partials/client/settings_keywords.html:inline-style  # partial pending marker migration
+templates/partials/client/settings_subreddits.html:inline-style  # partial pending marker migration
+templates/partials/client/settings_voice_feedback.html:inline-style  # partial pending marker migration
+templates/partials/client/sidebar.html:inline-style  # partial pending marker migration
+templates/partials/client/skeleton_card.html:inline-style  # partial pending marker migration
+templates/partials/comment_debug_view.html:missing-marker  # partial pending marker migration
+templates/partials/comment_trace.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/confirm_modal.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/confirm_modal.html:missing-marker  # partial pending marker migration
+templates/partials/dashboard_ai_costs_summary.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/dashboard_backups.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/dashboard_client_avatars.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/dashboard_client_cards.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/dashboard_client_drafts.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/dashboard_client_subreddits.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/dashboard_run_history.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/dashboard_schedule.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/dc_insights.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/dc_live_pulse.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/dc_queue.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/discovery_research_progress.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/discovery_results.html:inline-style  # partial pending marker migration
+templates/partials/draft_editor.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/health_llm_metrics.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/health_rate_limit.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/health_rate_limit.html:inline-style  # partial pending marker migration
+templates/partials/health_reddit_metrics.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/health_scrape_freshness.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/inspector_content.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/inspector_content.html:inline-style  # partial pending marker migration
+templates/partials/keyword_priority_legend.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/keyword_priority_legend.html:inline-style  # partial pending marker migration
+templates/partials/portfolio_decision.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/posting_dashboard_day.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/posting_dashboard_log.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/scrape_queue_status.html:missing-marker  # partial pending marker migration
+templates/partials/strategy_panel.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/strategy_panel.html:missing-marker  # partial pending marker migration
+templates/partials/strategy_version_diff.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/strategy_version_preview.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/topology_panel.html:arbitrary-tailwind  # partial pending marker migration
+templates/partials/topology_panel.html:inline-style  # partial pending marker migration
+
+# === Other templates ===
+templates/avatar_onboard/analysis_card.html:inline-style  # legacy template
+templates/avatar_onboard/start.html:inline-style  # legacy template
+templates/avatars.html:missing-marker  # legacy template
+templates/login.html:inline-style  # legacy template
+templates/onboarding/complete.html:inline-style  # legacy template
+templates/onboarding/progress.html:inline-style  # legacy template
+templates/onboarding/step1.html:inline-style  # legacy template
+templates/onboarding/step1.html:missing-marker  # legacy template
+templates/onboarding/step2.html:inline-style  # legacy template
+templates/onboarding/step2.html:missing-marker  # legacy template
+templates/onboarding/step3.html:inline-style  # legacy template
+templates/onboarding/step3.html:missing-marker  # legacy template
+templates/onboarding/step4.html:inline-style  # legacy template
+templates/onboarding/step4.html:missing-marker  # legacy template
+templates/onboarding/step5.html:inline-style  # legacy template
+templates/onboarding/step5.html:missing-marker  # legacy template
+templates/onboarding/step6.html:inline-style  # legacy template
+templates/onboarding/step6.html:missing-marker  # legacy template
+templates/onboarding/trial_signup.html:inline-style  # legacy template
+templates/register.html:inline-style  # legacy template
+
+# === Design System Macros (intentional use of var() in Tailwind brackets) ===
+templates/_macros/_button.html:arbitrary-tailwind  # design system component uses CSS vars
+templates/_macros/_input.html:arbitrary-tailwind  # design system component uses CSS vars
+templates/_macros/_error.html:arbitrary-tailwind  # design system component uses CSS vars
+templates/_macros/_loading.html:arbitrary-tailwind  # design system component uses CSS vars
+templates/_macros/_empty.html:arbitrary-tailwind  # design system component uses CSS vars
+
+# === Newly detected violations (Phase 4 baseline update) ===
+templates/admin_activity.html:duplicate-pattern  # legacy code
+templates/admin_ai_costs.html:duplicate-pattern  # legacy code
+templates/admin_audit_logs.html:duplicate-pattern  # legacy code
+templates/admin_avatar_detail.html:duplicate-pattern  # legacy code
+templates/admin_avatar_edit.html:duplicate-pattern  # legacy code
+templates/admin_avatar_import.html:duplicate-pattern  # legacy code
+templates/admin_avatar_new.html:duplicate-pattern  # legacy code
+templates/admin_avatars.html:duplicate-pattern  # legacy code
+templates/admin_base.html:duplicate-pattern  # legacy code
+templates/admin_base.html:missing-marker  # legacy code
+templates/admin_billing.html:duplicate-pattern  # legacy code
+templates/admin_client_detail.html:duplicate-pattern  # legacy code
+templates/admin_client_transparency.html:duplicate-pattern  # legacy code
+templates/admin_clients.html:duplicate-pattern  # legacy code
+templates/admin_dashboard.html:duplicate-pattern  # legacy code
+templates/admin_dashboard_client_manager.html:duplicate-pattern  # legacy code
+templates/admin_dry_run_hub.html:duplicate-pattern  # legacy code
+templates/admin_dry_run_settings.html:duplicate-pattern  # legacy code
+templates/admin_keywords_global.html:duplicate-pattern  # legacy code
+templates/admin_onboard_step2.html:duplicate-pattern  # legacy code
+templates/avatar_new.html:duplicate-pattern  # legacy code
+templates/avatar_onboard/analysis_card.html:duplicate-pattern  # legacy code
+templates/avatar_onboard/start.html:duplicate-pattern  # legacy code
+templates/base.html:missing-marker  # legacy code
+templates/client/activity_log.html:duplicate-pattern  # legacy code
+templates/client/avatar_detail.html:duplicate-pattern  # legacy code
+templates/client/avatars.html:duplicate-pattern  # legacy code
+templates/client/epg.html:duplicate-pattern  # legacy code
+templates/client/home.html:duplicate-pattern  # legacy code
+templates/client/keywords.html:duplicate-pattern  # legacy code
+templates/client/landscape.html:duplicate-pattern  # legacy code
+templates/executor_task_view.html:duplicate-pattern  # legacy code
+templates/login.html:duplicate-pattern  # legacy code
+templates/onboarding/partials/byoa_confirmed.html:inline-style  # legacy code
+templates/onboarding/partials/byoa_error.html:inline-style  # legacy code
+templates/onboarding/partials/byoa_preview.html:inline-style  # legacy code
+templates/onboarding/partials/byoa_progress.html:inline-style  # legacy code
+templates/onboarding/step2.html:duplicate-pattern  # legacy code
+templates/onboarding/step5_byoa.html:inline-style  # legacy code
+templates/partials/manual_content.html:inline-style  # legacy code

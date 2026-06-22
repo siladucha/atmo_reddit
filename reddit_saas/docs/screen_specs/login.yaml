@@ -1,0 +1,43 @@
+page: /login
+theme: public
+entry: Direct URL or redirect from unauthenticated access
+states:
+  loading:
+    description: N/A - page is static HTML, no async loading
+    visible_elements:
+    - Login form immediately rendered
+  empty:
+    description: Default state - empty form fields
+    visible_elements:
+    - Email input
+    - Password input
+    - Login button
+    - RAMP branding
+  error:
+    description: Invalid credentials or server error
+    visible_elements:
+    - Error message below form
+    - Form fields preserved (email kept, password cleared)
+  filled:
+    description: N/A - form is always in input state until submission
+    visible_elements:
+    - Email and password filled
+    - Login button enabled
+sections:
+  branding:
+    elements:
+    - RAMP logo or text
+    - Tagline
+  login_form:
+    elements:
+    - Email input (type=email)
+    - Password input (type=password)
+    - Login button (primary)
+    error_display: Red text below password field
+  footer:
+    elements:
+    - Register link
+    - Version info
+verifiable_by: visual_only
+test_data:
+  setup: Navigate to /login while logged out

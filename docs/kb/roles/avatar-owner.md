@@ -1,7 +1,7 @@
 # User Manual — Avatar Owner (Posting Workforce)
 
 > **Audience:** Avatar owners who post approved content on Reddit  
-> **Last updated:** 2026-05-28
+> **Last updated:** 2026-06-20
 
 ---
 
@@ -45,6 +45,54 @@ Each avatar must be posted from its own browser profile:
 - Each profile = one Reddit account logged in
 - **Never** post from multiple avatars in the same browser profile
 - **Never** use your personal Reddit account
+
+---
+
+## Email-Based Task Delivery
+
+In addition to the mobile app queue, you may receive tasks via email.
+
+### How It Works
+
+1. You receive an email: `[RAMP Task] ClientName / AvatarName / r/subreddit / Comment / 18:30`
+2. The email contains:
+   - Task code (e.g. TASK-20260620-003)
+   - Target thread URL
+   - Exact comment text to post
+   - Deadline
+   - **Action Link** (unique to you, no login needed)
+3. Click the action link → see full task → click "Accept"
+4. Post the comment on Reddit
+5. Copy your comment's permalink
+6. Submit the permalink via the action link → system verifies automatically
+
+### Email vs App
+
+| Feature | Mobile App | Email Tasks |
+|---------|-----------|-------------|
+| Delivery | Push notification | Email inbox |
+| Accept | Automatic (in queue) | Click "Accept" on link |
+| Submit result | Tap "Posted" in app | Paste permalink on web page |
+| Verification | Self-report | System verifies via Reddit API |
+| No login needed | ❌ (app login) | ✅ (token link) |
+
+### Important Rules for Email Tasks
+
+- **Post from correct account** — system checks author name
+- **Post in correct thread** — system checks subreddit
+- **Don't change text heavily** — system checks >60% similarity
+- **Don't reuse URLs** — system detects permalink reuse
+- **Post before deadline** — expired tasks cannot be completed
+- **Don't forward the email** — action link is unique to you
+
+### Verification Feedback
+
+After submitting your permalink:
+- ✅ **Verified** — done, confirmed on Reddit
+- ❌ **Failed: wrong author** — you used the wrong account
+- ❌ **Failed: wrong subreddit** — wrong thread
+- ❌ **Failed: text too different** — you edited too much (re-post closer to original)
+- ❌ **Failed: URL already used** — this permalink was used for another task
 
 ---
 

@@ -1,0 +1,33 @@
+# Screen Spec: Admin Clients List
+page: /admin/clients
+theme: admin
+entry: "Login (owner/partner) → Admin sidebar → Clients"
+
+states:
+  loading:
+    description: "Skeleton rows in client table"
+    visible_elements: ["Page title 'Clients'", "Add Client button", "Skeleton table rows"]
+  empty:
+    description: "Empty state with call-to-action"
+    visible_elements: ["Page title 'Clients'", "Add Client button", "'No clients configured yet' message"]
+  error:
+    description: "Error banner above table area"
+    visible_elements: ["Error message", "Retry option"]
+  filled:
+    description: "Table with client rows showing key info"
+    visible_elements: ["Client table", "Add Client button", "Pagination (if >20)"]
+
+sections:
+  header:
+    elements: ["h1: Clients", "button: Add Client"]
+  client_table:
+    columns: [name, plan_type, avatars_count, status, actions]
+    row_actions: [view, edit, deactivate]
+    empty_state: "No clients configured yet"
+  pagination:
+    elements: ["Previous/Next buttons", "Page indicator"]
+    visible_when: "More than 20 clients"
+
+verifiable_by: visual_with_test_data
+test_data:
+  seed: "python3 scripts/seed_demo_data.py"

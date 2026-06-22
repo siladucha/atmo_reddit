@@ -22,6 +22,7 @@
 - [Daily Operations](./guides/daily-operations.md) — Review, approve, monitor, post
 - [Avatar Management](./guides/avatar-management.md) — Create, warm, freeze, health, phases
 - [Pipeline Explained](./guides/pipeline-explained.md) — Scrape → Score → Generate → Review → Post
+| [Content Review & Learning](guides/content-review-and-learning.md) | How to review drafts, Edit & Approve workflow, self-learning loop |
 - [Emergency Controls](./guides/emergency-controls.md) — Kill switches, freeze, ban response
 
 ### Admin / Technical

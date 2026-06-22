@@ -1,0 +1,34 @@
+# Screen Spec: Admin Dashboard
+page: /admin/
+theme: admin
+entry: "Login (owner/partner) → redirected to /admin/"
+
+states:
+  loading:
+    description: "Skeleton placeholders for metric cards and activity feed"
+    visible_elements: ["Sidebar navigation", "Header with title"]
+  empty:
+    description: "Dashboard with zero metrics (fresh install)"
+    visible_elements: ["Metric cards showing 0 values", "Empty activity feed with 'No recent activity' message"]
+  error:
+    description: "Red error banner if metrics fetch fails"
+    visible_elements: ["Error banner with retry button", "Sidebar still functional"]
+  filled:
+    description: "Full dashboard with live metrics, activity feed, and status indicators"
+    visible_elements: ["Metric cards (clients, avatars, drafts, posts)", "Activity feed with recent events", "Pipeline status indicators", "Quick action buttons"]
+
+sections:
+  metric_cards:
+    elements: ["Total Clients", "Active Avatars", "Pending Drafts", "Posts Today"]
+    empty_state: "All cards show 0"
+  activity_feed:
+    elements: ["Event list with timestamp, type, description"]
+    empty_state: "No recent activity"
+  pipeline_status:
+    elements: ["Pipeline enabled/disabled indicator", "Last run timestamp"]
+  quick_actions:
+    elements: ["Run Pipeline button", "View Review Queue link"]
+
+verifiable_by: visual_with_test_data
+test_data:
+  seed: "python3 scripts/seed_demo_data.py"

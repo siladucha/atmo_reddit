@@ -1,0 +1,41 @@
+# Input Component Contract — RAMP Design System
+name: input
+description: Standard text input field with consistent styling across themes
+variants: []  # No variants — one universal input style
+
+states:
+  default:
+    background: var(--color-input-bg)
+    border: "1px solid var(--color-input-border)"
+    color: var(--color-text)
+    placeholder_color: var(--color-input-placeholder)
+  focus:
+    border_color: var(--color-input-border-focus)
+    ring: "0 0 0 2px rgba(var(--focus-ring-color), 0.15)"
+    outline: none
+  error:
+    border_color: var(--color-input-border-error)
+    ring: "0 0 0 2px rgba(var(--color-error), 0.1)"
+  disabled:
+    opacity: var(--color-disabled-opacity)
+    cursor: not-allowed
+    background: var(--color-surface)
+
+properties:
+  height: "44px (min-height)"
+  padding: "10px 12px"
+  border_radius: var(--radius-sm)
+  font_size: var(--text-base)
+  font_family: inherit
+  transition: "border-color var(--transition-fast)"
+
+form_spacing:
+  label_to_input: var(--form-label-gap)
+  input_to_input: var(--form-field-gap)
+  section_to_button: var(--form-button-gap)
+
+error_message:
+  position: "directly below input"
+  gap: "4px"
+  color: var(--color-error)
+  font_size: var(--text-sm)
