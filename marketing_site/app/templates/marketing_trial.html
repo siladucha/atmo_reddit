@@ -65,6 +65,8 @@
                     {% endif %}
 
                     <form method="POST" action="/onboard/trial/signup" class="space-y-4">
+                        <!-- Honeypot anti-spam (hidden from humans, bots fill it) -->
+                        <input type="text" name="_gotcha" style="display:none" tabindex="-1" autocomplete="off">
                         <div>
                             <label class="block text-sm font-medium text-gray-300 mb-1">Full Name</label>
                             <input type="text" name="full_name" required

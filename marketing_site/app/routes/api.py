@@ -22,6 +22,7 @@ from app.services.ab_tests import (
 )
 from app.services.analytics import store_events, validate_event
 from app.services.waitlist import process_signup
+from app.services.honeypot import is_bot_submission
 
 router = APIRouter(tags=["api"])
 templates = Jinja2Templates(directory="app/templates")
@@ -115,6 +116,10 @@ async def waitlist_signup(request: Request, db: Session = Depends(get_db)):
     """
     form = await request.form()
     form_dict = dict(form)
+
+    # Honeypot: if filled, it's a bot — fake redirect to thank-you
+    if is_bot_submission(form_dict):
+        return RedirectResponse(url="/thank-you", status_code=303)
 
     # Determine source page for re-rendering on error
     source_page = form_dict.get("source_page")

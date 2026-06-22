@@ -16,6 +16,8 @@
         {% endif %}
 
         <form action="/waitlist/signup" method="POST" class="space-y-5">
+            <!-- Honeypot anti-spam (hidden from humans, bots fill it) -->
+            <input type="text" name="_gotcha" style="display:none" tabindex="-1" autocomplete="off">
             <!-- Email (required) -->
             <div>
                 <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email <span class="text-red-500">*</span></label>
