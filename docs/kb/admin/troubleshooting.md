@@ -1,7 +1,7 @@
 # Troubleshooting Guide
 
 > **Audience:** Owner (Max)  
-> **Last updated:** 2026-05-28
+> **Last updated:** 2026-06-23
 
 ---
 
@@ -241,6 +241,37 @@ ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docke
 - If credentials invalid: update in avatar settings
 
 ---
+
+---
+
+### GEO Execution History — "Details" Shows Empty or Batch Stuck
+
+**Symptoms:** Clicking "Details →" in GEO Execution History shows empty area or "This batch failed to complete"
+
+**Root cause:** GEO batch was triggered (manually or via test) but never completed. Batch stays in `running` status forever with 0 successful queries.
+
+**Check:**
+```bash
+# See batch statuses
+ssh root@161.35.27.165 "docker exec app-db-1 psql -U reddit_saas_user -d reddit_saas -c \"SELECT id, status, total_queries, successful_queries, triggered_by, started_at FROM geo_execution_batches WHERE client_id = 'CLIENT_UUID' ORDER BY started_at DESC LIMIT 5;\""
+```
+
+**Common causes:**
+- Perplexity API key not configured (`geo_perplexity_api_key` in System Settings)
+- API timeout during execution
+- Test batch that was never meant to complete
+- `geo_monitoring_enabled` was OFF when batch was triggered
+
+**Fix:**
+```bash
+# Mark stale running batches as failed (older than 1 hour)
+ssh root@161.35.27.165 "docker exec app-db-1 psql -U reddit_saas_user -d reddit_saas -c \"UPDATE geo_execution_batches SET status = 'failed' WHERE status = 'running' AND started_at < NOW() - INTERVAL '1 hour';\""
+```
+
+- Then click "Run Now" on the GEO page to trigger a fresh batch
+- Verify `geo_perplexity_api_key` is set in `/admin/settings`
+
+**Note:** The "Details →" button works via HTMX — it loads results into a panel below the history table. If the batch has no metrics (failed/stuck), it shows an appropriate status message.
 
 ## Nuclear Options (Last Resort)
 

@@ -70,6 +70,7 @@ def geo_main_page(
         {
             "user": current_user,
             "client": client,
+            "client_id": str(client_id),
             "prompts": prompts,
             "competitors": competitors,
             "batches": batches,
