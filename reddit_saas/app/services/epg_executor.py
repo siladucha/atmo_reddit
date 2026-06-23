@@ -171,13 +171,14 @@ Upvotes: {hobby_post.post_ups or 0}"""
         slot.generated_at = datetime.now(timezone.utc)
 
         # Autopilot: auto-approve if client has autopilot_enabled
-        if _should_auto_approve(db, slot.client_id):
+        if _should_auto_approve(db, slot.client_id, slot.avatar_id):
             slot.status = "approved"
             draft.status = "approved"
             logger.info(
                 "EPG hobby slot AUTO-APPROVED (autopilot): avatar=%s sub=r/%s slot=%s",
                 avatar.reddit_username, hobby_post.subreddit, slot.id,
             )
+            _dispatch_email_task_if_enabled(db, slot)
         else:
             slot.status = "generated"
 
@@ -305,13 +306,14 @@ def _generate_professional_slot(db: Session, slot: EPGSlot, avatar: Avatar) -> C
         slot.generated_at = datetime.now(timezone.utc)
 
         # Autopilot: auto-approve if client has autopilot_enabled
-        if _should_auto_approve(db, slot.client_id):
+        if _should_auto_approve(db, slot.client_id, slot.avatar_id):
             slot.status = "approved"
             draft.status = "approved"
             logger.info(
                 "EPG pro slot AUTO-APPROVED (autopilot): avatar=%s sub=r/%s slot=%s",
                 avatar.reddit_username, thread.subreddit, slot.id,
             )
+            _dispatch_email_task_if_enabled(db, slot)
         else:
             slot.status = "generated"
 
@@ -461,8 +463,24 @@ def _skip_slot(db: Session, slot: EPGSlot, reason: str) -> None:
             db.rollback()
 
 
-def _should_auto_approve(db: Session, client_id: uuid.UUID | None) -> bool:
-    """Check if client has autopilot_enabled — drafts auto-approve without human review."""
+def _should_auto_approve(db: Session, client_id: uuid.UUID | None, avatar_id: uuid.UUID | None = None) -> bool:
+    """Check if client or avatar has auto-approve enabled.
+
+    Auto-approve triggers if:
+    - Client has autopilot_enabled=True (all avatars for that client), OR
+    - Avatar has auto_approve_drafts=True (per-avatar override)
+    """
+    # Avatar-level override
+    if avatar_id:
+        try:
+            from app.models.avatar import Avatar
+            avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+            if avatar and avatar.auto_approve_drafts:
+                return True
+        except Exception:
+            pass
+
+    # Client-level autopilot
     if not client_id:
         return False
     try:
@@ -497,7 +515,14 @@ def _log_slot_generated(db: Session, slot: EPGSlot, avatar: Avatar, subreddit: s
         pass  # Non-critical — don't fail generation on audit error
 
 def _dispatch_email_task_if_enabled(db, slot) -> None:
-    """Create and dispatch an execution task if email_tasks_enabled=true.
+    """Create an execution task if email_tasks_enabled=true.
+
+    The task is created with status='generated' but NOT delivered immediately.
+    A separate Beat task (dispatch_due_email_tasks, every 5 min) handles actual
+    email delivery ~30 min before slot.scheduled_at.
+
+    This prevents email spam — executor gets ONE email at a time, close to when
+    they need to act, not a batch dump at EPG generation time.
 
     Fire-and-forget: errors here never break the approval flow.
     """
@@ -508,15 +533,13 @@ def _dispatch_email_task_if_enabled(db, slot) -> None:
 
         from app.services.execution_tasks import create_execution_task
         task = create_execution_task(db, slot.id)
-        if task and task.status == "generated":
-            db.commit()  # Ensure task is persisted before dispatching async
-            try:
-                from app.tasks.execution_tasks import deliver_execution_task
-                deliver_execution_task.delay(str(task.id), 1)
-            except Exception:
-                pass  # Celery unavailable — task stays generated, admin can resend
+        if task:
+            db.commit()  # Ensure task is persisted
+            # NOTE: No immediate deliver_execution_task.delay() here.
+            # dispatch_due_email_tasks Beat task will send the email
+            # ~30 min before slot.scheduled_at.
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(
-            "Email task dispatch failed for slot %s (non-critical): %s", slot.id, e
+            "Email task creation failed for slot %s (non-critical): %s", slot.id, e
         )

@@ -30,6 +30,25 @@ async def require_superuser(
     return user
 
 
+
+
+async def require_business_admin(
+    user: User = Depends(get_current_user),
+) -> User:
+    """Dependency for business-level admin endpoints (trials, billing, upgrades).
+
+    Allows:
+    - owner/partner — business decision-makers
+
+    Does NOT allow avatar_manager (ops role, not business role).
+    Raises 403 for all other roles.
+    """
+    if user.user_role in (UserRole.owner, UserRole.partner):
+        return user
+    if user.is_superuser:
+        return user
+    raise HTTPException(status_code=403, detail="Access Denied")
+
 async def require_avatar_admin(
     user: User = Depends(get_current_user),
 ) -> User:

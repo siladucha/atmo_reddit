@@ -284,17 +284,6 @@
             {% if is_avatar_mgr %}
             <div class="sidebar-group-label px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Avatar Management</div>
 
-            <a href="/admin/trials"
-               class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
-                      {% if active_nav == 'trials' %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">
-                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-                <span class="sidebar-label">Trials</span>
-            </a>
-
-
-
             <a href="/admin/avatars"
                class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
                       {% if active_nav == 'avatars' %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">
@@ -408,6 +397,15 @@
             </a>
 
             {% if is_platform_admin %}
+            <a href="/admin/trials"
+               class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
+                      {% if active_nav == 'trials' %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span class="sidebar-label">Trials</span>
+            </a>
+
             <a href="/admin/trial-intelligence"
                class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
                       {% if active_nav == 'trial-intelligence' %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">
@@ -696,6 +694,7 @@
 
     {% include "partials/ux_manual.html" %}
     <script src="/static/js/ux-manual.js" defer></script>
+    <script src="/static/js/idle-logout.js" defer></script>
         {% if app_env != "production" %}<script src="/static/js/debug-overlay.js" defer></script>{% endif %}
     {% block extra_scripts %}{% endblock %}
 </body>

@@ -1025,6 +1025,10 @@ def list_client_subreddits(
 
     result: list[dict] = []
     for assignment in assignments:
+        # Get risk score from risk_profile relationship if available
+        risk_score = None
+        if assignment.subreddit.risk_profile:
+            risk_score = assignment.subreddit.risk_profile.risk_score
         result.append({
             "id": assignment.id,
             "subreddit_id": assignment.subreddit_id,
@@ -1034,6 +1038,7 @@ def list_client_subreddits(
             "last_scraped_at": assignment.subreddit.last_scraped_at,
             "created_at": assignment.created_at,
             "shared": assignment.subreddit_id in shared_subreddit_ids,
+            "risk_score": risk_score,
         })
 
     return result

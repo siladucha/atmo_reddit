@@ -241,9 +241,13 @@ def portal_home(
         .scalar()
     ) or 0
 
+    # Trial clients get a guided onboarding experience
+    is_trial = client_obj and client_obj.plan_type == "trial"
+    template = "client/home_trial.html" if is_trial else "client/home.html"
+
     return _portal_render(
         request,
-        "client/home.html",
+        template,
         client_id,
         db,
         active_page="home",
@@ -255,6 +259,7 @@ def portal_home(
             "keywords_count": keywords_count,
             "has_strategy": has_strategy,
             "week_posted": week_posted,
+            "onboarding_step": client_obj.current_onboarding_step if client_obj else 0,
         },
     )
 
@@ -1277,14 +1282,21 @@ def portal_subreddits(
         else:
             status = "pending"
 
+        # Get risk score from risk_profile relationship if available
+        risk_score = None
+        if sub and sub.risk_profile:
+            risk_score = sub.risk_profile.risk_score
+
         subreddits.append({
             "name": sub_name,
+            "subreddit_id": str(a.subreddit_id) if a.subreddit_id else None,
             "type": a.type or "professional",
             "is_active": a.is_active,
             "status": status,
             "last_scraped": age_display,
             "last_result": last_result,
             "next_scrape": next_scrape,
+            "risk_score": risk_score,
         })
 
     can_edit = user.user_role in (UserRole.client_admin, UserRole.client_manager, UserRole.owner, UserRole.partner)

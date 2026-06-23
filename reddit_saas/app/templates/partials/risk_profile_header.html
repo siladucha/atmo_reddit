@@ -1,0 +1,30 @@
+<!-- Risk Profile Header: Score badge + subreddit name -->
+<div class="mb-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold text-white">r/{{ subreddit.subreddit_name }}</h1>
+            <p class="text-sm text-gray-400 mt-1">Subreddit Risk Profile</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <!-- Risk Score Badge -->
+            <div class="{{ risk_color.bg }} {{ risk_color.text }} px-4 py-2 rounded-lg text-center">
+                <div class="text-2xl font-bold font-mono">{{ risk_score }}</div>
+                <div class="text-xs uppercase tracking-wider">{{ risk_color.label }}</div>
+            </div>
+        </div>
+    </div>
+
+    {% if profile and profile.confidence_level != 'insufficient_data' %}
+    <div class="mt-3 flex items-center gap-4 text-xs text-gray-500">
+        {% if profile.last_profile_computed_at %}
+        <span>Last computed: {{ profile.last_profile_computed_at.strftime('%Y-%m-%d %H:%M') }} UTC</span>
+        {% endif %}
+        {% if profile.confidence_level %}
+        <span class="px-2 py-0.5 rounded bg-slate-700 text-gray-400">Confidence: {{ profile.confidence_level }}</span>
+        {% endif %}
+        {% if subreddit.is_high_risk %}
+        <span class="px-2 py-0.5 rounded bg-red-900/50 text-red-400">HIGH RISK</span>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>

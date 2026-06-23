@@ -1,0 +1,182 @@
+{% extends "client_base.html" %}
+{% from "partials/tooltip.html" import tooltip %}
+
+{% block title %}Getting Started — {{ client_name }}{% endblock %}
+
+{% block content %}
+<div id="portal-content">
+    <!-- Page header -->
+    <div style="margin-bottom:var(--space-4);">
+        <h1 class="text-h1">Welcome to RAMP</h1>
+        <p class="text-small" style="margin-top:4px;">Your campaign is being set up. Here's where you stand.</p>
+    </div>
+
+    <!-- Trial countdown -->
+    <div style="display:flex;align-items:center;gap:12px;padding:var(--space-2) var(--space-3);background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:var(--radius-card);margin-bottom:var(--space-4);">
+        <span style="font-size:20px;">⏰</span>
+        <div style="flex:1;">
+            <p style="color:var(--color-white);font-weight:600;font-size:var(--text-body);">
+                {% if trial_days_remaining and trial_days_remaining > 0 %}
+                    {{ trial_days_remaining }} day{{ 's' if trial_days_remaining != 1 else '' }} left in your trial
+                {% else %}
+                    Trial period active
+                {% endif %}
+            </p>
+            <p class="text-small">Your avatars and karma carry over when you upgrade.</p>
+        </div>
+        <a href="#" class="btn-orange-outline" style="font-size:var(--text-small);padding:8px 16px;text-decoration:none;">
+            Upgrade Now
+        </a>
+    </div>
+
+    <!-- Onboarding Progress -->
+    <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-4);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <h2 class="text-h3">Setup Progress</h2>
+            <span class="text-small">Step {{ onboarding_step }} of 6</span>
+        </div>
+
+        <!-- Progress bar -->
+        <div style="width:100%;height:8px;background:var(--color-surface-alt);border-radius:4px;margin-bottom:16px;overflow:hidden;">
+            <div style="width:{{ (onboarding_step / 6 * 100)|int }}%;height:100%;background:var(--color-green);border-radius:4px;transition:width 300ms;"></div>
+        </div>
+
+        <!-- Steps -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+            {% set steps = ['Profile', 'Subreddits', 'Keywords', 'Avatar Setup', 'Config', 'Activate'] %}
+            {% for step_name in steps %}
+            <div style="display:flex;align-items:center;gap:6px;padding:8px;border-radius:6px;{% if loop.index <= onboarding_step %}background:rgba(34,197,94,0.1);{% elif loop.index == onboarding_step + 1 %}background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);{% else %}opacity:0.5;{% endif %}">
+                {% if loop.index <= onboarding_step %}
+                <span style="color:var(--color-green);font-size:14px;">✓</span>
+                {% elif loop.index == onboarding_step + 1 %}
+                <span style="color:var(--color-orange);font-size:14px;">⏳</span>
+                {% else %}
+                <span style="color:var(--color-muted);font-size:14px;">○</span>
+                {% endif %}
+                <span class="text-small" style="{% if loop.index <= onboarding_step %}color:var(--color-green);{% elif loop.index == onboarding_step + 1 %}color:var(--color-white);{% endif %}">{{ step_name }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- What's Happening Now -->
+    <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-4);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <span style="font-size:18px;">📍</span>
+            <h2 class="text-h3">What's Happening Now</h2>
+        </div>
+
+        {% if avatars_active > 0 and week_posted == 0 and pending_count == 0 %}
+        <div style="padding:12px;background:var(--color-surface-alt);border-radius:8px;">
+            <p style="color:var(--color-white);font-size:var(--text-body);margin-bottom:4px;">
+                Your avatar{{ 's are' if avatars_active > 1 else ' is' }} warming up in {{ subreddits_count }} subreddit{{ 's' if subreddits_count != 1 else '' }}.
+            </p>
+            <p class="text-small">
+                Building credibility through hobby engagement. First AI-generated comments are expected within 24-72 hours after the next pipeline run.
+            </p>
+        </div>
+        {% elif pending_count > 0 %}
+        <a href="/clients/{{ client_id }}/review" style="display:flex;align-items:center;gap:12px;padding:12px;background:rgba(255,107,53,0.1);border:1px solid var(--color-orange);border-radius:8px;text-decoration:none;">
+            <span style="font-size:24px;">🎉</span>
+            <div style="flex:1;">
+                <p style="color:var(--color-white);font-weight:600;">Your first AI comment{{ 's are' if pending_count > 1 else ' is' }} ready for review!</p>
+                <p class="text-small">Review and approve to start posting.</p>
+            </div>
+            <span style="color:var(--color-orange);font-weight:600;">Review →</span>
+        </a>
+        {% elif week_posted > 0 %}
+        <div style="padding:12px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:8px;">
+            <p style="color:var(--color-green);font-weight:600;margin-bottom:4px;">
+                🚀 {{ week_posted }} comment{{ 's' if week_posted != 1 else '' }} posted this week!
+            </p>
+            <p class="text-small">Your avatars are actively building presence in target communities.</p>
+        </div>
+        {% elif avatars_active == 0 %}
+        <div style="padding:12px;background:var(--color-surface-alt);border-radius:8px;">
+            <p style="color:var(--color-white);font-size:var(--text-body);margin-bottom:4px;">
+                Setting up your first avatar...
+            </p>
+            <p class="text-small">
+                Once configured, AI will start monitoring subreddits and generating engagement opportunities for your brand.
+            </p>
+        </div>
+        {% else %}
+        <div style="padding:12px;background:var(--color-surface-alt);border-radius:8px;">
+            <p style="color:var(--color-white);font-size:var(--text-body);margin-bottom:4px;">
+                Pipeline is running. Monitoring {{ subreddits_count }} subreddit{{ 's' if subreddits_count != 1 else '' }} for opportunities.
+            </p>
+            <p class="text-small">
+                AI will generate comment drafts when it finds relevant threads. You'll be notified.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Quick Stats (only show if there's data) -->
+    {% if avatars_active > 0 or subreddits_count > 0 %}
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-3);margin-bottom:var(--space-4);">
+        <div class="surface" style="padding:var(--space-3);text-align:center;">
+            <p class="text-display" style="margin-bottom:4px;">{{ avatars_active }}</p>
+            <p class="text-small">Avatar{{ 's' if avatars_active != 1 else '' }} Active</p>
+        </div>
+        <div class="surface" style="padding:var(--space-3);text-align:center;">
+            <p class="text-display" style="margin-bottom:4px;">{{ subreddits_count }}</p>
+            <p class="text-small">Subreddits Monitored</p>
+        </div>
+        <div class="surface" style="padding:var(--space-3);text-align:center;">
+            <p class="text-display" style="margin-bottom:4px;">{{ week_posted }}</p>
+            <p class="text-small">Posted This Week</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Simplified Navigation (only relevant pages) -->
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:var(--space-3);">
+        {% if pending_count > 0 %}
+        <a href="/clients/{{ client_id }}/review" class="surface" style="padding:var(--space-3);text-decoration:none;transition:border-color 150ms;border:1px solid var(--color-orange);" onmouseover="this.style.borderColor='var(--color-orange)'" onmouseout="this.style.borderColor='var(--color-orange)'">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <span style="font-size:20px;">📥</span>
+                <span style="font-weight:600;color:var(--color-white);">Review Queue</span>
+            </div>
+            <p class="text-display" style="margin-bottom:4px;color:var(--color-orange);">{{ pending_count }}</p>
+            <p class="text-small">drafts ready for your approval</p>
+        </a>
+        {% else %}
+        <a href="/clients/{{ client_id }}/review" class="surface" style="padding:var(--space-3);text-decoration:none;transition:border-color 150ms;border:1px solid transparent;" onmouseover="this.style.borderColor='var(--color-orange)'" onmouseout="this.style.borderColor='transparent'">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <span style="font-size:20px;">📥</span>
+                <span style="font-weight:600;color:var(--color-white);">Review Queue</span>
+            </div>
+            <p class="text-small">AI-generated comments will appear here for your approval</p>
+        </a>
+        {% endif %}
+
+        <a href="/clients/{{ client_id }}/avatars" class="surface" style="padding:var(--space-3);text-decoration:none;transition:border-color 150ms;border:1px solid transparent;" onmouseover="this.style.borderColor='var(--color-orange)'" onmouseout="this.style.borderColor='transparent'">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <span style="font-size:20px;">👥</span>
+                <span style="font-weight:600;color:var(--color-white);">Avatars</span>
+            </div>
+            <p class="text-display" style="margin-bottom:4px;">{{ avatars_active }}</p>
+            <p class="text-small">managed personas · phase, karma, health</p>
+        </a>
+
+        <a href="/clients/{{ client_id }}/subreddits" class="surface" style="padding:var(--space-3);text-decoration:none;transition:border-color 150ms;border:1px solid transparent;" onmouseover="this.style.borderColor='var(--color-orange)'" onmouseout="this.style.borderColor='transparent'">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <span style="font-size:20px;">🌐</span>
+                <span style="font-weight:600;color:var(--color-white);">Subreddits</span>
+            </div>
+            <p class="text-display" style="margin-bottom:4px;">{{ subreddits_count }}</p>
+            <p class="text-small">communities being monitored</p>
+        </a>
+
+        <a href="/clients/{{ client_id }}/keywords" class="surface" style="padding:var(--space-3);text-decoration:none;transition:border-color 150ms;border:1px solid transparent;" onmouseover="this.style.borderColor='var(--color-orange)'" onmouseout="this.style.borderColor='transparent'">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <span style="font-size:20px;">#</span>
+                <span style="font-weight:600;color:var(--color-white);">Keywords</span>
+            </div>
+            <p class="text-display" style="margin-bottom:4px;">{{ keywords_count }}</p>
+            <p class="text-small">scoring terms for thread relevance</p>
+        </a>
+    </div>
+</div>
+{% endblock %}

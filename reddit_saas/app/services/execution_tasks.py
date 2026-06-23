@@ -105,16 +105,22 @@ def create_execution_task(
         logger.warning("EPG slot %s not approved (status=%s)", epg_slot_id, slot.status)
         return None
 
-    # Resolve executor contact
+    # Resolve executor contact — avatar must have a verified email
+    avatar_obj = slot.avatar
     if not executor_contact:
-        executor_contact = get_setting(db, "email_tasks_default_recipient")
-    if not executor_contact:
-        logger.error("No executor_contact and no default recipient configured")
-        return None
+        if avatar_obj and avatar_obj.executor_email and avatar_obj.executor_email_verified:
+            executor_contact = avatar_obj.executor_email
+        else:
+            reason = "no executor email" if not (avatar_obj and avatar_obj.executor_email) else "executor email not verified"
+            logger.warning(
+                "Skipping email task for slot %s: %s (avatar=%s)",
+                epg_slot_id, reason, avatar_obj.reddit_username if avatar_obj else "?"
+            )
+            return None
 
     # Resolve related data
     draft = db.query(CommentDraft).filter(CommentDraft.id == slot.draft_id).first() if slot.draft_id else None
-    avatar = slot.avatar
+    avatar = avatar_obj  # already loaded above
     thread = slot.thread
     client_name = ""
     if slot.client_id:
@@ -137,10 +143,20 @@ def create_execution_task(
     if draft:
         generated_text = draft.edited_draft or draft.ai_draft or ""
 
-    # Thread URL
+    # Thread URL — resolve from thread (professional) or hobby_subreddits (hobby)
     thread_url = ""
     if thread:
         thread_url = thread.url or f"https://reddit.com/r/{thread.subreddit}/comments/{thread.reddit_native_id}"
+    elif slot.hobby_post_id:
+        try:
+            from app.models.hobby import HobbySubreddit
+            hobby_post = db.query(HobbySubreddit).filter(HobbySubreddit.id == slot.hobby_post_id).first()
+            if hobby_post and hobby_post.url:
+                thread_url = hobby_post.url
+        except Exception:
+            pass
+    if not thread_url and slot.subreddit:
+        thread_url = f"https://reddit.com/r/{slot.subreddit}"
 
     # Create task
     task = ExecutionTask(
@@ -348,13 +364,13 @@ def compose_task_email(task: ExecutionTask) -> tuple[str, str, str | None]:
 Task:           {task.task_code}
 Client:         {task.client_name}
 Avatar:         u/{task.avatar_username}
-Subreddit:      r/{task.subreddit}
+Subreddit:      r/{task.subreddit} — https://reddit.com/r/{task.subreddit}
 Type:           {task.task_type.capitalize()}
 
 THREAD
 ------
 Title:  {task.thread_title}
-URL:    {task.thread_url}
+URL:    {task.thread_url or "See subreddit link above"}
 
 TIMING
 ------

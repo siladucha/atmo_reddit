@@ -23,6 +23,29 @@
     {% endset %}
     {% include "partials/page_guide.html" %}
 
+    <!-- System Alerts Bar -->
+    {% if system_alerts %}
+    <div class="rounded-lg px-4 py-3 mb-6 {% if system_alerts[0].severity == 'critical' %}bg-red-900/30 border border-red-700{% else %}bg-amber-900/20 border border-amber-700/50{% endif %}">
+        <div class="flex items-start gap-3">
+            <span class="text-lg">{% if system_alerts[0].severity == 'critical' %}&#128680;{% else %}&#9888;&#65039;{% endif %}</span>
+            <div class="flex-1">
+                <div class="text-xs font-medium {% if system_alerts[0].severity == 'critical' %}text-red-300{% else %}text-amber-300{% endif %} uppercase tracking-wider mb-1">{{ system_alerts|length }} Alert{{ 's' if system_alerts|length != 1 else '' }}</div>
+                <div class="flex flex-wrap gap-x-4 gap-y-1">
+                    {% for alert in system_alerts[:6] %}
+                    <a href="{{ alert.link }}" class="flex items-center gap-1.5 text-sm text-gray-300 hover:text-white transition-colors">
+                        <span>{{ alert.icon }}</span>
+                        <span>{{ alert.message }}</span>
+                    </a>
+                    {% endfor %}
+                    {% if system_alerts|length > 6 %}
+                    <span class="text-xs text-gray-500">+{{ system_alerts|length - 6 }} more</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Top Metrics Bar -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <a href="/admin/review"

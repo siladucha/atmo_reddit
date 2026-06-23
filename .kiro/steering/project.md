@@ -48,6 +48,9 @@ A Reddit marketing SaaS platform. AI monitors subreddits, scores posts, generate
 - **Backups:** DO weekly backups enabled
 
 ### Deployment Commands (from local Mac)
+
+**CRITICAL:** Code is COPY'd into Docker image (not volume-mounted). rsync alone does NOT update the running app. You MUST rebuild the image after rsync.
+
 ```bash
 # Push code to server:
 cd reddit_saas
@@ -57,7 +60,7 @@ rsync -avz --exclude='.venv/' --exclude='__pycache__/' --exclude='.hypothesis/' 
   --exclude='tests/' --delete \
   ./ root@161.35.27.165:/app/
 
-# Rebuild and restart on server:
+# Rebuild and restart on server (REQUIRED — code is in image, not volume):
 ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml build && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
 
 # Check health:
@@ -128,7 +131,7 @@ reddit_saas/
 │   │   ├── user_role.py       # UserRole enum (owner/partner/client_admin/client_manager/client_viewer/avatar_manager/b2c_user)
 │   │   ├── user_client_assignment.py # UserClientAssignment (user↔client mapping)
 │   │   ├── client.py          # Client (keywords JSONB, profiles, max_avatars, plan_type, draft_approval_enabled)
-│   │   ├── avatar.py          # Avatar (client_ids, voice, is_frozen, warming_phase, is_farm_avatar)
+│   │   ├── avatar.py          # Avatar (client_ids, voice, is_frozen, warming_phase, is_farm_avatar, executor_email)
 │   │   ├── avatar_rental.py   # AvatarRental (farm avatar rentals)
 │   │   ├── avatar_assignment.py # AvatarAssignment (avatar↔owner for mobile posting) [PLANNED]
 │   │   ├── thread.py          # RedditThread (is_locked, locked_detected_at)
@@ -267,6 +270,8 @@ reddit_saas/
 │   │   ├── team_management.py # Team RBAC enforcement (user create/edit permissions by role)
 │   │   ├── safety_blocks.py   # Brand mention protection (blocks Phase 1/2 brand drafts)
 │   │   ├── avatar_onboard_analysis.py # PRAW fetch + Claude AI classification for avatar onboarding
+│   │   ├── email_sender.py    # Brevo HTTP API + SMTP email delivery
+│   │   ├── execution_tasks.py # EPG task creation, dispatch, lifecycle (per-avatar routing)
 │   │   └── onboarding/        # AI-driven onboarding subsystem (prompts, scraper, quality gate, landscape)
 │   ├── tasks/                 # Celery background tasks
 │   │   ├── ai_pipeline.py     # AI scoring/generation (retry, kill switches)
@@ -475,6 +480,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **SecurityHeadersMiddleware** — X-Frame-Options, X-Content-Type-Options, HSTS, Referrer-Policy, Permissions-Policy
 - **RateLimitMiddleware** — 5 auth attempts per 15 min per IP (production only), global 100 req/min per IP
 - **Custom 403 page** — friendly HTML error page instead of raw JSON
+- **Auto-logout on inactivity** — 10 min idle timer (JS-based), warning toast at 9 min, redirect to /logout at 10 min. Covers all base templates (admin, client, user).
 
 ## What's NOT Built Yet
 - ~~Production deployment~~ → **DONE** (gorampit.com, DigitalOcean, SSL)
@@ -485,7 +491,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - ~~Budget engine~~ → **DONE** (EPG 2.0 AttentionBudget + daily cap + portfolio allocation)
 - ~~Self-service onboarding~~ → **DONE** (6-step AI wizard + 14-day trial)
 - Strategy Questions feedback loop — future: multiple-choice answers, saved as client preferences
-- Subreddit rule extraction (PRAW sidebar/wiki → LLM parsing → compliance checks)
+- ~~Subreddit rule extraction~~ → **DONE** (rule_extractor + moderation_profiler + risk_scorer + fitness_gate, full admin/portal UI)
 - Cross-avatar deduplication (prevent two avatars commenting on same thread)
 - Real billing/payments (Stripe)
 - Plan action limits enforcement (max_comments_per_month)
@@ -539,12 +545,13 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **Rate Limiter**: Redis sorted set sliding window
 - **Retry**: bind=True, max_retries=3, countdown=60×2^attempt (AI tasks only)
 
-### Celery Beat Schedule (Israel Time — Asia/Jerusalem) — Updated June 19, 2026
+### Celery Beat Schedule (Israel Time — Asia/Jerusalem) — Updated June 23, 2026
 | Time | Task | Purpose |
 |------|------|---------|
 | every 60s | `queue_tick` | Scrape scheduling (gated by DB interval) |
 | every 60s | `system_heartbeat` | System health pulse |
 | every 5 min | `execute_pending_posts` | Automated posting (approved EPG slots) |
+| every 5 min | `dispatch_due_email_tasks` | Email executor ~30 min before slot time |
 | every 4h at :15 | `track_karma_all_avatars` | Karma tracking |
 | every 4h at :45 | `snapshot_comment_outcomes` | Karma/deletion snapshots |
 | 01:00 | `compute_daily_performance_metrics` | Aggregate yesterday's avatar metrics |
@@ -562,6 +569,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 | 12:15, 18:15 | `check_karma_outcomes` | 4h karma outcome check |
 | 00:15, 06:15 | `check_karma_outcomes` | 24-28h karma outcome check |
 | 04:30 Sun | `refresh_subreddit_emotional_profiles` | Weekly subreddit emotional profile refresh |
+| 23:30 | `expire_overdue_execution_tasks` | Expire email tasks past deadline |
 
 ## Comment Draft Status Workflow
 `pending` → `approved` / `rejected` → `posted`
@@ -582,6 +590,22 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 **Auth modes:** Password auth (MVP, working) via `smi_parser_bot` script app. OAuth (upgrade path) pending Reddit approval.
 **Daily cap:** `min(phase_limit, auto_posting_daily_cap)` — Phase 1: 3, Phase 2: 7, Phase 3: min(18, cap). Default cap: 8.
 **Legal protection:** Human approves all content at strategy/EPG level. System is a scheduling tool (same model as Buffer/Hootsuite).
+
+## EPG Email Task Delivery (Implemented June 23, 2026)
+1. EPG build generates slots → if auto-approve enabled (client or avatar level) → slot status = `approved`
+2. On approve: `_dispatch_email_task_if_enabled` creates `ExecutionTask` with status `generated` (no email yet)
+3. `dispatch_due_email_tasks` Beat task (every 5 min) finds tasks where `scheduled_at` is within now...+30 min
+4. Dispatches `deliver_execution_task` Celery task → sends ONE email to `avatar.executor_email`
+5. Email contains: task code, thread URL, comment text, timing, action link (accept + submit permalink)
+6. Executor posts manually, submits Reddit URL via action link → system verifies
+7. `expire_overdue_execution_tasks` (23:30 daily) expires tasks past deadline
+
+**Key design:** One email per slot, sent ~30 min before execution time. No batch dump.
+**Routing:** Per-avatar `executor_email` + `executor_email_verified` flag. No global fallback — if no verified email, task is skipped.
+**Anti-spam:** `can_resend()` limits to 3 deliveries per task, min 10 min between resends.
+**Models:** `ExecutionTask`, `DeliveryAttempt` (delivery audit trail)
+**Admin UI:** `/admin/tasks` — list, detail, resend, verify, cancel, SLA metrics
+**System setting:** `email_tasks_enabled` (must be "true" to activate)
 
 ## Keywords Structure (JSONB in clients.keywords)
 ```json

@@ -32,11 +32,23 @@
             {% for sub in subreddit_coverage %}
             <tr class="border-b border-slate-700/50 hover:bg-slate-700/20
                 {% if sub.type == 'Extra' %}opacity-70{% endif %}">
-                <!-- Subreddit name -->
+                <!-- Subreddit name + Risk -->
                 <td class="px-3 py-1.5">
-                    <span class="{% if sub.type == 'Target' %}text-indigo-400{% elif sub.type == 'Hobby' %}text-amber-400{% else %}text-gray-400{% endif %}">
-                        r/{{ sub.subreddit_name }}
-                    </span>
+                    <div class="flex items-center gap-1.5">
+                        <span class="{% if sub.type == 'Target' %}text-indigo-400{% elif sub.type == 'Hobby' %}text-amber-400{% else %}text-gray-400{% endif %}">
+                            r/{{ sub.subreddit_name }}
+                        </span>
+                        {% if sub.risk_score is not none and sub.subreddit_id %}
+                        <a href="/admin/subreddits/{{ sub.subreddit_id }}/risk-profile" title="Risk Score: {{ sub.risk_score }}"
+                           class="inline-flex items-center px-1 py-0 rounded text-[9px] font-bold
+                                  {% if sub.risk_score <= 30 %}bg-green-900/50 text-green-400
+                                  {% elif sub.risk_score <= 60 %}bg-yellow-900/50 text-yellow-400
+                                  {% elif sub.risk_score <= 80 %}bg-orange-900/50 text-orange-400
+                                  {% else %}bg-red-900/50 text-red-400{% endif %}">
+                            {{ sub.risk_score }}
+                        </a>
+                        {% endif %}
+                    </div>
                 </td>
                 <!-- Type badge -->
                 <td class="px-3 py-1.5 text-center">

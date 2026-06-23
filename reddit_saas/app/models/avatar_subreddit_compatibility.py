@@ -2,10 +2,12 @@
 
 Stores compatibility scores (0-100) between avatars and subreddits
 based on emotional profile analysis. Score < 40 = tone mismatch warning.
+Also stores fitness gate scores (0-100) from the Subreddit Risk Profile system.
 """
 
 import uuid
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -26,6 +28,10 @@ class AvatarSubredditCompatibility(Base):
     mismatch_reasons: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
     is_stale: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    # Fitness gate fields (Subreddit Risk Profile system)
+    fitness_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    fitness_computed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         UniqueConstraint("avatar_id", "subreddit_name", name="uq_asc_avatar_subreddit"),

@@ -312,6 +312,126 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
                 logger.info(f"No new engage threads for {client.client_name}")
                 return 0
 
+            # --- Fitness Gate: block unsafe avatar-subreddit pairings (Req 8.1-8.6) ---
+            from app.services.settings import is_fitness_gate_enabled
+            if is_fitness_gate_enabled(db):
+                from app.services.fitness_gate import evaluate_fitness
+                filtered_threads = []
+                fitness_blocked_count = 0
+                for thread in engage_threads:
+                    # Evaluate each thread against each avatar that might be selected.
+                    # Since persona selection happens inside the generation loop, we use
+                    # the first available avatar for pre-filtering. If multiple avatars
+                    # exist, the per-avatar gate in evaluate_fitness checks the specific
+                    # avatar's karma/age. For single-avatar clients this is exact.
+                    # For multi-avatar, we use the first avatar as a representative check.
+                    gate_avatar = client_avatars[0] if len(client_avatars) == 1 else None
+                    if gate_avatar is None:
+                        # Multi-avatar: evaluate with each avatar, pass if ANY avatar can engage
+                        any_passed = False
+                        blocking_result = None
+                        for candidate in client_avatars:
+                            result = evaluate_fitness(db, candidate, thread.subreddit)
+                            if result.passed:
+                                any_passed = True
+                                break
+                            else:
+                                blocking_result = result
+                        if any_passed:
+                            filtered_threads.append(thread)
+                        else:
+                            fitness_blocked_count += 1
+                            # Log fitness_block event (Req 8.3)
+                            try:
+                                record_activity_event(
+                                    db,
+                                    "fitness_block",
+                                    (
+                                        f"Fitness gate blocked thread in r/{thread.subreddit}: "
+                                        f"{blocking_result.blocked_by} — {blocking_result.reason}"
+                                    ),
+                                    uuid.UUID(client_id),
+                                    {
+                                        "avatar": client_avatars[0].reddit_username,
+                                        "thread_id": str(thread.id),
+                                        "thread_reddit_id": thread.reddit_native_id,
+                                        "subreddit": thread.subreddit,
+                                        "rule": blocking_result.blocked_by,
+                                        "reason": blocking_result.reason,
+                                    },
+                                )
+                            except Exception:
+                                logger.exception("Failed to record fitness_block event")
+                    else:
+                        # Single avatar: evaluate directly
+                        result = evaluate_fitness(db, gate_avatar, thread.subreddit)
+                        if result.passed:
+                            filtered_threads.append(thread)
+                        else:
+                            fitness_blocked_count += 1
+                            # Log fitness_block event (Req 8.3)
+                            try:
+                                record_activity_event(
+                                    db,
+                                    "fitness_block",
+                                    (
+                                        f"Fitness gate blocked {gate_avatar.reddit_username} "
+                                        f"in r/{thread.subreddit}: {result.blocked_by} — {result.reason}"
+                                    ),
+                                    uuid.UUID(client_id),
+                                    {
+                                        "avatar": gate_avatar.reddit_username,
+                                        "thread_id": str(thread.id),
+                                        "thread_reddit_id": thread.reddit_native_id,
+                                        "subreddit": thread.subreddit,
+                                        "rule": result.blocked_by,
+                                        "reason": result.reason,
+                                    },
+                                )
+                            except Exception:
+                                logger.exception("Failed to record fitness_block event")
+
+                # Decrement budget: blocked threads count as consumed (Req 8.2)
+                # max_comments effectively reduced by blocked count
+                max_comments = max(0, max_comments - fitness_blocked_count)
+
+                # Log if all threads were blocked (Req 8.6)
+                if fitness_blocked_count > 0 and not filtered_threads:
+                    try:
+                        record_activity_event(
+                            db,
+                            "fitness_zero_eligible",
+                            (
+                                f"Fitness gate blocked ALL {fitness_blocked_count} engage threads "
+                                f"for client {client.client_name} — no threads passed fitness check"
+                            ),
+                            uuid.UUID(client_id),
+                            {
+                                "blocked_count": fitness_blocked_count,
+                                "client": client.client_name,
+                                "avatars": [a.reddit_username for a in client_avatars],
+                            },
+                        )
+                    except Exception:
+                        logger.exception("Failed to record fitness_zero_eligible event")
+
+                if fitness_blocked_count > 0:
+                    logger.info(
+                        "FITNESS_GATE | client=%s | blocked=%d | passed=%d",
+                        client.client_name,
+                        fitness_blocked_count,
+                        len(filtered_threads),
+                    )
+
+                engage_threads = filtered_threads
+
+                if not engage_threads:
+                    logger.info(
+                        "generate_comments: all engage threads blocked by fitness gate for %s",
+                        client.client_name,
+                    )
+                    return 0
+
             # Get previous comments for diversity check — per avatar
             # We'll build per-avatar prev_comments inside the loop below.
             # Initialize a cache so we only query once per avatar.

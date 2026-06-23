@@ -1,7 +1,7 @@
 # Deployment Guide
 
 > **Audience:** Owner (Max)  
-> **Last updated:** 2026-05-28
+> **Last updated:** 2026-06-23
 
 ---
 
@@ -199,3 +199,23 @@ Current setup handles 10 clients comfortably. Upgrade path:
 | CPU > 80% sustained | Upgrade droplet (4 vCPU) | +$25/mo |
 | 50+ clients | Separate worker droplet | +$23/mo |
 | Enterprise requirement | Migrate to AWS | See `docs/aws_migration_checklist.md` |
+
+---
+
+## Security Features
+
+| Feature | Implementation | Scope |
+|---------|---------------|-------|
+| HTTP Security Headers | `middleware/security.py` (SecurityHeadersMiddleware) | All responses |
+| Auth Rate Limiting | 5 attempts per 15 min per IP | POST /login, /register (production only) |
+| Global Rate Limiting | 100 req per 60s per IP | All routes (production only) |
+| Custom 403 Page | Friendly HTML error page | Rate limit violations |
+| **Auto-Logout on Inactivity** | `static/js/idle-logout.js` | All authenticated pages |
+
+### Auto-Logout Behavior
+
+- **Timeout:** 10 minutes of inactivity (no mouse, keyboard, scroll, click, or touch)
+- **Warning:** Yellow toast appears at 9 minutes: "Session expires in 60 seconds due to inactivity"
+- **Action:** Redirects to `/logout` at 10 minutes
+- **Reset:** Any user activity (including HTMX requests) resets the timer
+- **Scope:** All 3 base templates (`base.html`, `admin_base.html`, `client_base.html`)

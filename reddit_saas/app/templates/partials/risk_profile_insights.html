@@ -1,0 +1,57 @@
+<!-- Risk Profile: Moderation Insights -->
+<div class="mb-6">
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5">
+        <h2 class="text-white font-medium mb-3">Moderation Insights</h2>
+
+        <div class="space-y-4">
+            <!-- Aggressiveness -->
+            {% if moderation_profile.get('aggressiveness') %}
+            <div class="flex items-center gap-3">
+                <span class="text-xs uppercase tracking-wider text-gray-500 w-32">Aggressiveness</span>
+                <span class="px-2 py-0.5 rounded text-xs font-medium
+                    {% if moderation_profile.aggressiveness == 'low' %}bg-green-500/10 text-green-400
+                    {% elif moderation_profile.aggressiveness == 'medium' %}bg-yellow-500/10 text-yellow-400
+                    {% elif moderation_profile.aggressiveness == 'high' %}bg-orange-500/10 text-orange-400
+                    {% else %}bg-red-500/10 text-red-400{% endif %}">
+                    {{ moderation_profile.aggressiveness | upper }}
+                </span>
+                {% if moderation_profile.get('removal_rate') is not none %}
+                <span class="text-xs text-gray-500">(removal rate {{ (moderation_profile.removal_rate * 100) | round(1) }}%)</span>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Dangerous Hours -->
+            {% if dangerous_hours %}
+            <div>
+                <div class="text-xs uppercase tracking-wider text-gray-500 mb-2">Dangerous Hours ({{ dominant_timezone }})</div>
+                <div class="flex flex-wrap gap-2">
+                    {% for hour in dangerous_hours %}
+                    <span class="px-2 py-1 rounded bg-red-900/30 text-red-400 text-xs font-mono border border-red-800/50">
+                        {{ '%02d' | format(hour) }}:00&ndash;{{ '%02d' | format(hour) }}:59
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Patterns -->
+            {% if moderation_profile.get('patterns') %}
+            <div>
+                <div class="text-xs uppercase tracking-wider text-gray-500 mb-2">Removal Patterns</div>
+                <div class="space-y-1">
+                    {% for pattern in moderation_profile.patterns %}
+                    <div class="flex items-center gap-2 text-sm">
+                        <span class="text-gray-400">&bull;</span>
+                        <span class="text-gray-300">{{ pattern.detail or pattern.type }}</span>
+                        {% if pattern.pct %}
+                        <span class="text-xs text-gray-500">({{ (pattern.pct * 100) | round(0) | int }}% of removals)</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>

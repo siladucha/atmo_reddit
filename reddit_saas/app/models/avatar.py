@@ -90,6 +90,11 @@ class Avatar(Base):
     presence_last_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     presence_scan_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
+    # --- Executor (who posts for this avatar) ---
+    executor_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    executor_email_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    auto_approve_drafts: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+
     # --- Automated Posting ---
     # Proxy & fingerprint
     proxy_url_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)

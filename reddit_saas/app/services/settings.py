@@ -547,6 +547,13 @@ DEFAULTS: dict[str, dict] = {
         "desc": "Use TLS for SMTP connection (true for STARTTLS on port 587)",
         "group": "email_tasks",
     },
+    # --- Fitness Gate ---
+    "fitness_gate_enabled": {
+        "value": "true",
+        "secret": False,
+        "desc": "Enable/disable Fitness Gate in the generation pipeline. When false, all Smart Scoring engage results pass through to generation unfiltered.",
+        "group": "pipeline_v2",
+    },
     # --- Trial Conversion Intelligence ---
     "trial_scoring_weights": {
         "value": '{"engagement": 0.20, "intent": 0.25, "value_realization": 0.25, "conversion": 0.20, "negative_cap": 0.30}',
@@ -1078,3 +1085,12 @@ def is_generation_enabled(db: Session) -> bool:
 def is_scrape_enabled(db: Session) -> bool:
     """Check if scraping is enabled (always fresh from DB)."""
     return _get_setting_fresh(db, "scrape_enabled").lower() == "true"
+
+def is_fitness_gate_enabled(db: Session) -> bool:
+    """Check if the Fitness Gate is enabled (always fresh from DB).
+
+    When enabled, the pipeline evaluates avatar-subreddit fitness before
+    generation. When disabled, all engage threads pass through unfiltered.
+    """
+    return _get_setting_fresh(db, "fitness_gate_enabled").lower() == "true"
+

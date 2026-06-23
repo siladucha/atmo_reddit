@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies.admin import require_superuser
+from app.dependencies.admin import require_business_admin
 from app.dependencies.admin import require_avatar_admin
 from app.dependencies.admin import require_user_management_access
 from app.dependencies.admin import require_review_access
@@ -108,37 +109,37 @@ def admin_dashboard(
         except ValueError:
             pass
 
-    # --- Client Manager / Client Admin: single-client dashboard ---
+    # --- Client Manager / Client Admin: redirect to Client Portal ---
     if role.is_client_scoped and current_user.client_id:
-        client = db.query(Client).filter(Client.id == current_user.client_id).first()
-        if not client:
-            from fastapi.responses import RedirectResponse
-            return RedirectResponse(url="/login", status_code=303)
-
-        metrics = operations_dashboard.get_client_manager_metrics(db, client.id)
-        return templates.TemplateResponse(
-            name="admin_dashboard_client_manager.html",
-            context={
-                "request": request,
-                "active_nav": "dashboard",
-                "client": client,
-                "metrics": metrics,
-                "can_review": role.can_review,
-            },
-            request=request,
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(
+            url=f"/clients/{current_user.client_id}/home",
+            status_code=303,
         )
 
     # --- Partner: business-focused dashboard ---
     if role == UserRole.partner:
-        metrics = operations_dashboard.get_top_metrics(db)
-        clients_list = operations_dashboard.list_active_clients(db)
+        from app.services.business_metrics import (
+            get_business_metrics,
+            get_client_health_table,
+            get_trial_funnel,
+            get_attention_items,
+        )
+
+        biz = get_business_metrics(db)
+        client_health = get_client_health_table(db)
+        funnel = get_trial_funnel(db)
+        attention_items = get_attention_items(db)
+
         return templates.TemplateResponse(
             name="admin_dashboard_partner.html",
             context={
                 "request": request,
                 "active_nav": "dashboard",
-                "metrics": metrics,
-                "clients": clients_list,
+                "biz": biz,
+                "client_health": client_health,
+                "funnel": funnel,
+                "attention_items": attention_items,
             },
             request=request,
         )
@@ -157,6 +158,10 @@ def admin_dashboard(
         "scrape_enabled": get_setting(db, "scrape_enabled").lower() == "true",
     }
 
+    # System alerts
+    from app.services.alert_aggregation import get_system_alerts
+    system_alerts = get_system_alerts(db)
+
     return templates.TemplateResponse(
         name="admin_dashboard.html",
         context={
@@ -165,6 +170,7 @@ def admin_dashboard(
             "metrics": metrics,
             "clients": clients_list,
             "pipeline_controls": pipeline_controls,
+            "system_alerts": system_alerts,
         },
         request=request,
     )
@@ -1257,11 +1263,15 @@ def _build_subreddit_coverage(
     # Build assignment type map (lowercase key -> type)
     assignment_type_map: dict[str, str] = {}
     assignment_display_names: dict[str, str] = {}
+    assignment_subreddit_ids: dict[str, str] = {}
+    assignment_risk_scores: dict[str, int | None] = {}
     for s in subreddits:
         if s["is_active"]:
             key = s["subreddit_name"].lower()
             assignment_type_map[key] = s["type"]
             assignment_display_names[key] = s["subreddit_name"]
+            assignment_subreddit_ids[key] = str(s["subreddit_id"])
+            assignment_risk_scores[key] = s.get("risk_score")
 
     # Build presence map from AvatarSubredditPresence
     presence_map: dict[str, dict] = {}
@@ -1342,11 +1352,13 @@ def _build_subreddit_coverage(
 
         coverage.append({
             "subreddit_name": display_name,
+            "subreddit_id": assignment_subreddit_ids.get(key),
             "type": type_label,
             "comments": comments,
             "karma": karma,
             "status_icon": status_icon,
             "status_text": status_text,
+            "risk_score": assignment_risk_scores.get(key),
         })
 
     # Sort
@@ -1581,7 +1593,7 @@ def admin_client_delete(
 @router.get("/trials", response_class=HTMLResponse)
 def admin_trials(
     request: Request,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_business_admin),
     db: Session = Depends(get_db),
 ):
     """Trial management panel — all trial clients with status and actions."""
@@ -1634,7 +1646,7 @@ def admin_trials(
 def admin_trial_upgrade(
     request: Request,
     client_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_business_admin),
     db: Session = Depends(get_db),
 ):
     """Upgrade a trial client to starter plan."""
@@ -1675,7 +1687,7 @@ def admin_trial_upgrade(
 def admin_trial_extend(
     request: Request,
     client_id: uuid.UUID,
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_business_admin),
     db: Session = Depends(get_db),
 ):
     """Extend trial by 7 days (shifts created_at back by 7 days)."""
@@ -2052,9 +2064,15 @@ def admin_subreddits_all(
             else:
                 next_scrape_display = "due now"
 
+        # Get risk score from risk_profile relationship if available
+        risk_score = None
+        if sub.risk_profile:
+            risk_score = sub.risk_profile.risk_score
+
         enriched.append({
             "sub": assignment,
             "subreddit_name": sub.subreddit_name,
+            "subreddit_id": sub.id,
             "is_active": assignment.is_active,
             "type": assignment.type,
             "last_scraped_at": last_scraped,
@@ -2067,6 +2085,7 @@ def admin_subreddits_all(
             "ai_cost_30d": ai_cost_map.get(sub.subreddit_name, 0.0),
             "last_result": last_result,
             "next_scrape": next_scrape_display,
+            "risk_score": risk_score,
         })
 
     # Get all clients for filter dropdown (include inactive — they may have subreddit assignments)
@@ -7276,6 +7295,8 @@ def admin_avatar_subreddit_coverage(
     # 1. Get assigned subreddits from avatar's clients
     assignment_type_map: dict[str, str] = {}  # lowercase sub name -> type
     assignment_display_names: dict[str, str] = {}
+    assignment_subreddit_ids: dict[str, object] = {}
+    assignment_risk_scores: dict[str, object] = {}
     if avatar.client_ids:
         for cid in avatar.client_ids:
             try:
@@ -7285,6 +7306,8 @@ def admin_avatar_subreddit_coverage(
                         key = s["subreddit_name"].lower()
                         assignment_type_map[key] = s["type"]
                         assignment_display_names[key] = s["subreddit_name"]
+                        assignment_subreddit_ids[key] = s.get("subreddit_id")
+                        assignment_risk_scores[key] = s.get("risk_score")
             except (ValueError, AttributeError):
                 pass
 
@@ -7359,11 +7382,13 @@ def admin_avatar_subreddit_coverage(
 
         coverage.append({
             "subreddit_name": display_name,
+            "subreddit_id": assignment_subreddit_ids.get(key),
             "type": type_label,
             "comments": comments,
             "karma": karma,
             "status_icon": status_icon,
             "status_text": status_text,
+            "risk_score": assignment_risk_scores.get(key),
         })
 
     # 6. Sort
@@ -8223,6 +8248,126 @@ def admin_avatar_reset_posting_failures(
         entity_id=avatar.id,
         user_id=current_user.id,
         details={"old_failures": old_failures, "unfrozen": old_failures >= 3},
+    )
+
+    return RedirectResponse(url=f"/admin/avatars/{avatar_id}#posting-section", status_code=303)
+
+
+@router.post("/avatars/{avatar_id}/auto-approve-toggle", response_class=HTMLResponse)
+def admin_avatar_auto_approve_toggle(
+    request: Request,
+    avatar_id: uuid.UUID,
+    enabled: str = Form("false"),
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Toggle auto-approve drafts for an avatar. Owner and partner only."""
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+
+    avatar.auto_approve_drafts = enabled.lower() == "true"
+    db.commit()
+
+    audit_service.log_action(
+        db,
+        action="auto_approve_toggled",
+        entity_type="avatar",
+        entity_id=avatar.id,
+        user_id=current_user.id,
+        details={"auto_approve_drafts": avatar.auto_approve_drafts},
+    )
+
+    return RedirectResponse(url=f"/admin/avatars/{avatar_id}#posting-section", status_code=303)
+
+
+@router.post("/avatars/{avatar_id}/executor-email", response_class=HTMLResponse)
+def admin_avatar_executor_email(
+    request: Request,
+    avatar_id: uuid.UUID,
+    executor_email: str = Form(""),
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Save executor email for per-avatar email task routing."""
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+
+    new_email = executor_email.strip() if executor_email else None
+
+    # If email changed, reset verification
+    if new_email != avatar.executor_email:
+        avatar.executor_email = new_email
+        avatar.executor_email_verified = False
+        db.commit()
+        audit_service.log_action(
+            db,
+            action="executor_email_updated",
+            entity_type="avatar",
+            entity_id=avatar.id,
+            user_id=current_user.id,
+            details={"new_email": new_email, "verified": False},
+        )
+    else:
+        # Same email, no changes needed
+        pass
+
+    return RedirectResponse(url=f"/admin/avatars/{avatar_id}#posting-section", status_code=303)
+
+
+@router.post("/avatars/{avatar_id}/executor-email/verify", response_class=HTMLResponse)
+def admin_avatar_executor_email_verify(
+    request: Request,
+    avatar_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Mark executor email as verified."""
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+
+    if not avatar.executor_email:
+        raise HTTPException(status_code=400, detail="No executor email to verify")
+
+    avatar.executor_email_verified = True
+    db.commit()
+
+    audit_service.log_action(
+        db,
+        action="executor_email_verified",
+        entity_type="avatar",
+        entity_id=avatar.id,
+        user_id=current_user.id,
+        details={"email": avatar.executor_email},
+    )
+
+    return RedirectResponse(url=f"/admin/avatars/{avatar_id}#posting-section", status_code=303)
+
+
+@router.post("/avatars/{avatar_id}/executor-email/unverify", response_class=HTMLResponse)
+def admin_avatar_executor_email_unverify(
+    request: Request,
+    avatar_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Revoke executor email verification."""
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+
+    avatar.executor_email_verified = False
+    db.commit()
+
+    audit_service.log_action(
+        db,
+        action="executor_email_unverified",
+        entity_type="avatar",
+        entity_id=avatar.id,
+        user_id=current_user.id,
+        details={"email": avatar.executor_email},
     )
 
     return RedirectResponse(url=f"/admin/avatars/{avatar_id}#posting-section", status_code=303)

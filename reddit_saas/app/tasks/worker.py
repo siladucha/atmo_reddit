@@ -31,6 +31,8 @@ celery_app = Celery(
         "app.tasks.trial_scoring",
         "app.tasks.trial_negative_signals",
         "app.tasks.byoa",
+        "app.tasks.risk_profile",
+        "app.tasks.execution_tasks",
     ],
 )
 
@@ -95,6 +97,10 @@ celery_app.conf.update(
             "task": "execute_pending_posts",
             "schedule": 300.0,  # Every 5 minutes — check for approved slots due for posting
         },
+        "dispatch-due-email-tasks": {
+            "task": "dispatch_due_email_tasks",
+            "schedule": 300.0,  # Every 5 minutes — send email for tasks due within 30 min
+        },
         "epg-build-generate-morning": {
             "task": "build_and_generate_epg_all_avatars",
             "schedule": crontab(hour=8, minute=15),  # After AI pipeline (08:00) scores threads
@@ -154,6 +160,18 @@ celery_app.conf.update(
         "continuous-discovery-weekly": {
             "task": "run_continuous_discovery_all",
             "schedule": crontab(hour=4, minute=0, day_of_week="sunday"),  # Weekly, after feedback loop
+        },
+        "risk-profile-rules-weekly": {
+            "task": "extract_subreddit_rules_batch",
+            "schedule": crontab(hour=5, minute=0, day_of_week="sunday"),
+        },
+        "risk-profile-moderation-weekly": {
+            "task": "compute_moderation_profiles_batch",
+            "schedule": crontab(hour=5, minute=15, day_of_week="sunday"),
+        },
+        "risk-profile-scores-weekly": {
+            "task": "compute_risk_scores_batch",
+            "schedule": crontab(hour=5, minute=30, day_of_week="sunday"),
         },
     },
     # Broker connection resilience

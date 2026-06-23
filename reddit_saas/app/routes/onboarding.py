@@ -1420,7 +1420,8 @@ def step5_confirm(
     except Exception:
         pass
 
-    return RedirectResponse(url="/onboard/step/6", status_code=303)
+    # HTMX-aware redirect: form uses hx-post, so use HX-Redirect header
+    return HTMLResponse(content="", headers={"HX-Redirect": "/onboard/step/6"})
 
 
 @router.post("/step/5/reject", response_class=HTMLResponse)

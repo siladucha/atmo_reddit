@@ -1,67 +1,73 @@
-{% extends "onboarding/progress.html" %}
-{% block step_content %}
-<div style="max-width:600px;margin:0 auto;">
-    <h2 class="text-h2" style="margin-bottom:8px;">Connect Your Reddit Account</h2>
-    <p class="text-body" style="color:var(--color-muted);margin-bottom:24px;">
-        Enter your Reddit username and we will analyze your profile to set up your avatar.
-    </p>
+{% extends "client_base.html" %}
+{% block title %}Onboarding — Connect Avatar{% endblock %}
 
-    {% if confirmed_avatar %}
-    <!-- Already has confirmed avatar -->
-    <div class="surface" style="padding:16px;border:1px solid var(--color-green);border-radius:8px;margin-bottom:24px;">
-        <div style="display:flex;align-items:center;gap:12px;">
-            <span style="font-size:24px;">✓</span>
-            <div>
-                <p style="color:var(--color-green);font-weight:600;">Avatar confirmed</p>
-                <p style="color:var(--color-muted);font-size:var(--text-small);">
-                    u/{{ confirmed_avatar.reddit_username }}
-                    {% if confirmed_avatar.display_name %} — {{ confirmed_avatar.display_name }}{% endif %}
-                </p>
+{% block content %}
+<div style="max-width:700px;margin:0 auto;padding:var(--space-4) var(--space-3);">
+    {% include "onboarding/progress.html" %}
+
+    <div style="max-width:600px;margin:0 auto;">
+        <h2 class="text-h2" style="margin-bottom:8px;">Connect Your Reddit Account</h2>
+        <p class="text-body" style="color:var(--color-muted);margin-bottom:24px;">
+            Enter your Reddit username and we will analyze your profile to set up your avatar.
+        </p>
+
+        {% if confirmed_avatar %}
+        <!-- Already has confirmed avatar -->
+        <div class="surface" style="padding:16px;border:1px solid var(--color-green);border-radius:8px;margin-bottom:24px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+                <span style="font-size:24px;">✓</span>
+                <div>
+                    <p style="color:var(--color-green);font-weight:600;">Avatar confirmed</p>
+                    <p style="color:var(--color-muted);font-size:var(--text-small);">
+                        u/{{ confirmed_avatar.reddit_username }}
+                        {% if confirmed_avatar.display_name %} — {{ confirmed_avatar.display_name }}{% endif %}
+                    </p>
+                </div>
             </div>
         </div>
-    </div>
-    <a href="/onboard/step/6" class="btn-primary" style="display:inline-block;padding:12px 24px;text-decoration:none;">
-        Continue to Activation →
-    </a>
+        <a href="/onboard/step/6" class="btn-primary" style="display:inline-block;padding:12px 24px;text-decoration:none;">
+            Continue to Activation →
+        </a>
 
-    {% elif active_draft and active_draft.status == "ready_for_review" %}
-    <!-- Draft ready for review -->
-    <div id="byoa-result"
-         hx-get="/onboard/step/5/draft-status"
-         hx-trigger="load"
-         hx-swap="innerHTML">
-        <div class="animate-pulse" style="padding:20px;text-align:center;color:var(--color-muted);">Loading...</div>
-    </div>
-
-    {% elif active_draft and active_draft.status in ("pending_fetch", "analyzing") %}
-    <!-- Draft in progress -->
-    <div id="byoa-result"
-         hx-get="/onboard/step/5/draft-status"
-         hx-trigger="load, every 2s"
-         hx-swap="innerHTML">
-        <div class="animate-pulse" style="padding:20px;text-align:center;color:var(--color-muted);">
-            Checking status...
+        {% elif active_draft and active_draft.status == "ready_for_review" %}
+        <!-- Draft ready for review -->
+        <div id="byoa-result"
+             hx-get="/onboard/step/5/draft-status"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="animate-pulse" style="padding:20px;text-align:center;color:var(--color-muted);">Loading...</div>
         </div>
-    </div>
 
-    {% else %}
-    <!-- Fresh: show username input -->
-    <form hx-post="/onboard/step/5/submit-username"
-          hx-target="#byoa-result"
-          hx-swap="innerHTML"
-          style="display:flex;gap:12px;margin-bottom:16px;">
-        <input type="text" name="reddit_username"
-               placeholder="u/your_username" maxlength="23"
-               class="field-input" style="flex:1;"
-               required>
-        <button type="submit" class="btn-primary" style="padding:10px 20px;white-space:nowrap;">
-            Analyze Profile
-        </button>
-    </form>
-    <p class="text-micro" style="color:var(--color-muted);">
-        We will fetch your Reddit history and use AI to understand your tone, interests, and expertise.
-    </p>
-    <div id="byoa-result"></div>
-    {% endif %}
+        {% elif active_draft and active_draft.status in ("pending_fetch", "analyzing") %}
+        <!-- Draft in progress -->
+        <div id="byoa-result"
+             hx-get="/onboard/step/5/draft-status"
+             hx-trigger="load, every 2s"
+             hx-swap="innerHTML">
+            <div class="animate-pulse" style="padding:20px;text-align:center;color:var(--color-muted);">
+                Checking status...
+            </div>
+        </div>
+
+        {% else %}
+        <!-- Fresh: show username input -->
+        <form hx-post="/onboard/step/5/submit-username"
+              hx-target="#byoa-result"
+              hx-swap="innerHTML"
+              style="display:flex;gap:12px;margin-bottom:16px;">
+            <input type="text" name="reddit_username"
+                   placeholder="u/your_username" maxlength="23"
+                   class="field-input" style="flex:1;"
+                   required>
+            <button type="submit" class="btn-primary" style="padding:10px 20px;white-space:nowrap;">
+                Analyze Profile
+            </button>
+        </form>
+        <p class="text-micro" style="color:var(--color-muted);">
+            We will fetch your Reddit history and use AI to understand your tone, interests, and expertise.
+        </p>
+        <div id="byoa-result"></div>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}

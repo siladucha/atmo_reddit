@@ -41,6 +41,9 @@ class Subreddit(Base):
     disabled_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Risk profile flag
+    is_high_risk: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+
     # Emotional Profile (behavioral/tone intelligence)
     emotional_profile: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     previous_emotional_profile: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
@@ -50,6 +53,8 @@ class Subreddit(Base):
     # Relationships
     assignments = relationship("ClientSubredditAssignment", back_populates="subreddit")
     threads = relationship("RedditThread", back_populates="subreddit_rel")
+    risk_profile = relationship("SubredditRiskProfile", back_populates="subreddit", uselist=False)
+    daily_stats = relationship("SubredditDailyStats", back_populates="subreddit")
 
     __table_args__ = (
         Index("uq_subreddits_name", func.lower(subreddit_name), unique=True),

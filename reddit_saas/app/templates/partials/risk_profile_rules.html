@@ -1,0 +1,49 @@
+<!-- Risk Profile: Extracted Rules List -->
+<div class="mb-6">
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="text-white font-medium">Extracted Rules</h2>
+            {% if extraction_date %}
+            <span class="text-xs text-gray-500">Extracted: {{ extraction_date.strftime('%Y-%m-%d') }}</span>
+            {% endif %}
+        </div>
+
+        {% if extracted_rules %}
+        <div class="space-y-2">
+            {% for rule in extracted_rules %}
+            <div class="flex items-start gap-3 p-2 rounded bg-slate-800/50">
+                <!-- Category icon -->
+                <span class="flex-shrink-0 mt-0.5">
+                    {% if rule.category == 'min_karma' %}
+                    <span class="text-amber-400" title="Minimum Karma">&#x1F512;</span>
+                    {% elif rule.category == 'min_account_age' %}
+                    <span class="text-blue-400" title="Minimum Account Age">&#x23F0;</span>
+                    {% elif rule.category == 'no_self_promo' %}
+                    <span class="text-red-400" title="No Self-Promotion">&#x1F6AB;</span>
+                    {% elif rule.category == 'required_flair' %}
+                    <span class="text-purple-400" title="Required Flair">&#x1F3F7;&#xFE0F;</span>
+                    {% elif rule.category == 'posting_frequency_limit' %}
+                    <span class="text-cyan-400" title="Posting Frequency Limit">&#x23F1;&#xFE0F;</span>
+                    {% elif rule.category == 'content_restriction' %}
+                    <span class="text-orange-400" title="Content Restriction">&#x26A0;&#xFE0F;</span>
+                    {% else %}
+                    <span class="text-gray-400" title="Other">&#x1F4CB;</span>
+                    {% endif %}
+                </span>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-mono px-1.5 py-0.5 rounded bg-slate-700 text-gray-400">{{ rule.category }}</span>
+                        {% if rule.threshold_value %}
+                        <span class="text-xs text-indigo-300">{{ rule.threshold_value }}</span>
+                        {% endif %}
+                    </div>
+                    <p class="text-sm text-gray-300 mt-1">{{ rule.description }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500 text-sm">No rules extracted yet. Rules are extracted weekly from the subreddit sidebar and wiki.</p>
+        {% endif %}
+    </div>
+</div>

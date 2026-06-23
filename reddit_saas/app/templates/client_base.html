@@ -292,6 +292,7 @@
     <!-- Toast container injected by toast.js -->
     {% include "partials/ux_manual.html" %}
     <script src="/static/js/ux-manual.js" defer></script>
+    <script src="/static/js/idle-logout.js" defer></script>
         {% if app_env != "production" %}<script src="/static/js/debug-overlay.js" defer></script>{% endif %}
     {% block extra_scripts %}{% endblock %}
 </body>

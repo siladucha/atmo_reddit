@@ -1,0 +1,45 @@
+<!-- Risk Profile: Avatar Fitness Scores Table -->
+<div class="mb-6">
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5">
+        <h2 class="text-white font-medium mb-3">Avatar Fitness</h2>
+
+        {% if avatar_fitness %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-slate-700">
+                        <th class="text-left py-2 px-3 text-xs uppercase tracking-wider text-gray-500">Avatar</th>
+                        <th class="text-center py-2 px-3 text-xs uppercase tracking-wider text-gray-500">Score</th>
+                        <th class="text-left py-2 px-3 text-xs uppercase tracking-wider text-gray-500">Issues</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for av in avatar_fitness %}
+                    <tr class="border-b border-slate-700/50 hover:bg-slate-800/30">
+                        <td class="py-2 px-3 text-gray-300">{{ av.avatar_name }}</td>
+                        <td class="py-2 px-3 text-center">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-bold
+                                {% if av.fitness_score >= 70 %}bg-green-500/10 text-green-400
+                                {% elif av.fitness_score >= 40 %}bg-yellow-500/10 text-yellow-400
+                                {% else %}bg-red-500/10 text-red-400{% endif %}">
+                                {{ av.fitness_score }}
+                                {% if av.fitness_score >= 70 %}OK{% elif av.fitness_score >= 40 %}WARN{% else %}BAD{% endif %}
+                            </span>
+                        </td>
+                        <td class="py-2 px-3 text-xs text-gray-500">
+                            {% if av.mismatch_reasons %}
+                            {{ av.mismatch_reasons | join(', ') }}
+                            {% else %}
+                            <span class="text-gray-600">&mdash;</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-gray-500 text-sm">No avatar fitness scores computed yet for this subreddit.</p>
+        {% endif %}
+    </div>
+</div>

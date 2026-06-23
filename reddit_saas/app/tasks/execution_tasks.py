@@ -79,3 +79,66 @@ def expire_overdue_execution_tasks():
         return {"error": str(e)}
     finally:
         db.close()
+
+
+@shared_task(name="dispatch_due_email_tasks")
+def dispatch_due_email_tasks():
+    """Send emails for execution tasks whose scheduled_at is within the next 30 minutes.
+
+    Runs every 5 minutes via Beat. Ensures executor gets ONE email at a time,
+    close to when they need to act — not a batch dump.
+
+    Logic:
+    - Find execution_tasks with status='generated' (created but not yet emailed)
+    - Where the linked EPG slot's scheduled_at is between now and now+30 min
+    - Skip tasks where scheduled_at is more than 30 min in the past (stale)
+    - Dispatch one email per task
+    """
+    import uuid
+    from datetime import datetime, timedelta, timezone
+
+    from app.models.execution_task import ExecutionTask
+
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        window_start = now - timedelta(minutes=5)  # Small grace period for just-passed slots
+        window_end = now + timedelta(minutes=30)
+
+        # Find tasks that are generated (not yet emailed) and due soon
+        due_tasks = (
+            db.query(ExecutionTask)
+            .filter(
+                ExecutionTask.status == "generated",
+                ExecutionTask.delivery_count == 0,  # Never emailed
+                ExecutionTask.scheduled_at.isnot(None),
+                ExecutionTask.scheduled_at >= window_start,
+                ExecutionTask.scheduled_at <= window_end,
+            )
+            .order_by(ExecutionTask.scheduled_at.asc())
+            .all()
+        )
+
+        if not due_tasks:
+            return {"dispatched": 0, "reason": "no_due_tasks"}
+
+        dispatched = 0
+        for task in due_tasks:
+            try:
+                deliver_execution_task.delay(str(task.id), 1)
+                dispatched += 1
+                logger.info(
+                    "Dispatched email for task %s (avatar=%s, scheduled=%s)",
+                    task.task_code, task.avatar_username, task.scheduled_at,
+                )
+            except Exception as e:
+                logger.warning("Failed to dispatch task %s: %s", task.task_code, str(e)[:100])
+
+        logger.info("dispatch_due_email_tasks: dispatched=%d of %d due", dispatched, len(due_tasks))
+        return {"dispatched": dispatched, "total_due": len(due_tasks)}
+
+    except Exception as e:
+        logger.error("dispatch_due_email_tasks failed: %s", e, exc_info=True)
+        return {"error": str(e)}
+    finally:
+        db.close()

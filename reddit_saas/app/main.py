@@ -13,7 +13,7 @@ from app.middleware.trial_signals import TrialSignalMiddleware
 from app.version import __version__
 from app.middleware.errors import ErrorMiddleware
 from app.middleware.security import SecurityHeadersMiddleware, RateLimitMiddleware
-from app.routes import admin, auth, dashboard, review, pipeline, avatars, avatar_analysis, avatar_pipeline, avatar_workflow, clients, pages, dry_run, export, decision_center, portal, portal_actions, onboarding, oauth, posting_dashboard, discovery, admin_geo, sse, avatar_onboard, admin_tasks, executor_tasks, trial_intelligence
+from app.routes import admin, auth, dashboard, review, pipeline, avatars, avatar_analysis, avatar_pipeline, avatar_workflow, clients, pages, dry_run, export, decision_center, portal, portal_actions, onboarding, oauth, posting_dashboard, discovery, admin_geo, sse, avatar_onboard, admin_tasks, executor_tasks, trial_intelligence, admin_risk_profile, portal_risk_profile
 from app.routes import notifications as notifications_routes
 from app.routes import manual as manual_routes
 from app.services.metrics_collector import (
@@ -147,6 +147,8 @@ app.include_router(admin_geo.router, tags=["admin-geo"])
 app.include_router(admin_tasks.router, tags=["admin-tasks"])
 app.include_router(executor_tasks.router, tags=["executor-tasks"])
 app.include_router(trial_intelligence.router, tags=["trial-intelligence"])
+app.include_router(admin_risk_profile.router, tags=["admin-risk-profile"])
+app.include_router(portal_risk_profile.router, tags=["portal-risk-profile"])
 
 
 @app.get("/health")

@@ -1,0 +1,19 @@
+<!-- Risk Profile: AI Recommendations -->
+<div class="mb-6">
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5">
+        <h2 class="text-white font-medium mb-3">Recommendations</h2>
+
+        {% if recommendations %}
+        <div class="space-y-2">
+            {% for rec in recommendations %}
+            <div class="flex items-start gap-2 text-sm">
+                <span class="text-indigo-400 flex-shrink-0 mt-0.5">&#x1F4A1;</span>
+                <span class="text-gray-300">{{ rec }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500 text-sm">No recommendations generated yet. Recommendations are computed weekly based on moderation patterns.</p>
+        {% endif %}
+    </div>
+</div>

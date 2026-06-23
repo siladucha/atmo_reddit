@@ -38,6 +38,8 @@ from app.models.karma_snapshot import KarmaSnapshot
 from app.models.client_action_log import ClientActionLog
 from app.models.voice_feedback import VoiceFeedback
 from app.models.subreddit_request import SubredditRequest
+from app.models.subreddit_risk_profile import SubredditRiskProfile
+from app.models.subreddit_daily_stats import SubredditDailyStats
 
 __all__ = [
     "User",
@@ -82,6 +84,8 @@ __all__ = [
     "ClientActionLog",
     "VoiceFeedback",
     "SubredditRequest",
+    "SubredditRiskProfile",
+    "SubredditDailyStats",
     "ExecutionTask",
     "DeliveryAttempt",
     "GeoPrompt",
