@@ -20,6 +20,9 @@ from app.models.geo_execution import GeoExecutionBatch, GeoFrequencyMetric, GeoQ
 from app.models.geo_prompt import GeoPrompt
 from app.models.user import User
 from app.services import audit as audit_service
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/admin/clients", tags=["admin-geo"])
 templates = Jinja2Templates(directory="app/templates")
@@ -556,4 +559,179 @@ def toggle_geo_monitoring(
     return HTMLResponse(
         content="",
         headers={"HX-Redirect": f"/admin/clients/{client_id}/geo"},
+    )
+
+
+# ---------------------------------------------------------------------------
+# AI-powered prompt generation
+# ---------------------------------------------------------------------------
+
+_GENERATE_PROMPTS_SYSTEM = """You are an expert in AI search optimization (AEO/GEO).
+Your task: generate buyer-intent prompts that a potential customer would type into
+AI assistants (ChatGPT, Perplexity, Google Gemini) when researching solutions in the
+client's industry.
+
+These prompts will be used to monitor whether the client's brand appears in AI-generated answers.
+
+RULES:
+- Generate exactly {count} prompts
+- Each prompt should be a natural question a buyer would ask an AI assistant
+- Cover different intent stages: awareness, consideration, comparison, decision
+- Include problem-focused queries ("How to solve X?"), category queries ("Best tools for Y"),
+  comparison queries ("X vs Y"), and use-case queries ("How to achieve Z?")
+- Do NOT mention the client's brand in the prompts — these are discovery queries
+- Keep prompts between 20 and 120 characters
+- Use the client's industry, keywords, and competitor names for context
+- Assign a category to each prompt: "problem", "comparison", "category", "use_case", or "opinion"
+- Return valid JSON
+
+OUTPUT FORMAT:
+{{"prompts": [{{"text": "...", "category": "..."}}]}}
+"""
+
+
+@router.post("/{client_id}/geo/generate-prompts", response_class=HTMLResponse)
+def generate_prompts_ai(
+    request: Request,
+    client_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superuser),
+):
+    """Generate buyer-intent prompts using AI based on client profile."""
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    # Check how many prompts can still be added (limit: 50)
+    active_count = (
+        db.query(func.count(GeoPrompt.id))
+        .filter(GeoPrompt.client_id == client_id, GeoPrompt.is_active.is_(True))
+        .scalar()
+    ) or 0
+
+    remaining_slots = 50 - active_count
+    if remaining_slots <= 0:
+        raise HTTPException(status_code=400, detail="Maximum 50 active prompts reached")
+
+    # Generate up to 10 prompts (or remaining slots, whichever is smaller)
+    count = min(10, remaining_slots)
+
+    # Build context from client data
+    keywords_str = ""
+    if client.keywords:
+        all_kw = []
+        for priority, kw_list in client.keywords.items():
+            if isinstance(kw_list, list):
+                all_kw.extend(kw_list)
+        keywords_str = ", ".join(all_kw[:30])
+
+    # Get existing competitor names for context
+    competitors = (
+        db.query(GeoCompetitor)
+        .filter(GeoCompetitor.client_id == client_id, GeoCompetitor.is_active.is_(True))
+        .all()
+    )
+    competitor_names = [c.competitor_name for c in competitors]
+
+    # Get existing prompts to avoid duplicates
+    existing_prompts = (
+        db.query(GeoPrompt.prompt_text)
+        .filter(GeoPrompt.client_id == client_id)
+        .all()
+    )
+    existing_texts = {p.prompt_text.lower().strip() for p in existing_prompts}
+
+    user_content = f"""Client: {client.brand_name}
+Industry: {client.industry or 'not specified'}
+Keywords: {keywords_str or 'not specified'}
+Company profile: {(client.company_profile or '')[:500]}
+Competitors: {', '.join(competitor_names) if competitor_names else 'not specified'}
+
+Generate {count} buyer-intent prompts for GEO/AEO monitoring."""
+
+    from app.config import get_config
+    from app.services.ai import call_llm_json
+
+    try:
+        result = call_llm_json(
+            messages=[
+                {"role": "system", "content": _GENERATE_PROMPTS_SYSTEM.format(count=count)},
+                {"role": "user", "content": user_content},
+            ],
+            model=get_config("llm_scoring_model"),
+            temperature=0.7,
+            max_tokens=2048,
+        )
+    except Exception as e:
+        logger.error(f"Failed to generate GEO prompts for client {client_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)[:200]}")
+
+    # Log AI cost
+    from app.services.ai import log_ai_usage
+    log_ai_usage(
+        db=db,
+        client_id=str(client_id),
+        operation="geo_generate_prompts",
+        result=result,
+        triggered_by="manual",
+    )
+
+    data = result.get("data", {})
+    generated = data.get("prompts", [])
+
+    if not generated:
+        raise HTTPException(status_code=500, detail="AI returned no prompts")
+
+    # Insert generated prompts (skip duplicates)
+    created_count = 0
+    for item in generated:
+        text = item.get("text", "").strip()
+        category = item.get("category", "").strip() or None
+
+        if not text or len(text) < 10 or len(text) > 1000:
+            continue
+        if text.lower().strip() in existing_texts:
+            continue
+
+        prompt = GeoPrompt(
+            client_id=client_id,
+            prompt_text=text,
+            category=category,
+            created_by=current_user.id,
+        )
+        db.add(prompt)
+        existing_texts.add(text.lower().strip())
+        created_count += 1
+
+    db.commit()
+
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="generate",
+        entity_type="geo_prompts",
+        client_id=client_id,
+        details={
+            "generated": created_count,
+            "model": result.get("model", "unknown"),
+            "cost_usd": result.get("cost_usd"),
+        },
+    )
+
+    logger.info(f"Generated {created_count} GEO prompts for client {client.brand_name}")
+
+    # Return updated prompt list
+    prompts = (
+        db.query(GeoPrompt)
+        .filter(GeoPrompt.client_id == client_id)
+        .order_by(desc(GeoPrompt.created_at))
+        .all()
+    )
+    return templates.TemplateResponse(
+        request,
+        "partials/geo_prompts.html",
+        {
+            "prompts": prompts,
+            "client_id": str(client_id),
+        },
     )

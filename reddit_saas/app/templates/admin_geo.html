@@ -129,7 +129,17 @@
         <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-lg font-semibold text-white">Buyer-Intent Prompts</h2>
-                <span class="text-xs text-gray-400">{{ prompts|selectattr('is_active')|list|length }}/50 active</span>
+                <div class="flex items-center gap-2">
+                    <button hx-post="/admin/clients/{{ client.id }}/geo/generate-prompts"
+                            hx-target="#prompts-list"
+                            hx-swap="innerHTML"
+                            hx-indicator="#gen-spinner"
+                            class="px-3 py-1.5 bg-purple-600/20 text-purple-300 border border-purple-600/40 rounded-lg hover:bg-purple-600/30 transition-colors text-xs font-medium">
+                        ✨ Generate with AI
+                    </button>
+                    <span id="gen-spinner" class="htmx-indicator text-purple-300 text-xs">Generating...</span>
+                    <span class="text-xs text-gray-400">{{ prompts|selectattr('is_active')|list|length }}/50 active</span>
+                </div>
             </div>
 
             <!-- Add prompt form -->
