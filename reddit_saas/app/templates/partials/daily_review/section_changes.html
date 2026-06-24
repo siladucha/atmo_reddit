@@ -1,0 +1,79 @@
+<div class="bg-slate-800 rounded-xl p-6">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-white">What Changed?</h3>
+        <span class="text-xs text-gray-500">~15 min</span>
+    </div>
+
+    <p class="text-sm text-gray-400 mb-4">Meaningful changes in the last 24 hours — not events, but differences.</p>
+
+    {% if changes %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-gray-500 text-xs uppercase border-b border-slate-700">
+                    <th class="text-left py-2 px-2">Signal</th>
+                    <th class="text-left py-2 px-2">Evidence</th>
+                    <th class="text-center py-2 px-2">Impact</th>
+                    <th class="text-center py-2 px-2">Confidence</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for change in changes %}
+                <tr class="border-b border-slate-700/50">
+                    <td class="py-3 px-2">
+                        <div class="text-gray-200">{{ change.signal }}</div>
+                        <div class="text-xs text-gray-500 mt-1">{{ change.category }}</div>
+                    </td>
+                    <td class="py-3 px-2 text-gray-400 text-xs font-mono">{{ change.evidence }}</td>
+                    <td class="py-3 px-2 text-center">
+                        <span class="px-2 py-0.5 rounded text-xs
+                            {% if change.impact == 'platform' %}bg-red-900/50 text-red-400
+                            {% elif change.impact == 'client' %}bg-yellow-900/50 text-yellow-400
+                            {% else %}bg-slate-700 text-gray-400{% endif %}">
+                            {{ change.impact }}
+                        </span>
+                    </td>
+                    <td class="py-3 px-2 text-center">
+                        <span class="text-xs
+                            {% if change.confidence == 'high' %}text-green-400
+                            {% elif change.confidence == 'medium' %}text-yellow-400
+                            {% else %}text-gray-500{% endif %}">
+                            {{ change.confidence }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="p-6 text-center bg-slate-900/50 rounded-lg">
+        <p class="text-gray-400">No significant changes detected in the past 24 hours.</p>
+        <p class="text-xs text-gray-500 mt-2">System behavior is consistent with the 7-day baseline.</p>
+    </div>
+    {% endif %}
+
+    <!-- Notes area -->
+    <div class="mt-4">
+        <label class="text-xs text-gray-500 block mb-1">Manual observations</label>
+        <textarea
+            name="changes_notes"
+            placeholder="Anything you noticed outside the system..."
+            class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-gray-200 placeholder-gray-600 focus:ring-1 focus:ring-indigo-500 focus:outline-none resize-y"
+            rows="2"
+            hx-post="/admin/daily-review/section/changes/save"
+            hx-trigger="keyup changed delay:2s"
+            hx-swap="none">{{ user_inputs.get('changes_notes', '') }}</textarea>
+    </div>
+
+    <!-- Complete section button -->
+    <div class="mt-6 flex justify-end">
+        <button
+            hx-post="/admin/daily-review/section/changes/complete"
+            hx-target="#sidebar-sections"
+            hx-swap="outerHTML"
+            class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors">
+            Done — Next Section →
+        </button>
+    </div>
+</div>

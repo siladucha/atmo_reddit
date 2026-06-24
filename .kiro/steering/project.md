@@ -30,7 +30,7 @@ A Reddit marketing SaaS platform. AI monitors subreddits, scores posts, generate
 - **Task Queue:** Celery + Redis
 - **Cache/Locks:** Redis 7
 - **Reddit:** PRAW
-- **AI/LLM:** LiteLLM (Gemini Flash for scoring, Claude Sonnet for generation)
+- **AI/LLM:** LiteLLM (Gemini Flash for scoring/reports/strategy, Claude Sonnet for generation)
 - **Real-time:** Server-Sent Events (SSE) + Redis PubSub (notifications)
 - **Mobile App:** Flutter (Dart) — posting app for avatar owners
 - **Deploy:** DigitalOcean Droplet + Docker Compose (app + PostgreSQL + Redis + Celery)
@@ -43,9 +43,23 @@ A Reddit marketing SaaS platform. AI monitors subreddits, scores posts, generate
 - **IPv4:** `161.35.27.165`
 - **Cost:** ~$23/mo (with backups)
 - **Docker Compose:** `docker-compose.yml` + `docker-compose.prod.yml` (memory limits, reduced concurrency)
-- **Access:** `ssh root@161.35.27.165`, project at `/app/`
+- **Access:** `ssh ramp` (alias in `~/.ssh/config`), project at `/app/`
 - **Domain:** gorampit.com (SSL via Let's Encrypt)
 - **Backups:** DO weekly backups enabled
+
+### SSH Configuration (local Mac)
+
+`~/.ssh/config` defines the `ramp` alias with ControlMaster for password-free multiplexing:
+```
+Host ramp
+    HostName 161.35.27.165
+    User root
+    ControlMaster auto
+    ControlPath ~/.ssh/sockets/%r@%h-%p
+    ControlPersist 4h
+```
+
+**Usage:** Run `ssh ramp` once (enter password), then all subsequent `ssh ramp`, `rsync ... ramp:/app/`, `scp ... ramp:/tmp/` work without password for 4 hours.
 
 ### Deployment Commands (from local Mac)
 
@@ -58,22 +72,22 @@ rsync -avz --exclude='.venv/' --exclude='__pycache__/' --exclude='.hypothesis/' 
   --exclude='.git/' --exclude='*.pyc' --exclude='.DS_Store' --exclude='logs/' \
   --exclude='.env' --exclude='.claude/' --exclude='.kiro/' --exclude='.vscode/' \
   --exclude='tests/' --delete \
-  ./ root@161.35.27.165:/app/
+  ./ ramp:/app/
 
 # Rebuild and restart on server (REQUIRED — code is in image, not volume):
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml build && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml build && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
 
 # Check health:
-ssh root@161.35.27.165 "curl -s http://localhost/health"
+ssh ramp "curl -s http://localhost/health"
 
 # View logs:
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f --tail=50"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f --tail=50"
 
 # DB sync (local → server):
 # 1. Dump local: docker compose exec -T db pg_dump -U reddit_saas_user -d reddit_saas --no-owner --format=custom -f /tmp/dump.custom
 # 2. Copy out: docker compose cp db:/tmp/dump.custom /tmp/reddit_saas_live.custom
-# 3. Upload: scp /tmp/reddit_saas_live.custom root@161.35.27.165:/tmp/
-# 4. Restore: ssh root@161.35.27.165 "docker compose ... exec -T db pg_restore -U reddit_saas_user -d reddit_saas --clean --if-exists --no-owner --single-transaction /tmp/reddit_saas_live.custom"
+# 3. Upload: scp /tmp/reddit_saas_live.custom ramp:/tmp/
+# 4. Restore: ssh ramp "docker compose ... exec -T db pg_restore -U reddit_saas_user -d reddit_saas --clean --if-exists --no-owner --single-transaction /tmp/reddit_saas_live.custom"
 ```
 
 ### Infrastructure Decisions (May 2026)
@@ -130,14 +144,14 @@ reddit_saas/
 │   │   ├── user.py            # User (role, is_active, client_id)
 │   │   ├── user_role.py       # UserRole enum (owner/partner/client_admin/client_manager/client_viewer/avatar_manager/b2c_user)
 │   │   ├── user_client_assignment.py # UserClientAssignment (user↔client mapping)
-│   │   ├── client.py          # Client (keywords JSONB, profiles, max_avatars, plan_type, draft_approval_enabled)
+│   │   ├── client.py          # Client (keywords JSONB, profiles, max_avatars, plan_type, draft_approval_enabled, strategy_context, strategy_version)
 │   │   ├── avatar.py          # Avatar (client_ids, voice, is_frozen, warming_phase, is_farm_avatar, executor_email)
 │   │   ├── avatar_rental.py   # AvatarRental (farm avatar rentals)
 │   │   ├── avatar_assignment.py # AvatarAssignment (avatar↔owner for mobile posting) [PLANNED]
 │   │   ├── thread.py          # RedditThread (is_locked, locked_detected_at)
 │   │   ├── comment_draft.py   # CommentDraft (status workflow, learning_metadata, posted_by, posted_source)
 │   │   ├── post_draft.py      # PostDraft (posted_by, posted_source)
-│   │   ├── subreddit.py       # Subreddit, ClientSubreddit, ClientSubredditAssignment
+│   │   ├── subreddit.py       # Subreddit, ClientSubreddit, ClientSubredditAssignment (priority, engagement_approach)
 │   │   ├── hobby.py           # HobbySubreddit
 │   │   ├── ai_usage.py        # AIUsageLog (cost tracking)
 │   │   ├── audit.py           # AuditLog
@@ -176,6 +190,7 @@ reddit_saas/
 │   │   └── avatar_subreddit_compatibility.py # AvatarSubredditCompatibility (emotional profile scoring)
 │   ├── schemas/               # Pydantic validation schemas
 │   │   ├── avatar_analysis.py # BehavioralProfile, AvatarAnalysisRequest
+│   │   ├── client_strategy.py # ClientStrategyOutput (Positioning, SubredditPriority, ContentPillar, ForbiddenZone, AeoTarget, PhaseRoadmap)
 │   │   └── llm_outputs.py     # ScoringOutput, CommentOutput
 │   ├── routes/
 │   │   ├── admin.py           # Admin panel (all /admin/* routes)
@@ -203,7 +218,8 @@ reddit_saas/
 │   │   ├── portal_actions.py  # Client Portal rate-limited actions (pipeline, EPG, strategy triggers)
 │   │   ├── notifications.py   # Notification feed + unread count + mark read
 │   │   ├── sse.py             # Server-Sent Events for real-time notifications (Redis PubSub)
-│   │   └── oauth.py           # OAuth callback for Reddit
+│   │   ├── oauth.py           # OAuth callback for Reddit
+│   │   └── daily_review.py   # Daily Ops Review (10 endpoints, HTMX partials, owner/partner)
 │   ├── services/              # Business logic (95+ services)
 │   │   ├── admin.py           # Admin CRUD
 │   │   ├── ai.py              # LLM calls (LiteLLM) + schema validation
@@ -270,9 +286,12 @@ reddit_saas/
 │   │   ├── team_management.py # Team RBAC enforcement (user create/edit permissions by role)
 │   │   ├── safety_blocks.py   # Brand mention protection (blocks Phase 1/2 brand drafts)
 │   │   ├── avatar_onboard_analysis.py # PRAW fetch + Claude AI classification for avatar onboarding
+│   │   ├── draft_reconciliation.py # Auto-link approved drafts to Reddit comments (3-pass matching)
 │   │   ├── email_sender.py    # Brevo HTTP API + SMTP email delivery
 │   │   ├── execution_tasks.py # EPG task creation, dispatch, lifecycle (per-avatar routing)
-│   │   └── onboarding/        # AI-driven onboarding subsystem (prompts, scraper, quality gate, landscape)
+│   │   ├── discovery/          # Discovery Engine subsystem (strategy_generator, strategy_handoff, session_manager, entity_extractor, hypothesis_engine, reddit_researcher, confidence_scorer, report_generator, continuous, artifact_store)
+│   │   ├── onboarding/        # AI-driven onboarding subsystem (prompts, scraper, quality gate, landscape)
+│   │   └── daily_review/     # Daily Ops Review (signal_collector, cost_governor, review_engine Phase 2)
 │   ├── tasks/                 # Celery background tasks
 │   │   ├── ai_pipeline.py     # AI scoring/generation (retry, kill switches)
 │   │   ├── health_check.py    # Avatar health checks
@@ -326,7 +345,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 └── README.md
 ```
 
-## What's Built (Status — June 19, 2026)
+## What's Built (Status — June 24, 2026)
 
 ### Core Platform
 - **Admin panel** (dark theme): dashboard, user/client/persona/keyword/subreddit CRUD, task monitoring, system health, AI costs, audit logs, billing placeholder
@@ -368,7 +387,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **Automated posting safety gates** (9 checks): kill switch, posting_mode, frozen, health, phase 0 exclusion, daily cap, proxy configured, user-agent configured, /24 subnet consistency
 - **Phase demotion safety** (June 22): minimum sample size (5 posted) for survival rate evaluation — prevents false demotions from single moderator removals
 - **Thread safety filters** (June 22): hot thread filter (skip >200 ups when avatar karma <100 in sub) + link/video/image post filter (skip external URLs)
-- **Dual pipeline architecture**: Professional pipeline (reddit_threads → smart_scoring → generate_comments, Phase 2+) and Hobby pipeline (hobby_subreddits → generate_hobby_comments, Phase 1+). Phase 1 avatars only get hobby comments (1-3/day)
+- **Dual pipeline architecture**: Professional pipeline (reddit_threads → smart_scoring → generate_comments, Phase 2+) and Hobby pipeline (hobby_subreddits → EPG Portfolio Manager, Phase 1+). Phase 1 avatars only get hobby comments (2-3/day). EPG Portfolio Manager `scan_opportunities()` Source 1 gated to Phase 2+ (June 24 fix). `warm` pool included in Smart Scoring.
 
 ### Automated Posting (June 1, 2026)
 - **Core posting service** — full orchestration: load slot → safety gates → PRAW → post → audit
@@ -413,6 +432,12 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **Engagement velocity** — karma growth curves feed EPG model correction
 - **Thread depth** — reply_count proves discussion provoked (Tier-2 signal)
 
+### Draft Reconciliation (June 2026)
+- **Auto-link** — matches approved drafts to Reddit comments posted outside the system
+- **3-pass matching** — exact body (98%), fuzzy token overlap ≥85%, thread+timing (75%)
+- **Zero extra API calls** — runs in karma_tracking, reuses existing redditor object
+- **Activity events** —  emitted with method + confidence
+
 ### Discovery Engine (June 2026)
 - **Session-based research** — create → extract entities → confirm → research → hypotheses → report → strategy handoff
 - **Entity extraction** — LLM-based extraction from client brief
@@ -420,6 +445,9 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **Reddit researcher** — PRAW-based community intelligence gathering
 - **Continuous discovery** — weekly automated runs (Sunday 04:00)
 - **Strategy handoff** — convert findings to strategy documents
+- **Client Strategy Generation** (June 24) — LLM-generated positioning, subreddit priorities, content pillars, forbidden zones, AEO targets, phase roadmap (Tasks 1-6 done, pipeline integration pending)
+- **Report generation fixed** (June 24) — model switched to Gemini Flash, hypothesis aggregation by category, top-7 safety cap
+- **Hypothesis confirmation limit** — MAX_CONFIRMED_HYPOTHESES=7, counter UI, "Confirm All" removed
 
 ### GEO/AEO Prompt Monitoring (June 2026)
 - **Prompt management** — track brand visibility queries for AI platforms
@@ -482,6 +510,19 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **Custom 403 page** — friendly HTML error page instead of raw JSON
 - **Auto-logout on inactivity** — 10 min idle timer (JS-based), warning toast at 9 min, redirect to /logout at 10 min. Covers all base templates (admin, client, user).
 
+### Daily Operations Review (June 2026)
+- **Phase 1 deployed** — session lifecycle, immutable snapshot, signal collector (SQL), cost governor ($1/day cap)
+- **Route**: `/admin/daily-review` — 10 endpoints, HTMX partials, owner/partner access
+- **Models**: ReviewSnapshot, DailyReviewSession, ReviewDecision, IntelligenceReport (4 tables, migration dor01)
+- **Signal Collector** — collects: worker health, errors (24h + 7d avg + stddev), queue depth, posting success rate, scrape freshness, avatar fleet, AI cost breakdown
+- **Verdict engine** — healthy/degraded/critical based on signal deviations + rule-based scoring
+- **Change detection** — error spikes, posting failures, stale scrapes (SQL diff vs previous 24h)
+- **Cost Governor** — $1/day hard cap, 80% warning, offline mode fallback, tracks agent_ops in AIUsageLog
+- **Decisions** — max 3 per session (observe/investigate/execute/block), tracked across sessions
+- **Intelligence Report** — immutable artifact per day, template-based narrative (Phase 1), JSONB structured data
+- **Phase 2 (planned)**: trend classification, weak signals, forecast generation, forecast accuracy
+- **Phase 3 (planned)**: hypothesis workflows, LLM narrative summaries, learning loops
+
 ## What's NOT Built Yet
 - ~~Production deployment~~ → **DONE** (gorampit.com, DigitalOcean, SSL)
 - ~~Automated Posting — Admin UI~~ → **DONE** (posting dashboard with stats, events, traceability)
@@ -536,6 +577,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 7. Approved comments → automated posting via proxy (PRAW + per-avatar residential IP)
 8. PostingEvent audit logged (IP, timestamp, reddit_comment_url)
 9. Periodic liveness refresh auto-rejects drafts for newly locked threads
+10. Draft reconciliation (every 4h): auto-links approved drafts to Reddit comments posted outside the system
 
 ## Task Architecture (Current — Celery + Redis)
 - **Producer**: FastAPI app / Celery Beat sends tasks
@@ -591,14 +633,18 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 **Daily cap:** `min(phase_limit, auto_posting_daily_cap)` — Phase 1: 3, Phase 2: 7, Phase 3: min(18, cap). Default cap: 8.
 **Legal protection:** Human approves all content at strategy/EPG level. System is a scheduling tool (same model as Buffer/Hootsuite).
 
-## EPG Email Task Delivery (Implemented June 23, 2026)
-1. EPG build generates slots → if auto-approve enabled (client or avatar level) → slot status = `approved`
-2. On approve: `_dispatch_email_task_if_enabled` creates `ExecutionTask` with status `generated` (no email yet)
-3. `dispatch_due_email_tasks` Beat task (every 5 min) finds tasks where `scheduled_at` is within now...+30 min
-4. Dispatches `deliver_execution_task` Celery task → sends ONE email to `avatar.executor_email`
-5. Email contains: task code, thread URL, comment text, timing, action link (accept + submit permalink)
-6. Executor posts manually, submits Reddit URL via action link → system verifies
-7. `expire_overdue_execution_tasks` (23:30 daily) expires tasks past deadline
+## EPG Email Task Delivery (Implemented June 23, Fully Automated June 24, 2026)
+1. EPG Portfolio Manager builds slots (Phase 1: hobby Source 2, Phase 2+: professional Source 1 + hobby)
+2. `generate_all_planned_slots` calls LLM → draft created → slot `generated`
+3. If `auto_approve_drafts=true` on avatar: slot + draft → `approved`
+4. On approve: `_dispatch_email_task_if_enabled` creates `ExecutionTask` with status `generated` (no email yet)
+5. `dispatch_due_email_tasks` Beat task (every 5 min) finds tasks where `scheduled_at` is within [now-5min, now+30min]
+6. Dispatches `deliver_execution_task` Celery task → sends ONE email to `avatar.executor_email`
+7. Email contains: task code, thread URL, comment text, timing, action link (accept + submit permalink)
+8. Executor posts manually, submits Reddit URL via action link → system verifies
+9. `expire_overdue_execution_tasks` (23:30 daily) expires tasks past deadline
+
+**June 24 status:** 3 avatars fully automated end-to-end (Hot-Thought2408, Flaky_Finder_13, StopAutomatic717). Pipeline: scrape → EPG build → LLM generate → auto-approve → execution task → timed email → human posts.
 
 **Key design:** One email per slot, sent ~30 min before execution time. No batch dump.
 **Routing:** Per-avatar `executor_email` + `executor_email_verified` flag. No global fallback — if no verified email, task is skipped.
@@ -606,6 +652,23 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 **Models:** `ExecutionTask`, `DeliveryAttempt` (delivery audit trail)
 **Admin UI:** `/admin/tasks` — list, detail, resend, verify, cancel, SLA metrics
 **System setting:** `email_tasks_enabled` (must be "true" to activate)
+
+## Draft Reconciliation (Implemented June 24, 2026)
+Automatically links approved CommentDrafts to Reddit comments posted outside the system (executor posted manually but didn't submit permalink back).
+
+**How it works:**
+1. Runs inside `track_karma_all_avatars` (every 4h) — no extra API calls (reuses redditor object)
+2. For each avatar with approved drafts (≤14 days old), fetches last 100 Reddit comments
+3. Three-pass matching:
+   - Pass 1: Exact body (first 120 chars normalized) → 98% confidence
+   - Pass 2: Fuzzy body (≥85% Jaccard token overlap) → 85-97% confidence
+   - Pass 3: Thread + timing (same thread, ±72h, similar length) → 75% confidence
+4. On match: draft.status → "posted", sets reddit_comment_url + posted_at + reddit_score
+5. Emits `draft_auto_reconciled` activity event
+
+**Key design:** Zero manual work required. System autonomously discovers that an approved draft was posted.
+**Safety:** Only matches approved drafts (never pending). Time window ≤72h. Won't double-match.
+**Service:** `app/services/draft_reconciliation.py`
 
 ## Keywords Structure (JSONB in clients.keywords)
 ```json
@@ -621,6 +684,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - `docs/kb/roles/` — User manuals by role (owner-partner, client-admin, client-manager, client-viewer, avatar-owner)
 - `docs/kb/guides/` — Operational guides (onboarding, daily-ops, avatar-mgmt, pipeline, emergency)
 - `docs/kb/admin/` — Technical docs (system-settings, deployment, troubleshooting)
+- `docs/agents/` — Agent instruction files (client_strategy_agent.md)
 
 ### Planning & Architecture
 - `docs/TODO.md` — Full product roadmap with diagrams, sprint plans, milestones
@@ -646,6 +710,9 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - `.kiro/specs/quality-sentinel/` — Quality monitoring system
 - `.kiro/specs/pipeline-resilience-hardening/` — Pipeline fault tolerance
 - `.kiro/specs/intelligence-layer/` — Intelligence layer (in progress)
+- `.kiro/specs/daily-ops-review/` — Daily Ops Review (Phase 1 deployed: models, routes, templates. Phase 2-3 pending)
+- `.kiro/specs/ramp-operations-agent/` — Autonomous Operations Agent (requirements only, not implemented)
+- `.kiro/specs/discovery-strategy-handoff/` — Discovery → Client Strategy handoff (Tasks 1-6 done, 7-11 pending)
 
 ### Legacy / Ori Handoff
 - `docs/file_index.md` — Index of all Ori's handoff files
@@ -660,7 +727,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **Roadmap page:** `/roadmap` — accordion phases, only current phase open by default
 - **Server path:** marketing_site source lives at `/marketing_site/` on the server (NOT `/app/marketing_site/`)
 - **Docker:** `marketing` service in `reddit_saas/docker-compose.yml`, build context `../marketing_site`
-- **Deployment:** `rsync ... ./ root@161.35.27.165:/marketing_site/` then `cd /app && docker compose build --no-cache marketing && docker compose up -d marketing`
+- **Deployment:** `rsync ... ./ ramp:/marketing_site/` then `cd /app && docker compose build --no-cache marketing && docker compose up -d marketing`
 - **Nginx:** `location /` proxies to marketing_app (catch-all); specific paths like `/admin`, `/api/*` go to main_app
 - **Live URL:** `http://161.35.27.165/roadmap`
 

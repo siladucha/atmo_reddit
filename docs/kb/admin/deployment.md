@@ -15,7 +15,7 @@
 | **OS** | Ubuntu 24.04 LTS |
 | **IPv4** | `161.35.27.165` |
 | **Cost** | ~$23/mo (with backups) |
-| **Access** | `ssh root@161.35.27.165` |
+| **Access** | `ssh ramp` (alias) |
 | **Project path** | `/app/` (main app), `/marketing_site/` (marketing) |
 
 ---
@@ -44,36 +44,36 @@ rsync -avz --exclude='.venv/' --exclude='__pycache__/' --exclude='.hypothesis/' 
   --exclude='.git/' --exclude='*.pyc' --exclude='.DS_Store' --exclude='logs/' \
   --exclude='.env' --exclude='.claude/' --exclude='.kiro/' --exclude='.vscode/' \
   --exclude='tests/' --delete \
-  ./ root@161.35.27.165:/app/
+  ./ ramp:/app/
 ```
 
 ### Rebuild and Restart
 
 ```bash
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml build && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml build && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
 ```
 
 ### Quick Restart (no rebuild)
 
 ```bash
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart app celery_worker celery_beat"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart app celery_worker celery_beat"
 ```
 
 ### Check Health
 
 ```bash
-ssh root@161.35.27.165 "curl -s http://localhost/health"
+ssh ramp "curl -s http://localhost/health"
 ```
 
 ### View Logs
 
 ```bash
 # All services
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f --tail=50"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f --tail=50"
 
 # Specific service
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f --tail=50 app"
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f --tail=50 celery_worker"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f --tail=50 app"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f --tail=50 celery_worker"
 ```
 
 ---
@@ -90,10 +90,10 @@ docker compose exec -T db pg_dump -U reddit_saas_user -d reddit_saas --no-owner 
 docker compose cp db:/tmp/dump.custom /tmp/reddit_saas_live.custom
 
 # 3. Upload to server
-scp /tmp/reddit_saas_live.custom root@161.35.27.165:/tmp/
+scp /tmp/reddit_saas_live.custom ramp:/tmp/
 
 # 4. Restore on server
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T db pg_restore -U reddit_saas_user -d reddit_saas --clean --if-exists --no-owner --single-transaction /tmp/reddit_saas_live.custom"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T db pg_restore -U reddit_saas_user -d reddit_saas --clean --if-exists --no-owner --single-transaction /tmp/reddit_saas_live.custom"
 ```
 
 ### Makefile Shortcuts (local)
@@ -115,10 +115,10 @@ make health           # Check app health
 # Push marketing site code
 rsync -avz --exclude='.venv/' --exclude='__pycache__/' --exclude='.git/' \
   --exclude='*.pyc' --exclude='.DS_Store' --delete \
-  ../marketing_site/ root@161.35.27.165:/marketing_site/
+  ../marketing_site/ ramp:/marketing_site/
 
 # Rebuild marketing container
-ssh root@161.35.27.165 "cd /app && docker compose build --no-cache marketing && docker compose up -d marketing"
+ssh ramp "cd /app && docker compose build --no-cache marketing && docker compose up -d marketing"
 ```
 
 ---

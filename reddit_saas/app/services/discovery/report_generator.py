@@ -26,8 +26,9 @@ from app.services.ai import call_llm, log_ai_usage
 
 logger = get_logger(__name__)
 
-# Model: high-quality prose for sales artifact
-REPORT_MODEL = "anthropic/claude-sonnet-4-20250514"
+# Model: Gemini Flash for speed + cost (structured JSON output)
+# Fallback to Claude Sonnet via MODEL_FALLBACK_CHAIN if Flash fails
+REPORT_MODEL = "gemini/gemini-2.5-flash"
 
 REPORT_SYSTEM_PROMPT = """You are a senior Reddit ecosystem strategist writing a professional assessment report.
 
@@ -119,10 +120,25 @@ async def generate_visibility_report(
             f"Cannot generate report for session {session.id}: no confirmed hypotheses"
         )
 
-    # Build prompt context
-    hypotheses_text = _format_hypotheses(confirmed)
-    no_signal_text = _format_no_signal(session.hypotheses)
-    signals_summary = _format_signals_summary(confirmed)
+    # Safety cap: use top-7 by confidence_score for report focus + cost control.
+    # Remaining confirmed hypotheses are mentioned briefly as "also validated".
+    MAX_REPORT_HYPOTHESES = 7
+    if len(confirmed) > MAX_REPORT_HYPOTHESES:
+        confirmed_sorted = sorted(confirmed, key=lambda h: h.confidence_score or 0, reverse=True)
+        primary_hypotheses = confirmed_sorted[:MAX_REPORT_HYPOTHESES]
+        secondary_hypotheses = confirmed_sorted[MAX_REPORT_HYPOTHESES:]
+        logger.info(
+            "Session %s has %d confirmed hypotheses, using top-%d for report (by confidence)",
+            session.id, len(confirmed), MAX_REPORT_HYPOTHESES,
+        )
+    else:
+        primary_hypotheses = confirmed
+        secondary_hypotheses = []
+
+    # Aggregate hypotheses by category for concise prompt
+    hypotheses_text = _aggregate_hypotheses_by_category(primary_hypotheses)
+    signals_summary = _format_signals_summary(primary_hypotheses)
+    no_signal_text = ""  # Aggregated view doesn't need separate no-signal section
     entities_text = _format_entities(session.entities)
 
     messages = [
@@ -135,12 +151,12 @@ async def generate_visibility_report(
                 hypotheses_text=hypotheses_text,
                 no_signal_text=no_signal_text or "None — all hypotheses had signal.",
                 signals_summary=signals_summary,
-            ),
+            ) + (_format_secondary_brief(secondary_hypotheses) if secondary_hypotheses else ""),
         },
     ]
 
     # call_llm is synchronous (uses litellm.completion) — run in thread
-    # to avoid blocking the async event loop. 60s timeout per spec.
+    # to avoid blocking the async event loop. 180s timeout — reports with many hypotheses need more time.
     try:
         result = await asyncio.wait_for(
             asyncio.to_thread(
@@ -149,15 +165,16 @@ async def generate_visibility_report(
                 model=REPORT_MODEL,
                 temperature=0.4,
                 max_tokens=4096,
+                timeout=90,
             ),
-            timeout=60.0,
+            timeout=120.0,
         )
     except asyncio.TimeoutError:
         logger.error(
-            "Report generation timed out (60s) for session %s", session.id
+            "Report generation timed out (120s) for session %s", session.id
         )
         raise TimeoutError(
-            f"Report generation timed out after 60 seconds for session {session.id}"
+            f"Report generation timed out after 120 seconds for session {session.id}"
         )
 
     raw_content = result["content"]
@@ -315,6 +332,59 @@ def _extract_report_json(content: str) -> dict | None:
                     break
 
     return None
+
+
+def _aggregate_hypotheses_by_category(hypotheses) -> str:
+    """Aggregate confirmed hypotheses into category clusters for concise prompting.
+
+    Instead of listing 5-7 individual hypotheses verbatim, groups them by category
+    and summarizes key signals per group. Reduces prompt size by ~60%.
+    """
+    from collections import defaultdict
+
+    by_category: dict[str, list] = defaultdict(list)
+    for h in hypotheses:
+        by_category[h.category].append(h)
+
+    lines = []
+    for category, hyps in sorted(by_category.items()):
+        # Collect all subreddits across hypotheses in this category
+        all_subs = []
+        total_posts = 0
+        avg_confidence = sum(h.confidence_score or 0 for h in hyps) / len(hyps)
+
+        for h in hyps:
+            signals = h.reddit_signals or {}
+            total_posts += signals.get("total_posts_found", 0)
+            for sub in signals.get("subreddits", []):
+                if sub.get("name") and sub["name"] not in [s.get("name") for s in all_subs]:
+                    all_subs.append(sub)
+
+        # Sort subs by relevance
+        top_subs = sorted(all_subs, key=lambda s: s.get("relevance_score", 0), reverse=True)[:5]
+        sub_text = ", ".join(
+            f"{s.get('name', '?')} ({s.get('subscribers', 0):,} members, rel:{s.get('relevance_score', 0)})"
+            for s in top_subs
+        ) if top_subs else "no specific communities identified"
+
+        lines.append(
+            f"[{category.upper()}] {len(hyps)} validated hypotheses (avg confidence: {avg_confidence:.0f}/100)\n"
+            f"  Key findings: {'; '.join(h.statement[:100] for h in hyps[:3])}\n"
+            f"  Communities: {sub_text}\n"
+            f"  Total posts found: {total_posts}"
+        )
+
+    return "\n\n".join(lines)
+
+
+def _format_secondary_brief(hypotheses) -> str:
+    """Format secondary (overflow) hypotheses as a brief addendum to the prompt."""
+    if not hypotheses:
+        return ""
+    lines = ["\n\nADDITIONAL VALIDATED HYPOTHESES (mention briefly, do not detail):"]
+    for h in hypotheses:
+        lines.append(f"- [{h.category}] {h.statement} (confidence: {h.confidence_score}/100)")
+    return "\n".join(lines)
 
 
 def _format_hypotheses(hypotheses: list[DiscoveryHypothesis]) -> str:

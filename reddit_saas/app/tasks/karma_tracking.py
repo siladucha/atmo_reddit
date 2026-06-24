@@ -66,6 +66,7 @@ def track_karma_all_avatars():
             "posts_updated": 0,
             "deletions_detected": 0,
             "demotions_triggered": 0,
+            "reconciled": 0,
             "errors": 0,
         }
 
@@ -80,6 +81,7 @@ def track_karma_all_avatars():
                 total_stats["posts_updated"] += stats.get("posts_updated", 0)
                 total_stats["deletions_detected"] += stats.get("deletions_detected", 0)
                 total_stats["demotions_triggered"] += stats.get("demotions_triggered", 0)
+                total_stats["reconciled"] += stats.get("reconciled", 0)
             except Exception as e:
                 total_stats["errors"] += 1
                 logger.error(f"Karma tracking failed for u/{avatar.reddit_username}: {e}")
@@ -110,7 +112,8 @@ def track_karma_all_avatars():
                 f"Karma tracking complete: {total_stats['avatars_processed']} avatars, "
                 f"{total_stats['comments_updated']} comments updated, "
                 f"{total_stats['posts_updated']} posts updated, "
-                f"{total_stats['deletions_detected']} deletions detected"
+                f"{total_stats['deletions_detected']} deletions detected, "
+                f"{total_stats['reconciled']} drafts reconciled"
             )
             record_activity_event(db, "karma_tracking", message, client_id=None, metadata=total_stats)
         except Exception:
@@ -168,6 +171,21 @@ def _track_single_avatar(db, avatar: Avatar) -> dict:
     stats["comments_updated"], stats["deletions_detected"] = _track_avatar_comments(
         db, avatar, redditor, now, window_start, recheck_cutoff
     )
+
+    # --- Reconcile approved drafts with Reddit comments ---
+    # Reuses the same redditor object (no extra API call if comments already cached by PRAW)
+    try:
+        from app.services.draft_reconciliation import run_reconciliation_for_avatar
+
+        recon_result = run_reconciliation_for_avatar(db, avatar, redditor=redditor)
+        if recon_result.matches_found > 0:
+            stats["reconciled"] = recon_result.matches_found
+            logger.info(
+                f"u/{avatar.reddit_username}: reconciled {recon_result.matches_found} "
+                f"approved drafts to Reddit comments"
+            )
+    except Exception as e:
+        logger.warning(f"Draft reconciliation failed for u/{avatar.reddit_username}: {e}")
 
     # --- Update per-subreddit karma from Reddit ---
     try:

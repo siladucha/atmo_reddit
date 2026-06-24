@@ -1,0 +1,19 @@
+<div class="text-xs">
+    <div class="flex justify-between text-gray-500 mb-1">
+        <span>Budget</span>
+        <span>${{ "%.2f" | format(budget.spent_today_usd) }} / ${{ "%.2f" | format(budget.daily_limit_usd) }}</span>
+    </div>
+    <div class="w-full bg-slate-700 rounded-full h-1.5">
+        <div class="h-1.5 rounded-full transition-all
+            {% if budget.is_exhausted %}bg-red-500
+            {% elif budget.is_warning %}bg-yellow-500
+            {% else %}bg-green-500{% endif %}"
+            style="width: {{ budget.utilization_pct | min(100) }}%">
+        </div>
+    </div>
+    {% if budget.is_exhausted %}
+    <p class="text-red-400 mt-1">Budget exhausted — offline mode</p>
+    {% elif budget.is_warning %}
+    <p class="text-yellow-400 mt-1">${{ "%.2f" | format(budget.remaining_usd) }} remaining</p>
+    {% endif %}
+</div>

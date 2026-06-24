@@ -73,6 +73,10 @@ class ClientSubredditAssignment(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    # Discovery-sourced priority and engagement approach
+    priority: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    engagement_approach: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # Relationships
     client = relationship("Client", back_populates="subreddit_assignments")
     subreddit = relationship("Subreddit", back_populates="assignments")

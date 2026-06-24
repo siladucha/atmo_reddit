@@ -68,6 +68,7 @@ def call_llm(
     temperature: float = 0.7,
     max_tokens: int = 1024,
     response_format: dict | None = None,
+    timeout: int = 60,
 ) -> dict:
     """Make an LLM call and return the response with usage metadata.
 
@@ -97,7 +98,7 @@ def call_llm(
         "max_tokens": max_tokens,
         # Hard timeout — without this a hung provider blocks a Celery worker
         # until Celery's task hard timeout (often minutes), starving the queue.
-        "timeout": 60,
+        "timeout": timeout,
     }
     if api_key:
         kwargs["api_key"] = api_key
@@ -367,7 +368,7 @@ def _get_fallback_chain(model: str) -> list[str]:
             fallbacks.append(generation_model)
     except Exception:
         # DB unavailable — use hardcoded Sonnet as last resort
-        ultimate = "anthropic/claude-sonnet-4-20250514"
+        ultimate = "anthropic/claude-sonnet-4-6"
         if ultimate not in fallbacks:
             fallbacks.append(ultimate)
 

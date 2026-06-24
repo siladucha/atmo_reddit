@@ -412,13 +412,21 @@ def get_budget_used_today(db: Session, avatar_id: uuid.UUID, plan_date: date | N
     if plan_date is None:
         plan_date = date.today()
 
-    # Count all non-planned slots (everything that was attempted)
+    # Count slots that actually consumed budget:
+    # - generated/approved/posted = successful generation
+    # - skipped WITH draft_id = generation succeeded, posting failed
+    # Skipped WITHOUT draft_id = never generated, does NOT consume budget
+    from sqlalchemy import or_, and_
+
     count = (
         db.query(sa_func.count(EPGSlot.id))
         .filter(
             EPGSlot.avatar_id == avatar_id,
             EPGSlot.plan_date == plan_date,
-            EPGSlot.status != "planned",
+            or_(
+                EPGSlot.status.in_(["generated", "approved", "posted"]),
+                and_(EPGSlot.status == "skipped", EPGSlot.draft_id.isnot(None)),
+            ),
         )
         .scalar()
     )

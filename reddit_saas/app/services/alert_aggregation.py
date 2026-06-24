@@ -13,7 +13,6 @@ from typing import Any
 from sqlalchemy import func as sa_func
 from sqlalchemy.orm import Session
 
-from app.models.activity_event import ActivityEvent
 from app.models.avatar import Avatar
 from app.models.client import Client
 from app.models.subreddit import Subreddit, ClientSubredditAssignment
@@ -52,35 +51,49 @@ def get_system_alerts(db: Session) -> list[Alert]:
 
 
 def _get_worker_alert(db: Session) -> list[Alert]:
-    """Check if Celery worker is offline (no heartbeat in 2 min)."""
+    """Check if Celery worker is offline (no heartbeat in 2 min).
+
+    Reads the ramp:heartbeat:last_at key from Redis (written by system_heartbeat task).
+    """
+    import redis as _redis
+    from app.config import get_settings
+
     now = datetime.now(timezone.utc)
 
-    last_heartbeat = (
-        db.query(ActivityEvent.created_at)
-        .filter(
-            ActivityEvent.event_type == "system",
-            ActivityEvent.message.ilike("%heartbeat%"),
-        )
-        .order_by(ActivityEvent.created_at.desc())
-        .first()
-    )
+    try:
+        settings = get_settings()
+        client = _redis.Redis.from_url(settings.redis_url, decode_responses=True, socket_timeout=2)
+        last_at_str = client.get('ramp:heartbeat:last_at')
+        client.close()
+    except Exception:
+        last_at_str = None
 
-    if not last_heartbeat or not last_heartbeat.created_at:
+    if not last_at_str:
         return [Alert(
-            type="worker_offline",
-            severity="critical",
-            message="Worker offline — no heartbeat detected",
-            link="/admin/tasks",
-            icon="🔴",
+            type='worker_offline',
+            severity='critical',
+            message='Worker offline — no heartbeat detected',
+            link='/admin/tasks',
+            icon='🔴',
         )]
 
-    if (now - last_heartbeat.created_at).total_seconds() > 120:
+    try:
+        last_at = datetime.fromisoformat(last_at_str)
+        if (now - last_at).total_seconds() > 180:
+            return [Alert(
+                type='worker_offline',
+                severity='critical',
+                message='Worker offline — last heartbeat >3 min ago',
+                link='/admin/tasks',
+                icon='🔴',
+            )]
+    except (ValueError, TypeError):
         return [Alert(
-            type="worker_offline",
-            severity="critical",
-            message="Worker offline — last heartbeat >2 min ago",
-            link="/admin/tasks",
-            icon="🔴",
+            type='worker_offline',
+            severity='critical',
+            message='Worker offline — invalid heartbeat timestamp',
+            link='/admin/tasks',
+            icon='🔴',
         )]
 
     return []

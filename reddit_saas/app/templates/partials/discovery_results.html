@@ -130,10 +130,11 @@
                 <div class="flex items-center gap-3 mt-3 pt-3 border-t border-gray-700">
                     <input type="hidden" name="hypothesis_ids" value="{{ h.id }}">
                     <div class="flex items-center gap-4">
-                        <label class="flex items-center gap-1.5 cursor-pointer">
+                        <label class="flex items-center gap-1.5 cursor-pointer {% if total_confirmed|default(0) >= max_confirmed|default(7) %}opacity-40{% endif %}">
                             <input type="radio" name="decision_{{ h.id }}" value="confirm"
+                                   {% if total_confirmed|default(0) >= max_confirmed|default(7) %}disabled{% endif %}
                                    class="text-green-600 focus:ring-green-500 bg-gray-800 border-gray-600">
-                            <span class="text-sm text-green-300">Confirm</span>
+                            <span class="text-sm text-green-300">Confirm{% if total_confirmed|default(0) >= max_confirmed|default(7) %} (limit){% endif %}</span>
                         </label>
                         <label class="flex items-center gap-1.5 cursor-pointer">
                             <input type="radio" name="decision_{{ h.id }}" value="reject"
@@ -172,15 +173,15 @@
                     class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 text-sm font-medium transition-colors">
                 Submit Decisions
             </button>
-            <button type="button"
-                    hx-post="/admin/discovery/{{ session.id }}/decide"
-                    hx-target="#discovery-content"
-                    hx-swap="innerHTML"
-                    hx-vals='{"confirm_all": "1"}'
-                    class="px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-600 text-sm font-medium transition-colors">
-                ✓ Confirm All ({{ undecided }})
-            </button>
-            <span class="text-xs text-gray-500">{{ undecided }} undecided</span>
+            <span class="text-xs text-gray-400">
+                {{ total_confirmed|default(0) }}/{{ max_confirmed|default(7) }} confirmed
+                {% if total_confirmed|default(0) >= max_confirmed|default(7) %}
+                <span class="text-amber-400 ml-1">• limit reached</span>
+                {% endif %}
+            </span>
+            {% if limit_hit|default(false) %}
+            <span class="text-xs text-amber-400 bg-amber-900/30 px-2 py-1 rounded">⚠ Some confirmations skipped (max {{ max_confirmed|default(7) }})</span>
+            {% endif %}
         </div>
         {% endif %}
     </form>

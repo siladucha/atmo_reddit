@@ -102,6 +102,10 @@ __all__ = [
     "AuditRun",
     "AuditFinding",
     "LLMTaskRecord",
+    "ReviewSnapshot",
+    "DailyReviewSession",
+    "ReviewDecision",
+    "IntelligenceReport",
 ]
 
 # GEO/AEO Prompt Monitoring
@@ -125,3 +129,9 @@ from app.models.trial_intelligence_event import TrialIntelligenceEvent
 
 # Production Readiness Audit
 from app.models.audit_finding import AuditRun, AuditFinding, LLMTaskRecord
+
+# Daily Operations Review
+from app.models.review_snapshot import ReviewSnapshot
+from app.models.daily_review_session import DailyReviewSession
+from app.models.review_decision import ReviewDecision
+from app.models.intelligence_report import IntelligenceReport

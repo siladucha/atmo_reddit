@@ -28,6 +28,10 @@ from app.tasks.discovery import research_hypotheses_task
 
 logger = get_logger(__name__)
 
+
+# Maximum confirmed hypotheses per session — keeps reports focused and cost-effective
+MAX_CONFIRMED_HYPOTHESES = 7
+
 router = APIRouter(prefix="/admin/discovery", tags=["discovery"])
 templates = Jinja2Templates(directory="app/templates")
 
@@ -321,6 +325,8 @@ def discovery_session_page(
             "current_user": current_user,
             "can_generate_report": SessionManager.can_generate_report(session),
             "is_max_iterations": SessionManager.is_at_max_iterations(session),
+            "max_confirmed": MAX_CONFIRMED_HYPOTHESES,
+            "total_confirmed": len([h for h in session.hypotheses if h.status == "confirmed"]),
             "hypotheses": current_hypos,
             "entities": list(session.entities),
         },
@@ -653,6 +659,10 @@ def research_progress(
             {
                 "session": session,
                 "hypotheses": current_hypos,
+                "can_generate_report": SessionManager.can_generate_report(session),
+                "is_max_iterations": SessionManager.is_at_max_iterations(session),
+                "max_confirmed": MAX_CONFIRMED_HYPOTHESES,
+                "total_confirmed": len([h for h in session.hypotheses if h.status == "confirmed"]),
             },
         )
 
@@ -688,25 +698,29 @@ async def decide_hypotheses(
         if h.iteration_number == session.current_iteration
     ]
 
-    # Check for "confirm all" action
-    confirm_all = form.get("confirm_all") == "1"
+    # Count already confirmed across ALL iterations (session-wide limit)
+    already_confirmed = len([
+        h for h in session.hypotheses if h.status == "confirmed"
+    ])
 
     decisions_made = 0
     confirmed_count = 0
     rejected_count = 0
+    limit_hit = False
+
     for h in current_hypos:
         if h.status != "proposed":
             continue
 
-        if confirm_all:
-            decision = "confirm"
-        else:
-            decision = form.get(f"decision_{h.id}")
-
+        decision = form.get(f"decision_{h.id}")
         if not decision:
             continue
 
         if decision == "confirm":
+            # Enforce session-wide cap
+            if already_confirmed + confirmed_count >= MAX_CONFIRMED_HYPOTHESES:
+                limit_hit = True
+                continue
             h.status = "confirmed"
             h.decided_at = datetime.now(timezone.utc)
             decisions_made += 1
@@ -732,7 +746,7 @@ async def decide_hypotheses(
                 details={
                     "confirmed": confirmed_count,
                     "rejected": rejected_count,
-                    "confirm_all": confirm_all,
+                    "limit_hit": limit_hit,
                     "iteration": session.current_iteration,
                 },
             )
@@ -755,6 +769,9 @@ async def decide_hypotheses(
             "hypotheses": current_hypos,
             "can_generate_report": SessionManager.can_generate_report(session),
             "is_max_iterations": SessionManager.is_at_max_iterations(session),
+            "max_confirmed": MAX_CONFIRMED_HYPOTHESES,
+            "total_confirmed": already_confirmed + confirmed_count,
+            "limit_hit": limit_hit,
         },
     )
 
@@ -847,14 +864,27 @@ def handoff_to_strategy(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_platform_admin),
 ):
-    """Execute Discovery → Strategy handoff."""
+    """Execute Discovery → Client Strategy handoff (with LLM generation)."""
     session = SessionManager.get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    if session.status == "handed_off":
+        raise HTTPException(status_code=400, detail="Session already handed off")
+
+    if session.status != "completed":
+        raise HTTPException(status_code=400, detail="Session must be completed before handoff")
+
+    if not session.reports:
+        raise HTTPException(status_code=400, detail="No visibility report generated yet")
+
     try:
         client = execute_handoff(session, db)
         db.commit()
+    except ValueError as e:
+        db.rollback()
+        logger.error(f"Strategy generation failed: {e}")
+        raise HTTPException(status_code=422, detail=f"Strategy generation failed: {e}")
     except Exception as e:
         db.rollback()
         logger.error(f"Handoff failed: {e}")

@@ -45,6 +45,11 @@ Shows: business KPIs (MRR, paying, trials, AI spend, margin) → attention items
 - 🟡 Yellow: <3 posts/week OR some avatars frozen
 - 🟢 Green: everything flowing
 
+**Latest Intelligence card** (Phase 2 — planned):
+- Shows last IntelligenceReport: system_state badge, confidence %, top risk, decision count
+- Read-only for partner (no editing, no pipeline controls)
+- Link to full report view
+
 ### Client Portal — Paying (`/clients/{id}/home`)
 
 Template: `client/home.html`
@@ -70,6 +75,8 @@ Shows: trial countdown → onboarding progress bar (step X/6) → "what's happen
 | `services/operations_dashboard.py` | Pipeline metrics, client cards, freshness, schedule | Owner dashboard |
 | `services/business_metrics.py` | MRR, client health, trial funnel, attention items | Partner dashboard |
 | `services/alert_aggregation.py` | System alerts (worker, kill switches, frozen, stale) | Owner dashboard |
+| `services/daily_review/signal_collector.py` | Health signals, changes, cost snapshot (immutable) | Daily Review |
+| `services/daily_review/cost_governor.py` | Agent LLM budget enforcement ($1/day cap) | Daily Review |
 
 ---
 

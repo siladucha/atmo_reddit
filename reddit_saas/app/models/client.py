@@ -58,6 +58,13 @@ class Client(Base):
     current_onboarding_step: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     onboarding_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Client Strategy — operational context from Discovery
+    strategy_context: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    strategy_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    strategy_generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    strategy_source_session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    strategy_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+
     # Relationships
     subreddits = relationship("ClientSubreddit", back_populates="client")  # legacy, kept for migration
     subreddit_assignments = relationship("ClientSubredditAssignment", back_populates="client")

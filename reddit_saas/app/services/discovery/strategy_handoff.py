@@ -1,170 +1,127 @@
-"""Strategy Handoff — bridges Discovery findings into Strategy generation.
+"""Strategy Handoff — full Discovery-to-Client-Strategy flow.
 
-Transforms validated Discovery data into actionable context for the Strategy Engine.
-Handles three scenarios:
-1. Prospect → creates Client record from Discovery data
-2. Existing client → enriches existing record
-3. Strategy regeneration trigger → when environment changes invalidate current strategy
-
-Stateless service — callable from UI handoff button or automated strategy review.
+Orchestrates: generate strategy → save to client → import subreddits → create GEO prompts → mark session.
+Single button click produces everything needed for pipeline to start generating content.
 """
 
-from app.logging_config import get_logger
 import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
+from app.logging_config import get_logger
 from app.models.activity_event import ActivityEvent
 from app.models.client import Client
 from app.models.discovery_session import DiscoverySession
 from app.models.subreddit import ClientSubredditAssignment, Subreddit
+from app.schemas.client_strategy import ClientStrategyOutput
 
 logger = get_logger(__name__)
 
 
 def prepare_handoff_context(session: DiscoverySession) -> dict:
-    """Extract Discovery data for injection into strategy generation prompt.
+    """Extract Discovery data summary for display in the UI.
 
-    This dict is passed as discovery_context to StrategyEngine.generate_strategy().
-    The strategy prompt uses it to ground recommendations in validated data.
-
-    Includes:
-    - All confirmed hypotheses (statement + confidence score)
-    - Recommended communities (subreddit name + relevance score + suggested engagement approach)
-    - Entry points from the report
-    - Competitive landscape from the report
-
-    Args:
-        session: Completed Discovery session with confirmed hypotheses and report.
-
-    Returns:
-        Dict with structured Discovery context for strategy prompt.
+    Used by the results page to show what will be handed off.
     """
     confirmed = [h for h in session.hypotheses if h.status == "confirmed"]
     reports = session.reports
 
-    # Extract structured data from the latest report
     communities: list[dict] = []
     entry_points: list[str] = []
-    competitive_landscape: str = ""
 
     if reports:
         latest_report = sorted(reports, key=lambda r: r.report_version, reverse=True)[0]
         content = latest_report.content or {}
         communities = content.get("communities", [])
         entry_points = content.get("entry_points", [])
-        competitive_landscape = content.get("competitive_landscape", "")
 
-    context = {
+    return {
         "session_id": str(session.id),
-        "client_brief": session.client_brief[:2000],
-        "confirmed_hypotheses": [
-            {
-                "statement": h.statement,
-                "confidence_score": h.confidence_score,
-            }
-            for h in confirmed
-        ],
-        "recommended_communities": [
-            {
-                "subreddit_name": c.get("name", ""),
-                "relevance_score": c.get("relevance", 0),
-                "suggested_engagement_approach": c.get("approach", ""),
-            }
-            for c in communities[:10]
-        ],
-        "entry_points": entry_points,
-        "competitive_landscape": competitive_landscape[:2000],
+        "confirmed_count": len(confirmed),
+        "communities_count": len(communities),
+        "entry_points": entry_points[:5],
     }
 
-    return context
 
+def execute_handoff(session: DiscoverySession, db: Session) -> Client:
+    """Execute the full Discovery -> Client Strategy handoff.
 
-def execute_handoff(session: DiscoverySession, db: Session) -> dict:
-    """Execute the Discovery → Strategy handoff.
-
-    If session.client_id is NULL: creates a new Client record from session data.
-    If linked to existing client: uses existing record.
-    Pre-populates subreddit suggestions from Discovery findings.
-    Logs 'discovery_handoff' ActivityEvent.
-
-    Does NOT trigger strategy generation — only prepares context and creates
-    the client. Strategy generation is triggered separately.
-
-    Args:
-        session: Completed Discovery session.
-        db: Database session.
+    Steps (atomic — rolls back on any failure):
+    1. Resolve or create Client record
+    2. Generate Client Strategy via Gemini Flash
+    3. Save strategy_context to Client (versioned + history)
+    4. Import subreddits with priority + engagement_approach
+    5. Create GEO prompts from aeo_targets (if geo_monitoring_enabled)
+    6. Mark session status as "handed_off"
+    7. Log activity event
 
     Returns:
-        Dict with handoff results including session_id and client_id
-        for the strategy generator to use.
+        Client record (for redirect to client detail page).
+
+    Raises:
+        ValueError: If strategy generation fails after retries.
     """
-    client_created = False
-    client: Client | None = None
+    # Step 1: Resolve/create client
+    client = _resolve_or_create_client(session, db)
 
-    if session.client_id:
-        # Existing client — use as-is
-        client = db.query(Client).filter(Client.id == session.client_id).first()
-        if not client:
-            raise ValueError(f"Linked client {session.client_id} not found")
-    else:
-        # Create new Client from Discovery data
-        client = _create_client_from_discovery(session, db)
-        session.client_id = client.id
-        client_created = True
+    # Step 2: Generate strategy
+    from app.services.discovery.strategy_generator import generate_client_strategy
+    strategy_output, result_meta = generate_client_strategy(session, db)
 
-    # Pre-populate subreddit suggestions from report
-    subreddits_imported = _import_subreddit_suggestions(session, client, db)
+    # Step 3: Save to client with versioning
+    _save_strategy_to_client(client, strategy_output, result_meta, session)
 
-    # Count confirmed hypotheses
-    confirmed_count = len([h for h in session.hypotheses if h.status == "confirmed"])
+    # Step 4: Import subreddits with priority from strategy
+    subs_imported = _import_subreddits_with_priority(client, strategy_output, db)
 
-    # Log activity event
+    # Step 5: Create GEO prompts (conditional)
+    geo_created = 0
+    if getattr(client, "geo_monitoring_enabled", False):
+        geo_created = _create_geo_prompts(client, strategy_output, db)
+
+    # Step 6: Mark session as handed off
+    session.status = "handed_off"
+
+    # Step 7: Activity event
     event = ActivityEvent(
         event_type="discovery_handoff",
         client_id=client.id,
         message=(
-            f"Discovery handoff: {confirmed_count} confirmed hypotheses, "
-            f"{subreddits_imported} subreddits suggested"
+            f"Strategy handoff: v{client.strategy_version} generated, "
+            f"{subs_imported} subreddits imported, {geo_created} GEO prompts created"
         ),
         event_metadata={
             "session_id": str(session.id),
             "client_id": str(client.id),
-            "confirmed_hypotheses": confirmed_count,
-            "recommended_subreddits": subreddits_imported,
-            "client_created": client_created,
+            "strategy_version": client.strategy_version,
+            "subreddits_imported": subs_imported,
+            "geo_prompts_created": geo_created,
+            "model": result_meta.get("model", "unknown"),
+            "cost_usd": result_meta.get("cost_usd", 0),
         },
     )
     db.add(event)
     db.flush()
 
     logger.info(
-        f"Discovery handoff complete: session {session.id} → client {client.id} "
-        f"({confirmed_count} hypotheses, {subreddits_imported} subreddits, "
-        f"new_client={client_created})"
+        "Handoff complete: session %s -> client %s (strategy v%d, %d subs, %d GEO)",
+        session.id, client.id, client.strategy_version, subs_imported, geo_created,
     )
 
-    return {
-        "session_id": str(session.id),
-        "client_id": str(client.id),
-        "client_created": client_created,
-        "confirmed_hypotheses_count": confirmed_count,
-        "recommended_subreddits_count": subreddits_imported,
-    }
+    return client
 
 
-def _create_client_from_discovery(session: DiscoverySession, db: Session) -> Client:
-    """Create a new Client record populated from Discovery session data.
+def _resolve_or_create_client(session: DiscoverySession, db: Session) -> Client:
+    """Resolve existing client or create new one from Discovery data."""
+    if session.client_id:
+        client = db.query(Client).filter(Client.id == session.client_id).first()
+        if not client:
+            raise ValueError(f"Linked client {session.client_id} not found")
+        return client
 
-    Uses prospect_name as brand_name/client_name. Uses the client brief as
-    a starting point for the company_profile.
-    """
-    # Extract competitive landscape from report
-    competitive_landscape = ""
-    if session.reports:
-        latest = sorted(session.reports, key=lambda r: r.report_version, reverse=True)[0]
-        competitive_landscape = (latest.content or {}).get("competitive_landscape", "")
+    # Create new Client from Discovery data
+    name = session.prospect_name or "Discovery Prospect"
 
     # Extract industry from entities
     industry = None
@@ -173,86 +130,137 @@ def _create_client_from_discovery(session: DiscoverySession, db: Session) -> Cli
             industry = entity.name[:100]
             break
 
-    # Use prospect_name for both client_name and brand_name
-    name = session.prospect_name or "Discovery Prospect"
-
     client = Client(
         client_name=name,
         brand_name=name,
         company_profile=session.client_brief[:2000],
-        competitive_landscape=competitive_landscape[:2000] if competitive_landscape else None,
         industry=industry,
         is_active=True,
     )
     db.add(client)
-    db.flush()  # Get ID assigned
+    db.flush()
 
-    logger.info(f"Created client '{client.client_name}' from Discovery session {session.id}")
+    session.client_id = client.id
+    logger.info("Created client '%s' from Discovery session %s", name, session.id)
     return client
 
 
-def _import_subreddit_suggestions(
-    session: DiscoverySession, client: Client, db: Session
+def _save_strategy_to_client(
+    client: Client,
+    strategy: ClientStrategyOutput,
+    result_meta: dict,
+    session: DiscoverySession,
+) -> None:
+    """Persist strategy with versioning and history rotation (max 3 previous)."""
+    now = datetime.now(timezone.utc)
+    strategy_dict = strategy.model_dump()
+
+    # Attach metadata (not from LLM)
+    strategy_dict["metadata"] = {
+        "generated_at": now.isoformat(),
+        "source_session_id": str(session.id),
+        "model_used": result_meta.get("model", "unknown"),
+        "generation_cost_usd": result_meta.get("cost_usd", 0),
+        "prompt_version": "1.0",
+    }
+
+    # Rotate history (keep max 3 previous)
+    if client.strategy_context:
+        history = client.strategy_history or []
+        history.insert(0, client.strategy_context)
+        client.strategy_history = history[:3]
+
+    # Set new strategy
+    client.strategy_context = strategy_dict
+    client.strategy_version = (client.strategy_version or 0) + 1
+    client.strategy_generated_at = now
+    client.strategy_source_session_id = session.id
+
+
+def _import_subreddits_with_priority(
+    client: Client,
+    strategy: ClientStrategyOutput,
+    db: Session,
 ) -> int:
-    """Pre-populate subreddit assignments from Discovery report communities.
-
-    Creates ClientSubredditAssignment records for recommended communities.
-    Skips subreddits already assigned to this client.
-
-    Returns:
-        Count of subreddits imported.
-    """
-    if not session.reports:
-        return 0
-
-    latest_report = sorted(session.reports, key=lambda r: r.report_version, reverse=True)[0]
-    communities = (latest_report.content or {}).get("communities", [])
-
-    if not communities:
-        return 0
-
-    # Get existing assignments to avoid duplicates
-    existing = (
-        db.query(ClientSubredditAssignment)
-        .filter(
-            ClientSubredditAssignment.client_id == client.id,
-            ClientSubredditAssignment.is_active == True,
-        )
-        .all()
-    )
-    existing_sub_ids = {a.subreddit_id for a in existing}
-
-    imported_count = 0
-    for community in communities[:10]:
-        sub_name = community.get("name", "").replace("r/", "").strip()
+    """Import subreddits from strategy with priority + engagement_approach (upsert)."""
+    imported = 0
+    for sp in strategy.subreddit_priorities[:10]:
+        sub_name = sp.subreddit.replace("r/", "").strip()
         if not sub_name:
             continue
 
-        # Find or create subreddit in registry
+        # Find or create subreddit
         subreddit = (
             db.query(Subreddit)
             .filter(Subreddit.subreddit_name.ilike(sub_name))
             .first()
         )
-
         if not subreddit:
             subreddit = Subreddit(subreddit_name=sub_name, is_active=True)
             db.add(subreddit)
             db.flush()
 
-        # Skip if already assigned
-        if subreddit.id in existing_sub_ids:
+        # Check for existing assignment (upsert)
+        existing = (
+            db.query(ClientSubredditAssignment)
+            .filter(
+                ClientSubredditAssignment.client_id == client.id,
+                ClientSubredditAssignment.subreddit_id == subreddit.id,
+            )
+            .first()
+        )
+
+        if existing:
+            existing.priority = sp.priority
+            existing.engagement_approach = sp.engagement_approach
+            existing.is_active = True
+        else:
+            assignment = ClientSubredditAssignment(
+                client_id=client.id,
+                subreddit_id=subreddit.id,
+                type="professional",
+                is_active=True,
+                priority=sp.priority,
+                engagement_approach=sp.engagement_approach,
+            )
+            db.add(assignment)
+
+        imported += 1
+
+    return imported
+
+
+def _create_geo_prompts(
+    client: Client,
+    strategy: ClientStrategyOutput,
+    db: Session,
+) -> int:
+    """Create GeoPrompt records from strategy aeo_targets (skip duplicates)."""
+    from app.models.geo_prompt import GeoPrompt
+
+    created = 0
+    for target in strategy.aeo_targets:
+        prompt_text = target.user_question
+
+        # Skip if duplicate exists
+        exists = (
+            db.query(GeoPrompt)
+            .filter(
+                GeoPrompt.client_id == client.id,
+                GeoPrompt.prompt_text == prompt_text,
+            )
+            .first()
+        )
+        if exists:
             continue
 
-        # Create assignment (type: professional for Discovery-recommended subs)
-        assignment = ClientSubredditAssignment(
+        geo_prompt = GeoPrompt(
             client_id=client.id,
-            subreddit_id=subreddit.id,
-            type="professional",
+            prompt_text=prompt_text,
+            category="discovery_generated",
             is_active=True,
         )
-        db.add(assignment)
-        existing_sub_ids.add(subreddit.id)
-        imported_count += 1
+        db.add(geo_prompt)
+        created += 1
 
-    return imported_count
+    return created

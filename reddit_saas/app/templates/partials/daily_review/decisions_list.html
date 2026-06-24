@@ -1,0 +1,17 @@
+{% if decisions is defined and decisions %}
+<div class="space-y-2">
+    {% for d in decisions %}
+    <div class="flex items-center gap-3 p-2 bg-slate-900/30 rounded-lg">
+        <span class="px-2 py-0.5 rounded text-xs
+            {% if d.decision_type == 'execute' %}bg-red-900/50 text-red-400
+            {% elif d.decision_type == 'investigate' %}bg-yellow-900/50 text-yellow-400
+            {% elif d.decision_type == 'block' %}bg-purple-900/50 text-purple-400
+            {% else %}bg-slate-700 text-gray-400{% endif %}">
+            {{ d.decision_type }}
+        </span>
+        <span class="text-sm text-gray-200">{{ d.description }}</span>
+        <span class="text-xs text-gray-500 ml-auto">{{ d.owner }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

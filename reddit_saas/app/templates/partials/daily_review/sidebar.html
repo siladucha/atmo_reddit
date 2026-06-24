@@ -1,0 +1,36 @@
+<div id="sidebar-sections">
+    {% for s in sections %}
+    <div class="mb-2">
+        <button
+            hx-get="/admin/daily-review/section/{{ s }}"
+            hx-target="#section-content"
+            hx-swap="innerHTML"
+            class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors
+                {% if session.section_states.get(s) == 'completed' %}
+                    bg-green-900/30 text-green-400
+                {% elif session.current_section == s %}
+                    bg-indigo-900/30 text-indigo-300 ring-1 ring-indigo-500
+                {% else %}
+                    text-gray-400 hover:text-white hover:bg-slate-700
+                {% endif %}">
+            {% if session.section_states.get(s) == 'completed' %}
+                <span class="text-green-400">✓</span>
+            {% elif session.current_section == s %}
+                <span class="text-indigo-400">●</span>
+            {% else %}
+                <span class="text-gray-600">○</span>
+            {% endif %}
+            <span>{{ section_labels[s] }}</span>
+        </button>
+    </div>
+    {% endfor %}
+
+    {% set all_done = session.section_states.values() | select('equalto', 'completed') | list | length == sections | length %}
+    {% if all_done %}
+    <form hx-post="/admin/daily-review/complete" hx-target="body" class="mt-4">
+        <button type="submit" class="w-full bg-green-600 hover:bg-green-500 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors">
+            Complete Review ✓
+        </button>
+    </form>
+    {% endif %}
+</div>

@@ -303,7 +303,13 @@ def compute_trust_potential(
                 elif isinstance(sub_list, str):
                     avatar_subs.add(sub_list.lower().lstrip("r/"))
         elif isinstance(avatar.hobby_subreddits, list):
-            avatar_subs.update(s.lower().lstrip("r/") for s in avatar.hobby_subreddits)
+            for item in avatar.hobby_subreddits:
+                if isinstance(item, dict):
+                    sub_name = item.get("subreddit", "")
+                    if sub_name:
+                        avatar_subs.add(sub_name.lower().lstrip("r/"))
+                elif isinstance(item, str):
+                    avatar_subs.add(item.lower().lstrip("r/"))
 
     if avatar.business_subreddits:
         if isinstance(avatar.business_subreddits, dict):
@@ -548,7 +554,13 @@ def compute_strategic_alignment(
                     elif isinstance(sub_list, str):
                         hobby_subs.add(sub_list.lower().lstrip("r/"))
             elif isinstance(avatar.hobby_subreddits, list):
-                hobby_subs.update(s.lower().lstrip("r/") for s in avatar.hobby_subreddits)
+                for item in avatar.hobby_subreddits:
+                    if isinstance(item, dict):
+                        sub_name = item.get("subreddit", "")
+                        if sub_name:
+                            hobby_subs.add(sub_name.lower().lstrip("r/"))
+                    elif isinstance(item, str):
+                        hobby_subs.add(item.lower().lstrip("r/"))
 
         if subreddit_lower in hobby_subs:
             phase_component = 30.0  # Perfect phase alignment
@@ -787,7 +799,8 @@ def scan_opportunities(
     opportunities: list[OpportunityData] = []
 
     # --- Source 1: ThreadScore records tagged "engage" or "monitor" ---
-    if subreddit_ids:
+    # Phase 1 avatars only use Source 2 (hobby posts) — skip professional threads
+    if subreddit_ids and avatar.warming_phase >= 2:
         # Determine client_id for ThreadScore query
         client_id = client.id if client else None
         if client_id is None and avatar.client_ids:
@@ -864,15 +877,27 @@ def scan_opportunities(
                     elif isinstance(sub_list, str):
                         hobby_sub_names.add(sub_list.lower().lstrip("r/"))
             elif isinstance(avatar.hobby_subreddits, list):
-                hobby_sub_names.update(s.lower().lstrip("r/") for s in avatar.hobby_subreddits)
+                for item in avatar.hobby_subreddits:
+                    if isinstance(item, dict):
+                        sub_name = item.get("subreddit", "")
+                        if sub_name:
+                            hobby_sub_names.add(sub_name.lower().lstrip("r/"))
+                    elif isinstance(item, str):
+                        hobby_sub_names.add(item.lower().lstrip("r/"))
 
         if hobby_sub_names:
+            from sqlalchemy import func as sa_func
             hobby_posts = (
                 db.query(HobbySubreddit)
                 .filter(
-                    HobbySubreddit.subreddit.in_(hobby_sub_names),
-                    HobbySubreddit.status.is_(None),  # not yet used
+                    HobbySubreddit.avatar_username == avatar.reddit_username,
+                    sa_func.lower(HobbySubreddit.subreddit).in_(hobby_sub_names),
+                    HobbySubreddit.status == "new",  # fresh posts not yet used
+                    HobbySubreddit.ai_comment.is_(None),
+                    HobbySubreddit.post_body.isnot(None),
                 )
+                .order_by(HobbySubreddit.scraped_at.desc())
+                .limit(30)
                 .all()
             )
 

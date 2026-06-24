@@ -9,22 +9,22 @@
 
 ```bash
 # Check all services running
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml ps"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml ps"
 
 # Check health
-ssh root@161.35.27.165 "curl -s http://localhost/health | python3 -m json.tool"
+ssh ramp "curl -s http://localhost/health | python3 -m json.tool"
 
 # Check recent errors
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=100 app | grep -i error"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=100 app | grep -i error"
 
 # Check Celery worker
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=50 celery_worker"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=50 celery_worker"
 
 # Check disk space
-ssh root@161.35.27.165 "df -h"
+ssh ramp "df -h"
 
 # Check memory
-ssh root@161.35.27.165 "free -h"
+ssh ramp "free -h"
 ```
 
 ---
@@ -38,10 +38,10 @@ ssh root@161.35.27.165 "free -h"
 **Check:**
 ```bash
 # Is the app container running?
-ssh root@161.35.27.165 "docker ps | grep app"
+ssh ramp "docker ps | grep app"
 
 # Check app logs for crash
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=100 app"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=100 app"
 ```
 
 **Common causes:**
@@ -52,10 +52,10 @@ ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docke
 **Fix:**
 ```bash
 # Restart app
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart app"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart app"
 
 # If OOM, restart everything
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml down && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml down && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
 ```
 
 ---
@@ -68,15 +68,15 @@ ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docke
 1. Kill switches: `/admin/settings` → all enabled?
 2. Celery worker running?
 ```bash
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=20 celery_worker"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=20 celery_worker"
 ```
 3. Celery Beat running?
 ```bash
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=20 celery_beat"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=20 celery_beat"
 ```
 4. Redis connected?
 ```bash
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec redis redis-cli ping"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec redis redis-cli ping"
 ```
 
 **Common causes:**
@@ -89,7 +89,7 @@ ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docke
 **Fix:**
 ```bash
 # Restart workers
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart celery_worker celery_beat"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart celery_worker celery_beat"
 ```
 
 ---
@@ -101,19 +101,19 @@ ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docke
 **Check:**
 ```bash
 # Is PostgreSQL running?
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec db pg_isready"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec db pg_isready"
 
 # Check connection count
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec db psql -U reddit_saas_user -d reddit_saas -c 'SELECT count(*) FROM pg_stat_activity;'"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec db psql -U reddit_saas_user -d reddit_saas -c 'SELECT count(*) FROM pg_stat_activity;'"
 ```
 
 **Fix:**
 ```bash
 # Restart database (careful — brief downtime)
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart db"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart db"
 
 # Wait 10s, then restart app
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart app celery_worker"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart app celery_worker"
 ```
 
 ---
@@ -124,15 +124,15 @@ ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docke
 
 **Check:**
 ```bash
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec redis redis-cli ping"
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec redis redis-cli info memory"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec redis redis-cli ping"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec redis redis-cli info memory"
 ```
 
 **Fix:**
 ```bash
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart redis"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart redis"
 # Then restart workers (they need to reconnect)
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart celery_worker celery_beat"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart celery_worker celery_beat"
 ```
 
 ---
@@ -144,7 +144,7 @@ ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docke
 **Check:**
 ```bash
 # Look for LLM-related errors
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=200 celery_worker | grep -i 'litellm\|anthropic\|gemini\|openrouter'"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=200 celery_worker | grep -i 'litellm\|anthropic\|gemini\|openrouter'"
 ```
 
 **Common causes:**
@@ -167,17 +167,17 @@ ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docke
 
 **Check:**
 ```bash
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec app alembic current"
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec app alembic history --verbose"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec app alembic current"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec app alembic history --verbose"
 ```
 
 **Fix:**
 ```bash
 # If migration failed mid-way, stamp to known good revision
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec app alembic stamp head"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec app alembic stamp head"
 
 # Then restart
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart app"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart app"
 ```
 
 ---
@@ -188,21 +188,21 @@ ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docke
 
 **Check:**
 ```bash
-ssh root@161.35.27.165 "df -h"
-ssh root@161.35.27.165 "docker system df"
+ssh ramp "df -h"
+ssh ramp "docker system df"
 ```
 
 **Fix:**
 ```bash
 # Clean Docker (unused images, containers, volumes)
-ssh root@161.35.27.165 "docker system prune -f"
-ssh root@161.35.27.165 "docker image prune -a -f"
+ssh ramp "docker system prune -f"
+ssh ramp "docker image prune -a -f"
 
 # Check log sizes
-ssh root@161.35.27.165 "du -sh /var/lib/docker/containers/*/\*.log | sort -h"
+ssh ramp "du -sh /var/lib/docker/containers/*/\*.log | sort -h"
 
 # Truncate large container logs
-ssh root@161.35.27.165 "truncate -s 0 /var/lib/docker/containers/CONTAINER_ID/*-json.log"
+ssh ramp "truncate -s 0 /var/lib/docker/containers/CONTAINER_ID/*-json.log"
 ```
 
 ---
@@ -221,7 +221,7 @@ ssh root@161.35.27.165 "truncate -s 0 /var/lib/docker/containers/CONTAINER_ID/*-
 - Manual scrape: Subreddits page → "Scrape Now" button
 - If rate limiter stuck:
 ```bash
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec redis redis-cli DEL scrape_rate_limiter"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec redis redis-cli DEL scrape_rate_limiter"
 ```
 
 ---
@@ -253,7 +253,7 @@ ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docke
 **Check:**
 ```bash
 # See batch statuses
-ssh root@161.35.27.165 "docker exec app-db-1 psql -U reddit_saas_user -d reddit_saas -c \"SELECT id, status, total_queries, successful_queries, triggered_by, started_at FROM geo_execution_batches WHERE client_id = 'CLIENT_UUID' ORDER BY started_at DESC LIMIT 5;\""
+ssh ramp "docker exec app-db-1 psql -U reddit_saas_user -d reddit_saas -c \"SELECT id, status, total_queries, successful_queries, triggered_by, started_at FROM geo_execution_batches WHERE client_id = 'CLIENT_UUID' ORDER BY started_at DESC LIMIT 5;\""
 ```
 
 **Common causes:**
@@ -265,7 +265,7 @@ ssh root@161.35.27.165 "docker exec app-db-1 psql -U reddit_saas_user -d reddit_
 **Fix:**
 ```bash
 # Mark stale running batches as failed (older than 1 hour)
-ssh root@161.35.27.165 "docker exec app-db-1 psql -U reddit_saas_user -d reddit_saas -c \"UPDATE geo_execution_batches SET status = 'failed' WHERE status = 'running' AND started_at < NOW() - INTERVAL '1 hour';\""
+ssh ramp "docker exec app-db-1 psql -U reddit_saas_user -d reddit_saas -c \"UPDATE geo_execution_batches SET status = 'failed' WHERE status = 'running' AND started_at < NOW() - INTERVAL '1 hour';\""
 ```
 
 - Then click "Run Now" on the GEO page to trigger a fresh batch
@@ -278,13 +278,13 @@ ssh root@161.35.27.165 "docker exec app-db-1 psql -U reddit_saas_user -d reddit_
 ### Full Stack Restart
 
 ```bash
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml down && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml down && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
 ```
 
 ### Rebuild Everything
 
 ```bash
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml down && docker compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml down && docker compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
 ```
 
 ### Database Reset (DESTRUCTIVE)
@@ -292,15 +292,15 @@ ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docke
 ⚠️ Only if database is corrupted and you have a backup:
 ```bash
 # Stop everything
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml down"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml down"
 
 # Remove DB volume
-ssh root@161.35.27.165 "cd /app && docker volume rm app_postgres_data"
+ssh ramp "cd /app && docker volume rm app_postgres_data"
 
 # Start fresh (entrypoint will create schema)
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
 
 # Restore from backup
 scp /path/to/backup.custom root@161.35.27.165:/tmp/
-ssh root@161.35.27.165 "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T db pg_restore -U reddit_saas_user -d reddit_saas --clean --if-exists --no-owner /tmp/backup.custom"
+ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T db pg_restore -U reddit_saas_user -d reddit_saas --clean --if-exists --no-owner /tmp/backup.custom"
 ```

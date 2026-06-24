@@ -36,6 +36,7 @@ Update: draft.status=posted, slot.status=posted, draft.reddit_comment_url
 5. **Soft cancel**: cancelled status with reason/timestamp. Never delete.
 6. **No full body storage**: payload_hash + body_excerpt (200 chars) + template_version. Full body reconstructable.
 7. **DB-level idempotency**: UNIQUE(epg_slot_id) on tasks, UNIQUE(task_id, attempt_number) on delivery attempts.
+8. **Reconciliation fallback** (June 24): If executor posts but never submits permalink via action link, `draft_reconciliation.py` (runs every 4h in karma_tracking) auto-detects the posted comment on Reddit and transitions draft to "posted". Three matching passes: exact body (98% confidence), fuzzy body ≥85% overlap, thread+timing (75% confidence).
 
 ---
 

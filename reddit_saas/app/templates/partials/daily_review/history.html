@@ -1,0 +1,27 @@
+<div class="bg-slate-800 rounded-xl p-6">
+    <h3 class="text-lg font-semibold text-white mb-4">Review History</h3>
+
+    {% if reports %}
+    <div class="space-y-2">
+        {% for r in reports %}
+        <div class="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-slate-700">
+            <div class="flex items-center gap-3">
+                <span class="text-sm text-white font-mono">{{ r.report_date }}</span>
+                <span class="px-2 py-0.5 rounded text-xs
+                    {% if r.system_state == 'healthy' %}bg-green-900/50 text-green-400
+                    {% elif r.system_state == 'degraded' %}bg-yellow-900/50 text-yellow-400
+                    {% else %}bg-red-900/50 text-red-400{% endif %}">
+                    {{ r.system_state }}
+                </span>
+            </div>
+            <div class="flex items-center gap-4 text-xs text-gray-400">
+                <span>Confidence: {{ r.overall_confidence }}%</span>
+                <span>${{ "%.2f" | format(r.total_llm_cost_usd) }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-gray-400 text-sm">No reviews completed yet.</p>
+    {% endif %}
+</div>

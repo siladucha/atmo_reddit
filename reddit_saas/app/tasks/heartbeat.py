@@ -196,4 +196,13 @@ def system_heartbeat() -> dict:
         logger.error("%s | status=ERROR | exception=%s", _PREFIX, str(e)[:200])
         results = {"error": str(e)[:200]}
 
+    # Write last heartbeat timestamp to Redis for dashboard alert detection
+    try:
+        import redis as _redis
+        _client = _redis.Redis.from_url(settings.redis_url, decode_responses=True, socket_timeout=2)
+        _client.set("ramp:heartbeat:last_at", datetime.now(timezone.utc).isoformat(), ex=300)
+        _client.close()
+    except Exception:
+        pass  # Non-critical
+
     return {"status": overall, "checks": results}

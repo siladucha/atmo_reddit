@@ -1,0 +1,93 @@
+<div class="bg-slate-800 rounded-xl p-6">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-white">System Health Snapshot</h3>
+        <span class="text-xs text-gray-500">~10 min</span>
+    </div>
+
+    <!-- Verdict badge -->
+    {% set verdict = health_data.get('overall_verdict', 'unknown') %}
+    <div class="mb-6 p-4 rounded-lg
+        {% if verdict == 'healthy' %}bg-green-900/20 border border-green-800
+        {% elif verdict == 'degraded' %}bg-yellow-900/20 border border-yellow-800
+        {% else %}bg-red-900/20 border border-red-800{% endif %}">
+        <div class="flex items-center gap-3">
+            <span class="text-2xl">
+                {% if verdict == 'healthy' %}✅{% elif verdict == 'degraded' %}⚠️{% else %}🔴{% endif %}
+            </span>
+            <div>
+                <p class="text-sm font-medium
+                    {% if verdict == 'healthy' %}text-green-400
+                    {% elif verdict == 'degraded' %}text-yellow-400
+                    {% else %}text-red-400{% endif %}">
+                    {% if verdict == 'healthy' %}No — system healthy. Users would not notice.
+                    {% elif verdict == 'degraded' %}Possibly — degraded signals detected.
+                    {% else %}Yes — critical issues present.{% endif %}
+                </p>
+                <p class="text-xs text-gray-400 mt-1">
+                    {% for e in health_data.get('verdict_evidence', []) %}{{ e }}{% if not loop.last %} · {% endif %}{% endfor %}
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data gaps warning -->
+    {% if health_data.get('data_gaps') %}
+    <div class="mb-4 p-3 bg-orange-900/20 border border-orange-800 rounded-lg">
+        <p class="text-xs text-orange-400">⚠️ Data unavailable: {{ health_data.data_gaps | join(', ') }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Signals table -->
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-gray-500 text-xs uppercase border-b border-slate-700">
+                    <th class="text-left py-2 px-2">Category</th>
+                    <th class="text-left py-2 px-2">Metric</th>
+                    <th class="text-right py-2 px-2">Current</th>
+                    <th class="text-right py-2 px-2">7d Avg</th>
+                    <th class="text-right py-2 px-2">Delta</th>
+                    <th class="text-center py-2 px-2">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for signal in health_data.get('signals', []) %}
+                <tr class="border-b border-slate-700/50 {% if signal.attention %}bg-red-900/10{% endif %}">
+                    <td class="py-2 px-2 text-gray-400">{{ signal.category }}</td>
+                    <td class="py-2 px-2 text-gray-200">{{ signal.metric_name }}</td>
+                    <td class="py-2 px-2 text-right text-white font-mono">{{ signal.current_value }}</td>
+                    <td class="py-2 px-2 text-right text-gray-400 font-mono">{{ signal.seven_day_avg }}</td>
+                    <td class="py-2 px-2 text-right font-mono
+                        {% if signal.delta_pct > 0 and signal.status == 'worse' %}text-red-400
+                        {% elif signal.delta_pct < 0 and signal.status == 'better' %}text-green-400
+                        {% else %}text-gray-400{% endif %}">
+                        {% if signal.delta_pct > 0 %}+{% endif %}{{ signal.delta_pct }}%
+                    </td>
+                    <td class="py-2 px-2 text-center">
+                        {% if signal.attention %}
+                            <span class="text-red-400 text-xs">⚠️</span>
+                        {% elif signal.status == 'better' %}
+                            <span class="text-green-400 text-xs">↗</span>
+                        {% elif signal.status == 'worse' %}
+                            <span class="text-yellow-400 text-xs">↘</span>
+                        {% else %}
+                            <span class="text-gray-500 text-xs">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Complete section button -->
+    <div class="mt-6 flex justify-end">
+        <button
+            hx-post="/admin/daily-review/section/health/complete"
+            hx-target="#sidebar-sections"
+            hx-swap="outerHTML"
+            class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors">
+            Done — Next Section →
+        </button>
+    </div>
+</div>

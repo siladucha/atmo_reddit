@@ -1042,9 +1042,13 @@ def build_portfolio(
                         elif isinstance(sub_list, str):
                             hobby_sub_names.add(sub_list.lower().lstrip("r/"))
                 elif isinstance(hobby_subs_raw, list):
-                    hobby_sub_names.update(
-                        s.lower().lstrip("r/") for s in hobby_subs_raw
-                    )
+                    for item in hobby_subs_raw:
+                        if isinstance(item, dict):
+                            sub_name = item.get("subreddit", "")
+                            if sub_name:
+                                hobby_sub_names.add(sub_name.lower().lstrip("r/"))
+                        elif isinstance(item, str):
+                            hobby_sub_names.add(item.lower().lstrip("r/"))
 
             if hobby_sub_names:
                 # Filter: keep only opportunities in hobby subreddits
