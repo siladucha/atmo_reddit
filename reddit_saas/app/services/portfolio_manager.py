@@ -972,6 +972,29 @@ def build_portfolio(
             )
             return result
 
+    # --- Dedup guard: skip if non-skipped slots already exist for today ---
+    from sqlalchemy import func as _sa_func
+    existing_slots_count = (
+        db.query(_sa_func.count(EPGSlot.id))
+        .filter(
+            EPGSlot.avatar_id == avatar.id,
+            EPGSlot.plan_date == plan_date,
+            EPGSlot.status.notin_(["skipped"]),
+        )
+        .scalar() or 0
+    )
+    if existing_slots_count > 0:
+        result.status = "already_planned"
+        result.message = (
+            f"EPG already built today: {existing_slots_count} active slots exist. "
+            f"Skipping duplicate build."
+        )
+        logger.info(
+            "build_portfolio SKIPPED (dedup): avatar=%s plan_date=%s existing_slots=%d",
+            avatar.reddit_username, plan_date, existing_slots_count,
+        )
+        return result
+
     try:
         # ---------------------------------------------------------------
         # Step 1: Compute AttentionBudget

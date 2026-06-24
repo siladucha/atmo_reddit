@@ -137,6 +137,9 @@ The Portfolio Manager (`build_portfolio`) uses `scan_opportunities()` which has 
 | ~~`warm` pool excluded from scoring~~ | StopAutomatic717 blocked | **FIXED June 24** |
 | ~~Case-sensitive subreddit match~~ | "Metal" ≠ "metal" | **FIXED June 24** |
 | No admin alert on demotion | Demotion happens silently | TODO |
+| ~~EPG budget miscounting~~ | skipped-without-draft counted as consumed → false "budget exhausted" | **FIXED June 24** |
+| EPG rebuild race condition | No distributed lock → parallel runs create duplicate slots | TODO |
+| ~~Worker offline false alert~~ | Heartbeat only logged to stdout, alert queried empty DB table | **FIXED June 24** |
 | No "demotion cooldown" | Repeated demotion/promotion cycles | TODO |
 | Hobby pipeline limited to 1-3/day | Phase 1 warming rate | By design |
 | Gemini Flash empty response | ~15% of hobby generations → slot skipped | Monitor |

@@ -37,7 +37,7 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/admin/daily-review")
 templates = Jinja2Templates(directory="app/templates")
-# templates.env.cache disabled — causes unhashable dict error with globals
+templates.env.cache = {}
 
 from app.version import __version__ as app_version
 from app.config import get_settings as _get_settings
@@ -91,8 +91,8 @@ def daily_review_page(
     budget = get_today_budget(db)
 
     return templates.TemplateResponse(
-        "admin_daily_review.html",
-        {
+        name="admin_daily_review.html",
+        context={
             "request": request,
             "current_user": current_user,
             "active_session": active_session,
@@ -215,7 +215,7 @@ def get_section(
         )
         context["session_decision_count"] = session_decisions
 
-    return templates.TemplateResponse(template_name, context)
+    return templates.TemplateResponse(name=template_name, context=context)
 
 
 @router.post("/section/{name}/save", response_class=HTMLResponse)
@@ -275,8 +275,8 @@ def complete_section(
 
     # Return updated sidebar partial
     return templates.TemplateResponse(
-        "partials/daily_review/sidebar.html",
-        {
+        name="partials/daily_review/sidebar.html",
+        context={
             "request": request,
             "session": session,
             "sections": SECTIONS,
@@ -413,8 +413,8 @@ def add_decision(
     )
 
     return templates.TemplateResponse(
-        "partials/daily_review/decisions_list.html",
-        {"request": request, "decisions": decisions, "count": len(decisions)},
+        name="partials/daily_review/decisions_list.html",
+        context={"request": request, "decisions": decisions, "count": len(decisions)},
     )
 
 
@@ -458,8 +458,8 @@ def review_history(
         .all()
     )
     return templates.TemplateResponse(
-        "partials/daily_review/history.html",
-        {"request": request, "reports": reports},
+        name="partials/daily_review/history.html",
+        context={"request": request, "reports": reports},
     )
 
 
@@ -472,8 +472,8 @@ def budget_indicator(
     """Budget indicator partial (polled every 30s)."""
     budget = get_today_budget(db)
     return templates.TemplateResponse(
-        "partials/daily_review/budget_indicator.html",
-        {"request": request, "budget": budget.to_dict()},
+        name="partials/daily_review/budget_indicator.html",
+        context={"request": request, "budget": budget.to_dict()},
     )
 
 
