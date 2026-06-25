@@ -1,0 +1,41 @@
+{
+  "meta": {
+    "domain": "risk_registry",
+    "version": "1.0.0",
+    "description": "Complete risk registry for RAMP system. Covers infrastructure, architecture, business, security, posting, scaling, data, ops, documentation, AI, and platform risks. Escalation levels: CRITICAL (minutes), HIGH (hours), MEDIUM (days/weeks), LOW (opportunistic).",
+    "last_updated": "2026-06-25",
+    "sources": [
+      "08_agent_instructions.json",
+      "01_entities.json",
+      "02_pipeline.json",
+      "03_ai_prompts.json",
+      "04_safety_rbac.json",
+      "05_signals_adaptation.json",
+      "06_infrastructure.json",
+      "07_hidden_architecture.json",
+      "production incident logs (June 24-25, 2026)",
+      "subreddit ban detection analysis (June 25, 2026)"
+    ]
+  },
+  "escalation_matrix": {
+    "CRITICAL": {
+      "color": "red",
+      "response_time": "minutes",
+      "description": "Business shutdown, irrecoverable financial loss, fatal reputational leak"
+    },
+    "HIGH": {
+      "color": "orange",
+      "response_time": "hours",
+      "description": "Serious service degradation, client SLA breach, account ban risk"
+    },
+    "MEDIUM": {
+      "color": "yellow",
+      "response_time": "days_or_weeks",
+      "description": "Reduced efficiency, growing opex, technical debt accumulation"
+    },
+    "LOW": {
+      "color": "green",
+      "response_time": "opportunistic",
+      "description": "Minimal process impact, cosmetic defects"
+    }
+  },

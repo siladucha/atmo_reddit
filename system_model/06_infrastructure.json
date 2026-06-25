@@ -1,0 +1,188 @@
+{
+  "meta": {
+    "domain": "infrastructure",
+    "version": "1.0.0",
+    "description": "Deployment (5 containers, DigitalOcean FRA1), economics ($1.17/client/day, >90% margin), 12 known gaps with severity, 4 accepted improvements (decisions made but not implemented)."
+  },
+  "deployment": {
+    "environment": "production",
+    "provider": "DigitalOcean",
+    "region": "FRA1",
+    "ip": "161.35.27.165",
+    "domain": "gorampit.com",
+    "ssl": "Lets Encrypt",
+    "droplet": {
+      "name": "reddit-saas",
+      "vcpu": 2,
+      "ram_gb": 4,
+      "ssd_gb": 60,
+      "os": "Ubuntu 24.04 LTS",
+      "cost_monthly": 23
+    },
+    "containers": [
+      "app (FastAPI/uvicorn)",
+      "db (PostgreSQL 16, TZ=Asia/Jerusalem)",
+      "redis (Redis 7)",
+      "celery (prefork worker, concurrency=2, queue=celery)",
+      "celery-fast (prefork worker, concurrency=1, queue=fast)",
+      "celery-beat (scheduler)"
+    ],
+    "timezone": "Asia/Jerusalem",
+    "code_delivery": "COPY into Docker image (not volume-mounted)",
+    "deploy_sequence": [
+      "rsync local > ramp:/app/",
+      "docker compose -f docker-compose.yml -f docker-compose.prod.yml build",
+      "docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
+    ],
+    "ssh_alias": "ramp",
+    "backups": "DO weekly backups enabled",
+    "migration_planned": "AWS (when enterprise clients OR 100+ avatars OR ops >4h/week)",
+    "task_routing": {
+      "default_queue": "celery",
+      "fast_queue": "fast",
+      "fast_tasks": [
+        "analyze_subreddit_emotional_profile",
+        "run_full_pipeline_single_client",
+        "build_epg_single_avatar",
+        "generate_strategy_for_client"
+      ],
+      "rate_limit": "Shared Redis-based sliding window (30 RPM default, all workers use same limiter)"
+    }
+  },
+  "economics": {
+    "cost_per_client_day": "$1.17 LLM",
+    "total_10_clients_month": "$363",
+    "margin": ">90% at all scales",
+    "cost_breakdown": {
+      "generation_claude": "$162/mo",
+      "persona_selection": "$90/mo",
+      "comment_editor": "$81/mo",
+      "scoring_gemini": "$1.80/mo",
+      "hobby_gemini": "$1.35/mo",
+      "infrastructure": "$27/mo"
+    }
+  },
+  "known_gaps": [
+    {
+      "id": "GAP-001",
+      "severity": "medium",
+      "description": "No idempotency keys",
+      "impact": "duplicate posting on retry"
+    },
+    {
+      "id": "GAP-002",
+      "severity": "medium",
+      "description": "No cross-avatar deduplication",
+      "impact": "two avatars same thread"
+    },
+    {
+      "id": "GAP-003",
+      "severity": "resolved",
+      "description": "EPG rebuild race condition — FIXED June 25, 2026",
+      "impact": "Was: duplicate slots. Fix: distributed lock per avatar + dedup guard (any existing slots = skip)",
+      "fix": "DistributedLock(epg_build_lock:{avatar_id}, ttl=600) + removed skipped exclusion from dedup guard",
+      "accepted_resolution": {
+        "method": "PostgreSQL Advisory Locks (pg_advisory_lock on avatar_id)",
+        "rationale": "EPG build already in DB transaction, zero extra infra, works if Redis down",
+        "status": "ACCEPTED, not yet implemented",
+        "recommended_by": "External analyst (June 2026)"
+      }
+    },
+    {
+      "id": "GAP-004",
+      "severity": "high",
+      "description": "No adversarial adaptation",
+      "impact": "Reddit changes undetected"
+    },
+    {
+      "id": "GAP-005",
+      "severity": "medium",
+      "description": "No knowledge freshness model",
+      "impact": "stale strategies"
+    },
+    {
+      "id": "GAP-006",
+      "severity": "medium",
+      "description": "No formal SLI/SLO",
+      "impact": "health unmeasurable"
+    },
+    {
+      "id": "GAP-007",
+      "severity": "medium",
+      "description": "No GDPR erasure",
+      "impact": "compliance risk"
+    },
+    {
+      "id": "GAP-008",
+      "severity": "high",
+      "description": "Single-server no failover",
+      "impact": "total downtime on failure"
+    },
+    {
+      "id": "GAP-009",
+      "severity": "low",
+      "description": "No simulation mode",
+      "impact": "cannot test safely"
+    },
+    {
+      "id": "GAP-010",
+      "severity": "medium",
+      "description": "No key rotation",
+      "impact": "compromised key=all credentials"
+    },
+    {
+      "id": "GAP-011",
+      "severity": "low",
+      "description": "No client conflict detection",
+      "impact": "competing clients share avatar"
+    },
+    {
+      "id": "GAP-012",
+      "severity": "medium",
+      "description": "Prompts not versioned",
+      "impact": "no rollback/A-B testing"
+    }
+  ],
+  "accepted_improvements": {
+    "description": "Engineering decisions accepted but not yet implemented",
+    "items": [
+      {
+        "id": "IMP-001",
+        "gap": "GAP-003",
+        "title": "EPG Advisory Lock",
+        "method": "pg_advisory_lock(avatar_id) wrapping portfolio build",
+        "effort": "Small (10 lines)",
+        "priority": "P1 (safety)",
+        "status": "accepted"
+      },
+      {
+        "id": "IMP-002",
+        "gap": "N/A (latency improvement)",
+        "title": "Kill Switch Last-Moment Redis Check",
+        "method": "Redis GET ramp:kill:posting_disabled immediately before reddit.submit()",
+        "effort": "Small (5 lines)",
+        "priority": "P1 (safety)",
+        "status": "accepted"
+      },
+      {
+        "id": "IMP-003",
+        "gap": "N/A (cost optimization)",
+        "title": "Pre-LLM Heuristic Filters",
+        "method": "Add spam keyword filter + minimum thread length before scoring LLM call",
+        "effort": "Small",
+        "priority": "P2 (cost)",
+        "status": "accepted",
+        "note": "Hot thread filter + link filter already exist. Spam keywords + min length = quick wins."
+      },
+      {
+        "id": "IMP-004",
+        "gap": "GAP-012",
+        "title": "Prompt Version Table",
+        "method": "PromptVersion model (id, prompt_key, version, text, created_at, active)",
+        "effort": "Medium",
+        "priority": "P3 (observability)",
+        "status": "deferred"
+      }
+    ]
+  }
+}

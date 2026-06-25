@@ -1,0 +1,147 @@
+{
+  "meta": {
+    "domain": "safety_and_rbac",
+    "version": "1.0.0",
+    "description": "Safety system: 9 sequential posting gates, content gates, 8 kill switches, 7 RBAC-roles with enforcement points, 7 system invariants that MUST NEVER be violated."
+  },
+  "safety_system": {
+    "posting_gates": [
+      {
+        "order": 0,
+        "name": "POSTING_DISABLED",
+        "type": "env_var",
+        "immutable": true
+      },
+      {
+        "order": 1,
+        "name": "auto_posting_enabled",
+        "type": "db_setting"
+      },
+      {
+        "order": 2,
+        "name": "posting_mode",
+        "check": "==auto"
+      },
+      {
+        "order": 3,
+        "name": "is_frozen",
+        "check": "==False"
+      },
+      {
+        "order": 4,
+        "name": "health_status",
+        "check": "not in (shadowbanned,suspended)"
+      },
+      {
+        "order": 5,
+        "name": "phase_0_exclusion",
+        "check": "!=0"
+      },
+      {
+        "order": 6,
+        "name": "daily_cap",
+        "formula": "min(PHASE_LIMITS[phase],system_cap)",
+        "phase_limits": {
+          "0": 0,
+          "1": 3,
+          "2": 7,
+          "3": 18
+        },
+        "default_cap": 8
+      },
+      {
+        "order": 7,
+        "name": "proxy_configured",
+        "check": "not empty"
+      },
+      {
+        "order": 8,
+        "name": "user_agent",
+        "check": "not empty"
+      },
+      {
+        "order": 9,
+        "name": "subnet_consistency",
+        "check": "same /24"
+      }
+    ],
+    "content_gates": [
+      "phase_brand_gate(Phase1=zero brand)",
+      "brand_ratio_check",
+      "promotional_detection",
+      "hot_thread_filter(>200ups,karma<100)",
+      "link_video_filter",
+      "fitness_gate(subreddit-specific)"
+    ],
+    "kill_switches": [
+      "POSTING_DISABLED(env)",
+      "pipeline_enabled(db)",
+      "generation_enabled(db)",
+      "scrape_enabled(db)",
+      "auto_posting_enabled(db)",
+      "email_tasks_enabled(db)",
+      "epg2_enabled(db)",
+      "fitness_gate_enabled(db)"
+    ]
+  },
+  "rbac": {
+    "roles": [
+      "owner",
+      "partner",
+      "client_admin",
+      "client_manager",
+      "client_viewer",
+      "avatar_manager",
+      "b2c_user"
+    ],
+    "guards": [
+      "get_current_user(JWT+active+client_active)",
+      "require_owner",
+      "require_platform_admin(owner/partner/avatar_manager)",
+      "require_client_access(client_id match)",
+      "verify_client_access_from_path"
+    ],
+    "isolation": {
+      "query": "query_scope.py(client boundary at ORM)",
+      "llm": "isolation.py(runtime assertion)",
+      "cascade": "client.is_active=False > deny all"
+    }
+  },
+  "invariants": [
+    {
+      "id": "INV-001",
+      "rule": "No content posted without human approval",
+      "enforcement": "draft.status must be approved"
+    },
+    {
+      "id": "INV-002",
+      "rule": "No brand mentions in Phase 1",
+      "enforcement": "safety_blocks.py + PhasePolicy"
+    },
+    {
+      "id": "INV-003",
+      "rule": "Client data isolation",
+      "enforcement": "query_scope.py + isolation.py"
+    },
+    {
+      "id": "INV-004",
+      "rule": "Frozen avatar = zero execution",
+      "enforcement": "posting_safety gate 3 + orchestrator filter"
+    },
+    {
+      "id": "INV-005",
+      "rule": "Kill switch = instant halt",
+      "enforcement": "posting_safety gates 0/1"
+    },
+    {
+      "id": "INV-006",
+      "rule": "Daily cap hard limit",
+      "enforcement": "posting_safety gate 6"
+    },
+    {
+      "id": "INV-007",
+      "rule": "Phase gates earned not manual",
+      "enforcement": "PhaseEvaluator + PhaseTransitionManager"
+    }
+  ]
+}

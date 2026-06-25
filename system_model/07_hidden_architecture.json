@@ -1,0 +1,617 @@
+{
+  "meta": {
+    "domain": "hidden_architecture",
+    "version": "1.0.0",
+    "description": "Hidden architecture: ownership map (who decides what), 3 orchestration mechanisms, 8 implicit contracts, 4 data flow lifecycles, 6 control points, 5 missing layers, scale limits, refactoring prerequisites. + Answers to all 30 engineering audit questions."
+  },
+  "hidden_architecture": {
+    "purpose": "Formalization of hidden architecture — what works in code but is not described anywhere as a unified framework",
+    "ownership_map": {
+      "description": "Who owns the decision at each stage (source of truth)",
+      "decisions": [
+        {
+          "decision": "Which thread fits the client",
+          "owner": "SCORING_PROMPT + client context (keywords, worldview)",
+          "source_of_truth": "ThreadScore record in DB",
+          "human_override": "None (fully automated)"
+        },
+        {
+          "decision": "Which avatar responds",
+          "owner": "PERSONA_SELECT_PROMPT",
+          "source_of_truth": "persona_selection dict (ephemeral, not persisted)",
+          "human_override": "None"
+        },
+        {
+          "decision": "What exactly to write",
+          "owner": "COMMENT_WRITER_PROMPT + voice_profile + learning_context",
+          "source_of_truth": "CommentDraft.ai_draft",
+          "human_override": "Human edits > edited_draft"
+        },
+        {
+          "decision": "Publish or not",
+          "owner": "HUMAN (review)",
+          "source_of_truth": "CommentDraft.status = approved",
+          "human_override": "This IS the human decision"
+        },
+        {
+          "decision": "When to publish",
+          "owner": "timing_engine.py (jitter + active hours)",
+          "source_of_truth": "EPGSlot.scheduled_at",
+          "human_override": "Admin can reschedule"
+        },
+        {
+          "decision": "Which subreddit gets priority",
+          "owner": "portfolio_manager.py + feedback_loop adjustments",
+          "source_of_truth": "Opportunity.composite_score + Redis epg_adjustments",
+          "human_override": "client.return_weights (admin UI)"
+        },
+        {
+          "decision": "Promote/demote phase",
+          "owner": "PhaseEvaluator (rule-based)",
+          "source_of_truth": "avatar.warming_phase",
+          "human_override": "Admin Phase Override"
+        },
+        {
+          "decision": "Freeze avatar",
+          "owner": "health_checker (auto) or admin (manual)",
+          "source_of_truth": "avatar.is_frozen + freeze_reason",
+          "human_override": "Admin unfreeze"
+        },
+        {
+          "decision": "Client strategy",
+          "owner": "strategy_generator.py (LLM) informed by discovery",
+          "source_of_truth": "client.strategy_context (JSONB)",
+          "human_override": "Admin can edit, no approval gate"
+        },
+        {
+          "decision": "AI model for call",
+          "owner": "NOBODY — convention in code",
+          "source_of_truth": "system_settings: llm_scoring_model / llm_generation_model",
+          "human_override": "Admin Settings UI"
+        }
+      ]
+    },
+    "actual_orchestration_layer": {
+      "description": "System has NO single orchestrator. Orchestration is distributed across 3 mechanisms:",
+      "mechanisms": [
+        {
+          "name": "Celery Beat (temporal orchestration)",
+          "role": "Determines WHEN things run",
+          "owns": "Schedule (30+ tasks with crontab/interval)",
+          "limitation": "Does not know system state. Fires blindly on schedule."
+        },
+        {
+          "name": "Task chaining (causal orchestration)",
+          "role": "Determines order WITHIN pipeline run",
+          "owns": "score_threads.si(cid) | generate_comments.si(cid) | generate_posts.si(cid)",
+          "limitation": "Linear chain. No conditional branching. No full-chain retry."
+        },
+        {
+          "name": "State-driven execution (reactive orchestration)",
+          "role": "Determines WHAT to do based on current state",
+          "owns": "execute_pending_posts checks slot.status==approved + scheduled_at <= now",
+          "limitation": "Polling-based (every 5min). No event-driven trigger on state change."
+        }
+      ],
+      "gap": "No single point that sees the full picture (all clients + all avatars + all slots + all gates). Each task sees only its own scope.",
+      "consequence": "Cannot answer the question \"what the system is doing right now\" without querying 5+ tables."
+    },
+    "implicit_contracts": {
+      "description": "Contracts between modules that are not formalized anywhere but whose violation breaks the system",
+      "contracts": [
+        {
+          "between": "scraping > scoring",
+          "contract": "RedditThread must have post_title NOT NULL and subreddit_id FK valid",
+          "enforced_by": "DB constraints (NOT NULL)",
+          "violation_mode": "IntegrityError > task fails > retry"
+        },
+        {
+          "between": "scoring > EPG",
+          "contract": "ThreadScore.tag must be one of engage/monitor/skip",
+          "enforced_by": "Application logic (no DB CHECK)",
+          "violation_mode": "Silent — unknown tag ignored by EPG filter"
+        },
+        {
+          "between": "EPG > generation",
+          "contract": "EPGSlot must have thread_id or hobby_post_id populated",
+          "enforced_by": "Application logic (assertion in epg task)",
+          "violation_mode": "Slot skipped with skip_reason"
+        },
+        {
+          "between": "generation > review",
+          "contract": "CommentDraft.ai_draft must be non-empty text",
+          "enforced_by": "Application logic (LLM output validation)",
+          "violation_mode": "Draft not created, slot marked skipped"
+        },
+        {
+          "between": "review > posting",
+          "contract": "Draft.status == approved AND EPGSlot.status == approved",
+          "enforced_by": "SQL WHERE in execute_pending_posts",
+          "violation_mode": "Slot not picked up for posting (silent)"
+        },
+        {
+          "between": "generation > learning",
+          "contract": "CommentDraft.original_ai_draft preserved before editor pass",
+          "enforced_by": "Code sequence (set original before calling editor)",
+          "violation_mode": "Learning gets editor output vs human edit (degraded quality)"
+        },
+        {
+          "between": "karma_tracking > feedback_loop",
+          "contract": "KarmaSnapshot must have valid draft_id linking to CommentDraft with avatar_id and subreddit",
+          "enforced_by": "FK constraints",
+          "violation_mode": "Orphaned snapshots ignored in feedback"
+        },
+        {
+          "between": "health_check > all_pipelines",
+          "contract": "Avatar with health_status=shadowbanned/suspended must be excluded from ALL task queries",
+          "enforced_by": "Each task independently filters (no central filter)",
+          "violation_mode": "If any task forgets filter: banned avatar gets LLM calls (waste)"
+        }
+      ]
+    },
+    "data_flow_graph": {
+      "description": "How data actually flows through the system (not as nodes but as data transformations)",
+      "flows": [
+        {
+          "name": "Thread lifecycle",
+          "path": "Reddit API > RedditThread (raw) > ThreadScore (per-client score) > Opportunity (6-dim) > EPGSlot (scheduled) > CommentDraft (content) > PostingEvent (outcome) > KarmaSnapshot (signal)",
+          "transforms": [
+            "raw HTML > structured fields",
+            "text > LLM score (0-9)",
+            "score > 6-dimensional opportunity",
+            "opportunity > time-slotted plan",
+            "plan > LLM-generated text",
+            "text > Reddit API post",
+            "post > karma measurement"
+          ],
+          "time_span": "scrape to first karma check: 4-8 hours"
+        },
+        {
+          "name": "Learning lifecycle",
+          "path": "Human edit > EditRecord > CorrectionPattern > prompt injection > next generation",
+          "transforms": [
+            "diff(original, edited) > edit_summary",
+            "cluster(5+ similar edits) > LLM-generated rule_text",
+            "rule_text + examples > text block in system prompt"
+          ],
+          "time_span": "edit to next prompt injection: immediate (next generation call). Pattern extraction: deferred until 5+ edits accumulated."
+        },
+        {
+          "name": "Strategy lifecycle",
+          "path": "Client brief > DiscoveryEntity > DiscoveryHypothesis (confirmed) > Report > client.strategy_context > COMMENT_WRITER_PROMPT injection",
+          "transforms": [
+            "text > LLM entities",
+            "entities > LLM hypotheses",
+            "hypotheses > Reddit research validation",
+            "validated > LLM report",
+            "report > LLM strategy (positioning/pillars/zones)",
+            "strategy > text section in generation prompt"
+          ],
+          "time_span": "discovery start to strategy injection: 1 week (weekly Sunday batch) or manual (minutes)."
+        },
+        {
+          "name": "Feedback lifecycle",
+          "path": "KarmaSnapshot > outcome_analysis > SubredditSignal/ApproachSignal > epg_adjustments (Redis) > next portfolio_manager.build_portfolio()",
+          "transforms": [
+            "raw karma + is_deleted > performance packet per avatar",
+            "packet > statistical subreddit weights (boost/penalize)",
+            "weights > stored in Redis hash",
+            "hash read by EPG > influences opportunity ranking"
+          ],
+          "time_span": "post to first feedback effect: ~26-28 hours (post > 24h karma check > 02:00 feedback loop > 08:15 next EPG)"
+        }
+      ]
+    },
+    "control_points": {
+      "description": "Points where a human can intervene and change system behavior",
+      "points": [
+        {
+          "point": "Admin Settings UI",
+          "controls": "Kill switches, AI models, daily caps, feature flags",
+          "latency": "Effective within 60s-5min (next task reads from DB)"
+        },
+        {
+          "point": "Draft Review (portal/admin)",
+          "controls": "Which content gets published",
+          "latency": "Immediate (on approve > execution chain starts)"
+        },
+        {
+          "point": "Avatar Edit (admin)",
+          "controls": "Phase override, freeze/unfreeze, voice profile, subreddits",
+          "latency": "Immediate (next pipeline run uses new values)"
+        },
+        {
+          "point": "Client Edit (admin)",
+          "controls": "Keywords, worldview, return_weights, max_avatars, plan_type",
+          "latency": "Next scoring/EPG run (08:00/14:00)"
+        },
+        {
+          "point": "Strategy handoff (admin)",
+          "controls": "What angles/pillars/zones the generation uses",
+          "latency": "Next generation call for that client"
+        },
+        {
+          "point": "Executor email (admin)",
+          "controls": "WHO posts for avatar, routing of ExecutionTasks",
+          "latency": "Next EPG slot approval"
+        }
+      ]
+    },
+    "missing_formal_layers": {
+      "description": "Layers that SHOULD exist for clean architecture but currently DO NOT",
+      "layers": [
+        {
+          "name": "AI Registry / Router",
+          "what_it_would_do": "Centralized model selection, cost tracking per-call, A/B test routing, fallback chain management",
+          "current_substitute": "Two DB settings + per-service get_config() calls + hardcoded model constants",
+          "cost_of_absence": "Cannot A/B test prompts, cannot route per-client, cannot guarantee consistency within single pipeline run"
+        },
+        {
+          "name": "Orchestration Service",
+          "what_it_would_do": "Single view of system state, coordinate cross-module workflows, handle failures across pipeline stages",
+          "current_substitute": "Celery Beat (temporal) + task chaining (causal) + state polling (reactive)",
+          "cost_of_absence": "Cannot answer what system is doing now, cannot replay failed pipelines, cannot implement circuit breakers across modules"
+        },
+        {
+          "name": "Prompt Version Store",
+          "what_it_would_do": "DB-stored prompts with version history, deployment metadata, A/B split, rollback",
+          "current_substitute": "Python string constants in .py files, changed via git commit + docker rebuild",
+          "cost_of_absence": "Cannot rollback prompt regression, cannot A/B test, cannot track which prompt version produced which drafts"
+        },
+        {
+          "name": "Client State Machine",
+          "what_it_would_do": "Formal FSM (trial > onboarding > active > churning > deactivated) with transition guards and event emission",
+          "current_substitute": "is_active boolean + plan_type string + implicit checks scattered across services",
+          "cost_of_absence": "No single point to understand client lifecycle, deactivation cascade is implicit"
+        },
+        {
+          "name": "Consistency Manager",
+          "what_it_would_do": "Ensure Redis state and DB state are synchronized, detect and repair divergence",
+          "current_substitute": "Redis TTLs expire naturally, no active reconciliation",
+          "cost_of_absence": "Theoretical data loss on Redis crash (locks, adjustments, heartbeat state lost). Practical impact: low (short TTLs)."
+        }
+      ]
+    },
+    "scalability_boundaries": {
+      "description": "Where the current architecture will break under scale",
+      "boundaries": [
+        {
+          "component": "PostgreSQL (single instance, Docker)",
+          "limit": "~50 concurrent connections, ~100K rows/table performant",
+          "breaks_at": "50+ clients OR 1M+ thread records",
+          "fix": "Managed DB (DO/RDS) + connection pooling (PgBouncer)"
+        },
+        {
+          "component": "Celery Beat (single process)",
+          "limit": "1 scheduler process, no HA",
+          "breaks_at": "Beat crash = all scheduling stops",
+          "fix": "Celery Beat HA (django-celery-beat with DB store) or switch to SQS EventBridge"
+        },
+        {
+          "component": "Redis (single instance)",
+          "limit": "~100MB before memory pressure",
+          "breaks_at": "500+ clients with active locks/adjustments",
+          "fix": "Valkey Serverless (auto-scaling) — spec exists"
+        },
+        {
+          "component": "Single droplet (2 vCPU)",
+          "limit": "CPU saturates on parallel LLM response parsing",
+          "breaks_at": "10+ simultaneous pipeline runs",
+          "fix": "Vertical first (4 vCPU), then horizontal (separate worker nodes)"
+        },
+        {
+          "component": "Reddit API (1 OAuth token)",
+          "limit": "60 req/min shared across all scraping + health + karma",
+          "breaks_at": "100+ subreddits with 1h interval",
+          "fix": "Multiple OAuth tokens (per-client or per-avatar) + token rotation"
+        }
+      ]
+    },
+    "refactoring_prerequisites": {
+      "description": "What must be true before each modernization step",
+      "steps": [
+        {
+          "step": "Extract AI Registry",
+          "prerequisite": "All call_llm/call_llm_json calls must route through single entry point (already true — ai.py)",
+          "effort": "Small — add prompt_id parameter to call_llm, log to AIUsageLog with prompt version",
+          "blocks": "A/B testing, per-client model routing, cost attribution per prompt"
+        },
+        {
+          "step": "Formalize Client FSM",
+          "prerequisite": "Define exhaustive state list + transition rules + emit events on transition",
+          "effort": "Medium — new ClientLifecycle service, migrate is_active/plan_type to state field, add event emission",
+          "blocks": "Automated trial-to-paid conversion, churn prediction, lifecycle-based feature gating"
+        },
+        {
+          "step": "Add Prompt Version Store",
+          "prerequisite": "Move prompts from .py constants to DB table (prompt_id, version, text, created_at)",
+          "effort": "Medium — new PromptVersion model, migration, update all services to read from DB",
+          "blocks": "Prompt rollback, A/B testing, draft-to-prompt attribution"
+        },
+        {
+          "step": "Add Orchestration Layer",
+          "prerequisite": "Define PipelineRun entity that tracks state across score>generate>EPG>post stages",
+          "effort": "Large — new model + service + UI + failure handling + replay logic",
+          "blocks": "Pipeline observability, replay failed runs, cross-stage circuit breakers"
+        }
+      ]
+    }
+  },
+  "engineering_answers": {
+    "description": "Answers to all 10 blocks of engineering audit questions, extracted from actual code",
+    "1_ai_orchestration": {
+      "model_selection_truth": {
+        "answer": "Two DB settings in system_settings table, changeable via Admin UI without deploy",
+        "settings": {
+          "llm_scoring_model": "gemini/gemini-2.0-flash (for scoring, rules, emotional profiles, hobby gen, strategy, reports)",
+          "llm_generation_model": "anthropic/claude-sonnet-4-20250514 (for persona selection, comment gen, editor, post gen, avatar analysis)"
+        },
+        "access_pattern": "get_config(\"llm_scoring_model\") or get_config(\"llm_generation_model\") — called at runtime per LLM invocation",
+        "env_override": "LITELLM_SCORING_MODEL and LITELLM_GENERATION_MODEL env vars seed DB on startup via seed_from_env()"
+      },
+      "ai_dispatcher": {
+        "answer": "NO centralized AI dispatcher/router. Choice is per-service/per-call via get_config().",
+        "pattern": "Each service decides which setting to use (scoring vs generation). Some hardcode model (ONBOARDING_MODEL, REPORT_MODEL constants).",
+        "fallback_chain": "ai.py has MODEL_FALLBACK_CHAIN — if primary model fails, tries next in chain. Ultimate fallback = llm_generation_model setting.",
+        "litellm_layer": "LiteLLM abstracts provider differences (Anthropic, Google, OpenRouter). Single call_llm()/call_llm_json() interface."
+      },
+      "consistency_guarantee": {
+        "answer": "NO formal guarantee. Consistency is emergent from convention: scoring tasks use llm_scoring_model, generation tasks use llm_generation_model.",
+        "risk": "If admin changes DB setting mid-pipeline, different calls within same run may use different models.",
+        "mitigation_planned": false
+      },
+      "registry_as_service": {
+        "answer": "NOT planned. Current approach (2 DB settings + LiteLLM abstraction) is considered sufficient for scale.",
+        "when_needed": "Would be needed for A/B testing prompts or per-client model routing — not yet required."
+      }
+    },
+    "2_discovery_architecture": {
+      "onboarding_vs_ongoing": {
+        "answer": "Completely separate codepaths. NOT a logical split within one pipeline.",
+        "onboarding_discovery": {
+          "code": "services/onboarding/ai_prompts.py + website_scraper.py + landscape_report.py",
+          "trigger": "HTTP (user signup, 6-step wizard)",
+          "output": "Client fields populated (company_profile, worldview, keywords, subreddits)",
+          "runs_once": true
+        },
+        "ongoing_discovery": {
+          "code": "services/discovery/ (11 files: session_manager, entity_extractor, hypothesis_engine, reddit_researcher, report_generator, strategy_generator, strategy_handoff, continuous, confidence_scorer, artifact_store, demo_seed)",
+          "trigger": "Weekly Sunday 04:00 (Celery Beat) OR manual admin action",
+          "output": "DiscoverySession + DiscoveryEntity + DiscoveryHypothesis + client.strategy_context",
+          "runs_repeatedly": true
+        }
+      },
+      "strategy_versioning": {
+        "answer": "Versioned state with history — NOT overwrite.",
+        "mechanism": {
+          "client.strategy_version": "Integer, incremented on each generation",
+          "client.strategy_generated_at": "DateTime of last generation",
+          "client.strategy_history": "JSONB list — previous versions stored as array entries",
+          "client.strategy_source_session_id": "UUID linking to DiscoverySession that produced it"
+        },
+        "rollback": "Technically possible (history preserved in strategy_history JSONB) but NO UI or automated rollback exists. Manual DB edit required."
+      }
+    },
+    "3_client_model": {
+      "nature": {
+        "answer": "Simple DB record (SQLAlchemy mapped_column model) — NOT a rich domain object.",
+        "no_domain_services": "No ClientAggregate or ClientDomainService. Business logic spread across services (admin.py, portal.py, operations_dashboard.py)."
+      },
+      "client_avatar_boundary": {
+        "answer": "Loose coupling via avatar.client_ids JSONB array (not FK constraint).",
+        "db_level": "Avatar has client_ids: ARRAY(String) — can belong to multiple clients. No cascading FK.",
+        "service_level": "query_scope.py filters avatars WHERE client_ids @> ARRAY[str(client_id)]",
+        "ownership_ambiguity": "An avatar can serve multiple clients simultaneously. Isolation enforced at LLM context assembly (isolation.py), not at assignment level."
+      },
+      "state_machine": {
+        "answer": "NO formal state machine for client. Only status fields.",
+        "fields": [
+          "is_active (Boolean)",
+          "plan_type (trial|seed|starter|growth|scale)",
+          "current_onboarding_step (0-6)"
+        ],
+        "transitions_implicit": "trial > active (plan change), active > deactivated (is_active=False). No FSM library, no transition guards."
+      },
+      "sync_with_epg": {
+        "answer": "NO explicit sync mechanism. EPG queries client at build time.",
+        "pattern": "portfolio_manager.build_portfolio() reads client.return_weights, client.max_comments_per_month at execution time. No cache invalidation on client change."
+      }
+    },
+    "4_epg_scheduling": {
+      "implementation_location": {
+        "answer": "Split across service + Celery task.",
+        "service": "services/portfolio_manager.py — build_portfolio() (core allocation logic)",
+        "supporting_services": [
+          "services/opportunity_engine.py",
+          "services/risk_engine.py",
+          "services/return_engine.py",
+          "services/allocation_engine.py",
+          "services/timing_engine.py"
+        ],
+        "task": "tasks/epg.py — build_and_generate_epg_all_avatars (orchestration + LLM generation)",
+        "schedule": "08:15 and 14:15 daily"
+      },
+      "epg_state_nature": {
+        "answer": "PERSISTENT state in DB (EPGSlot records), NOT ephemeral computation.",
+        "table": "epg_slots",
+        "determinism": "NOT fully deterministic — depends on Reddit freshness, available threads, timing jitter. Same input may produce different slot assignments on re-run.",
+        "regeneration": "Admin can trigger EPG rebuild — creates NEW slots (old ones remain for audit)."
+      },
+      "race_condition_protection": {
+        "answer": "INSUFFICIENT. Known gap (GAP-003).",
+        "current": "No distributed lock on EPG build. Parallel Beat fires CAN create duplicate slots.",
+        "redis_lock": "EXISTS for individual posting (per-avatar lock in execute_pending_posts) but NOT for EPG build itself.",
+        "ttl_600s": "This number (600s) was hallucinated by DeepSeek/NotebookLM. Not in code."
+      },
+      "failure_between_states": {
+        "answer": "Partially handled.",
+        "generated_to_approved": "If crash between generation and approval — slot stays generated, no data loss. Human approves later.",
+        "approved_to_posted": "If posting fails — PostingEvent logged with outcome=error, slot stays approved, retry on next execute_pending_posts (every 5min). After 3 failures: avatar frozen.",
+        "orphan_detection": "expire_stale_planned_slots task handles slots stuck in planned > 24h."
+      }
+    },
+    "5_feedback_learning": {
+      "correction_pattern_storage": {
+        "answer": "PLAIN TEXT rule (natural language), not embeddings.",
+        "field": "correction_patterns.rule_text — e.g. \"Never start with I think when writing for this avatar. State opinions directly.\"",
+        "structured_metadata": "confidence (float 0-1), usage_count (int), last_used_at (DateTime)",
+        "no_embeddings": true,
+        "no_vector_search": true
+      },
+      "edit_to_injection_mechanism": {
+        "answer": "4-step pipeline",
+        "steps": [
+          "1. Human edits draft > routes/review.py calls LearningService.capture_edit_record()",
+          "2. EditRecord saved (original + edited + edit_summary)",
+          "3. When 5+ records accumulated: LearningService.recompute_correction_patterns() clusters edits > LLM generates rule_text (via Gemini Flash)",
+          "4. Next generate_comment() call: LearningService.select_few_shot_examples() + get_correction_patterns() > format_learning_context() > injected into COMMENT_WRITER_PROMPT system message"
+        ],
+        "injection_format": "Text block appended to system prompt before LLM call. Contains example pairs (before/after) + rule texts."
+      },
+      "prompt_versioning": {
+        "answer": "NO versioning. Prompts are hardcoded string constants in .py files.",
+        "current_state": "Change = code edit + deploy. No rollback without git revert. No A/B testing.",
+        "gap_id": "GAP-012"
+      },
+      "runtime_vs_persistent": {
+        "answer": "Both.",
+        "runtime_adaptation": "Few-shot examples selected per-call based on subreddit + engagement_mode similarity (ephemeral, not stored)",
+        "persistent_learning": "CorrectionPatterns persist in DB indefinitely (with retention limit: max 10 per avatar-client). EditRecords persist (max 50 per avatar)."
+      }
+    },
+    "6_avatar_phase_machine": {
+      "implementation": {
+        "answer": "services/phase.py — 3 classes",
+        "classes": {
+          "PhasePolicy": "Enforcement rules per phase (what is allowed/blocked)",
+          "PhaseEvaluator": "Daily evaluation logic (check promotion + demotion conditions)",
+          "PhaseTransitionManager": "Executes transitions (promote/demote/admin_override) with side effects"
+        }
+      },
+      "transition_initiator": {
+        "answer": "CRON job (Celery Beat) — evaluate_all_avatar_phases daily at 06:00.",
+        "NOT_event_driven": true,
+        "exception": "Shadowban detection (health_check at 07:30/13:30) triggers IMMEDIATE demotion outside the daily eval cycle."
+      },
+      "authority_score": {
+        "answer": "NOT IMPLEMENTED in production code. Referenced in spec (.kiro/specs/ai-native-expert-warming/) but Phase > Expert transition does not exist in current phase.py.",
+        "current_max_phase": 3,
+        "expert_status": "PLANNED (spec exists), NOT CODED"
+      },
+      "survivability_validation": {
+        "answer": "INDEPENDENT validation via compute_comment_survival_rate() in PhaseEvaluator.",
+        "formula": "(total_posted - deleted) / total_posted over 7-day window",
+        "source": "Queries CommentDraft WHERE status=posted AND posted_at within window, checks is_deleted flag",
+        "min_sample": "_DEMOTION_MIN_SAMPLE_SIZE = 5 (hard-coded constant)",
+        "threshold": "< 0.70 triggers demotion. NOT 80% — 80% is not in code anywhere."
+      }
+    },
+    "7_reliability": {
+      "stateless_vs_stateful": {
+        "stateless": [
+          "FastAPI app (HTTP handlers)",
+          "Celery workers (task execution — all state in DB/Redis)"
+        ],
+        "stateful": [
+          "PostgreSQL (all persistent state)",
+          "Redis (ephemeral: locks TTL, heartbeat TTL, rate limiter windows, task results)"
+        ],
+        "semi_stateful": "Celery Beat (scheduler state in Redis — schedule is code-defined but next-run timestamps stored in Redis)"
+      },
+      "celery_beat_failure": {
+        "answer": "YES — scheduling stops completely on Beat crash.",
+        "impact": "All cron-based tasks stop firing (pipeline, EPG, health check, karma tracking, etc.)",
+        "detection": "system_heartbeat task (every 60s) writes to Redis. If TTL expires (300s) — alert fires.",
+        "recovery": "Docker restart policy (restart: unless-stopped). Beat resumes on container restart.",
+        "missed_jobs": "NO replay mechanism. Missed jobs are simply skipped. Next scheduled run fires normally."
+      },
+      "redis_pg_consistency": {
+        "answer": "NO transactional guarantee between Redis and PostgreSQL.",
+        "pattern": "Redis lock acquired > DB operation > Redis lock released. If crash between DB commit and lock release: lock expires via TTL (no manual cleanup needed). If crash between lock acquire and DB write: no data written, lock expires.",
+        "risk": "Brief window where Redis state and DB state diverge. Mitigated by short TTLs (60-300s) and idempotent task design (where implemented)."
+      }
+    },
+    "8_data_versioning": {
+      "prompt_versions": {
+        "answer": "NONE. Hardcoded in .py files. Change = git commit + deploy.",
+        "gap": "GAP-012",
+        "rollback": "Only via git revert + redeploy"
+      },
+      "strategy_versions": {
+        "answer": "YES — client.strategy_version (integer) + client.strategy_history (JSONB array).",
+        "audit_trail": "strategy_generated_at + strategy_source_session_id link to DiscoverySession.",
+        "limitation": "No UI to browse/diff/rollback history. Data preserved but not operationally accessible."
+      },
+      "epg_versions": {
+        "answer": "NO explicit versioning. EPG slots are date-partitioned (plan_date field). Each rebuild creates new slots for current date.",
+        "old_slots": "Remain in DB with status (posted/skipped/expired) — de facto audit trail.",
+        "no_diff": "Cannot compare EPG v1 vs v2 for same day."
+      },
+      "event_sourcing": {
+        "answer": "NO event sourcing. System uses current-state pattern.",
+        "closest_equivalent": [
+          "ActivityEvent table (append-only log of system actions)",
+          "PostingEvent table (append-only audit of posting attempts)",
+          "DecisionRecord table (portfolio state snapshots per EPG build)",
+          "status_history JSONB on ExecutionTask"
+        ],
+        "limitation": "Cannot reconstruct past system state from events alone. Must read snapshots."
+      }
+    },
+    "9_safety_governance": {
+      "gate_architecture": {
+        "answer": "SINGLE synchronous function call — NOT middleware, NOT distributed.",
+        "function": "posting_safety.check_posting_safety(db, avatar, epg_slot, resolved_ip)",
+        "called_from": "posting.py service (inside post_comment Celery task)",
+        "pattern": "Sequential if-return checks. First failure stops evaluation. Returns SafetyResult(allowed=False, reason=...)."
+      },
+      "kill_switch_execution": {
+        "answer": "Multi-layer, checked at different points.",
+        "env_level": "POSTING_DISABLED — read from .env at app startup, cached in Settings object. Checked first in posting_safety.",
+        "db_level": "pipeline_enabled, generation_enabled, etc. — read from DB (with short cache TTL). Checked at task start AND inside posting_safety.",
+        "enforcement_point": "Worker layer (inside Celery task execution). NOT API layer (user can still approve drafts even if posting disabled)."
+      },
+      "instant_stop_guarantee": {
+        "answer": "NO guarantee of instant stop for in-flight tasks.",
+        "behavior": "Kill switch change in DB takes effect on NEXT task execution (within 5 min for posting, within 60s for pipeline). Already-running LLM calls complete.",
+        "celery_revoke": "Not used for kill switches. Would require task IDs which are not tracked centrally.",
+        "practical_impact": "Max latency = 5 minutes (execute_pending_posts interval) for posting. Scoring/generation = up to 30 min (until next pipeline cycle check)."
+      }
+    },
+    "10_scaling": {
+      "bottleneck": {
+        "answer": "LLM API cost is #1 constraint (93% of opex). NOT infrastructure.",
+        "ranking": [
+          "1. LLM cost (/mo at 10 clients)",
+          "2. Reddit API rate limits (60 req/min per token)",
+          "3. Single-server IOPS (not yet a problem)",
+          "4. PostgreSQL connections (10 pool, fine for current scale)"
+        ],
+        "redis_bottleneck": false,
+        "db_bottleneck": false,
+        "celery_bottleneck": "Only if tasks queue faster than workers process — not currently an issue"
+      },
+      "multi_tenant_isolation": {
+        "answer": "ORM-level only. NO infra separation.",
+        "mechanism": "query_scope.py adds WHERE client_id = X to all queries for client-scoped roles",
+        "no_separate": [
+          "No per-client DB schemas",
+          "No per-client Redis namespaces",
+          "No per-client containers",
+          "No per-client network isolation"
+        ],
+        "sufficient_until": "~100 clients (after that: consider row-level security policies in PostgreSQL)"
+      },
+      "beyond_single_droplet": {
+        "planned": "SQS + Valkey migration (spec exists at .kiro/specs/sqs-valkey-migration/)",
+        "triggers": [
+          "Enterprise client requirement",
+          "100+ avatars",
+          "Ops burden > 4h/week"
+        ],
+        "aws_credits": "K available",
+        "intermediate_step": "Vertical scaling (upgrade droplet to 4 vCPU / 8GB) before horizontal"
+      }
+    }
+  }
+}

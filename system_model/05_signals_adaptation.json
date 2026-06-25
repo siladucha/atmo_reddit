@@ -1,0 +1,124 @@
+{
+  "meta": {
+    "domain": "signals_and_adaptation",
+    "version": "1.0.0",
+    "description": "Signals model (engagement, health, moderation + 4 MISSING signals) and 8 system self-modification mechanisms (learning loop, feedback loop, phase eval, risk profile, emotional profile, health freeze, strategy injection, smart scoring budget)."
+  },
+  "signals": {
+    "engagement": [
+      "karma_value(4h/24h/48h/7d)",
+      "karma_delta",
+      "reply_count",
+      "is_deleted"
+    ],
+    "health": [
+      "shadowban_detected",
+      "suspension_detected",
+      "cqs_level_change"
+    ],
+    "moderation": [
+      "comment_removal",
+      "thread_locked",
+      "subreddit_ban"
+    ],
+    "missing_NOT_COLLECTED": [
+      "upvote_source_quality",
+      "reddit_algorithm_change(adversarial)",
+      "real-time_moderation_rule_change",
+      "AEO_citation_measurement"
+    ]
+  },
+  "system_update_rules": {
+    "description": "How the system modifies its own behavior based on observed outcomes",
+    "update_mechanisms": [
+      {
+        "id": "learning_loop",
+        "trigger": "human edits draft (edited_draft != ai_draft)",
+        "captures": "EditRecord (original + edited + diff summary)",
+        "processes": "LearningService.recompute_correction_patterns (clusters edits into rules)",
+        "applies": "Next generation call injects few-shot examples + correction patterns into COMMENT_WRITER_PROMPT",
+        "scope": "per-avatar, per-client",
+        "latency": "immediate (next generation call)",
+        "retention": "max 50 EditRecords per avatar, max 10 CorrectionPatterns per avatar-client"
+      },
+      {
+        "id": "feedback_loop",
+        "trigger": "daily 02:00 (run_feedback_loop_all)",
+        "captures": "KarmaSnapshot outcomes (karma_delta, is_deleted, reply_count)",
+        "processes": "outcome_analysis.py generates SubredditSignal + ApproachSignal + AvatarOutcomeProfile",
+        "applies": "EPG subreddit weight adjustments (boost performing subs, reduce underperforming)",
+        "scope": "per-avatar",
+        "latency": "next EPG build (08:15 or 14:15)",
+        "storage": "Redis hash ramp:epg_adjustments:{avatar_id}"
+      },
+      {
+        "id": "phase_evaluation",
+        "trigger": "daily 06:00 (evaluate_all_avatar_phases)",
+        "captures": "survival_rate (7d), avg_karma (14d), time_in_phase",
+        "processes": "PhaseEvaluator.evaluate > check_promotion + check_demotion",
+        "applies": "avatar.warming_phase change > changes which pipeline (professional/hobby) avatar uses",
+        "scope": "per-avatar",
+        "latency": "immediate (next pipeline run respects new phase)",
+        "side_effects": [
+          "ActivityEvent emitted",
+          "Notification sent if demotion"
+        ]
+      },
+      {
+        "id": "risk_profile_update",
+        "trigger": "weekly Sunday 05:00-05:30",
+        "captures": "subreddit sidebar rules + 30-day deletion stats + daily posting patterns",
+        "processes": "rule_extractor > moderation_profiler > risk_scorer (weighted formula)",
+        "applies": "SubredditRiskProfile.risk_score updated > fitness_gate uses in pre-generation check",
+        "scope": "per-subreddit",
+        "latency": "next generation attempt for that subreddit"
+      },
+      {
+        "id": "emotional_profile_update",
+        "trigger": "weekly Sunday 04:30",
+        "captures": "subreddit comment tone analysis",
+        "processes": "emotional_profile.py > AvatarSubredditCompatibility scoring",
+        "applies": "mismatch score < 40 triggers tone warning (advisory, not blocking)",
+        "scope": "per-avatar-subreddit pair"
+      },
+      {
+        "id": "health_auto_freeze",
+        "trigger": "health_check (07:30, 13:30) detects shadowban/suspension",
+        "captures": "Reddit API response codes + profile accessibility",
+        "processes": "health_checker.check_avatar_health > classify_health_status",
+        "applies": "avatar.is_frozen=True + avatar.health_status=shadowbanned/suspended + phase demotion to 1",
+        "scope": "per-avatar",
+        "latency": "immediate",
+        "side_effects": [
+          "All pending ExecutionTasks cancelled",
+          "No new EPG slots generated",
+          "ActivityEvent + Notification"
+        ]
+      },
+      {
+        "id": "strategy_injection",
+        "trigger": "discovery handoff or manual strategy generation",
+        "captures": "Discovery hypotheses + entities + research",
+        "processes": "strategy_generator.py > strategy_handoff.py",
+        "applies": "client.strategy_context updated > injected into COMMENT_WRITER_PROMPT as strategy_context section",
+        "scope": "per-client",
+        "latency": "next generation call for that client",
+        "max_frequency": "1 per week per client"
+      },
+      {
+        "id": "smart_scoring_budget",
+        "trigger": "every pipeline run (08:00, 14:00)",
+        "captures": "avatar daily limit - already posted/pending today",
+        "processes": "smart_scoring.get_avatar_daily_limit - get_avatar_used_today",
+        "applies": "remaining_budget * 3 = threads to score (HARD_CAP=15). Self-regulating: more posts today > fewer scored > fewer generated",
+        "scope": "per-avatar per-day"
+      }
+    ],
+    "invariant_protected": [
+      "Update rules NEVER bypass safety gates",
+      "Update rules NEVER auto-approve content (except explicit auto_approve_drafts flag)",
+      "Update rules NEVER escalate phase without earned metrics",
+      "Update rules NEVER increase daily cap beyond min(phase_limit, system_cap)"
+    ]
+  }
+}

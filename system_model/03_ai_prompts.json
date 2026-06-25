@@ -1,0 +1,589 @@
+{
+  "meta": {
+    "domain": "ai_and_prompts",
+    "version": "1.0.0",
+    "description": "Complete AI usage map: all 30 points where AI models are called, full prompt texts for the 6 core prompts, model routing logic, costs. This file is the authoritative reference for how AI is used in RAMP."
+  },
+  "ai_usage_map": {
+    "description": "Complete map of WHERE, WHICH model, WHEN, and WHY AI is used in the system",
+    "models_in_use": {
+      "claude_sonnet": {
+        "provider": "Anthropic (via LiteLLM)",
+        "model_id": "anthropic/claude-sonnet-4-20250514",
+        "cost_per_call": "~/bin/zsh.04 (12K input + 200 output tokens)",
+        "role": "High-quality generation (voice-calibrated text, behavioral analysis)"
+      },
+      "gemini_flash": {
+        "provider": "Google (via LiteLLM)",
+        "model_id": "gemini/gemini-2.5-flash",
+        "cost_per_call": "~/bin/zsh.0003 (4K tokens)",
+        "role": "Cheap classification, scoring, extraction, hobby generation"
+      }
+    },
+    "ai_calls": [
+      {
+        "id": "scoring",
+        "what": "Thread relevance/quality/strategic evaluation",
+        "model": "gemini_flash",
+        "when": "08:00 and 14:00 daily (score_threads task)",
+        "frequency": "10-30 calls per avatar per run (budget-capped)",
+        "input": "Thread title + body + comments + client context (brand, worldview, keywords)",
+        "output": "{tag: engage|monitor|skip, composite: 0-9, intent, reason}",
+        "prompt": "SCORING_PROMPT",
+        "cost_daily_10_clients": "/bin/zsh.06"
+      },
+      {
+        "id": "persona_selection",
+        "what": "Select best avatar for a thread based on fit",
+        "model": "claude_sonnet",
+        "when": "During generate_comments task (after scoring)",
+        "frequency": "~15 calls per client per run",
+        "input": "Available personas JSON + thread + client context",
+        "output": "{persona_username, mode, thread_angle, pov_opportunity}",
+        "prompt": "PERSONA_SELECT_PROMPT",
+        "cost_daily_10_clients": ".00"
+      },
+      {
+        "id": "comment_generation",
+        "what": "Generate persona-calibrated Reddit comment (20-60 words)",
+        "model": "claude_sonnet",
+        "when": "During generate_comments task (after persona selection)",
+        "frequency": "~15 calls per client per run",
+        "input": "Thread + voice_profile + strategy + learning_context + approach_constraint",
+        "output": "{comment, comment_to, location_depth, comment_approach, strategic_angle}",
+        "prompt": "COMMENT_WRITER_PROMPT",
+        "injections": [
+          "strategy_context (from client.strategy_context)",
+          "learning_context (EditRecords + CorrectionPatterns)",
+          "approach_constraint (diversity enforcement)"
+        ],
+        "cost_daily_10_clients": ".40"
+      },
+      {
+        "id": "hobby_generation",
+        "what": "Generate lightweight hobby/warming comments",
+        "model": "gemini_flash",
+        "when": "During generate_hobby_comments task (after hobby scraping)",
+        "frequency": "1-3 per avatar per day",
+        "input": "Hobby post + voice_profile (simplified prompt)",
+        "output": "Comment text only",
+        "prompt": "simplified variant of COMMENT_WRITER_PROMPT",
+        "cost_daily_10_clients": "/bin/zsh.05"
+      },
+      {
+        "id": "onboarding_icp",
+        "what": "Extract ICP (Ideal Customer Profile) from client website",
+        "model": "gemini_flash",
+        "when": "Step 2 of 6-step onboarding wizard (on user action)",
+        "frequency": "1 call per new client",
+        "input": "Scraped website HTML (via httpx + BeautifulSoup)",
+        "output": "Structured ICP profile",
+        "prompt": "ICP_EXTRACTION_PROMPT"
+      },
+      {
+        "id": "onboarding_keywords",
+        "what": "Generate scoring keywords from ICP",
+        "model": "gemini_flash",
+        "when": "Step 3 of onboarding (after ICP)",
+        "frequency": "1 call per new client",
+        "input": "ICP profile + brand info",
+        "output": "{high: [], medium: [], low: []}",
+        "prompt": "KEYWORD_GENERATION_PROMPT"
+      },
+      {
+        "id": "onboarding_subreddits",
+        "what": "Suggest relevant subreddits for client",
+        "model": "gemini_flash",
+        "when": "Step 3 of onboarding (after keywords)",
+        "frequency": "1 call per new client",
+        "input": "ICP + keywords + brand domain",
+        "output": "List of subreddit recommendations",
+        "prompt": "SUBREDDIT_SUGGESTION_PROMPT"
+      },
+      {
+        "id": "avatar_analysis",
+        "what": "Behavioral profiling from Reddit comment history",
+        "model": "claude_sonnet",
+        "when": "Avatar onboarding (on admin action)",
+        "frequency": "1 call per new avatar",
+        "input": "Last 100 Reddit comments + profile metadata (via PRAW)",
+        "output": "voice_profile, tone_principles, strategy, persona_bio, display_name",
+        "prompt": "avatar_analysis_prompt",
+        "retry": true,
+        "fallback_model": "gemini_flash"
+      },
+      {
+        "id": "entity_extraction",
+        "what": "Extract business entities from client brief for research",
+        "model": "gemini_flash",
+        "when": "Discovery session step 2 (manual or weekly Sunday 04:00)",
+        "frequency": "1 call per discovery session",
+        "input": "Client brief (company_profile + worldview + problem + keywords)",
+        "output": "List of DiscoveryEntity records",
+        "prompt": "entity_extraction_prompt"
+      },
+      {
+        "id": "hypothesis_generation",
+        "what": "Generate research hypotheses from entities",
+        "model": "gemini_flash",
+        "when": "Discovery session step 3",
+        "frequency": "1 call per session",
+        "input": "Entities + client context",
+        "output": "List of hypotheses (max 7 confirmed per session)",
+        "prompt": "hypothesis_generation_prompt"
+      },
+      {
+        "id": "report_generation",
+        "what": "Generate discovery research report",
+        "model": "gemini_flash",
+        "when": "Discovery session final step",
+        "frequency": "1 call per session (weekly or manual)",
+        "input": "Top-7 confirmed hypotheses (aggregated by category)",
+        "output": "Narrative research report",
+        "prompt": "report_generation_prompt",
+        "safety_cap": "top-7 by confidence_score"
+      },
+      {
+        "id": "strategy_generation",
+        "what": "Generate client strategy (positioning, pillars, forbidden zones)",
+        "model": "gemini_flash",
+        "when": "Discovery handoff or manual trigger (max 1/week)",
+        "frequency": "1 call per client per strategy refresh",
+        "input": "Discovery hypotheses + entities + client context",
+        "output": "ClientStrategyOutput (Positioning, SubredditPriority[], ContentPillar[], ForbiddenZone[], AeoTarget[], PhaseRoadmap)",
+        "prompt": "strategy_generation_prompt",
+        "timeout_seconds": 30,
+        "retry_once": true
+      },
+      {
+        "id": "rule_extraction",
+        "what": "Parse subreddit rules from sidebar/wiki text",
+        "model": "gemini_flash",
+        "when": "Weekly Sunday 05:00 (extract_subreddit_rules_batch)",
+        "frequency": "1 call per subreddit per week",
+        "input": "Sidebar text + wiki text (fetched via PRAW)",
+        "output": "Structured rules JSON",
+        "prompt": "rule_extraction_prompt",
+        "circuit_breaker": true,
+        "retry": true
+      },
+      {
+        "id": "correction_pattern_extraction",
+        "what": "Cluster human edits into reusable correction rules",
+        "model": "gemini_flash",
+        "when": "On-demand when 5+ EditRecords accumulated (inside LearningService.recompute_correction_patterns)",
+        "frequency": "Triggered by human edits (not scheduled)",
+        "input": "Cluster of similar EditRecords",
+        "output": "Natural language rule text (CorrectionPattern.rule_text)",
+        "prompt": "inline prompt in learning.py _generate_rule_text()"
+      },
+      {
+        "id": "comment_editor",
+        "what": "Fix AI-generated comment to sound human-typed",
+        "model": "claude_sonnet (llm_generation_model setting)",
+        "when": "After comment_generation, before saving draft",
+        "frequency": "~15/client per pipeline run (same as generation)",
+        "input": "AI draft + post_title + post_body",
+        "output": "Plain text (edited comment, no JSON)",
+        "prompt_id": "EDITOR_PROMPT",
+        "file": "services/generation.py:721",
+        "cost_daily_10_clients": ".70"
+      },
+      {
+        "id": "batch_scoring",
+        "what": "Score up to 10 threads in single LLM call (5x faster, same accuracy)",
+        "model": "gemini_flash",
+        "when": "When 2+ threads need scoring (preferred over single scoring)",
+        "frequency": "Replaces individual scoring calls when batch available",
+        "input": "Up to 10 threads + client context in single prompt",
+        "output": "Array of scoring results [{thread_id, tag, composite, ...}]",
+        "prompt_id": "BATCH_SCORING_PROMPT",
+        "file": "services/scoring.py:250"
+      },
+      {
+        "id": "emotional_profile_analysis",
+        "what": "Analyze subreddit tone from top-performing comments",
+        "model": "gemini_flash",
+        "when": "Weekly Sunday 04:30 (refresh_subreddit_emotional_profiles)",
+        "frequency": "1 call per active subreddit per week",
+        "input": "Top comments sorted by upvotes (min score 2)",
+        "output": "{rewarded_tones, punished_tones, community_temperament, formality_level, humor_tolerance, vulnerability_tolerance}",
+        "prompt_id": "PROFILE_SYSTEM_PROMPT + PROFILE_USER_PROMPT",
+        "file": "services/emotional_profile.py:36"
+      },
+      {
+        "id": "compatibility_scoring",
+        "what": "Score avatar-subreddit voice fit (0-100)",
+        "model": "gemini_flash",
+        "when": "After emotional profile refresh (same weekly batch)",
+        "frequency": "1 call per avatar-subreddit pair",
+        "input": "Avatar voice_profile + tone_principles + subreddit emotional profile",
+        "output": "{score: 0-100, mismatch_reasons: []}",
+        "prompt_id": "COMPATIBILITY_SYSTEM_PROMPT + COMPATIBILITY_USER_PROMPT",
+        "file": "services/emotional_profile.py:70",
+        "threshold": "score < 40 = tone mismatch warning"
+      },
+      {
+        "id": "geo_aeo_query",
+        "what": "Run brand visibility prompts against AI search engines",
+        "model": "gemini_flash (queries external AI platforms)",
+        "when": "On admin trigger or scheduled batch",
+        "frequency": "Per-prompt per-execution batch",
+        "input": "GeoPrompt text (brand visibility query)",
+        "output": "AI platform response + brand detection + citation parsing",
+        "prompt_id": "GEO_SYSTEM_PROMPT",
+        "file": "services/geo_query_runner.py:38"
+      },
+      {
+        "id": "profile_synthesis",
+        "what": "Extract structured company profile from scraped website",
+        "model": "gemini_flash",
+        "when": "Onboarding step 1 (after website scrape)",
+        "frequency": "1 call per new client",
+        "input": "Scraped HTML (title, meta, pages up to 3000 chars each)",
+        "output": "{company_name, product_description, value_proposition, key_differentiators, industry, customer_pain, unique_advantage, competitors_inferred}",
+        "prompt_id": "PROFILE_SYNTHESIS_PROMPT",
+        "file": "services/onboarding/ai_prompts.py:16"
+      },
+      {
+        "id": "positioning_extraction",
+        "what": "Extract worldview/problem/competitors from client answers",
+        "model": "gemini_flash",
+        "when": "Onboarding step 2 (after client fills form)",
+        "frequency": "1 call per new client",
+        "input": "Client answers about product, competitors, differentiation",
+        "output": "{company_worldview, company_problem, competitive_landscape, competitor_names}",
+        "prompt_id": "POSITIONING_PROMPT",
+        "file": "services/onboarding/ai_prompts.py:90"
+      },
+      {
+        "id": "icp_synthesis",
+        "what": "Synthesize ICP from extracted data",
+        "model": "gemini_flash",
+        "when": "Onboarding step 3",
+        "frequency": "1 call per new client",
+        "input": "Profile + positioning data",
+        "output": "Concise ICP description",
+        "prompt_id": "ICP_SYNTHESIS_PROMPT",
+        "file": "services/onboarding/ai_prompts.py:153"
+      },
+      {
+        "id": "autofill_step2",
+        "what": "Infer positioning from profile when client skips manual input",
+        "model": "gemini_flash",
+        "when": "Onboarding step 2 (autofill mode)",
+        "frequency": "1 call per client using autofill",
+        "input": "Company profile + industry",
+        "output": "{company_worldview, company_problem, competitive_landscape}",
+        "prompt_id": "AUTOFILL_STEP2_PROMPT",
+        "file": "services/onboarding/ai_prompts.py:351"
+      },
+      {
+        "id": "autofill_step3",
+        "what": "Infer ICP when client skips manual input",
+        "model": "gemini_flash",
+        "when": "Onboarding step 3 (autofill mode)",
+        "frequency": "1 call per client using autofill",
+        "input": "Profile + pain + competitors",
+        "output": "ICP profile",
+        "prompt_id": "AUTOFILL_STEP3_PROMPT",
+        "file": "services/onboarding/ai_prompts.py:392"
+      },
+      {
+        "id": "autofill_step4",
+        "what": "Suggest brand voice guardrails",
+        "model": "gemini_flash",
+        "when": "Onboarding step 4 (autofill mode)",
+        "frequency": "1 call per client using autofill",
+        "input": "Profile + industry + competitors",
+        "output": "Brand guardrails JSON",
+        "prompt_id": "AUTOFILL_STEP4_PROMPT",
+        "file": "services/onboarding/ai_prompts.py:446"
+      },
+      {
+        "id": "post_brief_generation",
+        "what": "Convert topic into strategic post brief (strategist decides angle)",
+        "model": "claude_sonnet",
+        "when": "Post generation flow (generate_posts task)",
+        "frequency": "~5 per client per day (when post generation active)",
+        "input": "Brand context + persona + subreddit + topic",
+        "output": "{input_treatment, post_type, strategic_tier, body_architecture, title_direction, hook, angle, worldview_note}",
+        "prompt_id": "BRIEF_GENERATOR_PROMPT",
+        "file": "services/post_generation.py:24"
+      },
+      {
+        "id": "post_writing",
+        "what": "Execute brief into full Reddit post (title + body)",
+        "model": "claude_sonnet",
+        "when": "After brief generation",
+        "frequency": "Same as brief generation",
+        "input": "Voice profile + company context + strategic brief + previous posts",
+        "output": "{title, body, subreddit, post_type, strategic_tier, worldview_seed, body_architecture}",
+        "prompt_id": "POST_WRITER_PROMPT",
+        "file": "services/post_generation.py:92",
+        "rules": "100-600 words body, NEVER mention brand, no em-dashes, no buzzwords"
+      },
+      {
+        "id": "post_topic_generation",
+        "what": "Generate compelling topic direction for Reddit post",
+        "model": "gemini_flash",
+        "when": "Before brief generation (topic ideation step)",
+        "frequency": "~5 per client",
+        "input": "Brand worldview + subreddit context",
+        "output": "Topic direction text",
+        "prompt_id": "TOPIC_GENERATOR_PROMPT",
+        "file": "services/post_generation.py:164"
+      },
+      {
+        "id": "avatar_strategy_generation",
+        "what": "Generate per-avatar engagement strategy (goals, cadence, subreddit priorities)",
+        "model": "gemini_flash",
+        "when": "On admin trigger or scheduled (strategy refresh)",
+        "frequency": "1 per avatar per strategy cycle",
+        "input": "Avatar profile + subreddit affinity + client context + 30d performance + phase rules",
+        "output": "{goals, subreddit_priorities, tone_calibration, hook, weekly_cadence, forecast, questions_for_client, summary}",
+        "prompt_id": "STRATEGY_PROMPT",
+        "file": "services/strategy_engine.py:27"
+      },
+      {
+        "id": "trial_summary",
+        "what": "Generate trial conversion intelligence summary",
+        "model": "gemini_flash",
+        "when": "On-demand (trial intelligence dashboard)",
+        "frequency": "Low (admin action)",
+        "input": "Trial signals + score + lifecycle data",
+        "output": "Narrative summary for operator",
+        "prompt_id": "SYSTEM_PROMPT (trial_summary.py)",
+        "file": "services/trial_summary.py:30"
+      }
+    ],
+    "ai_NOT_used_for": [
+      "Posting (PRAW direct API call, no AI involved)",
+      "Karma tracking (Reddit API polling, no AI)",
+      "Health check / shadowban detection (HTTP status check, no AI)",
+      "Phase evaluation (rule-based thresholds, no ML)",
+      "Feedback loop weight adjustment (statistical, not LLM)",
+      "Rate limiting / safety gates (code logic, no AI)",
+      "Draft reconciliation (text matching algorithm, no AI)",
+      "Email dispatch (template + SMTP, no AI)",
+      "RBAC / access control (code-level guards, no AI)"
+    ],
+    "total_daily_ai_calls_10_clients": {
+      "scoring (batch)": "20-40 calls (Gemini Flash)",
+      "persona_selection": "150 calls (Claude Sonnet)",
+      "comment_generation": "150 calls (Claude Sonnet)",
+      "comment_editor": "150 calls (Claude Sonnet)",
+      "hobby_generation": "50 calls (Gemini Flash)",
+      "post_generation (brief+write)": "~10 calls (Claude Sonnet) — when active",
+      "weekly (emotional, rules, discovery, strategy)": "~50 calls (Gemini Flash)",
+      "onboarding (per new client)": "4-8 calls (Gemini Flash)",
+      "total_daily": "~570 AI calls/day (steady state)",
+      "total_cost_daily": "~.50/day = ~/month"
+    }
+  },
+  "prompt_registry": {
+    "SCORING_PROMPT": {
+      "id": "SCORING_PROMPT",
+      "file": "services/scoring.py",
+      "model": "gemini/gemini-2.5-flash",
+      "purpose": "Thread relevance/quality/strategic evaluation",
+      "input_variables": [
+        "brand_name",
+        "company_profile",
+        "company_worldview",
+        "company_problem",
+        "competitive_landscape",
+        "keywords"
+      ],
+      "output_schema": "{alert:bool, tag:engage|monitor|skip, relevance:0-3, quality:0-3, strategic:0-3, composite:0-9, intent:str, reason:str}",
+      "decision_logic": {
+        "7-9": "engage+alert",
+        "5-6": "engage",
+        "3-4": "monitor",
+        "0-2": "skip"
+      },
+      "override": "company/competitor mentioned AND relevance>=2 > alert=true, tag=engage",
+      "text_excerpt": "You are a content analyst expert... Evaluate discussion threads to determine which ones deserve human attention... Composite = relevance + quality + strategic (0-9)"
+    },
+    "PERSONA_SELECT_PROMPT": {
+      "id": "PERSONA_SELECT_PROMPT",
+      "file": "services/generation.py",
+      "model": "anthropic/claude-sonnet",
+      "purpose": "Select best avatar for thread engagement",
+      "input_variables": [
+        "personas_json",
+        "brand_name",
+        "company_worldview",
+        "company_problem"
+      ],
+      "output_schema": "{persona_username, mode:bullseye|helpful_peer|karma_only, audience, thread_angle, pov_opportunity, selection_reasoning}"
+    },
+    "COMMENT_WRITER_PROMPT": {
+      "id": "COMMENT_WRITER_PROMPT",
+      "file": "services/generation.py",
+      "model": "anthropic/claude-sonnet",
+      "purpose": "Generate persona-calibrated Reddit comment",
+      "input_variables": [
+        "voice_profile",
+        "company_worldview",
+        "company_problem",
+        "mode",
+        "thread_angle",
+        "pov_opportunity",
+        "previous_comments"
+      ],
+      "runtime_injections": [
+        "strategy_context (from StrategyEngine if approved strategy exists)",
+        "learning_context (few-shot examples + correction patterns from LearningService)",
+        "approach_constraint (from approach_diversity.select_approach_for_avatar)"
+      ],
+      "output_schema": "{comment, comment_to, location_depth:int, location_reasoning, comment_approach:reframe_drop|cynical_deconstruction|the_scar|contrarian|drive_by, strategic_angle:reframe|tear_down|karma_play, perspective_push:hard|medium|low|undetected}",
+      "hard_rules": [
+        "20-60 words (max 80)",
+        "NEVER mention brand",
+        "No em-dashes",
+        "No buzzwords (landscape,ecosystem,leverage...)",
+        "No banned starters (The,This,That,There,They,gerunds)",
+        "Diversity enforcement vs previous_comments"
+      ],
+      "full_text_available": true,
+      "text_length_chars": 4200
+    },
+    "ONBOARDING_ICP_EXTRACTION": {
+      "id": "ICP_EXTRACTION_PROMPT",
+      "file": "services/onboarding/ai_prompts.py",
+      "model": "gemini/gemini-2.5-flash",
+      "purpose": "Extract ICP from scraped website content",
+      "input_variables": [
+        "website_content",
+        "url"
+      ]
+    },
+    "ONBOARDING_KEYWORD_GEN": {
+      "id": "KEYWORD_GENERATION_PROMPT",
+      "file": "services/onboarding/ai_prompts.py",
+      "model": "gemini/gemini-2.5-flash",
+      "purpose": "Generate scoring keywords from ICP",
+      "output": "{high:[], medium:[], low:[]}"
+    },
+    "ONBOARDING_SUBREDDIT_SUGGEST": {
+      "id": "SUBREDDIT_SUGGESTION_PROMPT",
+      "file": "services/onboarding/ai_prompts.py",
+      "model": "gemini/gemini-2.5-flash",
+      "purpose": "Suggest relevant subreddits for client"
+    },
+    "AVATAR_ANALYSIS": {
+      "id": "avatar_analysis_prompt",
+      "file": "services/avatar_analysis.py",
+      "model": "anthropic/claude-sonnet",
+      "purpose": "Behavioral profiling from Reddit history (voice, strategy, persona)",
+      "retry": true,
+      "fallback": true
+    },
+    "STRATEGY_GENERATOR": {
+      "id": "strategy_generation_prompt",
+      "file": "services/discovery/strategy_generator.py",
+      "model": "gemini/gemini-2.5-flash",
+      "purpose": "Generate client strategy from discovery findings",
+      "output_schema": "ClientStrategyOutput (Positioning, SubredditPriority[], ContentPillar[], ForbiddenZone[], AeoTarget[], PhaseRoadmap)",
+      "timeout": 30,
+      "retry_once": true
+    },
+    "REPORT_GENERATOR": {
+      "id": "report_generation_prompt",
+      "file": "services/discovery/report_generator.py",
+      "model": "gemini/gemini-2.5-flash",
+      "purpose": "Generate research report from hypotheses",
+      "safety_cap": "top-7 hypotheses by confidence_score"
+    },
+    "ENTITY_EXTRACTOR": {
+      "id": "entity_extraction_prompt",
+      "file": "services/discovery/entity_extractor.py",
+      "model": "gemini/gemini-2.5-flash",
+      "purpose": "Extract entities from client brief for research"
+    },
+    "HYPOTHESIS_ENGINE": {
+      "id": "hypothesis_generation_prompt",
+      "file": "services/discovery/hypothesis_engine.py",
+      "model": "gemini/gemini-2.5-flash",
+      "purpose": "Generate and validate research hypotheses",
+      "max_confirmed": 7
+    },
+    "RULE_EXTRACTOR": {
+      "id": "rule_extraction_prompt",
+      "file": "services/rule_extractor.py",
+      "model": "gemini/gemini-2.5-flash",
+      "purpose": "Extract subreddit rules from sidebar/wiki text",
+      "retry": true,
+      "circuit_breaker": true
+    }
+  },
+  "prompt_full_texts": {
+    "SCORING_PROMPT": {
+      "file": "services/scoring.py:30",
+      "model": "gemini/gemini-2.5-flash (via llm_scoring_model setting)",
+      "variables": [
+        "brand_name",
+        "company_profile",
+        "company_worldview",
+        "company_problem",
+        "competitive_landscape",
+        "keywords"
+      ],
+      "text": "You are a content analyst expert and online discussions thread Classifier.\n\nEvaluate discussion threads to determine which ones deserve human attention and potential engagement.\n\n**Important context**: We engage as regular individuals sharing opinions and expertise — NOT as official company representatives.\n\n---\n\n## Context\n\n<company_overview>\nBrand: {brand_name}\nOverview: {company_profile}\nWorldview: {company_worldview}\nProblem we solve: {company_problem}\nCompetitors: {competitive_landscape}\nKeywords: {keywords}\n</company_overview>\n\n---\n\n## Evaluation Framework\n\n### 1. Topic Relevance (Score 0-3)\n| Score | Criteria |\n|-------|----------|\n| 0 | Off-topic — different industry entirely |\n| 1 | Adjacent — in our general space but not our specific domain |\n| 2 | In-domain — discusses topics within our world of content |\n| 3 | Direct hit — discusses our exact domain, core terms, or a direct competitor |\n\n### 2. Discussion Quality (Score 0-3)\n| Score | Criteria |\n|-------|----------|\n| 0 | Noise — spam, trolling, dead thread |\n| 1 | Low quality — shallow, mostly memes/jokes |\n| 2 | Decent discussion — real conversation happening |\n| 3 | High quality — substantive discussion, genuine debate |\n\n### 3. Discussion Intent\n| Intent | Description |\n|--------|-------------|\n| help_seeking | Asking for solutions or guidance |\n| comparison | Evaluating options, X vs Y |\n| opinion_forming | Discussing trends, best practices |\n| venting | Complaining, not seeking solutions |\n| announcement | Sharing news |\n| other | Does not fit above |\n\n### 4. Strategic Value (Score 0-3)\n| Score | Criteria |\n|-------|----------|\n| 0 | No strategic value |\n| 1 | Low value — tangentially related |\n| 2 | Market education opportunity — can educate about the right approach |\n| 3 | High strategic value — directly involves our differentiators or competitor weakness |\n\n---\n\n## Decision Logic\n\nComposite = relevance + quality + strategic (0-9)\n\n| Composite | Tag |\n|-----------|-----|\n| 7-9 | engage (+ alert: true) |\n| 5-6 | engage |\n| 3-4 | monitor |\n| 0-2 | skip |\n\nOverride: If company or competitor mentioned AND relevance >= 2 -> alert: true, tag: engage\n\n---\n\n## Output\n\nReturn JSON only:\n{\n  \"alert\": true/false,\n  \"tag\": \"engage\" | \"monitor\" | \"skip\",\n  \"relevance\": 0-3,\n  \"quality\": 0-3,\n  \"strategic\": 0-3,\n  \"composite\": 0-9,\n  \"intent\": \"help_seeking\" | \"comparison\" | \"opinion_forming\" | \"venting\" | \"announcement\" | \"other\",\n  \"reason\": \"<15 word explanation>\"\n}"
+    },
+    "PERSONA_SELECT_PROMPT": {
+      "file": "services/generation.py:25",
+      "model": "anthropic/claude-sonnet (via llm_generation_model setting)",
+      "variables": [
+        "personas_json",
+        "brand_name",
+        "company_worldview",
+        "company_problem"
+      ],
+      "text": "# Reddit Persona Selection Agent\n\nSelect the best persona to engage with a given Reddit thread based on subreddit fit, audience match, topic alignment, and strategic value.\n\n## Available Personas\n\n{personas_json}\n\n## Company Context\n\nBrand: {brand_name}\nWorldview: {company_worldview}\nProblem: {company_problem}\n\n## Output JSON\n\n{\n  \"persona_username\": \"selected username\",\n  \"mode\": \"bullseye | helpful_peer | karma_only\",\n  \"audience\": \"who is in this thread\",\n  \"thread_angle\": \"what the comment should address\",\n  \"pov_opportunity\": \"where company worldview fits, or null if karma-only\",\n  \"selection_reasoning\": \"brief explanation\"\n}"
+    },
+    "COMMENT_WRITER_PROMPT": {
+      "file": "services/generation.py:191",
+      "model": "anthropic/claude-sonnet (via llm_generation_model setting)",
+      "variables": [
+        "voice_profile",
+        "company_worldview",
+        "company_problem",
+        "mode",
+        "thread_angle",
+        "pov_opportunity",
+        "previous_comments"
+      ],
+      "runtime_injections": [
+        "strategy_context (appended if client has approved strategy)",
+        "learning_context (few-shot examples + correction patterns)",
+        "approach_constraint (diversity enforcement)"
+      ],
+      "text": "# Reddit Comment Writer\n\nYou are writing a Reddit comment as the avatar described below.\nYou are a cynical, experienced practitioner. You type fast, don't explain yourself, and never write essays.\n\n## Rules (in order of priority)\n1. Be SHORT. 20-60 words. Hard max 80 words. If over 80 — REWRITE with a shorter idea, don't trim.\n2. Be SHARP. Clear point of view, no fence-sitting.\n3. Be STRATEGIC. Plant one seed that changes how the reader thinks.\n\n## FORBIDDEN PATTERNS (zero tolerance)\n\n### Never use:\n- Em-dashes. Use commas, parentheses, or split the sentence.\n- Buzzwords: landscape, ecosystem, leverage, unlock, delve, shift, holistic, comprehensive, robust, game-changer, cutting-edge, revolutionary, best practice\n- Academic transitions: However, Moreover, Furthermore, Additionally, Consequently\n- Distancing phrases: This highlights, The data suggests, It is worth noting\n- Empty questions: The result? What happened next? Sound familiar?\n- Generic openings: Here is the thing, Picture this, Imagine this, Look,\n- Binary oppositions: It is not X, it is Y / Stop X. Start Y.\n- Passive voice (every verb needs a clear actor)\n- LinkedIn spacing (every sentence on its own line)\n- Staccato dry-cut sentences without connectors\n\n### Banned sentence starters:\n- NEVER start with The, This, That, There, They (rephrase)\n- NEVER start with gerunds: Trying, Looking, Getting, Running, Building\n- NEVER start with I would argue / I would push / I would say — state directly\n- Do NOT start more than 30% of comments with I [verb]...\n\n### Banned endings:\n- No guru/yoda endings that sound like motivational posters\n- No food for thought / just my two cents / take it for what it is worth\n- No generic questions you do not actually want answered\n\n## DIVERSITY ENFORCEMENT (check before writing)\n\nScan the previous_comments below. Your new comment MUST differ from all of them:\n\n1. Opener scan: If >30% start with same structure (e.g. I [verb]...), use a DIFFERENT opener type\n2. Approach scan: If one approach dominates (>40%), use a DIFFERENT approach\n3. Vocabulary scan: Any phrase appearing 3+ times = BANNED for this comment\n4. Structure scan: If last 3 comments follow same arc, use a DIFFERENT structure\n\nOpener types to rotate between:\n- Flat agreement + pivot: yeah, except... / sure, until...\n- Lead with the claim (no I setup)\n- Dry reaction: lol good luck with that at scale\n- Direct response to a detail: the part about X is backwards...\n- Conditional pushback: works if... / depends entirely on...\n- Personal experience (use sparingly, not every time)\n\n## Voice Profile\n{voice_profile}\n\n## Company Context (for worldview only, NEVER mention brand)\nWorldview: {company_worldview}\nProblem: {company_problem}\n\n## Engagement Strategy\nMode: {mode}\nThread angle: {thread_angle}\nPOV opportunity: {pov_opportunity}\n\n## Previous comments (avoid repetition — run diversity checks above)\n{previous_comments}\n\n## Output JSON\n{\n  \"comment\": \"the exact comment text\",\n  \"comment_to\": \"quote of who we reply to, or post if replying to the post\",\n  \"location_depth\": 0,\n  \"location_reasoning\": \"why this spot\",\n  \"comment_approach\": \"reframe_drop | cynical_deconstruction | the_scar | contrarian | drive_by\",\n  \"strategic_angle\": \"reframe | tear_down | karma_play\",\n  \"perspective_push\": \"hard | medium | low | undetected\"\n}"
+    },
+    "EDITOR_PROMPT": {
+      "file": "services/generation.py:721",
+      "model": "anthropic/claude-sonnet (via llm_generation_model setting)",
+      "variables": [
+        "draft",
+        "post_title",
+        "post_body"
+      ],
+      "text": "# Comment Editor\n\nFix this AI-generated Reddit comment to sound like an actual human typed it.\nOutput ONLY the corrected comment text. No JSON, no explanation.\n\n## Rules\n- Must sound like someone typing on their phone between meetings\n- No em-dashes ever. Use parentheses or commas instead.\n- No blank lines between paragraphs\n- Lowercase by default (only capitalize proper names, acronyms, first word)\n- All contractions: you are -> you are, it is -> it is\n- Delete just (filler word)\n- No buzzwords: landscape, ecosystem, leverage, game-changer\n- No I would push / I would argue — state directly\n- No guru/yoda endings that sound like motivational posters\n- Must connect to specific details from the post\n\n## Draft comment:\n{draft}\n\n## Original post title:\n{post_title}\n\n## Original post:\n{post_body}\n\nOutput ONLY the fixed comment text, nothing else."
+    },
+    "POSITIONING_PROMPT": {
+      "file": "services/onboarding/ai_prompts.py:90",
+      "model": "gemini/gemini-2.5-flash (ONBOARDING_MODEL constant)",
+      "variables": [
+        "(user answers injected in user message)"
+      ],
+      "text": "You are a positioning strategist. Extract structured positioning data from the client answers about their product and market.\n\nINPUT: Three answers from the client about their product, competitors, and differentiation.\n\nOUTPUT (strict JSON):\n{\n  \"company_worldview\": \"2-3 sentences: the clients core belief about their industry/market that drives their product decisions\",\n  \"company_problem\": \"2-3 sentences: the specific problem their customers face, in the customers language\",\n  \"competitive_landscape\": \"2-3 sentences: how this product differs from named competitors and the general market\",\n  \"competitor_names\": [\"string\", \"string\"]\n}\n\nRULES:\n- Use the clients own language where possible (preserve their phrasing)\n- company_worldview should feel like a manifesto statement, not a product description\n- company_problem should use pain language (frustration, inefficiency, risk)\n- competitive_landscape should be specific about named competitors, not generic"
+    },
+    "ICP_SYNTHESIS_PROMPT": {
+      "file": "services/onboarding/ai_prompts.py:153",
+      "model": "gemini/gemini-2.5-flash",
+      "text": "You are a B2B/B2C marketing strategist. Synthesize the ICP data into a concise, actionable profile description.\n\nOUTPUT: A 3-5 sentence prose description of the Ideal Customer Profile. Include: who they are, their daily frustration, what they search for online, and what signals indicate they are in buying mode.\n\nWrite in second person (Your ideal customer is...). Be specific, not generic."
+    }
+  }
+}

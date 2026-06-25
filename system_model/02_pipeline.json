@@ -1,0 +1,519 @@
+{
+  "meta": {
+    "domain": "pipeline",
+    "version": "1.0.0",
+    "description": "Execution graph: 25 operational nodes (from scraping to adaptation), 26 edges (dependencies between them), 13 layers, full Celery Beat schedule (30+ tasks), and Dual Pipeline description (Professional vs Hobby)."
+  },
+  "system_graph": {
+    "nodes": [
+      {
+        "id": "client_onboarding",
+        "layer": "onboarding",
+        "trigger": "user signup (HTTP)",
+        "services": [
+          "routes/onboarding.py",
+          "services/onboarding/ai_prompts.py",
+          "services/onboarding/website_scraper.py",
+          "services/onboarding/quality_gate.py",
+          "services/onboarding/landscape_report.py"
+        ],
+        "flow": "6 steps: website URL > AI scrape > ICP synthesis > keywords/subreddits suggestions > avatar config > quality gate > activate",
+        "output": "Client record (plan_type=trial, 14-day) + initial config",
+        "models_used": "gemini-flash (ICP extraction, keyword gen, subreddit suggestions)"
+      },
+      {
+        "id": "avatar_onboarding",
+        "layer": "onboarding",
+        "trigger": "admin/client action (HTTP)",
+        "services": [
+          "routes/avatar_onboard.py",
+          "services/avatar_onboard_analysis.py"
+        ],
+        "flow": "enter reddit_username > PRAW fetch profile > Claude classifies voice/strategy > pre-filled card > user edits > approve > create avatar",
+        "output": "Avatar record (phase=1, pool assigned, voice_profile set)",
+        "models_used": "claude-sonnet (behavioral classification)"
+      },
+      {
+        "id": "trial_provisioning",
+        "layer": "onboarding",
+        "trigger": "after client onboarding completes",
+        "services": [
+          "services/byoa_pipeline.py",
+          "tasks/byoa.py"
+        ],
+        "tasks": [
+          "fetch_reddit_profile_for_draft",
+          "analyze_reddit_profile_for_draft"
+        ],
+        "flow": "async avatar provisioning for trial clients",
+        "output": "AvatarDraft > Avatar (assigned to trial client)"
+      },
+      {
+        "id": "continuous_discovery",
+        "layer": "ongoing_intelligence",
+        "trigger": "weekly Sun 04:00 (automated) + manual session creation",
+        "services": [
+          "services/discovery/continuous.py",
+          "services/discovery/session_manager.py",
+          "services/discovery/entity_extractor.py",
+          "services/discovery/hypothesis_engine.py",
+          "services/discovery/reddit_researcher.py",
+          "services/discovery/confidence_scorer.py",
+          "services/discovery/report_generator.py",
+          "services/discovery/strategy_handoff.py"
+        ],
+        "tasks": [
+          "run_continuous_discovery_all",
+          "research_hypotheses_task"
+        ],
+        "flow": "create session > extract entities > research Reddit > generate hypotheses > validate > report > strategy handoff",
+        "output": "DiscoveryHypothesis + DiscoveryEntity + strategy_context on Client",
+        "models_used": "gemini-flash (entity extraction, hypothesis gen, report)"
+      },
+      {
+        "id": "strategy_generation",
+        "layer": "ongoing_intelligence",
+        "trigger": "discovery handoff OR manual trigger (max 1/week per client)",
+        "services": [
+          "services/discovery/strategy_generator.py",
+          "services/discovery/strategy_handoff.py"
+        ],
+        "output": "client.strategy_context updated (positioning, pillars, forbidden zones, AEO targets)",
+        "models_used": "gemini-flash"
+      },
+      {
+        "id": "geo_aeo_monitoring",
+        "layer": "ongoing_intelligence",
+        "trigger": "batch execution (admin trigger or scheduled)",
+        "services": [
+          "services/geo_query_runner.py",
+          "services/geo_brand_detection.py",
+          "services/geo_citation_parser.py"
+        ],
+        "flow": "run prompts against AI platforms > detect brand mentions > parse citations > score visibility",
+        "output": "GeoExecutionBatch + GeoQueryResult records",
+        "gate": "client.geo_monitoring_enabled"
+      },
+      {
+        "id": "trial_intelligence",
+        "layer": "ongoing_intelligence",
+        "trigger": "every 4h + on trial events",
+        "services": [
+          "services/trial_scoring.py",
+          "services/trial_signals.py",
+          "services/trial_lifecycle.py",
+          "services/trial_negative_signals.py"
+        ],
+        "tasks": [
+          "recompute_trial_score",
+          "classify_expired_trials",
+          "check_trial_negative_signals"
+        ],
+        "output": "TrialScore + TrialSignal + TrialFailure records",
+        "purpose": "Predict trial conversion, detect churn risk"
+      },
+      {
+        "id": "scraping",
+        "layer": "discovery",
+        "trigger": "queue_tick 60s",
+        "services": [
+          "scrape_queue.py",
+          "reddit.py"
+        ],
+        "tasks": [
+          "queue_tick",
+          "scrape_single_subreddit",
+          "scrape_hobby_all_avatars"
+        ],
+        "kill_switch": "scrape_enabled"
+      },
+      {
+        "id": "smart_scoring",
+        "layer": "discovery",
+        "trigger": "08:00,14:00",
+        "services": [
+          "smart_scoring.py",
+          "scoring.py"
+        ],
+        "tasks": [
+          "score_threads"
+        ],
+        "kill_switch": "pipeline_enabled",
+        "budget": "remaining_budget*3, HARD_CAP=15"
+      },
+      {
+        "id": "epg_build",
+        "layer": "planning",
+        "trigger": "08:15,14:15",
+        "services": [
+          "portfolio_manager.py",
+          "opportunity_engine.py",
+          "risk_engine.py",
+          "return_engine.py"
+        ],
+        "tasks": [
+          "build_and_generate_epg_all_avatars"
+        ],
+        "feature_flag": "epg2_enabled",
+        "constraints": {
+          "subreddit_absolute_cap": "2 slots per subreddit per avatar per day",
+          "subreddit_share_cap": "40% max share of total slots",
+          "dedup_guard": "any existing slots for today = skip rebuild",
+          "distributed_lock": "Redis lock per avatar (TTL 600s) prevents parallel builds"
+        }
+      },
+      {
+        "id": "fitness_gate",
+        "layer": "safety",
+        "trigger": "inline",
+        "services": [
+          "fitness_gate.py"
+        ],
+        "kill_switch": "fitness_gate_enabled"
+      },
+      {
+        "id": "generation",
+        "layer": "generation",
+        "trigger": "after scoring",
+        "services": [
+          "generation.py"
+        ],
+        "tasks": [
+          "generate_comments",
+          "generate_hobby_comments"
+        ],
+        "kill_switch": "generation_enabled",
+        "models": {
+          "professional": "claude-sonnet",
+          "hobby": "gemini-flash"
+        }
+      },
+      {
+        "id": "human_review",
+        "layer": "gate",
+        "trigger": "manual HTTP",
+        "services": [
+          "routes/review.py",
+          "routes/portal.py"
+        ]
+      },
+      {
+        "id": "execution_task",
+        "layer": "transport",
+        "trigger": "on approve + every 5min",
+        "services": [
+          "execution_tasks.py",
+          "email_sender.py"
+        ],
+        "tasks": [
+          "dispatch_due_email_tasks",
+          "deliver_execution_task",
+          "expire_overdue_execution_tasks"
+        ]
+      },
+      {
+        "id": "auto_posting",
+        "layer": "execution",
+        "trigger": "every 5min",
+        "services": [
+          "posting.py",
+          "posting_safety.py",
+          "praw_factory.py"
+        ],
+        "tasks": [
+          "execute_pending_posts",
+          "post_comment"
+        ],
+        "safety_gates": 9
+      },
+      {
+        "id": "karma_tracking",
+        "layer": "signal",
+        "trigger": "every 4h",
+        "services": [
+          "karma_tracker.py",
+          "draft_reconciliation.py"
+        ],
+        "tasks": [
+          "track_karma_all_avatars"
+        ]
+      },
+      {
+        "id": "outcome_snapshot",
+        "layer": "signal",
+        "trigger": "every 4h at :45",
+        "services": [
+          "snapshot_outcomes"
+        ],
+        "tasks": [
+          "snapshot_comment_outcomes"
+        ]
+      },
+      {
+        "id": "health_check",
+        "layer": "signal",
+        "trigger": "07:30,13:30",
+        "services": [
+          "health_checker.py",
+          "reddit_status.py"
+        ],
+        "tasks": [
+          "health_check_all_avatars"
+        ]
+      },
+      {
+        "id": "phase_evaluation",
+        "layer": "adaptation",
+        "trigger": "daily 06:00",
+        "services": [
+          "phase.py"
+        ],
+        "tasks": [
+          "evaluate_all_avatar_phases"
+        ]
+      },
+      {
+        "id": "feedback_loop",
+        "layer": "adaptation",
+        "trigger": "daily 02:00",
+        "services": [
+          "feedback_loop.py",
+          "outcome_analysis.py"
+        ],
+        "tasks": [
+          "run_feedback_loop_all"
+        ]
+      },
+      {
+        "id": "learning_loop",
+        "layer": "adaptation",
+        "trigger": "on human edit",
+        "services": [
+          "learning.py"
+        ]
+      },
+      {
+        "id": "risk_profile",
+        "layer": "adaptation",
+        "trigger": "Sun 05:00-05:30",
+        "services": [
+          "rule_extractor.py",
+          "moderation_profiler.py",
+          "risk_scorer.py"
+        ],
+        "tasks": [
+          "extract_subreddit_rules_batch",
+          "compute_moderation_profiles_batch",
+          "compute_risk_scores_batch"
+        ]
+      },
+      {
+        "id": "emotional_profile",
+        "layer": "adaptation",
+        "trigger": "Sun 04:30",
+        "services": [
+          "emotional_profile.py"
+        ],
+        "tasks": [
+          "refresh_subreddit_emotional_profiles"
+        ]
+      },
+      {
+        "id": "discovery",
+        "layer": "intelligence",
+        "trigger": "Sun 04:00",
+        "services": [
+          "discovery/continuous.py"
+        ],
+        "tasks": [
+          "run_continuous_discovery_all"
+        ]
+      },
+      {
+        "id": "heartbeat",
+        "layer": "observability",
+        "trigger": "every 60s",
+        "tasks": [
+          "system_heartbeat"
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "from": "client_onboarding",
+        "to": "avatar_onboarding",
+        "condition": "client activated, needs avatars"
+      },
+      {
+        "from": "client_onboarding",
+        "to": "trial_provisioning",
+        "condition": "plan_type=trial, async avatar setup"
+      },
+      {
+        "from": "avatar_onboarding",
+        "to": "scraping",
+        "condition": "avatar created + subreddits configured > pipeline eligible"
+      },
+      {
+        "from": "trial_provisioning",
+        "to": "scraping",
+        "condition": "avatar draft approved > avatar active"
+      },
+      {
+        "from": "continuous_discovery",
+        "to": "strategy_generation",
+        "condition": "session status=reported, handoff triggered"
+      },
+      {
+        "from": "strategy_generation",
+        "to": "generation",
+        "condition": "strategy_context injected into generation prompts"
+      },
+      {
+        "from": "strategy_generation",
+        "to": "epg_build",
+        "condition": "subreddit priorities updated from strategy"
+      },
+      {
+        "from": "trial_intelligence",
+        "to": "client_onboarding",
+        "condition": "negative signals > intervention alerts"
+      },
+      {
+        "from": "geo_aeo_monitoring",
+        "to": "strategy_generation",
+        "condition": "visibility data informs strategy refresh"
+      },
+      {
+        "from": "scraping",
+        "to": "smart_scoring",
+        "condition": "new threads + pipeline schedule"
+      },
+      {
+        "from": "smart_scoring",
+        "to": "epg_build",
+        "condition": "scored threads tag=engage"
+      },
+      {
+        "from": "epg_build",
+        "to": "fitness_gate",
+        "condition": "slot planned"
+      },
+      {
+        "from": "fitness_gate",
+        "to": "generation",
+        "condition": "avatar passes fitness"
+      },
+      {
+        "from": "generation",
+        "to": "human_review",
+        "condition": "draft.status=pending"
+      },
+      {
+        "from": "human_review",
+        "to": "execution_task",
+        "condition": "approved + executor_email"
+      },
+      {
+        "from": "human_review",
+        "to": "auto_posting",
+        "condition": "approved + posting_mode=auto"
+      },
+      {
+        "from": "human_review",
+        "to": "learning_loop",
+        "condition": "edited_draft != ai_draft"
+      },
+      {
+        "from": "auto_posting",
+        "to": "karma_tracking",
+        "condition": "posted"
+      },
+      {
+        "from": "karma_tracking",
+        "to": "outcome_snapshot",
+        "condition": "4h/24h/48h/7d windows"
+      },
+      {
+        "from": "outcome_snapshot",
+        "to": "feedback_loop",
+        "condition": "daily 02:00"
+      },
+      {
+        "from": "feedback_loop",
+        "to": "epg_build",
+        "condition": "updated weights"
+      },
+      {
+        "from": "health_check",
+        "to": "phase_evaluation",
+        "condition": "shadowban > demote"
+      },
+      {
+        "from": "phase_evaluation",
+        "to": "smart_scoring",
+        "condition": "phase change"
+      },
+      {
+        "from": "learning_loop",
+        "to": "generation",
+        "condition": "few-shot injection"
+      },
+      {
+        "from": "risk_profile",
+        "to": "fitness_gate",
+        "condition": "updated scores"
+      },
+      {
+        "from": "discovery",
+        "to": "risk_profile",
+        "condition": "new data"
+      }
+    ],
+    "layers": {
+      "onboarding": "Client and avatar entry into the system. One-time setup flows.",
+      "ongoing_intelligence": "Continuous market research, strategy refresh, visibility monitoring. Runs independently of operational pipeline.",
+      "discovery": "Thread discovery: scraping + scoring. Feeds the operational pipeline.",
+      "planning": "EPG: budget allocation, opportunity scoring, slot scheduling.",
+      "safety": "Pre-generation safety gates (subreddit fitness, phase rules).",
+      "generation": "AI content generation (professional + hobby pipelines).",
+      "gate": "Human-in-the-loop: approve/reject/edit. Primary training signal.",
+      "transport": "Delivery of approved content to human executors (email/future: telegram).",
+      "execution": "Automated posting via PRAW (when proxy configured).",
+      "signal": "Outcome collection: karma, deletions, health status.",
+      "adaptation": "System self-correction: phase eval, feedback loop, learning, risk.",
+      "intelligence": "See ongoing_intelligence.",
+      "observability": "System health monitoring (heartbeat, alerts)."
+    }
+  },
+  "dual_pipeline": {
+    "professional": {
+      "phase": "2+",
+      "scraping": "queue_tick > subreddits",
+      "storage": "reddit_threads",
+      "scoring": "smart_scoring(Claude)",
+      "generation": "generate_comments(Claude Sonnet)",
+      "output": "5-15 drafts/day"
+    },
+    "hobby": {
+      "phase": "1+",
+      "scraping": "scrape_hobby_subreddits > PRAW",
+      "storage": "hobby_subreddits",
+      "scoring": "none(all eligible)",
+      "generation": "generate_hobby_comments(Gemini Flash)",
+      "output": "1-3 drafts/day"
+    },
+    "critical_implication": "Phase 1 = hobby only. Demotion 2>1 = 80% output reduction."
+  },
+  "temporal_model": {
+    "schedule_summary": "See system_graph nodes for triggers. All times Asia/Jerusalem.",
+    "retry": {
+      "ai_tasks": "3x, 60*2^n seconds",
+      "posting": "3x, freeze on 3 failures",
+      "email": "max 3 attempts, min 10min apart"
+    },
+    "timezone": "Asia/Jerusalem (all containers+DB+Beat)",
+    "execution_window": "08:00-23:00 avatar local time",
+    "jitter": "+/-30% on scheduled_at"
+  }
+}
