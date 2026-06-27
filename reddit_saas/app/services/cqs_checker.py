@@ -176,6 +176,49 @@ def update_avatar_cqs_from_reddit(db: Session, avatar: Avatar) -> dict:
         avatar.cqs_level = cqs_level
         avatar.cqs_checked_at = datetime.now(timezone.utc)
 
+        # Recovery detection: if frozen avatar's CQS IMPROVED, log recovery signal
+        # This enables operators (and future auto-unfreeze) to act on improvement.
+        if avatar.is_frozen and previous_level == "lowest" and cqs_level != "lowest":
+            logger.warning(
+                "CQS_RECOVERY_SIGNAL | username=u/%s | previous=%s | new=%s | "
+                "avatar_is_frozen=True | action=notify_operator",
+                avatar.reddit_username, previous_level, cqs_level,
+            )
+            details["recovery_signal"] = True
+            # Emit activity event for operator visibility
+            try:
+                from app.services.transparency import record_activity_event
+                client_id = None
+                if avatar.client_ids:
+                    try:
+                        client_id = avatar.client_ids[0]
+                    except (IndexError, TypeError):
+                        pass
+                record_activity_event(
+                    db=db,
+                    event_type="cqs_recovery_detected",
+                    message=(
+                        f"CQS recovery signal for u/{avatar.reddit_username}: "
+                        f"{previous_level} → {cqs_level}. Avatar is frozen "
+                        f"({avatar.freeze_reason}). Check shadowban status."
+                    ),
+                    client_id=client_id,
+                    metadata={
+                        "username": avatar.reddit_username,
+                        "avatar_id": str(avatar.id),
+                        "previous_cqs": previous_level,
+                        "new_cqs": cqs_level,
+                        "is_frozen": True,
+                        "freeze_reason": avatar.freeze_reason,
+                        "action_needed": "Check shadowban status. If cleared, unfreeze avatar.",
+                    },
+                )
+            except Exception:
+                logger.warning(
+                    "Failed to emit CQS recovery activity event for %s",
+                    avatar.reddit_username, exc_info=True,
+                )
+
         # Auto-freeze if CQS drops to lowest — but only for avatars that
         # already progressed past Phase 1. Fresh avatars (Phase 1) naturally
         # start with CQS lowest and need hobby activity to warm up.
@@ -212,13 +255,11 @@ def update_avatar_cqs_from_reddit(db: Session, avatar: Avatar) -> dict:
 def run_cqs_check_batch(db: Session) -> dict:
     """Run CQS checks for all eligible avatars.
 
-    Eligible: active=True, is_frozen=False, cqs_checked_at older than
-    cqs_check_interval_days or null.
+    Eligible: active=True, cqs_checked_at older than cqs_check_interval_days or null.
 
-    Only checks avatars that have previously posted in r/WhatIsMyCQS
-    (i.e., have a cqs_level already set OR cqs_checked_at is not None),
-    OR avatars in Phase 2+ that have never been checked (to catch new
-    avatars that should be monitored).
+    NOTE (June 27, 2026): is_frozen and warming_phase filters REMOVED.
+    Frozen/shadowbanned avatars need CQS monitoring to detect recovery.
+    Without it, system cannot know when Reddit lifts restrictions.
 
     Returns:
         Summary dict with counts: checked, updated, frozen, errors, skipped, duration_ms
@@ -244,16 +285,19 @@ def run_cqs_check_batch(db: Session) -> dict:
     stale_cutoff = datetime.now(timezone.utc) - timedelta(days=interval_days)
 
     # Query eligible avatars:
-    # - Active, not frozen
+    # - Active (includes frozen — frozen avatars NEED CQS monitoring for recovery detection)
     # - Either: never checked CQS, or checked before stale_cutoff
-    # - Phase 2+ (Phase 1 avatars naturally have lowest CQS, checking is noise)
+    # - All phases (Phase 1 avatars with CQS posts need monitoring too — see Flaky_Finder_13 incident June 27)
+    #
+    # NOTE: is_frozen and warming_phase filters REMOVED June 27, 2026.
+    # Frozen/shadowbanned avatars are exactly the ones that need CQS checks
+    # to detect recovery. Filtering them out created a deadlock where recovery
+    # was impossible without manual intervention.
     eligible_avatars = (
         db.query(Avatar)
         .filter(
             and_(
                 Avatar.active == True,  # noqa: E712
-                Avatar.is_frozen == False,  # noqa: E712
-                Avatar.warming_phase >= 2,
                 or_(
                     Avatar.cqs_checked_at.is_(None),
                     Avatar.cqs_checked_at < stale_cutoff,
