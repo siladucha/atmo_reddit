@@ -269,6 +269,94 @@ def step1_save(
     return RedirectResponse(url="/onboard/step/2", status_code=303)
 
 
+
+
+# --- Dynamic Placeholder Generation for Step 2 ---
+
+# Industry-specific placeholder examples (fallback when no AI data available)
+_INDUSTRY_PLACEHOLDERS = {
+    "cybersecurity": {
+        "before_product": "e.g. We were spending 80%% of our time chasing false positives and had no way to prioritize which vulnerabilities actually posed a real threat...",
+        "unique_value": "e.g. We map actual attack paths across your entire environment, showing exactly how an attacker could chain vulnerabilities to reach critical assets...",
+        "competitors": "e.g. Tenable, CrowdStrike, Wiz",
+    },
+    "marketing": {
+        "before_product": "e.g. We were juggling 5 different tools, spending hours on reports, and still couldn't tell which campaigns actually drove pipeline...",
+        "unique_value": "e.g. We unify attribution across every touchpoint and predict which accounts are ready to buy, so teams focus only on what moves revenue...",
+        "competitors": "e.g. HubSpot, Marketo, 6sense",
+    },
+    "devops": {
+        "before_product": "e.g. Deployments were a nightmare — breaking changes in production, 2-hour rollbacks, and nobody could reproduce issues locally...",
+        "unique_value": "e.g. We create identical ephemeral environments for every PR, so teams catch issues before merge — no more ‘works on my machine’...",
+        "competitors": "e.g. Vercel, Netlify, Railway",
+    },
+    "education": {
+        "before_product": "e.g. Students were dropping out because the programs felt disconnected from real career outcomes — no mentorship, no practical skills...",
+        "unique_value": "e.g. We combine academic rigor with hands-on industry projects and 1-on-1 mentorship from practitioners in the field...",
+        "competitors": "e.g. Coursera, traditional universities, bootcamps",
+    },
+    "saas": {
+        "before_product": "e.g. Teams were wasting hours on manual processes that should have been automated, with data scattered across spreadsheets and emails...",
+        "unique_value": "e.g. We replace 3-4 disconnected tools with one platform that automates the entire workflow end-to-end, with zero setup time...",
+        "competitors": "e.g. Monday.com, Notion, Asana",
+    },
+    "fintech": {
+        "before_product": "e.g. Reconciliation took days, errors went unnoticed until audit time, and our team lived in spreadsheets...",
+        "unique_value": "e.g. We automate reconciliation in real-time with AI-powered anomaly detection — what took 3 days now takes 3 minutes...",
+        "competitors": "e.g. Stripe, Plaid, legacy banks",
+    },
+    "healthcare": {
+        "before_product": "e.g. Patient data was trapped in silos — clinicians couldn’t see the full picture, leading to duplicate tests and missed insights...",
+        "unique_value": "e.g. We unify patient records across providers in real-time, giving clinicians a complete longitudinal view at point of care...",
+        "competitors": "e.g. Epic, Cerner, legacy EHR vendors",
+    },
+}
+
+_DEFAULT_PLACEHOLDERS = {
+    "before_product": "e.g. Our team was spending hours on manual work that should have been automated, with no visibility into what was actually working...",
+    "unique_value": "e.g. We solve this problem in a fundamentally different way than alternatives — faster, more accurate, and without requiring a dedicated team to manage it...",
+    "competitors": "e.g. Company A, Company B, Company C",
+}
+
+
+def _generate_step2_placeholders(client) -> dict:
+    """Generate dynamic placeholder examples for Step 2 based on Step 1 profile data.
+
+    Priority:
+    1. If AI already detected customer_pain/unique_advantage in Step 1 — use those as hints
+    2. If industry is known — use industry-specific examples
+    3. Fallback to generic (non-XM-Cyber) examples
+    """
+    placeholders = dict(_DEFAULT_PLACEHOLDERS)
+
+    # Check if we have AI-detected data from Step 1 profile synthesis
+    # (stored in company_worldview and company_problem by step1_scrape)
+    has_ai_pain = client.company_worldview and len(client.company_worldview) > 20
+    has_ai_advantage = client.company_problem and len(client.company_problem) > 20
+
+    if has_ai_pain:
+        # Use the AI-detected pain as the placeholder hint (truncate for placeholder)
+        pain_text = client.company_worldview[:150].rstrip(".")
+        placeholders["before_product"] = f"e.g. {pain_text}..."
+    if has_ai_advantage:
+        adv_text = client.company_problem[:150].rstrip(".")
+        placeholders["unique_value"] = f"e.g. {adv_text}..."
+
+    # If we have competitors from Step 1, use them
+    if client.competitive_landscape and len(client.competitive_landscape) > 3:
+        placeholders["competitors"] = f"e.g. {client.competitive_landscape[:100]}"
+
+    # If no AI data but we know industry, use industry-specific examples
+    if not has_ai_pain and not has_ai_advantage and client.industry:
+        industry_lower = (client.industry or "").lower()
+        for key, examples in _INDUSTRY_PLACEHOLDERS.items():
+            if key in industry_lower:
+                placeholders = examples.copy()
+                break
+
+    return placeholders
+
+
 # --- Step 2: Problem & Competitors ---
 
 
@@ -278,11 +366,15 @@ def step2_get(
     user: User = Depends(_require_onboard_user),
     db: Session = Depends(get_db),
 ):
-    """Render Step 2 — conversational prompts."""
+    """Render Step 2 — conversational prompts with dynamic placeholders."""
     client = _get_client_for_onboarding(user, db)
+
+    # Generate dynamic placeholder examples based on Step 1 data
+    placeholders = _generate_step2_placeholders(client)
+
     return _render_onboard(
         "onboarding/step2.html",
-        _onboarding_context(request, 2, client),
+        _onboarding_context(request, 2, client, placeholders=placeholders),
     )
 
 
@@ -356,22 +448,76 @@ def step2_suggest(
     html = f"""<div class="surface" style="padding:var(--space-3);">
     <label style="color:var(--color-white);font-weight:500;font-size:var(--text-body);display:block;margin-bottom:8px;">What does your best customer say their life was like before using you?</label>
     <p class="text-micro" style="color:var(--color-muted);margin-bottom:8px;">Think: their frustrations, time wasted, risks they faced</p>
-    <textarea name="before_product" rows="3" class="field-input" style="width:100%;" placeholder="e.g. We were drowning in vulnerability alerts with no way to know which ones actually mattered...">{before_product}</textarea>
+    <textarea name="before_product" rows="3" class="field-input" style="width:100%;" placeholder="Describe their frustrations before finding your product...">{before_product}</textarea>
 </div>
 
 <div class="surface" style="padding:var(--space-3);">
     <label style="color:var(--color-white);font-weight:500;font-size:var(--text-body);display:block;margin-bottom:8px;">What does your product do that your top 2-3 competitors cannot?</label>
     <p class="text-micro" style="color:var(--color-muted);margin-bottom:8px;">Be specific. What&#39;s your unfair advantage?</p>
-    <textarea name="unique_value" rows="3" class="field-input" style="width:100%;" placeholder="e.g. We simulate full attack paths across hybrid environments using a digital twin...">{unique_value}</textarea>
+    <textarea name="unique_value" rows="3" class="field-input" style="width:100%;" placeholder="What makes your approach fundamentally different?">{unique_value}</textarea>
 </div>
 
 <div class="surface" style="padding:var(--space-3);">
     <label style="color:var(--color-white);font-weight:500;font-size:var(--text-body);display:block;margin-bottom:8px;">Name your 2-3 main competitors</label>
     <p class="text-micro" style="color:var(--color-muted);margin-bottom:8px;">Who do prospects compare you to?</p>
-    <textarea name="competitors" rows="2" class="field-input" style="width:100%;" placeholder="e.g. Tenable, Wiz, CrowdStrike Falcon Exposure">{competitors}</textarea>
+    <textarea name="competitors" rows="2" class="field-input" style="width:100%;" placeholder="e.g. Competitor A, Competitor B, Competitor C">{competitors}</textarea>
 </div>"""
     return HTMLResponse(html)
 
+
+
+def _parse_icp_profiles(icp_text: str | None) -> list[dict]:
+    """Parse icp_profiles text back into list of structured ICP dicts.
+
+    Handles both new format (--- PRIMARY ICP --- markers) and legacy (dot-separated).
+    """
+    if not icp_text or not icp_text.strip():
+        return []
+
+    # New format: multiple ICPs separated by markers
+    if "--- PRIMARY ICP ---" in icp_text or "--- ADJACENT ICP ---" in icp_text:
+        import re
+        blocks = re.split(r"\n*---\s*(PRIMARY|ADJACENT)\s+ICP\s*---\n*", icp_text)
+        # blocks = ['', 'PRIMARY', 'fields...', 'ADJACENT', 'fields...', ...]
+        icps = []
+        i = 1  # skip first empty element
+        while i < len(blocks) - 1:
+            icp_type = blocks[i].lower()  # "primary" or "adjacent"
+            fields_text = blocks[i + 1]
+            icp = {"type": icp_type, "job_titles": "", "seniority": "manager", "frustration": "", "search_query": ""}
+            for line in fields_text.strip().split("\n"):
+                line = line.strip()
+                if line.startswith("Titles: "):
+                    icp["job_titles"] = line[8:]
+                elif line.startswith("Seniority: "):
+                    icp["seniority"] = line[11:]
+                elif line.startswith("Frustration: "):
+                    icp["frustration"] = line[13:]
+                elif line.startswith("Searches: "):
+                    icp["search_query"] = line[10:]
+            icps.append(icp)
+            i += 2
+        return icps if icps else []
+
+    # Legacy format: single ICP as dot-separated parts
+    icp = {"type": "primary", "job_titles": "", "seniority": "manager", "frustration": "", "search_query": ""}
+    for part in icp_text.split(". "):
+        part = part.strip()
+        if part.startswith("Titles: "):
+            icp["job_titles"] = part[8:]
+        elif part.startswith("Seniority: "):
+            icp["seniority"] = part[11:]
+        elif part.startswith("Frustration: "):
+            icp["frustration"] = part[13:]
+        elif part.startswith("Searches: "):
+            icp["search_query"] = part[10:]
+        elif part.startswith("Adjacent: "):
+            # Legacy had adjacent as a field; convert to separate ICP
+            pass  # Skip for now, handled as single ICP
+    if icp["job_titles"] or icp["frustration"]:
+        return [icp]
+    # Totally unstructured text — put in frustration as context
+    return [{"type": "primary", "job_titles": "", "seniority": "manager", "frustration": icp_text, "search_query": ""}]
 
 # --- Step 3: ICP ---
 
@@ -382,75 +528,69 @@ def step3_get(
     user: User = Depends(_require_onboard_user),
     db: Session = Depends(get_db),
 ):
-    """Render Step 3 — ICP definition."""
+    """Render Step 3 — ICP definition (supports multiple ICPs)."""
     client = _get_client_for_onboarding(user, db)
-    ctx = _onboarding_context(request, 3, client)
 
-    # Parse icp_profiles back into structured fields for template
-    if client.icp_profiles:
-        icp = {}
-        for part in client.icp_profiles.split(". "):
-            if part.startswith("Titles: "):
-                icp["job_titles"] = part[8:]
-            elif part.startswith("Seniority: "):
-                icp["seniority"] = part[11:]
-            elif part.startswith("Frustration: "):
-                icp["frustration"] = part[13:]
-            elif part.startswith("Searches: "):
-                icp["search_query"] = part[10:]
-            elif part.startswith("Adjacent: "):
-                icp["adjacent_icp"] = part[10:]
-        if icp:
-            ctx["ai_icp"] = icp
-        else:
-            # Fallback: unstructured text — show in frustration field as context
-            ctx["ai_icp"] = {"frustration": client.icp_profiles}
+    # Parse icp_profiles into structured ICP list
+    icps = _parse_icp_profiles(client.icp_profiles)
+    if not icps:
+        # Default: one empty primary ICP block
+        icps = [{"type": "primary", "job_titles": "", "seniority": "manager", "frustration": "", "search_query": ""}]
 
+    # For backward compat with AI suggest (first ICP)
+    ai_icp = icps[0] if icps else {}
+
+    ctx = _onboarding_context(request, 3, client, icps=icps, ai_icp=ai_icp)
     return _render_onboard("onboarding/step3.html", ctx)
 
 
 @router.post("/step/3/save")
-def step3_save(
+async def step3_save(
     request: Request,
     user: User = Depends(_require_onboard_user),
     db: Session = Depends(get_db),
-    business_type: str = Form("b2b"),
-    job_titles: str = Form(""),
-    seniority: str = Form(""),
-    frustration: str = Form(""),
-    search_query: str = Form(""),
-    adjacent_icp: str = Form(""),
-    demographics: str = Form(""),
-    interests: str = Form(""),
 ):
-    """Save Step 3 — saves ICP directly (AI processing done in suggest button)."""
+    """Save Step 3 — saves multiple ICPs as structured text."""
     client = _get_client_for_onboarding(user, db)
+    form_data = await request.form()
 
-    # Build ICP text from form fields (no LLM call — suggest button already did AI work)
-    if business_type == "b2b":
-        parts = []
-        if job_titles.strip():
-            parts.append(f"Titles: {job_titles.strip()}")
-        if seniority.strip():
-            parts.append(f"Seniority: {seniority.strip()}")
-        if frustration.strip():
-            parts.append(f"Frustration: {frustration.strip()}")
-        if search_query.strip():
-            parts.append(f"Searches: {search_query.strip()}")
-        if adjacent_icp.strip():
-            parts.append(f"Adjacent: {adjacent_icp.strip()}")
-        client.icp_profiles = ". ".join(parts) if parts else client.icp_profiles
-    else:
-        parts = []
-        if demographics.strip():
-            parts.append(f"Demographics: {demographics.strip()}")
-        if interests.strip():
-            parts.append(f"Interests: {interests.strip()}")
-        if frustration.strip():
-            parts.append(f"Frustration: {frustration.strip()}")
-        if search_query.strip():
-            parts.append(f"Searches: {search_query.strip()}")
-        client.icp_profiles = ". ".join(parts) if parts else client.icp_profiles
+    business_type = form_data.get("business_type", "b2b")
+
+    # Parse multiple ICP blocks (indexed fields: job_titles_0, job_titles_1, etc.)
+    try:
+        icp_count = int(form_data.get("icp_count", "1"))
+    except (ValueError, TypeError):
+        icp_count = 1
+    icp_count = min(icp_count, 5)  # Cap at 5
+
+    icp_sections = []
+    for i in range(icp_count):
+        icp_type = form_data.get(f"icp_type_{i}", "primary")
+        job_titles = (form_data.get(f"job_titles_{i}", "") or "").strip()
+        seniority = (form_data.get(f"seniority_{i}", "") or "").strip()
+        frustration = (form_data.get(f"frustration_{i}", "") or "").strip()
+        search_query = (form_data.get(f"search_query_{i}", "") or "").strip()
+
+        # Skip empty blocks
+        if not job_titles and not frustration and not search_query:
+            continue
+
+        # Build section
+        label = "PRIMARY" if icp_type == "primary" else "ADJACENT"
+        parts = [f"--- {label} ICP ---"]
+        if job_titles:
+            parts.append(f"Titles: {job_titles}")
+        if seniority:
+            parts.append(f"Seniority: {seniority}")
+        if frustration:
+            parts.append(f"Frustration: {frustration}")
+        if search_query:
+            parts.append(f"Searches: {search_query}")
+        icp_sections.append("\n".join(parts))
+
+    if icp_sections:
+        client.icp_profiles = "\n\n".join(icp_sections)
+    # If no sections but we have legacy data, keep it
 
     if client.current_onboarding_step < 4:
         client.current_onboarding_step = 4
@@ -565,7 +705,7 @@ async def step4_save(
     admired_style: str = Form(""),
     brand_voice: str = Form(""),
 ):
-    """Save Step 4 — guardrails and brand voice."""
+    """Save Step 4 — guardrails, brand voice, keywords & subreddits."""
     client = _get_client_for_onboarding(user, db)
 
     # Combine guardrails into brand_voice field
@@ -597,6 +737,65 @@ async def step4_save(
     if tone_anchors:
         # Store as part of brand_voice (few-shot anchors)
         client.brand_voice = (client.brand_voice or "") + "\n\nTone anchors (rated 4-5 by client):\n" + "\n".join(f"- {a}" for a in tone_anchors)
+
+
+    # --- Save keywords & subreddits (from Section 2 of step 4 form) ---
+    raw_keywords = form_data.getlist("keywords")
+    raw_subreddits = form_data.getlist("subreddits")
+
+    if raw_keywords:
+        from sqlalchemy.orm.attributes import flag_modified
+        keywords_dict: dict[str, list[str]] = {"high": [], "medium": [], "low": []}
+        for kw_raw in raw_keywords:
+            if "|" in kw_raw:
+                phrase, tier = kw_raw.rsplit("|", 1)
+                if tier in keywords_dict:
+                    keywords_dict[tier].append(phrase)
+                else:
+                    keywords_dict["medium"].append(phrase)
+            else:
+                keywords_dict["medium"].append(kw_raw)
+        client.keywords = keywords_dict
+        flag_modified(client, "keywords")
+        logger.info("step4_save: saved %d keywords for client %s", sum(len(v) for v in keywords_dict.values()), client.id)
+
+    if raw_subreddits:
+        from app.models.subreddit import Subreddit, ClientSubredditAssignment
+        from sqlalchemy import func as sa_func
+
+        for sub_name in raw_subreddits:
+            # Strip r/ prefix if present (LLM sometimes includes it)
+            sub_name = sub_name.strip().lower().removeprefix("r/")
+            if not sub_name:
+                continue
+
+            subreddit = (
+                db.query(Subreddit)
+                .filter(sa_func.lower(Subreddit.subreddit_name) == sub_name)
+                .first()
+            )
+            if not subreddit:
+                subreddit = Subreddit(subreddit_name=sub_name, is_active=True)
+                db.add(subreddit)
+                db.flush()
+
+            existing = (
+                db.query(ClientSubredditAssignment)
+                .filter(
+                    ClientSubredditAssignment.client_id == client.id,
+                    ClientSubredditAssignment.subreddit_id == subreddit.id,
+                )
+                .first()
+            )
+            if not existing:
+                assignment = ClientSubredditAssignment(
+                    client_id=client.id,
+                    subreddit_id=subreddit.id,
+                    is_active=True,
+                    type="professional",
+                )
+                db.add(assignment)
+
 
     if client.current_onboarding_step < 5:
         client.current_onboarding_step = 5
@@ -761,14 +960,16 @@ def step5_suggest(
     html_parts.append('<div style="display:flex;flex-direction:column;gap:8px;">')
     for sub in subreddits:
         fit_color = {"high": "var(--color-green)", "medium": "var(--color-orange)", "low": "var(--color-muted)"}.get(sub.get("audience_fit", ""), "var(--color-muted)")
+        # Strip r/ prefix if LLM included it (prompt says not to, but sometimes it does)
+        sub_display_name = sub.get("name", "").removeprefix("r/")
         html_parts.append(
             f'<label style="display:flex;align-items:flex-start;gap:12px;padding:12px;'
             f'background:var(--color-surface-alt);border-radius:var(--radius-card);cursor:pointer;">'
-            f'<input type="checkbox" name="subreddits" value="{sub.get("name", "")}" checked '
+            f'<input type="checkbox" name="subreddits" value="{sub_display_name}" checked '
             f'style="margin-top:4px;accent-color:var(--color-orange);">'
             f'<div style="flex:1;">'
             f'<div style="display:flex;align-items:center;gap:8px;">'
-            f'<span style="color:var(--color-white);font-weight:600;">r/{sub.get("name", "")}</span>'
+            f'<span style="color:var(--color-white);font-weight:600;">r/{sub_display_name}</span>'
             f'<span style="font-size:var(--text-micro);color:{fit_color};">{sub.get("audience_fit", "")} fit</span>'
             f'<span style="font-size:var(--text-micro);color:var(--color-muted);">{sub.get("type", "")}</span>'
             f'</div>'
@@ -807,13 +1008,16 @@ async def step5_save(
             keywords_dict["medium"].append(kw_raw)
 
     client.keywords = keywords_dict
+    from sqlalchemy.orm.attributes import flag_modified as _flag_mod
+    _flag_mod(client, "keywords")
+    logger.info("step5_save: saved %d keywords for client %s", sum(len(v) for v in keywords_dict.values()), client.id)
 
     # Create subreddit assignments
     from app.models.subreddit import Subreddit, ClientSubredditAssignment
     from sqlalchemy import func
 
     for sub_name in raw_subreddits:
-        sub_name = sub_name.strip().lower()
+        sub_name = sub_name.strip().lower().removeprefix("r/")
         if not sub_name:
             continue
 
@@ -1112,47 +1316,75 @@ def trial_signup(
 
 
 @router.post("/step/4/calibrate", response_class=HTMLResponse)
-def step4_calibrate(
+async def step4_calibrate(
     request: Request,
     user: User = Depends(_require_onboard_user),
     db: Session = Depends(get_db),
 ):
-    """Generate 5 sample sentences in the brand voice for calibration."""
+    """Generate 5 sample sentences in the brand voice for calibration.
+
+    Reads voice/style from FORM data (what the user typed but hasn’t saved yet)
+    rather than only from DB (which is empty at this point in the wizard).
+    """
     client = _get_client_for_onboarding(user, db)
 
-    # Build voice context from what we have so far
+    # Read live form data (hx-include sends the entire form)
+    form_data = await request.form()
+    live_brand_voice = form_data.get("brand_voice", "") or ""
+    live_never_associated = form_data.get("never_associated", "") or ""
+    live_admired_style = form_data.get("admired_style", "") or ""
+
+    # Combine live form input with any existing DB data
+    voice_parts = []
+    if live_brand_voice.strip():
+        voice_parts.append(live_brand_voice.strip())
+    elif client.brand_voice:
+        voice_parts.append(client.brand_voice)
+    if live_admired_style.strip():
+        voice_parts.append(f"Admired style: {live_admired_style.strip()}")
+    if live_never_associated.strip():
+        voice_parts.append(f"Avoid topics: {live_never_associated.strip()}")
+
+    effective_voice = "\n".join(voice_parts) if voice_parts else "Professional, knowledgeable, authentic Reddit commenter"
+
     voice_context = {
-        "brand_name": client.brand_name or client.client_name or "",
-        "brand_voice": client.brand_voice or "",
-        "company_profile": client.company_profile or "",
-        "industry": client.industry or "",
-        "icp_profiles": client.icp_profiles or "",
+        "brand_name": client.brand_name or client.client_name or "the brand",
+        "brand_voice": effective_voice,
+        "company_profile": (client.company_profile or "")[:800],
+        "industry": client.industry or "technology",
+        "icp_profiles": (client.icp_profiles or "")[:400],
+        "company_problem": (client.company_problem or "")[:300],
     }
 
     from app.services.ai import call_llm_json, log_ai_usage
 
-    prompt = """Generate 5 sample Reddit comment sentences that match this brand's voice.
-Each sentence should be something an expert with this voice might say on Reddit — helpful, opinionated, authentic.
+    prompt = """You are generating sample Reddit comments for a brand’s avatar voice calibration.
+
+The client will rate these 1-5. Your goal: generate sentences that a REAL expert in this industry would write on Reddit. They should feel authentic, not generic.
 
 Brand context:
 - Brand: {brand_name}
 - Industry: {industry}
-- Voice description: {brand_voice}
+- Voice/tone: {brand_voice}
 - Product: {company_profile}
-- ICP: {icp_profiles}
+- Their unique value: {company_problem}
+- Their ICP: {icp_profiles}
 
-Rules:
-- Each sentence is 1-2 sentences max (Reddit comment style)
-- Vary the tone: one assertive, one helpful, one slightly cynical, one data-driven, one conversational
-- No marketing speak, no fluff. Real Reddit expert voice.
-- Each should feel like a fragment of a genuine comment
+CRITICAL RULES:
+- Write as a knowledgeable person in this SPECIFIC industry (not generic advice)
+- Reference real problems, tools, patterns, or situations from THIS industry
+- Each sentence is 1-3 sentences max (Reddit comment fragment style)
+- Match the voice/tone description closely — if they said "direct and cynical", be direct and cynical
+- NO marketing language, NO buzzwords, NO "leverage", "synergy", "best-in-class"
+- Sound like someone who WORKS in this field and has opinions
+- Vary approaches: one showing expertise, one giving advice, one challenging a popular opinion, one sharing experience, one being helpful
 
-Output JSON:
+Output strict JSON:
 {{"sentences": ["sentence 1", "sentence 2", "sentence 3", "sentence 4", "sentence 5"]}}"""
 
     messages = [
         {"role": "system", "content": prompt.format(**voice_context)},
-        {"role": "user", "content": "Generate 5 calibration sentences."},
+        {"role": "user", "content": "Generate 5 calibration sentences for this brand."},
     ]
 
     try:
@@ -1201,6 +1433,198 @@ Output JSON:
     html_parts.append('</div>')
     html_parts.append('<p class="text-micro" style="color:var(--color-muted);margin-top:8px;">Rate at least 3 sentences 4 or higher to proceed. Your highest-rated sentences become training anchors.</p>')
     html_parts.append('<input type="hidden" name="tone_calibration_done" value="true">')
+    html_parts.append('<input type="hidden" name="tone_count" value="5">')
+
+    # "Generate 3 more" button (appends below, max 2 retries = 11 total)
+    html_parts.append(
+        '<div id="calibrate-more-area" style="margin-top:16px;">'
+        '<button type="button" '
+        'hx-post="/onboard/step/4/calibrate-more" '
+        'hx-include="closest form" '
+        'hx-target="#calibrate-more-area" '
+        'hx-swap="outerHTML" '
+        'hx-indicator="#cal-more-loading" '
+        'class="btn-ghost" style="padding:8px 16px;font-size:var(--text-small);border:1px solid var(--color-border);">'
+        '\u2728 Generate 3 more'
+        '</button>'
+        '<span id="cal-more-loading" class="htmx-indicator" style="margin-left:8px;color:var(--color-orange);font-size:var(--text-small);">Generating...</span>'
+        '</div>'
+    )
+
+    return HTMLResponse("\n".join(html_parts))
+
+
+@router.post("/step/4/calibrate-more", response_class=HTMLResponse)
+async def step4_calibrate_more(
+    request: Request,
+    user: User = Depends(_require_onboard_user),
+    db: Session = Depends(get_db),
+):
+    """Generate 3 MORE calibration sentences, informed by what client liked/disliked.
+
+    Appends new cards below existing ones. Max 2 retries (11 sentences total).
+    Preserves all previous ratings (they stay in DOM untouched).
+    """
+    client = _get_client_for_onboarding(user, db)
+    form_data = await request.form()
+
+    # Determine current count (how many sentences already shown)
+    try:
+        current_count = int(form_data.get("tone_count", "5"))
+    except (ValueError, TypeError):
+        current_count = 5
+
+    # Cap: max 11 sentences (initial 5 + 2 retries of 3)
+    if current_count >= 11:
+        return HTMLResponse(
+            '<p class="text-micro" style="color:var(--color-muted);margin-top:12px;">'
+            'Maximum samples reached. If none feel right, try adjusting your voice description above and regenerate.</p>'
+        )
+
+    # Collect liked and disliked sentences from form
+    liked = []
+    disliked = []
+    for i in range(current_count):
+        sentence = form_data.get(f"tone_sentence_{i}", "")
+        rating = form_data.get(f"tone_rating_{i}", "")
+        if sentence and rating:
+            try:
+                r = int(rating)
+                if r >= 4:
+                    liked.append(sentence)
+                elif r <= 2:
+                    disliked.append(sentence)
+            except ValueError:
+                pass
+
+    # Read live voice context from form
+    live_brand_voice = form_data.get("brand_voice", "") or ""
+    live_admired_style = form_data.get("admired_style", "") or ""
+    live_never_associated = form_data.get("never_associated", "") or ""
+
+    voice_parts = []
+    if live_brand_voice.strip():
+        voice_parts.append(live_brand_voice.strip())
+    elif client.brand_voice:
+        voice_parts.append(client.brand_voice)
+    if live_admired_style.strip():
+        voice_parts.append(f"Admired style: {live_admired_style.strip()}")
+    effective_voice = "\n".join(voice_parts) if voice_parts else "Professional, knowledgeable, authentic"
+
+    from app.services.ai import call_llm_json, log_ai_usage
+
+    # Build prompt with liked/disliked context
+    feedback_section = ""
+    if liked:
+        feedback_section += "\n\nSentences the client LIKED (rated 4-5) \u2014 generate MORE like these:\n"
+        for s in liked[:5]:
+            feedback_section += f"- \"{s}\"\n"
+    if disliked:
+        feedback_section += "\nSentences the client DISLIKED (rated 1-2) \u2014 AVOID this style:\n"
+        for s in disliked[:5]:
+            feedback_section += f"- \"{s}\"\n"
+
+    prompt = f"""Generate 3 NEW sample Reddit comment sentences for brand voice calibration.
+
+Brand context:
+- Brand: {client.brand_name or client.client_name or "the brand"}
+- Industry: {client.industry or "technology"}
+- Voice/tone: {effective_voice}
+- Product: {(client.company_profile or "")[:600]}
+{feedback_section}
+RULES:
+- Each sentence is 1-3 sentences max (Reddit comment style)
+- Must be DIFFERENT from all previous sentences
+- Industry-specific (reference real problems/tools from this field)
+- Match the voice description closely
+- NO marketing language, NO buzzwords
+- If client liked certain sentences, lean into that style
+- If client disliked certain sentences, avoid that approach entirely
+
+Output strict JSON:
+{{"sentences": ["sentence 1", "sentence 2", "sentence 3"]}}"""
+
+    messages = [
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": "Generate 3 more calibration sentences (different from previous ones)."},
+    ]
+
+    try:
+        result = call_llm_json(
+            messages=messages,
+            model="gemini/gemini-2.5-flash",
+            temperature=0.85,
+            max_tokens=400,
+        )
+        log_ai_usage(db, str(client.id), "onboarding_tone_calibration_retry", result)
+        sentences = result["data"].get("sentences", [])[:3]
+    except Exception as e:
+        logger.error("Tone calibration retry failed: %s", e)
+        return HTMLResponse(
+            '<div id="calibrate-more-area" style="margin-top:12px;">'
+            '<p class="text-small" style="color:var(--color-red);">Generation failed. </p>'
+            '<button type="button" hx-post="/onboard/step/4/calibrate-more" hx-include="closest form" '
+            'hx-target="#calibrate-more-area" hx-swap="outerHTML" '
+            'class="btn-ghost" style="padding:8px 16px;font-size:var(--text-small);border:1px solid var(--color-border);margin-top:8px;">'
+            'Retry</button></div>'
+        )
+
+    new_count = current_count + len(sentences)
+
+    # Build new cards (indices continue from current_count)
+    html_parts = ['<div id="calibrate-more-area" style="margin-top:16px;">']
+    html_parts.append('<div style="display:flex;flex-direction:column;gap:12px;">')
+
+    for idx_offset, sentence in enumerate(sentences):
+        i = current_count + idx_offset
+        rating_buttons = ""
+        for r in range(1, 6):
+            onchange_js = "this.parentElement.parentElement.querySelectorAll(&#39;label&#39;).forEach(l=>l.style.background=&#39;transparent&#39;);this.parentElement.style.background=&#39;rgba(255,107,53,0.3)&#39;"
+            rating_buttons += (
+                f'<label style="cursor:pointer;padding:4px;">'
+                f'<input type="radio" name="tone_rating_{i}" value="{r}" style="display:none;" '
+                f'onchange="{onchange_js}">'
+                f'<span style="display:inline-block;width:32px;height:32px;border-radius:50%;border:2px solid var(--color-border);line-height:32px;text-align:center;font-size:var(--text-small);font-weight:600;color:var(--color-muted);">{r}</span>'
+                f'</label>'
+            )
+        escaped_sentence = sentence.replace('"', '&quot;')
+        html_parts.append(
+            f'<div style="background:var(--color-surface-alt);border-radius:8px;padding:12px 16px;animation:fadeIn 0.3s ease-in;">'
+            f'<p style="color:var(--color-white);font-size:var(--text-body);line-height:1.5;margin-bottom:10px;font-style:italic;">&ldquo;{escaped_sentence}&rdquo;</p>'
+            f'<div style="display:flex;gap:6px;">'
+            f'<input type="hidden" name="tone_sentence_{i}" value="{escaped_sentence}">'
+            f'{rating_buttons}'
+            f'</div></div>'
+        )
+
+    html_parts.append('</div>')
+
+    # Update hidden count
+    html_parts.append(f'<input type="hidden" name="tone_count" value="{new_count}">')
+
+    # Show "Generate 3 more" again if under cap
+    if new_count < 11:
+        html_parts.append(
+            '<div style="margin-top:12px;">'
+            '<button type="button" '
+            'hx-post="/onboard/step/4/calibrate-more" '
+            'hx-include="closest form" '
+            'hx-target="#calibrate-more-area" '
+            'hx-swap="outerHTML" '
+            'hx-indicator="#cal-more-loading2" '
+            'class="btn-ghost" style="padding:8px 16px;font-size:var(--text-small);border:1px solid var(--color-border);">'
+            '\u2728 Generate 3 more'
+            '</button>'
+            '<span id="cal-more-loading2" class="htmx-indicator" style="margin-left:8px;color:var(--color-orange);font-size:var(--text-small);">Generating...</span>'
+            '</div>'
+        )
+    else:
+        html_parts.append(
+            '<p class="text-micro" style="color:var(--color-muted);margin-top:12px;">'
+            'Maximum samples reached (11). Pick your favorites and proceed.</p>'
+        )
+
+    html_parts.append('</div>')
 
     return HTMLResponse("\n".join(html_parts))
 
@@ -1249,8 +1673,9 @@ def step5_submit_username(
     user: User = Depends(_require_onboard_user),
     db: Session = Depends(get_db),
     reddit_username: str = Form(""),
+    desired_role: str = Form(""),
 ):
-    """HTMX: Submit username, create AvatarDraft, return progress partial."""
+    """HTMX: Submit username + desired role, create AvatarDraft, return progress partial."""
     client = _get_client_for_onboarding(user, db)
 
     from app.services.byoa_pipeline import create_avatar_draft, BYOAError, get_active_draft_for_client, cancel_draft
@@ -1286,6 +1711,7 @@ def step5_submit_username(
             client_id=client.id,
             user_id=user.id,
             db=db,
+            desired_role=desired_role.strip() if desired_role else "",
         )
     except BYOAError as e:
         return HTMLResponse(

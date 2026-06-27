@@ -50,21 +50,38 @@
         </div>
 
         {% else %}
-        <!-- Fresh: show username input -->
+        <!-- Fresh: show username input + role selection -->
         <form hx-post="/onboard/step/5/submit-username"
               hx-target="#byoa-result"
               hx-swap="innerHTML"
-              style="display:flex;gap:12px;margin-bottom:16px;">
-            <input type="text" name="reddit_username"
-                   placeholder="u/your_username" maxlength="23"
-                   class="field-input" style="flex:1;"
-                   required>
-            <button type="submit" class="btn-primary" style="padding:10px 20px;white-space:nowrap;">
-                Analyze Profile
-            </button>
+              style="margin-bottom:16px;">
+            <div style="display:flex;gap:12px;margin-bottom:12px;">
+                <input type="text" name="reddit_username"
+                       placeholder="u/your_username" maxlength="23"
+                       class="field-input" style="flex:1;"
+                       required>
+                <button type="submit" class="btn-primary" style="padding:10px 20px;white-space:nowrap;">
+                    Analyze Profile
+                </button>
+            </div>
+            <div style="margin-bottom:8px;">
+                <label class="text-micro" style="color:var(--color-muted);display:block;margin-bottom:6px;">
+                    This avatar should sound like a...
+                </label>
+                <select name="desired_role" class="field-input" style="width:100%;max-width:320px;">
+                    <option value="">Auto-detect from Reddit history</option>
+                    <option value="industry_expert">Industry Expert / Thought Leader</option>
+                    <option value="executive">Executive / Founder / CEO</option>
+                    <option value="practitioner">Practitioner / Engineer / Hands-on</option>
+                    <option value="academic">Academic / Researcher / Lecturer</option>
+                    <option value="consultant">Consultant / Advisor</option>
+                    <option value="community_member">Community Member (generic)</option>
+                </select>
+            </div>
         </form>
         <p class="text-micro" style="color:var(--color-muted);">
             We will fetch your Reddit history and use AI to understand your tone, interests, and expertise.
+            The role selection helps the AI generate a more relevant persona.
         </p>
         <div id="byoa-result"></div>
         {% endif %}

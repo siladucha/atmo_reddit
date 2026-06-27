@@ -59,6 +59,7 @@
                 <div id="calibration-area">
                     <button type="button"
                             hx-post="/onboard/step/4/calibrate"
+                            hx-include="closest form"
                             hx-target="#calibration-area"
                             hx-swap="innerHTML"
                             hx-indicator="#cal-loading"

@@ -98,8 +98,11 @@ def fetch_reddit_profile_for_draft(self, draft_id: str):
             logger.warning("BYOA_FETCH | draft_id=%s | transient_error=%s | retrying", draft_id, error_msg[:100])
             raise self.retry(countdown=60 * (2 ** self.request.retries))
 
-        # Success: store snapshot
+        # Success: store snapshot (preserve _desired_role from draft creation)
+        desired_role = (draft.reddit_snapshot or {}).get("_desired_role", "")
         draft.reddit_snapshot = profile_data
+        if desired_role:
+            draft.reddit_snapshot["_desired_role"] = desired_role
         draft.status = DRAFT_STATUS_ANALYZING
         draft.fetch_completed_at = datetime.now(timezone.utc)
         db.commit()
@@ -217,11 +220,15 @@ def analyze_reddit_profile_for_draft(self, draft_id: str):
             logger.warning("BYOA_ANALYZE | draft_id=%s | action=scheduler_timeout, retrying", draft_id)
             raise self.retry(countdown=30)
 
+        # Extract desired_role from snapshot metadata (set during BYOA form submission)
+        desired_role = (draft.reddit_snapshot or {}).get("_desired_role", "")
+
         try:
             # Call existing AI analysis function
             analysis_result = analyze_avatar_with_ai(
                 profile_data=draft.reddit_snapshot,
                 client=client,
+                desired_role=desired_role,
                 db=db,
             )
         finally:

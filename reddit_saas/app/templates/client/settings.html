@@ -6,21 +6,11 @@
 {% block content %}
 <div id="portal-content">
     <div style="margin-bottom:var(--space-4);">
-        <h1 class="text-h1">Settings{{ tooltip("Refine your campaign: add/remove keywords, request new subreddits, set brand guardrails, and provide voice feedback to improve AI output.") }}</h1>
-        <p class="text-small" style="margin-top:4px;">Ongoing campaign refinement. All major configuration was set during onboarding.</p>
+        <h1 class="text-h1">Profile & Settings{{ tooltip("Set brand guardrails and provide voice feedback to improve AI output. Manage keywords and subreddits from their dedicated pages.") }}</h1>
+        <p class="text-small" style="margin-top:4px;">Ongoing campaign refinement. Keywords and subreddits have their own dedicated pages in the sidebar.</p>
     </div>
 
     <div style="display:flex;flex-direction:column;gap:var(--space-3);">
-
-        <!-- Keywords Section -->
-        <div class="surface" style="padding:var(--space-3);" id="settings-keywords">
-            {% include "partials/client/settings_keywords.html" %}
-        </div>
-
-        <!-- Subreddits Section -->
-        <div class="surface" style="padding:var(--space-3);" id="settings-subreddits">
-            {% include "partials/client/settings_subreddits.html" %}
-        </div>
 
         <!-- Brand Guardrails Section -->
         <div class="surface" style="padding:var(--space-3);" id="settings-guardrails">
@@ -30,6 +20,24 @@
         <!-- Voice Feedback Section -->
         <div class="surface" style="padding:var(--space-3);" id="settings-voice-feedback">
             {% include "partials/client/settings_voice_feedback.html" %}
+        </div>
+
+        <!-- Quick Links to Keywords & Subreddits -->
+        <div class="surface" style="padding:var(--space-3);">
+            <h2 style="font-size:var(--text-h2);color:var(--color-white);margin:0 0 12px;">Campaign Configuration</h2>
+            <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:16px;">Manage these from their dedicated pages:</p>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                <a href="/clients/{{ client_id }}/keywords" style="display:flex;align-items:center;gap:8px;padding:12px 20px;background:var(--color-surface-alt);border-radius:var(--radius-card);text-decoration:none;color:var(--color-white);border:1px solid var(--color-border);transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--color-orange)'" onmouseout="this.style.borderColor='var(--color-border)'">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
+                    <span style="font-weight:500;">Keywords</span>
+                    <span style="font-size:var(--text-micro);color:var(--color-muted);margin-left:4px;">→</span>
+                </a>
+                <a href="/clients/{{ client_id }}/subreddits" style="display:flex;align-items:center;gap:8px;padding:12px 20px;background:var(--color-surface-alt);border-radius:var(--radius-card);text-decoration:none;color:var(--color-white);border:1px solid var(--color-border);transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--color-orange)'" onmouseout="this.style.borderColor='var(--color-border)'">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    <span style="font-weight:500;">Subreddits</span>
+                    <span style="font-size:var(--text-micro);color:var(--color-muted);margin-left:4px;">→</span>
+                </a>
+            </div>
         </div>
 
         <!-- Notifications — Coming Soon -->

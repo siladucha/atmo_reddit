@@ -38,6 +38,7 @@ def create_avatar_draft(
     client_id: uuid.UUID,
     user_id: uuid.UUID,
     db: Session,
+    desired_role: str = "",
 ) -> AvatarDraft:
     """Create an AvatarDraft and enqueue the fetch task.
 
@@ -96,13 +97,14 @@ def create_avatar_draft(
     if existing_draft:
         raise BYOAError(f"Analysis for u/{username} is already in progress")
 
-    # Create draft
+    # Create draft (pre-seed desired_role in snapshot for analysis task to pick up)
     draft = AvatarDraft(
         id=uuid.uuid4(),
         reddit_username=username,
         client_id=client_id,
         created_by_user_id=user_id,
         status=DRAFT_STATUS_PENDING_FETCH,
+        reddit_snapshot={"_desired_role": desired_role} if desired_role else None,
     )
     db.add(draft)
     db.commit()

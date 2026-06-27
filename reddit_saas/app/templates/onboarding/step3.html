@@ -6,17 +6,17 @@
     {% include "onboarding/progress.html" %}
 
     <h1 class="text-h1" style="margin-bottom:8px;">Who is your ideal buyer?</h1>
-    <p class="text-small" style="color:var(--color-muted);margin-bottom:var(--space-4);">This helps the AI find the right Reddit communities and write comments that resonate with your audience.</p>
+    <p class="text-small" style="color:var(--color-muted);margin-bottom:var(--space-4);">Define one or more audience segments. The AI will tailor content to each.</p>
 
     <form method="post" action="/onboard/step/3/save">
         <!-- B2B / B2C toggle -->
         <div style="display:flex;gap:8px;margin-bottom:var(--space-3);">
             <label style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:var(--radius-pill);border:1px solid var(--color-border);cursor:pointer;">
-                <input type="radio" name="business_type" value="b2b" checked onchange="document.getElementById('b2b-fields').style.display='block';document.getElementById('b2c-fields').style.display='none';">
+                <input type="radio" name="business_type" value="b2b" checked>
                 <span style="color:var(--color-white);font-size:var(--text-small);">B2B</span>
             </label>
             <label style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:var(--radius-pill);border:1px solid var(--color-border);cursor:pointer;">
-                <input type="radio" name="business_type" value="b2c" onchange="document.getElementById('b2c-fields').style.display='block';document.getElementById('b2b-fields').style.display='none';">
+                <input type="radio" name="business_type" value="b2c">
                 <span style="color:var(--color-white);font-size:var(--text-small);">B2C</span>
             </label>
         </div>
@@ -24,75 +24,125 @@
         <div style="margin-bottom:var(--space-3);display:flex;align-items:center;gap:12px;">
             <button type="button"
                     hx-post="/onboard/step/3/suggest"
-                    hx-target="#step3-fields"
+                    hx-target="#icp-block-0 .icp-fields"
                     hx-swap="innerHTML"
                     hx-indicator="#step3-loading"
-                    hx-on::after-request="this.disabled=true;this.textContent='✓ AI Suggested';this.style.opacity='0.4'"
+                    hx-on::after-request="this.disabled=true;this.textContent='\u2713 AI Suggested';this.style.opacity='0.4'"
                     class="btn-primary" style="padding:8px 20px;font-size:var(--text-small);"
                     {% if ai_icp is defined and ai_icp and ai_icp.job_titles %}disabled style="padding:8px 20px;font-size:var(--text-small);opacity:0.4;cursor:not-allowed;"{% endif %}>
-                {% if ai_icp is defined and ai_icp and ai_icp.job_titles %}✓ AI Suggested{% else %}✨ Suggest with AI{% endif %}
+                {% if ai_icp is defined and ai_icp and ai_icp.job_titles %}\u2713 AI Suggested{% else %}\u2728 Suggest with AI{% endif %}
             </button>
             <span id="step3-loading" class="htmx-indicator text-small" style="color:var(--color-orange);">Thinking...</span>
         </div>
 
-        <!-- B2B fields -->
-        <div id="b2b-fields" class="surface" style="padding:var(--space-3);">
-            <div id="step3-fields" style="display:flex;flex-direction:column;gap:12px;">
-                <div>
-                    <label class="text-micro" style="color:var(--color-muted);">Job titles of your buyers *</label>
-                    <input type="text" name="job_titles" class="field-input" style="width:100%;" placeholder="e.g. CISO, VP Security, Security Architect" value="{{ (ai_icp.job_titles if ai_icp is defined and ai_icp) or '' }}">
+        <!-- ICP blocks container -->
+        <div id="icp-container">
+            {% for icp in icps %}
+            <div class="surface icp-block" id="icp-block-{{ loop.index0 }}" style="padding:var(--space-3);margin-bottom:16px;position:relative;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <select name="icp_type_{{ loop.index0 }}" class="field-input" style="width:auto;padding:4px 12px;font-size:var(--text-small);">
+                            <option value="primary" {{ 'selected' if icp.type == 'primary' else '' }}>Primary ICP</option>
+                            <option value="adjacent" {{ 'selected' if icp.type == 'adjacent' else '' }}>Adjacent ICP</option>
+                        </select>
+                        {% if loop.index0 > 0 %}
+                        <span style="font-size:var(--text-micro);color:var(--color-muted);">#{{ loop.index }}</span>
+                        {% endif %}
+                    </div>
+                    {% if loop.index0 > 0 %}
+                    <button type="button" onclick="this.closest('.icp-block').remove()" style="background:none;border:none;color:var(--color-red);cursor:pointer;font-size:16px;padding:4px 8px;" title="Remove this ICP">&times;</button>
+                    {% endif %}
                 </div>
-                <div>
-                    <label class="text-micro" style="color:var(--color-muted);">Seniority level</label>
-                    <select name="seniority" class="field-input" style="width:100%;">
-                        {% set sel = (ai_icp.seniority if ai_icp is defined and ai_icp and ai_icp.seniority) or 'manager' %}
-                        <option value="c-level" {{ 'selected' if sel == 'c-level' else '' }}>C-Level / VP</option>
-                        <option value="director" {{ 'selected' if sel == 'director' else '' }}>Director</option>
-                        <option value="manager" {{ 'selected' if sel == 'manager' else '' }}>Manager / Lead</option>
-                        <option value="individual" {{ 'selected' if sel in ('individual', 'ic') else '' }}>Individual Contributor</option>
-                        <option value="mixed" {{ 'selected' if sel == 'mixed' else '' }}>Mixed levels</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-micro" style="color:var(--color-muted);">Their day-to-day frustration *</label>
-                    <textarea name="frustration" rows="2" class="field-input" style="width:100%;" placeholder="e.g. Drowning in alerts, can't prioritize, board asks 'are we secure?' and they can't answer confidently">{{ (ai_icp.frustration if ai_icp is defined and ai_icp) or '' }}</textarea>
-                </div>
-                <div>
-                    <label class="text-micro" style="color:var(--color-muted);">What do they search before finding you? *</label>
-                    <textarea name="search_query" rows="2" class="field-input" style="width:100%;" placeholder="e.g. 'how to prioritize vulnerabilities', 'attack path analysis tools', 'CTEM vs vulnerability scanning'">{{ (ai_icp.search_query if ai_icp is defined and ai_icp) or '' }}</textarea>
-                    <p class="text-micro" style="color:var(--color-muted);margin-top:4px;">This becomes the seed for keyword suggestions in the next step.</p>
-                </div>
-                <div>
-                    <label class="text-micro" style="color:var(--color-muted);">Adjacent buyer (optional)</label>
-                    <textarea name="adjacent_icp" rows="2" class="field-input" style="width:100%;" placeholder="e.g. Cloud Security Engineers who evaluate tools for their CISO">{{ (ai_icp.adjacent_icp if ai_icp is defined and ai_icp) or '' }}</textarea>
+                <div class="icp-fields" style="display:flex;flex-direction:column;gap:12px;">
+                    <div>
+                        <label class="text-micro" style="color:var(--color-muted);">Job titles *</label>
+                        <input type="text" name="job_titles_{{ loop.index0 }}" class="field-input" style="width:100%;" placeholder="e.g. CISO, VP Security, Security Architect" value="{{ icp.job_titles or '' }}">
+                    </div>
+                    <div>
+                        <label class="text-micro" style="color:var(--color-muted);">Seniority level</label>
+                        <select name="seniority_{{ loop.index0 }}" class="field-input" style="width:100%;">
+                            <option value="c-level" {{ 'selected' if icp.seniority == 'c-level' else '' }}>C-Level / VP</option>
+                            <option value="director" {{ 'selected' if icp.seniority == 'director' else '' }}>Director</option>
+                            <option value="manager" {{ 'selected' if icp.seniority in ('manager', '') else '' }}>Manager / Lead</option>
+                            <option value="individual" {{ 'selected' if icp.seniority in ('individual', 'ic') else '' }}>Individual Contributor</option>
+                            <option value="mixed" {{ 'selected' if icp.seniority == 'mixed' else '' }}>Mixed levels</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-micro" style="color:var(--color-muted);">Their day-to-day frustration *</label>
+                        <textarea name="frustration_{{ loop.index0 }}" rows="2" class="field-input" style="width:100%;" placeholder="What keeps them up at night?">{{ icp.frustration or '' }}</textarea>
+                    </div>
+                    <div>
+                        <label class="text-micro" style="color:var(--color-muted);">What do they search before finding you? *</label>
+                        <textarea name="search_query_{{ loop.index0 }}" rows="2" class="field-input" style="width:100%;" placeholder="e.g. 'how to prioritize vulnerabilities', 'attack path analysis tools'">{{ icp.search_query or '' }}</textarea>
+                    </div>
                 </div>
             </div>
+            {% endfor %}
         </div>
 
-        <!-- B2C fields (hidden by default) -->
-        <div id="b2c-fields" class="surface" style="padding:var(--space-3);display:none;flex-direction:column;gap:12px;">
-            <div>
-                <label class="text-micro" style="color:var(--color-muted);">Demographics *</label>
-                <input type="text" name="demographics" class="field-input" style="width:100%;" placeholder="e.g. 25-45 year old professionals interested in personal finance">
-            </div>
-            <div>
-                <label class="text-micro" style="color:var(--color-muted);">Interests *</label>
-                <input type="text" name="interests" class="field-input" style="width:100%;" placeholder="e.g. investing, side hustles, productivity, career growth">
-            </div>
-            <div>
-                <label class="text-micro" style="color:var(--color-muted);">Their frustration *</label>
-                <textarea name="frustration" rows="2" class="field-input" style="width:100%;" placeholder="What keeps them up at night?"></textarea>
-            </div>
-            <div>
-                <label class="text-micro" style="color:var(--color-muted);">What do they search? *</label>
-                <textarea name="search_query" rows="2" class="field-input" style="width:100%;" placeholder="What do they Google or ask Reddit before finding you?"></textarea>
-            </div>
-        </div>
+        <!-- Add ICP button -->
+        <button type="button" id="add-icp-btn" onclick="addIcpBlock()" style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:var(--radius-input);background:transparent;border:1px dashed var(--color-border);color:var(--color-muted);cursor:pointer;width:100%;justify-content:center;margin-bottom:var(--space-3);font-size:var(--text-small);" onmouseover="this.style.borderColor='var(--color-orange)';this.style.color='var(--color-orange)'" onmouseout="this.style.borderColor='var(--color-border)';this.style.color='var(--color-muted)'">
+            <span style="font-size:18px;">+</span> Add another ICP segment
+        </button>
+
+        <input type="hidden" name="icp_count" id="icp-count" value="{{ icps | length }}">
 
         <div style="display:flex;justify-content:space-between;margin-top:var(--space-4);">
-            <a href="/onboard/step/2" class="btn-ghost" style="padding:12px 24px;">← Back</a>
-            <button type="submit" class="btn-primary" style="padding:12px 32px;">Next →</button>
+            <a href="/onboard/step/2" class="btn-ghost" style="padding:12px 24px;">&larr; Back</a>
+            <button type="submit" class="btn-primary" style="padding:12px 32px;">Next &rarr;</button>
         </div>
     </form>
 </div>
+
+<script>
+function addIcpBlock() {
+    var container = document.getElementById('icp-container');
+    var count = container.querySelectorAll('.icp-block').length;
+    if (count >= 5) { alert('Maximum 5 ICP segments'); return; }
+
+    var html = `
+    <div class="surface icp-block" id="icp-block-${count}" style="padding:var(--space-3);margin-bottom:16px;position:relative;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <select name="icp_type_${count}" class="field-input" style="width:auto;padding:4px 12px;font-size:var(--text-small);">
+                    <option value="primary">Primary ICP</option>
+                    <option value="adjacent" selected>Adjacent ICP</option>
+                </select>
+                <span style="font-size:var(--text-micro);color:var(--color-muted);">#${count + 1}</span>
+            </div>
+            <button type="button" onclick="this.closest('.icp-block').remove();updateIcpCount();" style="background:none;border:none;color:var(--color-red);cursor:pointer;font-size:16px;padding:4px 8px;" title="Remove this ICP">&times;</button>
+        </div>
+        <div class="icp-fields" style="display:flex;flex-direction:column;gap:12px;">
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);">Job titles *</label>
+                <input type="text" name="job_titles_${count}" class="field-input" style="width:100%;" placeholder="e.g. Cloud Architect, DevOps Lead">
+            </div>
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);">Seniority level</label>
+                <select name="seniority_${count}" class="field-input" style="width:100%;">
+                    <option value="c-level">C-Level / VP</option>
+                    <option value="director">Director</option>
+                    <option value="manager" selected>Manager / Lead</option>
+                    <option value="individual">Individual Contributor</option>
+                    <option value="mixed">Mixed levels</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);">Their day-to-day frustration *</label>
+                <textarea name="frustration_${count}" rows="2" class="field-input" style="width:100%;" placeholder="What keeps them up at night?"></textarea>
+            </div>
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);">What do they search before finding you? *</label>
+                <textarea name="search_query_${count}" rows="2" class="field-input" style="width:100%;" placeholder="e.g. 'kubernetes security best practices'"></textarea>
+            </div>
+        </div>
+    </div>`;
+    container.insertAdjacentHTML('beforeend', html);
+    updateIcpCount();
+}
+function updateIcpCount() {
+    document.getElementById('icp-count').value = document.querySelectorAll('.icp-block').length;
+}
+</script>
 {% endblock %}
