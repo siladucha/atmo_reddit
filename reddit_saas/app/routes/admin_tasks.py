@@ -14,7 +14,7 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies.admin import require_superuser
+from app.dependencies.permissions import require_platform_admin
 from app.logging_config import get_logger
 from app.models.execution_task import ExecutionTask, DeliveryAttempt
 from app.models.user import User
@@ -30,7 +30,7 @@ def list_tasks(
     status: str | None = None,
     client_id: str | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_platform_admin),
 ):
     """List all execution tasks with optional filters."""
     query = db.query(ExecutionTask).order_by(desc(ExecutionTask.created_at))
@@ -70,7 +70,7 @@ def task_detail(
     request: Request,
     task_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_platform_admin),
 ):
     """View execution task detail with delivery log."""
     try:
@@ -102,7 +102,7 @@ def resend_task(
     request: Request,
     task_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_platform_admin),
 ):
     """Resend delivery email for a task (respects anti-spam limits)."""
     try:
@@ -142,7 +142,7 @@ def verify_task(
     task_id: str,
     reddit_url: str = Form(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_platform_admin),
 ):
     """Admin submits Reddit URL for verification."""
     try:
@@ -178,7 +178,7 @@ def cancel_task_route(
     task_id: str,
     reason: str = Form(default="Cancelled by admin"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_platform_admin),
 ):
     """Admin cancels a task with reason."""
     try:
@@ -203,7 +203,7 @@ def task_metrics(
     request: Request,
     period: int = Query(default=30, ge=1, le=365),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_superuser),
+    current_user: User = Depends(require_platform_admin),
 ):
     """SLA metrics dashboard."""
     from app.services.execution_tasks import get_sla_metrics

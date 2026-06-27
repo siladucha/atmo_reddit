@@ -40,6 +40,7 @@ from app.models.voice_feedback import VoiceFeedback
 from app.models.subreddit_request import SubredditRequest
 from app.models.subreddit_risk_profile import SubredditRiskProfile
 from app.models.subreddit_daily_stats import SubredditDailyStats
+from app.models.avatar_subreddit_ban import AvatarSubredditBan
 
 __all__ = [
     "User",
@@ -86,6 +87,7 @@ __all__ = [
     "SubredditRequest",
     "SubredditRiskProfile",
     "SubredditDailyStats",
+    "AvatarSubredditBan",
     "ExecutionTask",
     "DeliveryAttempt",
     "GeoPrompt",
@@ -135,3 +137,6 @@ from app.models.review_snapshot import ReviewSnapshot
 from app.models.daily_review_session import DailyReviewSession
 from app.models.review_decision import ReviewDecision
 from app.models.intelligence_report import IntelligenceReport
+
+# Pipeline Observability
+from app.models.pipeline_run import PipelineRun

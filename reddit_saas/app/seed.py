@@ -906,6 +906,7 @@ def seed_default_settings(db=None):
             ("monthly_budget_usd", "100", False, "Monthly AI spending budget in USD"),
             ("aws_credits_remaining", "7000", False, "Remaining AWS credits in USD"),
             ("alert_email", "", False, "Email for system alerts"),
+            ("cqs_check_tasks_enabled", "true", False, "Enable periodic CQS check task emails to executors"),
         ]
 
         created = 0

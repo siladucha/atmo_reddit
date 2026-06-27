@@ -44,6 +44,7 @@ from app.config import get_settings as _get_settings
 
 templates.env.globals["app_version"] = app_version
 templates.env.globals["posting_disabled"] = lambda: _get_settings().posting_disabled
+templates.env.globals["app_env"] = _get_settings().app_env
 
 from app.template_filters import register_filters
 register_filters(templates.env)
@@ -91,6 +92,7 @@ def daily_review_page(
     budget = get_today_budget(db)
 
     return templates.TemplateResponse(
+        request=request,
         name="admin_daily_review.html",
         context={
             "request": request,
@@ -215,7 +217,7 @@ def get_section(
         )
         context["session_decision_count"] = session_decisions
 
-    return templates.TemplateResponse(name=template_name, context=context)
+    return templates.TemplateResponse(request=request, name=template_name, context=context)
 
 
 @router.post("/section/{name}/save", response_class=HTMLResponse)
@@ -275,6 +277,7 @@ def complete_section(
 
     # Return updated sidebar partial
     return templates.TemplateResponse(
+        request=request,
         name="partials/daily_review/sidebar.html",
         context={
             "request": request,
@@ -413,6 +416,7 @@ def add_decision(
     )
 
     return templates.TemplateResponse(
+        request=request,
         name="partials/daily_review/decisions_list.html",
         context={"request": request, "decisions": decisions, "count": len(decisions)},
     )
@@ -458,6 +462,7 @@ def review_history(
         .all()
     )
     return templates.TemplateResponse(
+        request=request,
         name="partials/daily_review/history.html",
         context={"request": request, "reports": reports},
     )
@@ -472,6 +477,7 @@ def budget_indicator(
     """Budget indicator partial (polled every 30s)."""
     budget = get_today_budget(db)
     return templates.TemplateResponse(
+        request=request,
         name="partials/daily_review/budget_indicator.html",
         context={"request": request, "budget": budget.to_dict()},
     )

@@ -53,6 +53,7 @@ templates.env.globals["dry_run_enabled"] = is_dry_run_enabled_global
 # Expose version and posting status to all admin templates.
 templates.env.globals["app_version"] = app_version
 templates.env.globals["posting_disabled"] = lambda: _get_settings().posting_disabled
+templates.env.globals["app_env"] = _get_settings().app_env
 
 # Register custom Jinja2 filters
 from app.template_filters import register_filters
