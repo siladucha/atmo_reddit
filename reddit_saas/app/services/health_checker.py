@@ -509,6 +509,128 @@ def check_comment_visibility(
         )
 
 
+
+
+def check_submission_visibility(username: str) -> tuple[bool | None, dict]:
+    """Check if avatar's submissions are visible in subreddit feeds.
+
+    This detects GLOBAL shadowbans (Reddit admin-level) where all content
+    is invisible across all subreddits. Works even when the avatar has
+    no comments in our system.
+
+    Method:
+    1. Fetch avatar's most recent submission via read-only PRAW
+    2. Check if that submission appears in the subreddit's /new feed
+    3. If submission exists in profile but NOT in subreddit → global shadowban
+
+    Args:
+        username: Reddit username (without u/ prefix)
+
+    Returns:
+        (is_shadowbanned, details):
+        - None = couldn't determine (no submissions, API error)
+        - True = global shadowban confirmed
+        - False = submissions are visible (not shadowbanned)
+    """
+    logger.info(
+        "REDDIT_API_CALL | action=check_submission_visibility | username=%s",
+        username,
+    )
+    start_time = time.time()
+
+    try:
+        reddit = get_reddit_client(caller="submission_visibility_probe")
+        redditor = reddit.redditor(ensure_username_bare(username))
+
+        # Get avatar's most recent submission
+        submissions = list(redditor.submissions.new(limit=3))
+
+        if not submissions:
+            duration_ms = int((time.time() - start_time) * 1000)
+            logger.info(
+                "SUBMISSION_PROBE | username=%s | result=no_submissions | duration_ms=%d",
+                username, duration_ms,
+            )
+            return None, {
+                "method": "submission_visibility",
+                "result": "no_submissions",
+                "duration_ms": duration_ms,
+            }
+
+        # Take the most recent submission
+        target_submission = submissions[0]
+        target_id = target_submission.id
+        target_subreddit = str(target_submission.subreddit)
+
+        # Check if this submission appears in the subreddit's new feed
+        # Fetch enough posts to have a reasonable chance of finding it
+        subreddit = reddit.subreddit(target_subreddit)
+        sub_new_ids = set()
+        for post in subreddit.new(limit=100):
+            sub_new_ids.add(post.id)
+
+        is_visible = target_id in sub_new_ids
+
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        if is_visible:
+            logger.info(
+                "SUBMISSION_PROBE | username=%s | result=visible | "
+                "subreddit=%s | post_id=%s | duration_ms=%d",
+                username, target_subreddit, target_id, duration_ms,
+            )
+            return False, {
+                "method": "submission_visibility",
+                "result": "visible",
+                "subreddit": target_subreddit,
+                "post_id": target_id,
+                "duration_ms": duration_ms,
+            }
+        else:
+            # Post exists in profile but NOT in subreddit feed
+            # This is the hallmark of a global shadowban
+            logger.warning(
+                "SUBMISSION_PROBE | username=%s | result=SHADOWBANNED | "
+                "subreddit=%s | post_id=%s | post_not_in_feed | duration_ms=%d",
+                username, target_subreddit, target_id, duration_ms,
+            )
+            return True, {
+                "method": "submission_visibility",
+                "result": "shadowbanned",
+                "subreddit": target_subreddit,
+                "post_id": target_id,
+                "reason": "submission_exists_in_profile_but_not_in_subreddit_feed",
+                "duration_ms": duration_ms,
+            }
+
+    except (NotFound, Forbidden) as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        # NotFound on redditor = account suspended/deleted (different from shadowban)
+        # Forbidden = private profile
+        logger.warning(
+            "SUBMISSION_PROBE | username=%s | result=error | error=%s | duration_ms=%d",
+            username, type(e).__name__, duration_ms,
+        )
+        return None, {
+            "method": "submission_visibility",
+            "result": "error",
+            "error": f"{type(e).__name__}: {str(e)[:100]}",
+            "duration_ms": duration_ms,
+        }
+
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.warning(
+            "SUBMISSION_PROBE | username=%s | result=error | error=%s | duration_ms=%d",
+            username, str(e)[:100], duration_ms,
+        )
+        return None, {
+            "method": "submission_visibility",
+            "result": "error",
+            "error": f"{type(e).__name__}: {str(e)[:100]}",
+            "duration_ms": duration_ms,
+        }
+
 def check_avatar_health(db: Session, avatar: Avatar) -> HealthCheckResult:
     """Perform a full health check on a single avatar.
 
@@ -571,9 +693,55 @@ def check_avatar_health(db: Session, avatar: Avatar) -> HealthCheckResult:
                 comments_visible = visible_count
 
                 if total_sampled < min_comments:
-                    # 5. Insufficient comments → retain previous status
-                    new_status = previous_status
-                    detection_method = "visibility_check"
+                    # 5. Insufficient comments — try submission visibility probe
+                    # This catches global shadowbans where comments.new() returns 0
+                    try:
+                        sb_result, sb_details = check_submission_visibility(username)
+                        if sb_result is True:
+                            # Global shadowban confirmed via submission probe
+                            new_status = HealthStatus.SHADOWBANNED.value
+                            detection_method = "submission_visibility_probe"
+                            logger.warning(
+                                "GLOBAL_SHADOWBAN_DETECTED | username=%s | "
+                                "method=submission_probe | details=%s",
+                                username, sb_details,
+                            )
+                        elif sb_result is None and total_sampled == 0:
+                            # Both probes returned ZERO content.
+                            # If avatar has posted drafts in our DB, Reddit is
+                            # hiding everything → definitive shadowban.
+                            posted_count = (
+                                db.query(CommentDraft)
+                                .filter(
+                                    CommentDraft.avatar_id == avatar.id,
+                                    CommentDraft.status == "posted",
+                                )
+                                .count()
+                            )
+                            if posted_count > 0:
+                                new_status = HealthStatus.SHADOWBANNED.value
+                                detection_method = "zero_content_with_history"
+                                logger.warning(
+                                    "GLOBAL_SHADOWBAN_DETECTED | username=%s | "
+                                    "method=zero_content_with_history | "
+                                    "posted_drafts_in_db=%d | "
+                                    "api_comments=0 | api_submissions=0",
+                                    username, posted_count,
+                                )
+                            else:
+                                new_status = previous_status
+                                detection_method = "visibility_check"
+                        else:
+                            # Not conclusive or not shadowbanned — retain previous
+                            new_status = previous_status
+                            detection_method = "visibility_check"
+                    except Exception as e_probe:
+                        logger.warning(
+                            "Submission probe failed for %s: %s",
+                            username, str(e_probe)[:100],
+                        )
+                        new_status = previous_status
+                        detection_method = "visibility_check"
                 else:
                     # 6. Classify based on visibility ratio
                     visibility_ratio = visible_count / total_sampled
@@ -723,16 +891,30 @@ def run_health_check_batch(db: Session) -> dict:
     interval_hours = int(get_setting(db, "health_check_interval_hours"))
     rate_limit_delay = float(get_setting(db, "health_check_rate_limit_delay_seconds"))
 
+    # Young accounts (<90 days) get checked more frequently (every 4h)
+    # because they have much higher shadowban risk from Reddit's anti-bot systems.
+    YOUNG_ACCOUNT_INTERVAL_HOURS = 4
+    YOUNG_ACCOUNT_AGE_DAYS = 90
+
     stale_cutoff = datetime.now(timezone.utc) - timedelta(hours=interval_hours)
+    young_cutoff = datetime.now(timezone.utc) - timedelta(hours=YOUNG_ACCOUNT_INTERVAL_HOURS)
+    young_account_threshold = datetime.now(timezone.utc) - timedelta(days=YOUNG_ACCOUNT_AGE_DAYS)
 
     # 2. Query eligible avatars.
+    # Standard interval for mature accounts + accelerated interval for young accounts
     eligible_avatars = db.query(Avatar).filter(
         and_(
             Avatar.active == True,  # noqa: E712
             Avatar.is_frozen == False,  # noqa: E712
             or_(
                 Avatar.last_health_check.is_(None),
+                # Standard: stale by normal interval
                 Avatar.last_health_check < stale_cutoff,
+                # Accelerated: young account (created <90 days ago) stale by 4h
+                and_(
+                    Avatar.created_at > young_account_threshold,
+                    Avatar.last_health_check < young_cutoff,
+                ),
             ),
         )
     ).all()
@@ -775,7 +957,46 @@ def run_health_check_batch(db: Session) -> dict:
         checked_count, changed_count, error_count, duration_ms, batch_size,
     )
 
-    # 5. Audit log: batch completion
+    # 5. Auto-freeze avatars stuck in 'unknown' health for >48h
+    # If health_status has been 'unknown' for >48h and the avatar is active,
+    # something is wrong (detection failing repeatedly). Freeze as precaution.
+    STALE_UNKNOWN_HOURS = 48
+    stale_unknown_cutoff = datetime.now(timezone.utc) - timedelta(hours=STALE_UNKNOWN_HOURS)
+    stale_unknown_frozen = 0
+
+    try:
+        stale_unknown_avatars = db.query(Avatar).filter(
+            and_(
+                Avatar.active == True,  # noqa: E712
+                Avatar.is_frozen == False,  # noqa: E712
+                Avatar.health_status == "unknown",
+                Avatar.last_health_check.isnot(None),
+                Avatar.last_health_check < stale_unknown_cutoff,
+            )
+        ).all()
+
+        for av in stale_unknown_avatars:
+            av.is_frozen = True
+            av.freeze_reason = "health_unknown_stale_48h"
+            av.frozen_at = datetime.now(timezone.utc)
+            stale_unknown_frozen += 1
+            logger.warning(
+                "AUTO_FREEZE_STALE_UNKNOWN | username=%s | "
+                "last_health_check=%s | reason=health_unknown_stale_48h",
+                av.reddit_username, av.last_health_check,
+            )
+
+        if stale_unknown_frozen > 0:
+            db.commit()
+            logger.warning(
+                "STALE_UNKNOWN_FREEZE_BATCH | frozen=%d", stale_unknown_frozen,
+            )
+    except Exception:
+        logger.warning(
+            "Failed to process stale unknown avatars", exc_info=True,
+        )
+
+    # 6. Audit log: batch completion
     try:
         from app.services.audit import log_system_action
 
@@ -787,6 +1008,7 @@ def run_health_check_batch(db: Session) -> dict:
                 "checked": checked_count,
                 "changed": changed_count,
                 "errors": error_count,
+                "stale_unknown_frozen": stale_unknown_frozen,
                 "duration_ms": duration_ms,
             },
         )
@@ -796,11 +1018,12 @@ def run_health_check_batch(db: Session) -> dict:
             exc_info=True,
         )
 
-    # 6. Return summary
+    # 8. Return summary
     summary = {
         "checked": checked_count,
         "changed": changed_count,
         "errors": error_count,
+        "stale_unknown_frozen": stale_unknown_frozen,
         "duration_ms": duration_ms,
     }
 

@@ -366,6 +366,20 @@ def smart_score_for_avatar(
 
     # --- Get available subreddits ---
     available_subs = get_avatar_available_subreddit_names(db, avatar, client)
+
+    # --- Filter out banned subreddits ---
+    try:
+        from app.services.subreddit_ban import get_banned_subreddits
+        banned = get_banned_subreddits(db, avatar.id)
+        if banned:
+            available_subs = [s for s in available_subs if s not in banned]
+            if banned:
+                logger.debug(
+                    "smart_score: avatar=%s excluded %d banned subs: %s",
+                    avatar.reddit_username, len(banned), list(banned)[:5],
+                )
+    except Exception as e:
+        logger.warning("Failed to check subreddit bans: %s", str(e)[:100])
     if not available_subs:
         result.status = "no_threads"
         result.message = "No subreddits available for this avatar's phase"

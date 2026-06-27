@@ -238,6 +238,22 @@ def _check_and_snapshot(db, draft, window_name: str, now: datetime, stats: dict)
         # Emit activity event for deletion
         _emit_deletion_event(db, draft, window_name)
 
+        # Check if this triggers a per-subreddit ban detection
+        if subreddit and draft.avatar_id:
+            try:
+                from app.services.subreddit_ban import check_for_subreddit_ban
+                ban_created = check_for_subreddit_ban(
+                    db, draft.avatar_id, subreddit, draft.id
+                )
+                if ban_created:
+                    stats.setdefault("bans_detected", 0)
+                    stats["bans_detected"] += 1
+            except Exception as e:
+                logger.warning(
+                    "subreddit_ban check failed for draft %s: %s",
+                    draft.id, str(e)[:100],
+                )
+
     db.commit()
     stats["snapshots_created"] += 1
 
