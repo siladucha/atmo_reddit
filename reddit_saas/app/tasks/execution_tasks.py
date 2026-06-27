@@ -92,18 +92,42 @@ def dispatch_due_email_tasks():
     - Find execution_tasks with status='generated' (created but not yet emailed)
     - Where the linked EPG slot's scheduled_at is between now and now+30 min
     - Skip tasks where scheduled_at is more than 30 min in the past (stale)
+    - CHECK QUIET HOURS before sending (defer if outside 07:00-23:00 Israel time)
+    - CHECK AVATAR HEALTH before sending (cancel if frozen/shadowbanned/suspended)
+    - CHECK THREAD LIVENESS before sending (cancel if locked/removed/archived)
     - Dispatch one email per task
     """
     import uuid
     from datetime import datetime, timedelta, timezone
 
+    import pytz
+
+    from app.models.avatar import Avatar
     from app.models.execution_task import ExecutionTask
+    from app.models.thread import RedditThread
+
+    # Quiet hours: no emails between 23:00 and 07:00 Israel time
+    QUIET_HOUR_START = 23
+    QUIET_HOUR_END = 7
 
     db = SessionLocal()
     try:
         now = datetime.now(timezone.utc)
         window_start = now - timedelta(minutes=5)  # Small grace period for just-passed slots
         window_end = now + timedelta(minutes=30)
+
+        # --- Quiet hours gate ---
+        israel_tz = pytz.timezone("Asia/Jerusalem")
+        now_israel = now.astimezone(israel_tz)
+        current_hour = now_israel.hour
+
+        if current_hour >= QUIET_HOUR_START or current_hour < QUIET_HOUR_END:
+            logger.info(
+                "dispatch_due_email_tasks: quiet hours (%02d:00-%02d:00 Israel), "
+                "current=%02d:%02d. Deferring.",
+                QUIET_HOUR_START, QUIET_HOUR_END, now_israel.hour, now_israel.minute,
+            )
+            return {"dispatched": 0, "reason": "quiet_hours", "local_time": now_israel.strftime("%H:%M")}
 
         # Find tasks that are generated (not yet emailed) and due soon
         due_tasks = (
@@ -123,8 +147,57 @@ def dispatch_due_email_tasks():
             return {"dispatched": 0, "reason": "no_due_tasks"}
 
         dispatched = 0
+        cancelled_locked = 0
+        cancelled_health = 0
+
+        # Cache avatar health (avoid repeated queries for same avatar)
+        _avatar_health_cache: dict[str, bool] = {}
+
         for task in due_tasks:
             try:
+                # --- Pre-dispatch avatar health check ---
+                avatar_id_str = str(task.avatar_id) if task.avatar_id else None
+                if avatar_id_str:
+                    if avatar_id_str not in _avatar_health_cache:
+                        avatar = db.query(Avatar).filter(Avatar.id == task.avatar_id).first()
+                        if avatar:
+                            is_eligible = (
+                                not avatar.is_frozen
+                                and not avatar.is_shadowbanned
+                                and getattr(avatar, "health_status", "unknown") not in ("shadowbanned", "suspended")
+                                and getattr(avatar, "active", True)
+                            )
+                            _avatar_health_cache[avatar_id_str] = is_eligible
+                        else:
+                            _avatar_health_cache[avatar_id_str] = False
+
+                    if not _avatar_health_cache.get(avatar_id_str, False):
+                        from app.services.execution_tasks import cancel_task
+                        cancel_task(db, task.id, "avatar_unhealthy_at_dispatch")
+                        cancelled_health += 1
+                        logger.info(
+                            "Cancelled task %s: avatar %s unhealthy at dispatch",
+                            task.task_code, task.avatar_username,
+                        )
+                        continue
+
+                # --- Pre-dispatch liveness check ---
+                if task.thread_id:
+                    thread = db.query(RedditThread).filter(RedditThread.id == task.thread_id).first()
+                    if thread:
+                        if thread.is_locked:
+                            _cancel_task_as_locked(db, task, "thread_already_locked")
+                            cancelled_locked += 1
+                            continue
+
+                        from app.services.thread_liveness import is_thread_stale, refresh_thread_locked_status
+                        if is_thread_stale(thread):
+                            is_open = refresh_thread_locked_status(db, thread)
+                            if not is_open:
+                                _cancel_task_as_locked(db, task, "thread_locked_on_liveness_check")
+                                cancelled_locked += 1
+                                continue
+
                 deliver_execution_task.delay(str(task.id), 1)
                 dispatched += 1
                 logger.info(
@@ -134,11 +207,53 @@ def dispatch_due_email_tasks():
             except Exception as e:
                 logger.warning("Failed to dispatch task %s: %s", task.task_code, str(e)[:100])
 
-        logger.info("dispatch_due_email_tasks: dispatched=%d of %d due", dispatched, len(due_tasks))
-        return {"dispatched": dispatched, "total_due": len(due_tasks)}
+        logger.info(
+            "dispatch_due_email_tasks: dispatched=%d, cancelled_locked=%d, "
+            "cancelled_health=%d, total_due=%d",
+            dispatched, cancelled_locked, cancelled_health, len(due_tasks),
+        )
+        return {
+            "dispatched": dispatched,
+            "cancelled_locked": cancelled_locked,
+            "cancelled_health": cancelled_health,
+            "total_due": len(due_tasks),
+        }
 
     except Exception as e:
         logger.error("dispatch_due_email_tasks failed: %s", e, exc_info=True)
         return {"error": str(e)}
     finally:
         db.close()
+
+
+def _cancel_task_as_locked(db, task, reason: str):
+    """Cancel an execution task because its thread is locked/removed/archived.
+
+    Also cancels the linked draft and EPG slot to keep pipeline consistent.
+    """
+    from datetime import datetime, timezone
+    from app.services.execution_tasks import cancel_task
+
+    cancel_task(db, task.id, reason)
+    logger.info(
+        "Cancelled task %s: %s (thread=%s, subreddit=r/%s)",
+        task.task_code, reason, task.thread_id, task.subreddit,
+    )
+
+    # Also reject the linked draft if still pending/approved (can't be posted)
+    if task.draft_id:
+        from app.models.comment_draft import CommentDraft
+        draft = db.query(CommentDraft).filter(CommentDraft.id == task.draft_id).first()
+        if draft and draft.status in ("pending", "approved"):
+            draft.status = "rejected"
+            db.commit()
+            logger.info("Auto-rejected draft %s (thread locked)", task.draft_id)
+
+    # Skip the EPG slot
+    if task.epg_slot_id:
+        from app.models.epg_slot import EPGSlot
+        slot = db.query(EPGSlot).filter(EPGSlot.id == task.epg_slot_id).first()
+        if slot and slot.status not in ("posted", "skipped"):
+            slot.status = "skipped"
+            slot.skip_reason = f"thread_locked: {reason}"
+            db.commit()

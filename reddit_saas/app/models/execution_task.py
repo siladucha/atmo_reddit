@@ -1,13 +1,15 @@
-"""ExecutionTask — channel-agnostic task delivery for EPG slots.
+"""ExecutionTask — channel-agnostic task delivery for EPG slots and CQS checks.
 
-Represents a single actionable item generated from an approved EPG slot,
-delivered to a human executor via email (MVP), Telegram, or portal push (future).
+Represents a single actionable item generated from an approved EPG slot or
+a CQS check task, delivered to a human executor via email (MVP), Telegram, or
+portal push (future).
 
 Lifecycle: generated -> emailed -> accepted -> submitted -> url_verified -> content_verified -> verified
 Terminal states: verified, failed, expired, cancelled
 
 Design: Decoupled from EPG/CommentDraft. ExecutionTask is the execution layer;
 CommentDraft is the content layer. Linked but independent.
+CQS check tasks have epg_slot_id=NULL (no linked EPG slot).
 """
 
 import uuid
@@ -33,9 +35,9 @@ class ExecutionTask(Base):
     )
 
     # --- Source references (immutable after creation) ---
-    epg_slot_id: Mapped[uuid.UUID] = mapped_column(
+    epg_slot_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("epg_slots.id", ondelete="CASCADE"),
-        nullable=False, unique=True,  # One task per slot (idempotency)
+        nullable=True, index=True,  # Nullable for CQS check tasks (no EPG slot)
     )
     draft_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("comment_drafts.id", ondelete="SET NULL"), nullable=True
@@ -63,7 +65,7 @@ class ExecutionTask(Base):
     )  # email | telegram | portal_push
 
     # --- Task content (denormalized snapshot, frozen at creation) ---
-    task_type: Mapped[str] = mapped_column(String(50), nullable=False, default="comment")  # comment | post | reply
+    task_type: Mapped[str] = mapped_column(String(50), nullable=False, default="comment")  # comment | post | reply | cqs_check
     subreddit: Mapped[str] = mapped_column(String(255), nullable=False)
     thread_url: Mapped[str] = mapped_column(Text, nullable=False)
     thread_title: Mapped[str] = mapped_column(Text, nullable=False)
@@ -132,6 +134,13 @@ class ExecutionTask(Base):
             postgresql_where=text(
                 "status NOT IN ('verified', 'expired', 'failed', 'cancelled')"
             ),
+        ),
+        # Partial unique index: one task per EPG slot (only for non-NULL epg_slot_id)
+        Index(
+            "ix_execution_tasks_epg_slot_id_unique",
+            "epg_slot_id",
+            unique=True,
+            postgresql_where=text("epg_slot_id IS NOT NULL"),
         ),
     )
 

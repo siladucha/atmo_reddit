@@ -61,6 +61,7 @@ from app.version import __version__ as app_version
 from app.config import get_settings as _get_settings
 templates.env.globals["app_version"] = app_version
 templates.env.globals["posting_disabled"] = lambda: _get_settings().posting_disabled
+templates.env.globals["app_env"] = _get_settings().app_env
 
 from app.template_filters import register_filters
 register_filters(templates.env)
@@ -3135,4 +3136,52 @@ def portal_help(
             "user_email": user.email,
         },
         request=request,
+    )
+
+
+@router.get("/clients/{client_id}/tasks", response_class=HTMLResponse)
+def portal_tasks(
+    request: Request,
+    client_id: UUID,
+    status: str | None = None,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Client-scoped execution tasks — shows only tasks for this client."""
+    from app.models.execution_task import ExecutionTask
+
+    query = (
+        db.query(ExecutionTask)
+        .filter(ExecutionTask.client_id == client_id)
+        .order_by(ExecutionTask.created_at.desc())
+    )
+
+    if status:
+        query = query.filter(ExecutionTask.status == status)
+
+    tasks = query.limit(100).all()
+
+    # Status counts
+    base_q = db.query(ExecutionTask).filter(ExecutionTask.client_id == client_id)
+    all_count = base_q.count()
+    active_count = base_q.filter(
+        ExecutionTask.status.in_(("generated", "emailed", "accepted", "submitted", "url_verified"))
+    ).count()
+    verified_count = base_q.filter(ExecutionTask.status == "verified").count()
+    expired_count = base_q.filter(ExecutionTask.status == "expired").count()
+
+    return _portal_render(
+        request,
+        "client/tasks.html",
+        client_id,
+        db,
+        active_page="tasks",
+        extra_context={
+            "tasks": tasks,
+            "current_status": status,
+            "all_count": all_count,
+            "active_count": active_count,
+            "verified_count": verified_count,
+            "expired_count": expired_count,
+        },
     )

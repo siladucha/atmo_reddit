@@ -327,12 +327,58 @@ def dispatch_delivery(db: Session, task_id: uuid.UUID, force: bool = False) -> D
 # Email Composition
 # ---------------------------------------------------------------------------
 
+CQS_CHECK_EMAIL_TEMPLATE = """RAMP — CQS HEALTH CHECK
+========================
+
+Task:     {task_code}
+Avatar:   u/{avatar_username}
+Action:   Post in r/WhatIsMyCQS
+
+INSTRUCTIONS
+------------
+1. Log in to Reddit as u/{avatar_username}
+2. Go to https://reddit.com/r/WhatIsMyCQS/submit
+3. Create a text post with title: "What is my cqs?"
+4. Body can be left empty
+5. Submit the post
+6. Click the action link below to confirm done
+
+ACTION LINK
+-----------
+{token_link}
+
+WHY THIS TASK?
+--------------
+Routine health check. Reddit assigns a quality score to every account.
+We check periodically to ensure good standing. Takes 30 seconds.
+
+---
+Task Code: {task_code}
+Deadline: 48 hours
+Do not forward this email.
+"""
+
+
 def compose_task_email(task: ExecutionTask) -> tuple[str, str, str | None]:
     """Compose email subject and body for an execution task.
 
     Returns: (subject, body_text, body_html)
     body_html is None for MVP (plain text only).
     """
+    # --- CQS Check Task: dedicated template ---
+    if task.task_type == "cqs_check":
+        base_url = "https://gorampit.com"
+        token_link = f"{base_url}/tasks/{task.task_code}/{task.executor_token}"
+
+        subject = f"[RAMP] CQS Check — u/{task.avatar_username} — {task.task_code}"
+        body_text = CQS_CHECK_EMAIL_TEMPLATE.format(
+            task_code=task.task_code,
+            avatar_username=task.avatar_username,
+            token_link=token_link,
+        )
+        return subject, body_text, None
+
+    # --- Standard content task ---
     # Format scheduled time
     time_str = ""
     if task.scheduled_at:
@@ -340,8 +386,9 @@ def compose_task_email(task: ExecutionTask) -> tuple[str, str, str | None]:
     else:
         time_str = "ASAP"
 
-    # Subject
-    subject = f"[RAMP Task] {task.client_name} / {task.avatar_username} / r/{task.subreddit} / {task.task_type.capitalize()} / {time_str}"
+    # Subject — [RAMP Task: type] Client / Avatar / r/Sub / TASK-CODE / HH:MM
+    task_code_short = task.task_code
+    subject = f"[RAMP Task: {task.task_type}] {task.client_name} / {task.avatar_username} / r/{task.subreddit} / {task_code_short} / {time_str}"
 
     # Deadline display
     deadline_str = task.deadline.strftime("%H:%M %Z") if task.deadline else "N/A"
