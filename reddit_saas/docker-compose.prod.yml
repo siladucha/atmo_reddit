@@ -45,6 +45,25 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  celery-fast:
+    command: >
+      sh -c "
+        until getent hosts db && getent hosts redis; do echo 'waiting for docker dns...'; sleep 2; done;
+        until nc -z db 5432; do echo 'waiting for postgres...'; sleep 2; done;
+        until nc -z redis 6379; do echo 'waiting for redis...'; sleep 2; done;
+        celery -A app.tasks.worker worker --loglevel=info --concurrency=1 -Q fast -n fast@%h --max-tasks-per-child=50
+      "
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
   celery-beat:
     restart: always
     deploy:

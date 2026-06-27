@@ -33,6 +33,8 @@ celery_app = Celery(
         "app.tasks.byoa",
         "app.tasks.risk_profile",
         "app.tasks.execution_tasks",
+        "app.tasks.subreddit_ban_probe",
+        "app.tasks.cqs_tasks",
     ],
 )
 
@@ -100,6 +102,10 @@ celery_app.conf.update(
         "dispatch-due-email-tasks": {
             "task": "dispatch_due_email_tasks",
             "schedule": 300.0,  # Every 5 minutes — send email for tasks due within 30 min
+        },
+        "cqs-check-tasks-daily": {
+            "task": "generate_cqs_check_tasks_all_avatars",
+            "schedule": crontab(hour=7, minute=0),  # 07:00 daily — CQS check tasks for executors
         },
         "epg-build-generate-morning": {
             "task": "build_and_generate_epg_all_avatars",
@@ -173,7 +179,23 @@ celery_app.conf.update(
             "task": "compute_risk_scores_batch",
             "schedule": crontab(hour=5, minute=30, day_of_week="sunday"),
         },
+        "probe-subreddit-bans-weekly": {
+            "task": "probe_subreddit_bans",
+            "schedule": crontab(hour=3, minute=45, day_of_week="sunday"),  # Weekly, after karma tracking
+        },
     },
+    # Task routing: on-demand user-triggered tasks go to 'fast' queue
+    # so they don't get blocked behind long-running bulk tasks.
+    # Both queues share the same Redis rate limiter (global, Redis-based).
+    task_routes={
+        # On-demand / interactive tasks → fast queue
+        'analyze_subreddit_emotional_profile': {'queue': 'fast'},
+        'run_full_pipeline_single_client': {'queue': 'fast'},
+        'build_epg_single_avatar': {'queue': 'fast'},
+        'generate_strategy_for_client': {'queue': 'fast'},
+        # Everything else → default 'celery' queue (implicit)
+    },
+    task_default_queue='celery',
     # Broker connection resilience
     broker_connection_retry_on_startup=True,
     broker_connection_retry=True,
