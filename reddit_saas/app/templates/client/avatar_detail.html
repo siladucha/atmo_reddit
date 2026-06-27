@@ -127,10 +127,12 @@
         <h3 style="font-size:var(--text-h3);color:var(--color-white);margin-bottom:12px;">Subreddit Territory</h3>
         <div style="display:flex;flex-wrap:wrap;gap:8px;">
             {% for sub in avatar.business_subreddits %}
-            <a href="https://reddit.com/r/{{ sub }}" target="_blank" rel="noopener" style="padding:4px 12px;border-radius:var(--radius-pill);background:rgba(59,130,246,0.15);color:#60a5fa;font-size:var(--text-small);text-decoration:none;">r/{{ sub }}</a>
+            {% set sub_name = sub.subreddit if sub is mapping else sub %}
+            <a href="https://reddit.com/r/{{ sub_name | replace('r/', '') }}" target="_blank" rel="noopener" style="padding:4px 12px;border-radius:var(--radius-pill);background:rgba(59,130,246,0.15);color:#60a5fa;font-size:var(--text-small);text-decoration:none;">r/{{ sub_name | replace('r/', '') }}</a>
             {% endfor %}
             {% for sub in avatar.hobby_subreddits %}
-            <a href="https://reddit.com/r/{{ sub }}" target="_blank" rel="noopener" style="padding:4px 12px;border-radius:var(--radius-pill);background:rgba(139,92,246,0.15);color:#a78bfa;font-size:var(--text-small);text-decoration:none;">r/{{ sub }}</a>
+            {% set sub_name = sub.subreddit if sub is mapping else sub %}
+            <a href="https://reddit.com/r/{{ sub_name | replace('r/', '') }}" target="_blank" rel="noopener" style="padding:4px 12px;border-radius:var(--radius-pill);background:rgba(139,92,246,0.15);color:#a78bfa;font-size:var(--text-small);text-decoration:none;">r/{{ sub_name | replace('r/', '') }}</a>
             {% endfor %}
         </div>
     </div>

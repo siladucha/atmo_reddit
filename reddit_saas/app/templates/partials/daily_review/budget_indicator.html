@@ -8,7 +8,7 @@
             {% if budget.is_exhausted %}bg-red-500
             {% elif budget.is_warning %}bg-yellow-500
             {% else %}bg-green-500{% endif %}"
-            style="width: {{ budget.utilization_pct | min(100) }}%">
+            style="width: {{ [budget.utilization_pct, 100] | min }}%">
         </div>
     </div>
     {% if budget.is_exhausted %}

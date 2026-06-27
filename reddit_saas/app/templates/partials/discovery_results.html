@@ -72,7 +72,7 @@
                         <tbody>
                             {% for sub in h.reddit_signals.subreddits %}
                             <tr class="border-b border-gray-800/50">
-                                <td class="py-1.5 pr-3 text-indigo-400 font-medium">{{ sub.name }}</td>
+                                <td class="py-1.5 pr-3 text-indigo-400 font-medium">r/{{ sub.name | replace("r/", "") }}</td>
                                 <td class="py-1.5 px-2 text-right text-gray-300 font-mono">{{ '{:,}'.format(sub.subscribers|int) if sub.subscribers else '—' }}</td>
                                 <td class="py-1.5 px-2 text-right text-gray-300 font-mono">{{ sub.posts_30d if sub.posts_30d else '—' }}</td>
                                 <td class="py-1.5 px-2 text-right text-gray-300 font-mono">{{ '%.1f' | format(sub.avg_engagement|float) if sub.avg_engagement else '—' }}</td>

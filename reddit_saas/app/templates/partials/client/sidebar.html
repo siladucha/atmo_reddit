@@ -4,7 +4,7 @@
     <div style="padding: var(--space-3); border-bottom: 1px solid var(--color-border);">
         <a href="/clients/{{ client_id }}/home" style="display:flex;align-items:center;gap:8px;text-decoration:none;margin-bottom:12px;">
             <span style="font-size:20px;">📡</span>
-            <span style="font-size:var(--text-h3);font-weight:600;color:var(--color-white);">RAMP</span>
+            <span style="font-size:var(--text-h3);font-weight:600;color:var(--color-white);">RAMP</span>{% if app_env is defined and app_env != "production" %}<span style="font-size:9px;padding:2px 6px;border-radius:4px;font-weight:700;text-transform:uppercase;{% if app_env == "staging" %}background:rgba(234,179,8,0.15);color:#facc15;border:1px solid rgba(234,179,8,0.3);{% else %}background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);{% endif %}">{{ app_env }}</span>{% endif %}
         </a>
         <!-- User info -->
         <div style="display:flex;align-items:center;gap:10px;">

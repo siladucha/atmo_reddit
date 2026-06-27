@@ -321,7 +321,7 @@ def _analyze_subreddit(sub, search_terms: list[str]) -> SubredditSignal | None:
         relevance = _calculate_relevance(recent_posts or posts, search_terms)
 
         return SubredditSignal(
-            name=f"r/{sub_name}",
+            name=sub_name,
             subscribers=subscribers,
             posts_30d=posts_30d,
             avg_engagement=avg_engagement,

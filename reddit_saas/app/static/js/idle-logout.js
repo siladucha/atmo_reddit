@@ -1,12 +1,12 @@
 /**
- * Idle Logout — auto-logout after 10 minutes of inactivity.
+ * Idle Logout — auto-logout after 1 hour of inactivity.
  * Tracks: mousemove, keydown, scroll, click, touchstart.
  * Shows a warning toast 60s before logout.
  */
 (function () {
   "use strict";
 
-  var IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+  var IDLE_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour
   var WARNING_BEFORE_MS = 60 * 1000; // warn 60s before logout
   var LOGOUT_URL = "/logout";
 

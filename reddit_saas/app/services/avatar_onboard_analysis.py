@@ -144,6 +144,7 @@ def analyze_avatar_with_ai(
     profile_data: dict,
     client: Client | None = None,
     db: Session | None = None,
+    desired_role: str = "",
 ) -> dict:
     """Run AI analysis on fetched Reddit profile.
 
@@ -200,6 +201,27 @@ CLIENT CONTEXT (this avatar will serve this client):
 - ICP: {(client.icp_profiles or '')[:200]}
 - Problem they solve: {(client.company_problem or '')[:200]}
 """
+
+    # Desired role context (from client BYOA form selection)
+    role_context = ""
+    if desired_role:
+        role_labels = {
+            "industry_expert": "Industry Expert / Thought Leader",
+            "executive": "Executive / Founder / CEO",
+            "practitioner": "Practitioner / Engineer / Hands-on professional",
+            "academic": "Academic / Researcher / Lecturer",
+            "consultant": "Consultant / Advisor",
+            "community_member": "Community Member",
+        }
+        role_label = role_labels.get(desired_role, desired_role)
+        role_context = f"""
+IMPORTANT — DESIRED ROLE (client chose this):
+The client wants this avatar to sound like a {role_label}.
+When generating voice_profile, persona_bio, display_name, and strategy — frame everything
+through the lens of this role. The avatar's expertise, opinions, and communication style
+should reflect someone who is a {role_label} in the {client.industry or 'relevant'} industry.
+"""
+
 
     system_prompt = """You are an expert at analyzing Reddit accounts for a managed community engagement platform.
 
@@ -261,7 +283,7 @@ RECENT COMMENTS (newest first):
 
 RECENT POSTS (newest first):
 {posts_text}
-{client_context}
+{client_context}{role_context}
 Analyze this account and provide the structured JSON profile."""
 
     messages = [
