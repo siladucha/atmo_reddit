@@ -90,6 +90,27 @@ Shows: trial countdown → onboarding progress bar (step X/6) → "what's happen
 6. **Alert bar has max 6 items** — overflow shows "+N more". Prevents alert fatigue.
 7. **Health indicators are conservative** — red only when clearly broken, not on transient issues.
 
+---
+
+## Unsaved Changes Detection (`admin_base.html`)
+
+Global script in `admin_base.html` protects against accidental navigation away from unsaved form edits.
+
+**How it works:**
+- Forms with `data-track-changes` attribute are monitored for user input
+- On `beforeunload`, if dirty = true → browser's native "Leave page?" dialog appears
+- On successful submit or HTMX swap → dirty flag is reset
+
+**Anti-false-positive guards (fixed June 25, 2026):**
+- `e.isTrusted` — only real user interactions trigger dirty flag (ignores HTMX swaps, JS-generated events, browser autofill)
+- `tracking = false` for first 1.5s — ignores all events during page initialization (lazy-loaded HTMX panels, browser form restoration)
+- `htmx:afterSwap` → `markClean()` — HTMX form submissions reset dirty state
+
+**When adding new `data-track-changes` forms:**
+- Ensure all initial values are rendered server-side (no JS that sets values after load)
+- If a form has dynamic content loaded via HTMX, the swap will NOT trigger false dirty (thanks to `isTrusted` guard)
+- Password/proxy fields should use `placeholder` for existing values, not `value` (already done)
+
 
 ---
 

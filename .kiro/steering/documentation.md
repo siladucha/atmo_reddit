@@ -59,10 +59,15 @@ docs/kb/
 
 ## Relationship to Other Docs
 
-| Location | Purpose | Audience |
-|----------|---------|----------|
-| `docs/kb/` | User manuals, operational guides | Team, clients, avatar owners |
-| `docs/` (root) | Architecture, ADRs, audits, reports | Developer (Max) |
-| `buziness/` | Letters to Tzvi, forecasts, business docs | Tzvi, partners |
-| `.kiro/steering/` | AI context for development | AI assistant |
-| `.kiro/specs/` | Feature specifications | Developer (Max) |
+> **Note:** For the full truth resolution model and priority hierarchy, see `.kiro/steering/truth_resolution.md`.
+
+| Location | Truth Layer | Purpose | Audience |
+|----------|------------|---------|----------|
+| `.kiro/state/current.yaml` | CSS (derived) | Current state snapshot | AI + engineer (read first) |
+| `.kiro/steering/*.md` | Steering (intent) | Principles, rules, architecture decisions | AI + engineer |
+| `docs/kb/` | System docs (user-facing) | User manuals, operational guides | Team, clients, avatar owners |
+| `docs/` (root) | System docs (technical) | Architecture, ADRs, audits, reports | Developer (Max) |
+| `docs/ops/` | Ops logs (reality) | Incident records, session logs | Developer (highest priority) |
+| `buziness/` | External inputs | Letters to Tzvi, forecasts, business docs | Requires normalization |
+| `.kiro/specs/` | Intent → System | Feature specifications (become system docs after implementation) | Developer (Max) |
+| `RAMP_SYSTEM_DIAGNOSTIC.json` | Architectural reference | Static graph model (not current state) | AI + engineer |

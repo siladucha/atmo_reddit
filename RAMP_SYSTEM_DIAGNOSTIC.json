@@ -1,11 +1,13 @@
 {
   "meta": {
-    "version": "1.0.0",
-    "generated_at": "2026-06-25",
+    "version": "1.1.0",
+    "generated_at": "2026-06-27",
     "system_name": "RAMP",
     "system_version": "0.3.0",
     "extraction_method": "reverse_engineering_from_source",
-    "completeness": "AS-IS from production codebase"
+    "completeness": "AS-IS from production codebase",
+    "truth_layer": "architectural_reference",
+    "note": "STATIC REFERENCE ONLY. Not a source of truth for current state. For live state see .kiro/state/current.yaml. For reconciliation rules see .kiro/steering/truth_resolution.md"
   },
   "deployment": {
     "environment": "production",
@@ -378,6 +380,81 @@
         ]
       },
       {
+        "id": "cqs_task_generator",
+        "layer": "signal",
+        "trigger": "daily 07:00",
+        "services": [
+          "cqs_task_generator.py"
+        ],
+        "tasks": [
+          "generate_cqs_check_tasks_all_avatars"
+        ],
+        "kill_switch": "cqs_check_tasks_enabled",
+        "flow": "query eligible avatars (interval-based) > create ExecutionTask(type=cqs_check, epg_slot_id=NULL) > dispatch pipeline delivers email > executor posts in r/WhatIsMyCQS > check_cqs_all_avatars reads bot reply",
+        "intervals": {
+          "cqs_lowest_or_young_lt_90d": "7 days",
+          "mature_healthy": "30 days"
+        },
+        "exclusions": [
+          "suspended",
+          "inactive",
+          "no_verified_email",
+          "pending_task_exists",
+          "interval_not_reached"
+        ],
+        "exclusions_removed_june_27": [
+          "frozen (REMOVED — deadlock fix)",
+          "shadowbanned (REMOVED — deadlock fix)",
+          "health_status filter (REMOVED — deadlock fix)"
+        ],
+        "deadline_hours": 48,
+        "added": "2026-06-27",
+        "reason": "Flaky_Finder_13 incident: CQS=lowest -> budget=0 -> no tasks -> no recovery path. Creates write-side of CQS monitoring (self-healing loop)."
+      },
+      {
+        "id": "cqs_batch_check",
+        "layer": "signal",
+        "trigger": "daily 06:30",
+        "services": [
+          "cqs_checker.py"
+        ],
+        "tasks": [
+          "check_cqs_all_avatars"
+        ],
+        "flow": "query ALL active avatars (no frozen/phase filter since June 27) > read AutoModerator replies in r/WhatIsMyCQS > update cqs_level > emit cqs_recovery_detected if improved from lowest while frozen",
+        "filters_removed_june_27": {
+          "is_frozen_eq_false": "REMOVED — frozen avatars now checked (deadlock fix)",
+          "warming_phase_gte_2": "REMOVED — Phase 1 avatars now checked"
+        },
+        "recovery_signal": "cqs_recovery_detected activity event emitted when frozen avatar's CQS improves from lowest",
+        "updated": "2026-06-27"
+      },
+      {
+        "id": "browser_extension",
+        "layer": "transport",
+        "status": "PLANNED (spec ready, not yet built)",
+        "spec": ".kiro/specs/browser-extension/",
+        "purpose": "Chrome Manifest V3 extension on executor machines. Replaces proxy/OAuth infrastructure. Enables zero-friction posting, passive CQS/health monitoring, recovery detection.",
+        "architecture": {
+          "communication": "HTTPS polling 30s (MVP), long-poll/SSE upgrade path",
+          "action_classes": {
+            "system": "CQS check, health probe — never blocked by content limits",
+            "content": "Comment posting — rate limited, daily cap, active hours"
+          },
+          "state_transitions": "Measurement layer (extension reports) separated from decision layer (backend decides). Dual confirmation for auto-unfreeze.",
+          "task_integrity": "Idempotency keys, HMAC task signing, execution leases"
+        },
+        "replaces": ["proxy infrastructure ($50-200/mo)", "OAuth approval dependency"],
+        "keeps": ["email task delivery (fallback when extension offline)"],
+        "phases": [
+          "MVP: CQS auto-check + health monitoring + popup (2-3 weeks)",
+          "Auto-Posting: auto-mode + safety limits (1-2 weeks)",
+          "Intelligence: dual-confirmation auto-unfreeze + multi-account (1 week)",
+          "Polish: Firefox port, Chrome Web Store (1 week)"
+        ],
+        "added": "2026-06-27"
+      },
+      {
         "id": "heartbeat",
         "layer": "observability",
         "trigger": "every 60s",
@@ -516,6 +593,16 @@
         "from": "discovery",
         "to": "risk_profile",
         "condition": "new data"
+      },
+      {
+        "from": "cqs_task_generator",
+        "to": "execution_task",
+        "condition": "creates ExecutionTask(type=cqs_check) dispatched by dispatch_due_email_tasks"
+      },
+      {
+        "from": "cqs_batch_check",
+        "to": "phase_evaluation",
+        "condition": "cqs_recovery_detected may trigger recovery candidate evaluation"
       }
     ],
     "layers": {
@@ -826,7 +913,8 @@
       "auto_posting_enabled(db)",
       "email_tasks_enabled(db)",
       "epg2_enabled(db)",
-      "fitness_gate_enabled(db)"
+      "fitness_gate_enabled(db)",
+      "cqs_check_tasks_enabled(db)"
     ]
   },
   "signals": {
@@ -839,7 +927,8 @@
     "health": [
       "shadowban_detected",
       "suspension_detected",
-      "cqs_level_change"
+      "cqs_level_change",
+      "cqs_recovery_detected"
     ],
     "moderation": [
       "comment_removal",
@@ -2957,9 +3046,9 @@
       "rule_4": "Distinguish between IMPLEMENTED (in production code) and PLANNED (in specs only). Expert phase, AI-Native Expert system, SQS migration = PLANNED.",
       "rule_5": "The system does NOT auto-post in current production. POSTING_DISABLED=true on server. Executors post manually via email instructions.",
       "rule_6": "There is NO centralized AI dispatcher. Model choice = 2 DB settings read per-call.",
-      "rule_7": "There is ONE Celery queue (default). Beat is a scheduler process, not a queue. No fast queue exists.",
-      "rule_8": "Phase promotion threshold is NOT 80%. Demotion threshold is 70% survival rate (7d, min 5 samples). Promotion has per-phase criteria in PhaseEvaluator.",
-      "rule_9": "EPG race condition (GAP-003) is NOT FIXED. No distributed lock on EPG build exists.",
+      "rule_7": "There are TWO Celery queues: 'celery' (default, bulk tasks, concurrency=2) and 'fast' (on-demand/interactive, concurrency=1). Tasks routed to fast: analyze_subreddit_emotional_profile, run_full_pipeline_single_client, build_epg_single_avatar, generate_strategy_for_client.",
+      "rule_8": "Phase DEMOTION threshold is 70% survival rate (7d, min 5 samples). Phase PROMOTION requires: Phase 1→2: survival>=80%, karma>=100, age>=60d, activity>=20. Phase 2→3: survival>=85%, karma>=500, age>=150d. Both thresholds exist in PhaseEvaluator.",
+      "rule_9": "EPG race condition (GAP-003) is FIXED (June 25, 2026). Redis DistributedLock per avatar (key=epg_build_lock:{id}, TTL=600s) in tasks/epg.py + 2-level dedup guard in portfolio_manager.py (active slot count + max 2 attempts/day).",
       "rule_10": "System does NOT fine-tune models. It uses few-shot prompt injection (examples pasted into prompt context at call time)."
     },
     "terminology": {
@@ -3078,6 +3167,65 @@
         "priority": "P3 (observability)",
         "status": "deferred"
       }
+    ]
+  },
+  "onboarding": {
+    "wizard_steps": {
+      "total": 6,
+      "flow": [
+        {
+          "step": 1,
+          "name": "Company",
+          "saves": "client_name, brand_name, company_profile, industry, website_url"
+        },
+        {
+          "step": 2,
+          "name": "Problem & Positioning",
+          "saves": "company_worldview, competitive_landscape",
+          "dynamic_placeholders": "Placeholder examples generated from Step 1 profile: AI-detected pain/advantage > industry-specific > generic fallback. 7 industries supported."
+        },
+        {
+          "step": 3,
+          "name": "ICP / Buyer",
+          "saves": "icp_profiles"
+        },
+        {
+          "step": 4,
+          "name": "Voice & Keywords",
+          "saves": "brand_voice, tone_anchors, keywords (JSONB + flag_modified), subreddit_assignments",
+          "tone_calibration": {
+            "trigger": "User clicks 'Generate Sample Sentences' button",
+            "mechanism": "hx-include sends live form fields (brand_voice, admired_style, never_associated) to endpoint",
+            "prompt": "Industry-specific Reddit comment fragments matching declared voice. 5 varied approaches.",
+            "output": "5 sentences displayed with 1-5 rating buttons. Sentences rated 4+ become training anchors.",
+            "known_limitation": "No automatic retry yet if <3 sentences rated 4+. Manual 'Generate More' button planned."
+          }
+        },
+        {
+          "step": 5,
+          "name": "Avatar Connect (BYOA)",
+          "saves": "Avatar record via byoa_pipeline"
+        },
+        {
+          "step": 6,
+          "name": "Review & Activate",
+          "saves": "is_active=True, onboarding_completed_at"
+        }
+      ],
+      "bugs_fixed_june_27": [
+        "step4_save now processes keywords + subreddits (was dropped before)",
+        "Edit link for Keywords points to step 4 (was step 5 = loop)",
+        "Progress bar aligned to 6 steps (was showing 7)",
+        "Subreddit names stored without r/ prefix everywhere"
+      ]
+    },
+    "subreddit_name_convention": "Always stored WITHOUT r/ prefix. Templates add r/ for display. Defensive .removeprefix('r/') on all inputs.",
+    "bugs_fixed_june_28": [
+      "Dynamic placeholders: Step 2 shows industry-specific examples from Step 1 AI analysis (was hardcoded XM Cyber for all clients)",
+      "Tone calibration: endpoint reads live form data (hx-include='closest form') — voice/style available before form save",
+      "Tone calibration: improved prompt — industry-specific, bans marketing language, 5 varied approaches",
+      "Keywords save: added flag_modified() for JSONB mutation detection (keywords were sometimes silently dropped)",
+      "Settings page: removed redundant keywords/subreddits sections (dedicated nav pages exist)"
     ]
   }
 }

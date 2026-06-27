@@ -1,18 +1,29 @@
 # System Diagnostic JSON — Reference
 
+## Truth Layer Classification
+
+**This file is an ARCHITECTURAL REFERENCE (static).** It is NOT a source of current state.
+
+For current system state → `.kiro/state/current.yaml` (CSS)
+For reconciliation rules → `.kiro/steering/truth_resolution.md`
+For conflict resolution → ops > system > steering > CSS
+
 ## Location
 
-`/RAMP_SYSTEM_DIAGNOSTIC.json` — 95 KB, 20 sections, full operational model.
+`/RAMP_SYSTEM_DIAGNOSTIC.json` — 95 KB, 20 sections, architectural graph model.
 
 ## What It Is
 
 Machine-readable behavioral graph model of the entire RAMP system, extracted from production code (v0.3.0, June 25 2026). Serves as:
-- System specification
-- Execution graph
-- State model
+- Architectural reference (graph structure, node relationships)
+- Execution graph (what CAN happen, not what IS happening)
 - Prompt registry (30 AI calls documented)
-- Signal model
-- Self-modification rules
+- Signal model (what signals exist)
+
+**What it is NOT:**
+- Not current state (use CSS for that)
+- Not operational truth (ops logs override)
+- Not a decision-making source
 
 ## Key Facts for Engineering Context
 
@@ -32,17 +43,19 @@ Machine-readable behavioral graph model of the entire RAMP system, extracted fro
 - CommentDraft: pending → approved/rejected → posted
 - EPGSlot: planned → generated → approved → posted/skipped/expired
 - ExecutionTask: generated → emailed → accepted → submitted → verified/failed/expired
-- Avatar Phase: 0(Mentor) / 1 / 2 / 3 (Expert NOT implemented)
+- Avatar Phase: 0(Incubation) → 1 → 2 → 3. Mentor is pool-based (`avatar.pool == "mentor"`), NOT a phase.
 - Avatar Health: unknown / active / limited / shadowbanned / suspended
 
 ### Common Misinterpretations (LLMs hallucinate these)
-- NO "fast" Celery queue (only default)
+- TWO Celery queues exist: "celery" (default, bulk) + "fast" (on-demand). See docker-compose.yml + worker.py task_routes
 - NO per-subreddit slot cap (2/day is false)
 - NO 40% presence cap
-- NO 80% promotion threshold (70% is demotion)
-- NO EPG race condition fix (GAP-003 still open)
+- 70% is DEMOTION threshold. 80% is PROMOTION threshold (Phase 1→2). 85% for Phase 2→3. Both exist in PhaseEvaluator
+- EPG race condition FIXED June 25 (DistributedLock in tasks/epg.py + dedup guard in portfolio_manager.py)
 - Expert phase NOT coded (spec only)
 - System does NOT auto-post in production (POSTING_DISABLED=true)
+- **Mentor is NOT Phase 0.** Mentor = `avatar.pool == "mentor"` (pool classification). Phase 0 = Incubation (real phase for fresh/recovering avatars). Spec: `phase-incubation-mentor-refactor`
+- **Shadowban does NOT freeze.** Shadowban → demote to Phase 0 (monitoring continues). Freeze is ONLY for suspended (404/403), admin manual, or Phase 0 timeout >30d.
 
 ### Hidden Architecture (not visible in node/edge graph)
 - `hidden_architecture.ownership_map` — WHO decides WHAT at each stage

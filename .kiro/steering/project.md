@@ -33,6 +33,7 @@ A Reddit marketing SaaS platform. AI monitors subreddits, scores posts, generate
 - **AI/LLM:** LiteLLM (Gemini Flash for scoring/reports/strategy, Claude Sonnet for generation)
 - **Real-time:** Server-Sent Events (SSE) + Redis PubSub (notifications)
 - **Mobile App:** Flutter (Dart) — posting app for avatar owners
+- **Browser Extension:** Chrome Manifest V3 — executor posting + CQS auto-check + health monitoring (spec ready, not yet built)
 - **Deploy:** DigitalOcean Droplet + Docker Compose (app + PostgreSQL + Redis + Celery)
 - **Observability:** Logging + admin dashboard
 
@@ -43,6 +44,7 @@ A Reddit marketing SaaS platform. AI monitors subreddits, scores posts, generate
 - **IPv4:** `161.35.27.165`
 - **Cost:** ~$23/mo (with backups)
 - **Docker Compose:** `docker-compose.yml` + `docker-compose.prod.yml` (memory limits, reduced concurrency)
+- **Celery workers:** 2 containers — `celery` (concurrency=2, queue=celery, bulk tasks) + `celery-fast` (concurrency=1, queue=fast, on-demand/interactive tasks)
 - **Access:** `ssh ramp` (alias in `~/.ssh/config`), project at `/app/`
 - **Domain:** gorampit.com (SSL via Let's Encrypt)
 - **Backups:** DO weekly backups enabled
@@ -386,7 +388,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - Client deactivation cascade (is_active=false → assignments deactivated → avatars unassigned → all tasks skip)
 - **Automated posting safety gates** (9 checks): kill switch, posting_mode, frozen, health, phase 0 exclusion, daily cap, proxy configured, user-agent configured, /24 subnet consistency
 - **Phase demotion safety** (June 22): minimum sample size (5 posted) for survival rate evaluation — prevents false demotions from single moderator removals
-- **Thread safety filters** (June 22): hot thread filter (skip >200 ups when avatar karma <100 in sub) + link/video/image post filter (skip external URLs)
+- **Thread safety filters** (June 22, extended June 26): hot thread filter (skip >200 ups when avatar karma <100 in sub) + link/video/image post filter (skip external URLs) — now applied to BOTH professional AND hobby pipelines
 - **Dual pipeline architecture**: Professional pipeline (reddit_threads → smart_scoring → generate_comments, Phase 2+) and Hobby pipeline (hobby_subreddits → EPG Portfolio Manager, Phase 1+). Phase 1 avatars only get hobby comments (2-3/day). EPG Portfolio Manager `scan_opportunities()` Source 1 gated to Phase 2+ (June 24 fix). `warm` pool included in Smart Scoring.
 
 ### Automated Posting (June 1, 2026)
@@ -470,8 +472,8 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **Execute action** — trigger pipeline ops from Decision Center
 - **Risk Prediction** — 6-factor ban risk scoring + prescriptive actions per avatar
 
-### Self-Service Onboarding (June 2026)
-- **6-step AI wizard** — website URL → AI scrapes → ICP synthesis → keywords/subreddits suggestions → avatar config → quality gate → activate
+### Self-Service Onboarding (June 2026, bugs fixed June 27)
+- **6-step AI wizard** — (1) Company URL → AI scrapes → (2) Problem/positioning → (3) ICP → (4) Voice + keywords + subreddits → (5) Avatar connect (BYOA) → (6) Review & activate
 - **Trial signup** — work-email-only, 14-day free trial (plan_type="trial")
 - **Quality gate** — validates minimum config before activation
 - **Landscape report** — competitive analysis generated during onboarding
@@ -530,7 +532,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **Automated Posting — OAuth mode** — pending Reddit approval for web app creation
 - ~~Comment outcome tracking~~ → **DONE** (KarmaSnapshot at 4h/24h/48h/7d + deletion detection)
 - ~~Budget engine~~ → **DONE** (EPG 2.0 AttentionBudget + daily cap + portfolio allocation)
-- ~~Self-service onboarding~~ → **DONE** (6-step AI wizard + 14-day trial)
+- ~~Self-service onboarding~~ → **DONE** (6-step AI wizard + 14-day trial. Keywords save bug fixed June 27)
 - Strategy Questions feedback loop — future: multiple-choice answers, saved as client preferences
 - ~~Subreddit rule extraction~~ → **DONE** (rule_extractor + moderation_profiler + risk_scorer + fitness_gate, full admin/portal UI)
 - Cross-avatar deduplication (prevent two avatars commenting on same thread)
@@ -541,6 +543,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - White-label (custom domain, branding) — deferred
 - Cross-avatar routing / upvote coordination — deferred
 - Auto-generated PDF reports — deferred
+- **Browser Extension** — Chrome extension for executor posting (eliminates proxy/OAuth need, auto CQS checks, zero-friction posting). Spec ready: `.kiro/specs/browser-extension/`
 
 ## EPG — Avatar Daily Publishing Program
 
@@ -649,9 +652,24 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 **Key design:** One email per slot, sent ~30 min before execution time. No batch dump.
 **Routing:** Per-avatar `executor_email` + `executor_email_verified` flag. No global fallback — if no verified email, task is skipped.
 **Anti-spam:** `can_resend()` limits to 3 deliveries per task, min 10 min between resends.
+**Pre-dispatch liveness check (June 26):** Before sending email, `dispatch_due_email_tasks` verifies thread is not locked/removed/archived. Cancels task automatically if thread is dead. Executor "Can't Post" button for manual escape.
 **Models:** `ExecutionTask`, `DeliveryAttempt` (delivery audit trail)
 **Admin UI:** `/admin/tasks` — list, detail, resend, verify, cancel, SLA metrics
 **System setting:** `email_tasks_enabled` (must be "true" to activate)
+
+## CQS Execution Tasks (Implemented June 27, 2026)
+Periodic CQS check task emails to executors. Closes self-healing loop for CQS=lowest avatars (zero EPG budget → no tasks → deadlock). Also keeps CQS fresh for healthy avatars.
+
+**How it works:**
+1. `generate_cqs_check_tasks_all_avatars` (07:00 daily) queries eligible avatars by interval
+2. Creates ExecutionTask(task_type="cqs_check", subreddit="WhatIsMyCQS", text="What is my cqs?")
+3. Standard dispatch pipeline delivers email to executor
+4. Executor posts in r/WhatIsMyCQS → bot replies with CQS level
+5. `check_cqs_all_avatars` (06:30 daily) reads reply → updates cqs_level → EPG budget restores
+
+**Frequency:** CQS=lowest or age<90d → every 7 days. Mature+healthy → every 30 days.
+**Kill switch:** `cqs_check_tasks_enabled` system setting.
+**New files:** `app/services/cqs_task_generator.py`, `app/tasks/cqs_tasks.py`
 
 ## Draft Reconciliation (Implemented June 24, 2026)
 Automatically links approved CommentDrafts to Reddit comments posted outside the system (executor posted manually but didn't submit permalink back).
@@ -713,6 +731,7 @@ Automatically links approved CommentDrafts to Reddit comments posted outside the
 - `.kiro/specs/daily-ops-review/` — Daily Ops Review (Phase 1 deployed: models, routes, templates. Phase 2-3 pending)
 - `.kiro/specs/ramp-operations-agent/` — Autonomous Operations Agent (requirements only, not implemented)
 - `.kiro/specs/discovery-strategy-handoff/` — Discovery → Client Strategy handoff (Tasks 1-6 done, 7-11 pending)
+- `.kiro/specs/browser-extension/` — Browser Extension for executor posting (CQS auto-check, comment posting, health monitoring, zero proxy needed)
 
 ### Legacy / Ori Handoff
 - `docs/file_index.md` — Index of all Ori's handoff files
@@ -745,8 +764,9 @@ Automatically links approved CommentDrafts to Reddit comments posted outside the
 - **Managed upsell**: +$1,200–$1,800/mo
 - Pre-warmed avatars: Silver $199 one-time, Gold $499 one-time
 
-## Avatar Phases (from Business Brief)
-- **Mentor (phase 0)**: Pre-warmed high-karma accounts. Excluded from ALL automated pipelines (scoring, generation, hobby, posts). Not subject to phase evaluation/promotion/demotion. Used for reputation presence, not automated engagement. Set via admin Phase Override.
+## Avatar Phases (Updated — spec: phase-incubation-mentor-refactor)
+- **Mentor** (pool, NOT a phase): Pre-warmed high-karma accounts. Identified by `avatar.pool == "mentor"`. Excluded from ALL automated pipelines. Not subject to phase evaluation. Set via admin action.
+- **Phase 0 — Incubation** (days 1-10): Ultra-conservative engagement for fresh/low-karma/recovering avatars. 1 comment/day, safe subreddits only (AskReddit, CasualConversation, etc.), mandatory human approval, zero brand. Also serves as recovery destination (shadowban/CQS drop → demote here instead of freeze).
 - **Phase 1** (months 1-2): Credibility building. Zero brand mentions. Hobby + general professional subs only.
 - **Phase 2** (months 3-4): Content seeding & post creation. External source citations. No direct brand links yet.
 - **Phase 3** (month 5+): Brand integration. Only when: sufficient karma + thread relevant + brand ratio below threshold.

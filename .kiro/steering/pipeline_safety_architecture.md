@@ -23,13 +23,43 @@ This is by design: Phase 1 professional generation is intentionally disabled. Ho
 
 ## Phase Demotion System
 
-### Triggers (checked daily at 06:00 by `evaluate_all_avatar_phases`)
+### Phase State Machine (REDESIGNED — spec: phase-incubation-mentor-refactor)
 
-| Trigger | Threshold | Demotion |
-|---------|-----------|----------|
-| Shadowban detected | `is_shadowbanned = true` | → Phase 1 |
-| Low survival rate | <70% over 7-day window | → current - 1 |
+```
+Phase 0 (Incubation) → Phase 1 (Hobby) → Phase 2 (Professional) → Phase 3 (Brand)
+     ▲                       │                    │                      │
+     └───────────────────────┴────────────────────┴── demotion ──────────┘
+```
+
+**Mentor is NOT a phase.** Mentor = `avatar.pool == "mentor"` (pipeline exclusion flag).
+Phase 0 = real phase for fresh/low-karma/recovering avatars. 1 comment/day, safe subs only.
+
+### Demotion Targets (checked daily at 06:00 by `evaluate_all_avatar_phases`)
+
+| Trigger | Threshold | Demotion Target |
+|---------|-----------|-----------------|
+| Shadowban detected | `is_shadowbanned = true` | → **Phase 0** (not freeze!) |
+| CQS dropped to lowest | Phase 2+ | → **Phase 0** (not freeze!) |
+| Low survival rate | <70% over 7-day window | → **Phase 0** |
 | Karma drop | avg `reddit_score` < -2 over 14 days | → current - 1 |
+
+### Key Change: Demotion Replaces Freeze
+
+**Old behavior:** shadowban/CQS lowest → `is_frozen = true` → avatar exits all pipelines → deadlock (no monitoring, no recovery detection).
+
+**New behavior:** shadowban/CQS lowest → demote to Phase 0 → avatar stays in pipeline (1/day, safe subs) → health checks continue → recovery auto-detected → graduation back to Phase 1.
+
+**Freeze is reserved for:**
+- Suspended (404/403 from Reddit — account deleted)
+- Admin manual action
+- Phase 0 timeout > 30 days without graduation (unrecoverable)
+
+### Recovery in Phase 0
+
+- Shadowbanned avatar generates 1 comment/day as **probe** (if karma appears → shadowban may be lifted)
+- Health check detects shadowban clearance → `is_shadowbanned = false` → avatar graduates normally
+- CQS improvement detected → activity event → avatar graduates normally
+- No operator intervention needed for recovery
 
 ### Minimum Sample Size (ADDED June 22, 2026)
 
@@ -53,16 +83,26 @@ survival_rate = (total_posted - deleted) / total_posted
 
 ### 1. Link/Video/Image Post Filter
 
-In both `smart_scoring.py` and `ai_pipeline.py`:
+In `smart_scoring.py`, `ai_pipeline.py` (professional), AND `opportunity_engine.py` + `ai_pipeline.py` (hobby):
 ```python
+# Professional pipeline (RedditThread):
 sa.or_(
     RedditThread.url.is_(None),
     RedditThread.url == "",
     RedditThread.url.like("%reddit.com%"),
 )
+
+# Hobby pipeline (HobbySubreddit) — ADDED June 26, 2026:
+or_(
+    HobbySubreddit.url.is_(None),
+    HobbySubreddit.url == "",
+    HobbySubreddit.url.like("%reddit.com%"),
+)
 ```
 
-Skips threads with external URLs (imgur, youtube, etc.) — these are link/media posts where LLM cannot produce meaningful text-only replies. The existing `post_filter.py` blocks these at ingestion, but older data or edge cases may exist.
+Skips threads/posts with external URLs (imgur, i.redd.it, youtube, etc.) — these are link/media posts where LLM cannot produce meaningful text-only replies.
+
+**June 26 fix:** Previously this filter was ONLY in the professional pipeline. The hobby pipeline (`scan_opportunities` Source 2 + `generate_hobby_comments`) had no url filter — image posts with body text > 20 chars passed through (e.g., r/GYM progress photos with diet description). Now filtered in both pipelines.
 
 ### 2. Hot Thread Filter
 
@@ -127,6 +167,69 @@ The Portfolio Manager (`build_portfolio`) uses `scan_opportunities()` which has 
 
 ---
 
+
+---
+
+## EPG Dedup Guard (FIXED June 25, 2026)
+
+### Problem
+
+EPG `build_portfolio()` runs twice daily (08:15 + 14:15 via Beat). Without proper dedup:
+- If morning build succeeds → afternoon must NOT create new slots (duplicates)
+- If morning build fails (all slots skipped due to Gemini Flash empty response) → afternoon SHOULD retry
+- After deploy/restart, Beat fires overdue tasks → multiple concurrent EPG runs → massive duplication (22 slots for budget=3 avatar observed June 24)
+
+### Previous Guard (Broken)
+
+```python
+# Old: counted ALL slots. If morning all skipped → afternoon blocked (no retry).
+# Older: excluded skipped. Multiple runs all saw 0 → all created duplicates.
+existing_slots_count = count(status.notin_(["skipped"]))
+```
+
+### Current Guard (2-Level)
+
+```python
+# Level 1: If ANY non-skipped slots exist → successful build, skip
+existing_active_count = count(status.notin_(["skipped"]))
+if existing_active_count > 0: return "already_planned"
+
+# Level 2: Max 2 build attempts per day (morning + afternoon retry)
+build_attempts = count(DISTINCT created_at)
+if build_attempts >= 2: return "already_planned"
+
+# Otherwise: retry allowed (previous attempts all failed)
+```
+
+### Invariants
+
+1. **Max slots per avatar per day = budget** (Phase 1 lowest=1, Phase 1=3, Phase 2=7, Phase 3=12+3)
+2. **Max build attempts = 2** (morning + afternoon). No infinite retry loops.
+3. **Successful build blocks further builds** (non-skipped slots exist → done for today)
+4. **Failed build allows ONE retry** (all skipped → afternoon can rebuild)
+
+### AttentionBudget CQS Fix (June 25-27)
+
+`AttentionBudget.from_avatar()` now respects `cqs_level`:
+- `cqs_level="lowest"` → max_comments=0, max_posts=0 (FULL STOP — zero EPG slots, zero emails)
+- `cqs_level="low"` + Phase 1 → max_comments=2
+
+**June 25:** Changed from ignored (budget=3 for lowest) to budget=1.
+**June 27:** Changed from budget=1 to budget=0. Zero slots = zero tasks = zero emails. Recovery path: CQS check execution task (separate from EPG) prompts executor to post in r/WhatIsMyCQS every 7 days.
+
+### CQS Self-Healing Loop (Added June 27)
+
+When budget=0 (CQS=lowest), the system previously had no way to recover — no EPG → no tasks → no emails → executor never prompts CQS recheck. DEADLOCK.
+
+**Fix:** `generate_cqs_check_tasks_all_avatars` (07:00 daily Beat task):
+1. Queries avatars by interval (7d for lowest/young, 30d for mature)
+2. Creates ExecutionTask(task_type="cqs_check", epg_slot_id=NULL)
+3. Email: "Log in, post 'What is my cqs?' in r/WhatIsMyCQS"
+4. Executor posts → bot replies → `check_cqs_all_avatars` (06:30) reads → CQS updates → budget restores
+
+**Kill switch:** `cqs_check_tasks_enabled` (default true)
+**Spec:** `.kiro/specs/cqs-execution-tasks/`
+
 ## Architecture Debt
 
 | Issue | Impact | Status |
@@ -138,10 +241,12 @@ The Portfolio Manager (`build_portfolio`) uses `scan_opportunities()` which has 
 | ~~Case-sensitive subreddit match~~ | "Metal" ≠ "metal" | **FIXED June 24** |
 | No admin alert on demotion | Demotion happens silently | TODO |
 | ~~EPG budget miscounting~~ | skipped-without-draft counted as consumed → false "budget exhausted" | **FIXED June 24** |
-| EPG rebuild race condition | No distributed lock → parallel runs create duplicate slots | TODO |
+| ~~EPG rebuild race condition~~ | No distributed lock → parallel runs create duplicate slots | **FIXED June 25** (dedup guard rewritten: 2-level check + max 2 attempts/day) |
 | ~~Worker offline false alert~~ | Heartbeat only logged to stdout, alert queried empty DB table | **FIXED June 24** |
 | No "demotion cooldown" | Repeated demotion/promotion cycles | TODO |
 | Hobby pipeline limited to 1-3/day | Phase 1 warming rate | By design |
 | Gemini Flash empty response | ~15% of hobby generations → slot skipped | Monitor |
 | ~~Approved drafts stuck forever~~ | Drafts posted manually outside system never get "posted" status | **FIXED June 24** (draft_reconciliation.py) |
 | Reddit API call duplication | karma_tracking + profile_analytics + presence all fetch comments independently | Optimization (non-blocking) |
+| ~~Hobby pipeline missing image/video filter~~ | Image posts with body text passed hobby filter, generated nonsensical replies | **FIXED June 26** (url filter added to opportunity_engine + generate_hobby_comments) |
+| ~~Locked thread email delivery~~ | Executor receives tasks for locked threads, stuck in limbo | **FIXED June 26** (pre-dispatch liveness check + executor "Can't Post" button) |

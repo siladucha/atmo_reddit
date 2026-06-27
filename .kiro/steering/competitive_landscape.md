@@ -103,6 +103,62 @@ Reddit marketing tools split into 4 categories:
 - **Well-funded new entrant** — could build RAMP in 6 months; defense = client lock-in via karma history + self-learning
 - **Reddit native "Brand Presence" product** — would legitimise category but threaten approach
 
+## Client Timeline & SLA Positioning (June 27, 2026)
+
+### Core Principle: Outputs ≠ Outcomes
+
+**Outputs** (controllable, SLA-able):
+- Pipeline launched within 72h of access
+- Minimum N drafts/week delivered to review (plan-dependent)
+- Weekly automated activity report
+- Monthly strategy review
+- Problem detection SLA (shadowban, removal spike) ≤ 4h
+
+**Outcomes** (observable, NOT guaranteed):
+- Reddit visibility growth
+- AI/LLM mentions (AEO/GEO)
+- Leads, traffic, brand associations
+- Community authority building
+
+### Why Timelines Are NOT Deterministic
+
+Every client is different. Variables that determine speed:
+
+| Variable | Fast scenario | Slow scenario |
+|----------|--------------|---------------|
+| Avatar inventory | Pre-warmed from farm (Phase 2 day 1) | BYOA fresh account (Phase 1 for 4-6 weeks) |
+| Subreddit moderation | Permissive (r/biohackers) | Aggressive (r/sysadmin kills newbies in 3 days) |
+| Business domain | B2C wellness (hobby tone works) | B2B enterprise security (authority voice required) |
+| Executor velocity | Posts same-day, every email | Ignores emails for 3 days |
+| Account history | 5K karma, 2yr old | Fresh, no history |
+
+### What NOT to Promise
+
+- ❌ "Results in X days/weeks"
+- ❌ Fixed timeline for AI visibility (LLM grounding lags 2-6 months)
+- ❌ Guaranteed promotion Phase 1→2 by date X
+- ❌ Specific karma/engagement numbers
+
+### What TO Promise
+
+- ✅ System operational within 72h
+- ✅ Predictable content cadence (drafts/week by plan)
+- ✅ Automated problem detection and response
+- ✅ Monthly progress report with metrics
+- ✅ Phase progression tracked transparently (client sees dashboard)
+
+### For Proposals (Tzvi)
+
+Structure as:
+1. **"What we do"** (controllable mechanics) — this is the SLA
+2. **"What typically happens"** (phase timeline ranges, not promises) — this is the forecast
+3. **"Assumptions & dependencies"** — executor speed, Reddit platform stability, subreddit receptivity
+4. **"Risks"** — shadowban (~1 week downtime for avatar rotation), platform changes, CQS degradation
+
+### Pre-Warmed Avatar = "We Sell Time"
+
+Key sales pitch: client with pre-warmed avatar (Gold tier, $499 one-time) starts at Phase 2 immediately. No 4-6 week warming period. This is the moat competitors cannot replicate overnight.
+
 ## Design Implications for Engineering
 
 When building features, consider these competitive differentiators:

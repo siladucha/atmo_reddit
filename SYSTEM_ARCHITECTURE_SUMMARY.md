@@ -1,6 +1,6 @@
 # RAMP — System Architecture Summary for Analysts
 
-**Version:** 1.0 | **Date:** June 25, 2026 | **Status:** Production (gorampit.com)
+**Version:** 1.1 | **Date:** June 27, 2026 | **Status:** Production (gorampit.com)
 
 ---
 
@@ -153,6 +153,8 @@ Discovery --> Planning --> Execution --> Signal Collection
 | expired | Deadline passed without execution |
 
 **Controls:** Max 3 delivery attempts per task, min 10 min between resends, 4h deadline (configurable).
+
+**Planned upgrade: Browser Extension** (spec ready, `.kiro/specs/browser-extension/`). Chrome Manifest V3 extension on executor machines will become the primary delivery channel, with email as fallback. Extension eliminates proxy/OAuth infrastructure ($50-200/mo saved), enables zero-friction posting (1 click → 0 steps), and supports passive CQS/health monitoring independent of RAMP batch tasks. Key architecture: measurement layer (extension reports signals) separated from state transition layer (backend makes decisions). Dual confirmation required for auto-unfreeze. 4-phase rollout planned.
 
 ### Layer 6: Signal Collection
 
@@ -373,13 +375,14 @@ Full lifecycle per comment: Thread > Score > Draft > EPGSlot > ExecutionTask > P
 |---|-----|----------|--------|
 | 1 | No idempotency keys | Medium | Duplicate posting on retry |
 | 2 | No cross-avatar dedup | Medium | Two avatars on same thread |
-| 3 | EPG rebuild race condition | Medium | Duplicate slots |
+| 3 | ~~EPG rebuild race condition~~ | ~~Medium~~ | RESOLVED June 25 |
 | 4 | No adversarial adaptation | High | Reddit changes undetected |
 | 5 | No knowledge freshness | Medium | Stale strategies |
 | 6 | No formal SLI/SLO | Medium | Health unmeasurable |
 | 7 | No GDPR erasure | Medium | Compliance risk |
 | 8 | Single-server | High | No failover |
 | 9 | No simulation mode | Low | Cannot test safely |
+| 10 | ~~CQS deadlock for frozen avatars~~ | ~~Medium~~ | RESOLVED June 27 (batch filters removed) |
 
 ### Operational Risks
 
@@ -459,28 +462,52 @@ Full lifecycle per comment: Thread > Score > Draft > EPGSlot > ExecutionTask > P
 
 ### Before 10 Clients (Immediate)
 
-1. Proxy integration (residential IP per avatar)
+1. ~~Proxy integration (residential IP per avatar)~~ → **DEFERRED** (Browser Extension replaces need)
 2. Idempotency keys
 3. Cross-avatar deduplication
 4. Formal SLI/SLO definitions
+5. **Browser Extension MVP** — CQS auto-check + health monitoring + executor posting (spec ready, eliminates proxy/OAuth dependency)
 
 ### Before 50 Clients
 
-5. AI-Native Expert system (spec ready)
-6. Adversarial detection layer
-7. Managed DB migration
-8. GDPR compliance
+6. AI-Native Expert system (spec ready)
+7. Adversarial detection layer
+8. Managed DB migration
+9. GDPR compliance
 
 ### Before 100 Clients
 
-9. Horizontal scaling (SQS + Valkey)
-10. Stripe billing
-11. Agency white-label
-12. Key rotation
+10. Horizontal scaling (SQS + Valkey)
+11. Stripe billing
+12. Agency white-label
+13. Key rotation
 
 ---
 
-## 18. Verdict
+## 18. Changes Log
+
+### June 27, 2026 — CQS Batch Fix + Browser Extension Spec
+
+**CQS Deadlock Fix:**
+- `cqs_checker.py` `run_cqs_check_batch()` — removed `is_frozen == False` and `warming_phase >= 2` filters. Now checks ALL active avatars including frozen and Phase 1.
+- `cqs_task_generator.py` `generate_cqs_check_tasks()` — removed `is_frozen` and `health_status` skip filters. Frozen/shadowbanned avatars now receive CQS email tasks.
+- Added `cqs_recovery_detected` activity event when frozen avatar's CQS improves from "lowest".
+- Root cause: Flaky_Finder_13 CQS improved LOWEST→LOW on June 26 (confirmed via AutoModerator reply), but RAMP never detected it because batch filters excluded frozen avatars. Shadowban still active.
+- 27 tests pass.
+
+**Browser Extension (Planned — spec ready):**
+- Full spec at `.kiro/specs/browser-extension/` (requirements.md, design.md, tasks.md)
+- Chrome Manifest V3 extension on executor machines
+- Replaces proxy/OAuth infrastructure ($50-200/mo saved, OAuth approval no longer blocking)
+- Key architecture: measurement layer (extension reports) separated from state transition layer (backend decides)
+- System actions (CQS, health probes) vs Content actions (comment posting) — separate rate limits
+- Dual confirmation required for auto-unfreeze (CQS improved + PRAW probe passes, OR operator approval)
+- Idempotency keys, HMAC task signing, execution leases for task integrity
+- 4 phases: MVP (2-3 weeks), Auto-Posting, Intelligence, Polish
+
+---
+
+## 19. Verdict
 
 RAMP is architecturally sound for 3-10 clients. The closed-loop design works and compounds value.
 

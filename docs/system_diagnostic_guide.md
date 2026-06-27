@@ -1,8 +1,11 @@
 # RAMP System Diagnostic — Guide
 
+> **Truth Layer:** Architectural Reference (static). Not a source of current state.
+> For live state → `.kiro/state/current.yaml`. For reconciliation rules → `.kiro/steering/truth_resolution.md`.
+
 ## What is RAMP_SYSTEM_DIAGNOSTIC.json
 
-A complete machine-readable operational model of the RAMP system, extracted from production codebase via reverse engineering (June 25, 2026).
+A machine-readable architectural graph model of the RAMP system, extracted from production codebase via reverse engineering (June 25, 2026). Describes system STRUCTURE (what CAN happen), not current STATE (what IS happening now).
 
 **Location:** `/RAMP_SYSTEM_DIAGNOSTIC.json` (root of project)
 
