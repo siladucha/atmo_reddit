@@ -160,6 +160,23 @@ def evaluate_fitness(
 
     Returns FitnessResult with score (0-100) and block reason if any.
     """
+
+    # --- Check 0: Subreddit ban (hard block, no fail-open) ---
+    try:
+        from app.services.subreddit_ban import get_banned_subreddits
+        banned = get_banned_subreddits(db, avatar.id)
+        if subreddit_name.lower() in banned:
+            logger.info(
+                "FITNESS_GATE | action=blocked | avatar=%s | subreddit=%s | reason=subreddit_ban",
+                avatar.reddit_username, subreddit_name,
+            )
+            return FitnessResult(
+                passed=False, score=0,
+                blocked_by="subreddit_ban",
+                reason=f"Avatar is banned from r/{subreddit_name}",
+            )
+    except Exception as e:
+        logger.warning("fitness_gate subreddit_ban check failed: %s", str(e)[:100])
     # --- Load SubredditRiskProfile ---
     subreddit_obj = (
         db.query(Subreddit)

@@ -61,6 +61,102 @@ _FALLBACK_EXCEPTIONS = (
     litellm.exceptions.Timeout,
 )
 
+# ---------------------------------------------------------------------------
+# LLM Budget Gate — hard cap on daily LLM calls to prevent runaway spend
+# ---------------------------------------------------------------------------
+
+# Limits per hour and per day. Exceeding = LLMBudgetExceeded raised.
+_LLM_HOURLY_LIMIT = 500   # ~8x normal peak (60 calls/30min window × 2 pipelines)
+_LLM_DAILY_LIMIT = 3000   # ~10x normal daily usage (~300 calls/day at 10 clients)
+
+
+class LLMBudgetExceeded(Exception):
+    """Raised when LLM call budget is exhausted for the current period."""
+    pass
+
+
+# Cached Redis connection for budget gate (avoid per-call overhead)
+_budget_redis_client = None
+
+
+def _get_budget_redis():
+    """Get or create a cached Redis client for budget tracking."""
+    global _budget_redis_client
+    if _budget_redis_client is None:
+        try:
+            import redis as _redis_lib
+            from app.config import get_settings
+            settings = get_settings()
+            _budget_redis_client = _redis_lib.from_url(settings.redis_url, decode_responses=True)
+        except Exception:
+            return None
+    return _budget_redis_client
+
+
+def _check_llm_budget_gate(model: str) -> None:
+    """Check Redis-based call counters. Raise LLMBudgetExceeded if limits hit.
+
+    Keys:
+      ramp:llm:calls:hourly:{YYYYMMDDHH} — TTL 7200s (2h)
+      ramp:llm:calls:daily:{YYYYMMDD}   — TTL 90000s (25h)
+
+    Fail-open: if Redis is unreachable, log warning and allow the call.
+    """
+    try:
+        import datetime as _dt
+
+        redis = _get_budget_redis()
+        if redis is None:
+            return  # fail-open (settings not available)
+
+        now = _dt.datetime.now(_dt.timezone.utc)
+        hourly_key = f"ramp:llm:calls:hourly:{now.strftime('%Y%m%d%H')}"
+        daily_key = f"ramp:llm:calls:daily:{now.strftime('%Y%m%d')}"
+
+        # Atomic increment
+        pipe = redis.pipeline(transaction=False)
+        pipe.incr(hourly_key)
+        pipe.expire(hourly_key, 7200)
+        pipe.incr(daily_key)
+        pipe.expire(daily_key, 90000)
+        results = pipe.execute()
+
+        hourly_count = results[0]
+        daily_count = results[2]
+
+        if hourly_count > _LLM_HOURLY_LIMIT:
+            logger.critical(
+                "LLM_BUDGET_EXCEEDED_HOURLY | count=%d | limit=%d | model=%s",
+                hourly_count, _LLM_HOURLY_LIMIT, model,
+            )
+            raise LLMBudgetExceeded(
+                f"Hourly LLM call limit exceeded: {hourly_count}/{_LLM_HOURLY_LIMIT}"
+            )
+
+        if daily_count > _LLM_DAILY_LIMIT:
+            logger.critical(
+                "LLM_BUDGET_EXCEEDED_DAILY | count=%d | limit=%d | model=%s",
+                daily_count, _LLM_DAILY_LIMIT, model,
+            )
+            raise LLMBudgetExceeded(
+                f"Daily LLM call limit exceeded: {daily_count}/{_LLM_DAILY_LIMIT}"
+            )
+
+        # Warning at 80%
+        if hourly_count > _LLM_HOURLY_LIMIT * 0.8 or daily_count > _LLM_DAILY_LIMIT * 0.8:
+            logger.warning(
+                "LLM_BUDGET_WARNING | hourly=%d/%d | daily=%d/%d | model=%s",
+                hourly_count, _LLM_HOURLY_LIMIT, daily_count, _LLM_DAILY_LIMIT, model,
+            )
+
+    except LLMBudgetExceeded:
+        raise
+    except Exception as e:
+        # Fail-open: Redis down or unexpected error — don't block LLM calls
+        logger.warning("LLM budget gate error (fail-open): %s", str(e)[:100])
+
+
+
 
 def call_llm(
     messages: list[dict],
@@ -113,6 +209,9 @@ def call_llm(
         model, temperature, max_tokens, len(messages),
         total_prompt_chars, "json" if response_format else "text",
     )
+
+    # --- Hard budget gate: prevent runaway LLM spend ---
+    _check_llm_budget_gate(model)
 
     # Attempt call with fallback chain on provider errors
     response = None

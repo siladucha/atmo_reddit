@@ -749,7 +749,7 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
             # NOTE: Image-only posts (empty post_body) are excluded — LLM cannot
             # see images and would generate nonsensical comments. Revisit when
             # multimodal LLM support is added.
-            from sqlalchemy import func as sa_func
+            from sqlalchemy import func as sa_func, or_ as sa_or
 
             # Round-robin across subreddits for diversity (don't let one sub dominate)
             hobby_sub_names = []
@@ -765,6 +765,21 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
                 if name:
                     hobby_sub_names.append(name)
 
+
+            # Filter out banned subreddits
+            try:
+                from app.services.subreddit_ban import get_banned_subreddits
+                banned_subs = get_banned_subreddits(db, avatar.id)
+                if banned_subs:
+                    pre_count = len(hobby_sub_names)
+                    hobby_sub_names = [s for s in hobby_sub_names if s.lower() not in banned_subs]
+                    if pre_count != len(hobby_sub_names):
+                        logger.info(
+                            "generate_hobby_comments: avatar=%s filtered %d banned subs",
+                            avatar.reddit_username, pre_count - len(hobby_sub_names),
+                        )
+            except Exception as e:
+                logger.warning("Failed to check subreddit bans in hobby: %s", str(e)[:100])
             if not hobby_sub_names and avatar.warming_phase == 1:
                 from app.services.sanitize import DEFAULT_PHASE1_HOBBY_SUBREDDITS
                 hobby_sub_names = list(DEFAULT_PHASE1_HOBBY_SUBREDDITS)
@@ -783,6 +798,13 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
                             HobbySubreddit.status == "new",
                             HobbySubreddit.post_body.isnot(None),
                             sa_func.length(HobbySubreddit.post_body) > 20,
+                            # Skip image/video/link posts - text-only replies
+                            # to photo posts look out of place and often get locked
+                            sa_or(
+                                HobbySubreddit.url.is_(None),
+                                HobbySubreddit.url == "",
+                                HobbySubreddit.url.like("%reddit.com%"),
+                            ),
                         )
                         .order_by(HobbySubreddit.scraped_at.desc())
                         .limit(per_sub_limit)
@@ -801,6 +823,12 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
                         HobbySubreddit.status == "new",
                         HobbySubreddit.post_body.isnot(None),
                         sa_func.length(HobbySubreddit.post_body) > 20,
+                        # Skip image/video/link posts
+                        sa_or(
+                            HobbySubreddit.url.is_(None),
+                            HobbySubreddit.url == "",
+                            HobbySubreddit.url.like("%reddit.com%"),
+                        ),
                     )
                     .limit(max_comments)
                     .all()

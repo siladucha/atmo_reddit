@@ -145,6 +145,26 @@ def execute_post(db: Session, epg_slot_id: uuid.UUID) -> PostingEvent:
         db.commit()
         raise
 
+    # --- 4b. Real-time kill switch check (IMP-002) ---
+    # Final safety gate immediately before irreversible Reddit API call.
+    # Faster than DB setting — checks Redis key toggled from admin UI.
+    try:
+        from app.services.distributed_lock import _get_redis
+        _redis = _get_redis()
+        if _redis:
+            kill_value = _redis.get("ramp:kill:posting_disabled")
+            if kill_value and kill_value.decode("utf-8") in ("1", "true", "yes"):
+                logger.warning(
+                    "POSTING BLOCKED by real-time kill switch (Redis) | avatar=%s slot=%s",
+                    avatar.reddit_username, epg_slot_id,
+                )
+                raise PostingRefused("Real-time kill switch active (Redis)", avatar.id)
+    except PostingRefused:
+        raise
+    except Exception as e:
+        # Fail-open: if Redis unreachable, rely on safety gates already passed
+        logger.warning("Kill switch Redis check failed (proceeding): %s", str(e)[:100])
+
     # --- 5. Submit comment ---
     proxy_url_for_hash = encryptor.decrypt(avatar.proxy_url_encrypted) if avatar.proxy_url_encrypted else ""
     comment_text = draft.edited_draft or draft.ai_draft or ""

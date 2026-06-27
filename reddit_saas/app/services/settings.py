@@ -387,6 +387,12 @@ DEFAULTS: dict[str, dict] = {
         "desc": "Delay between individual CQS checks in a batch (seconds)",
         "group": "health_check",
     },
+    "cqs_check_tasks_enabled": {
+        "value": "true",
+        "secret": False,
+        "desc": "Kill switch for CQS check task generation. When false, the daily CQS task scheduler skips execution.",
+        "group": "health_check",
+    },
     # --- Automated Posting ---
     "auto_posting_enabled": {
         "value": "true",
