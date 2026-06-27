@@ -886,7 +886,7 @@ def scan_opportunities(
                         hobby_sub_names.add(item.lower().lstrip("r/"))
 
         if hobby_sub_names:
-            from sqlalchemy import func as sa_func
+            from sqlalchemy import func as sa_func, or_
             hobby_posts = (
                 db.query(HobbySubreddit)
                 .filter(
@@ -895,6 +895,14 @@ def scan_opportunities(
                     HobbySubreddit.status == "new",  # fresh posts not yet used
                     HobbySubreddit.ai_comment.is_(None),
                     HobbySubreddit.post_body.isnot(None),
+                    # Filter out image/video/link posts - LLM cant see media,
+                    # comments on image posts often get locked, and text-only
+                    # replies to photo posts look out of place.
+                    or_(
+                        HobbySubreddit.url.is_(None),
+                        HobbySubreddit.url == "",
+                        HobbySubreddit.url.like("%reddit.com%"),
+                    ),
                 )
                 .order_by(HobbySubreddit.scraped_at.desc())
                 .limit(30)
@@ -947,6 +955,25 @@ def scan_opportunities(
                 opportunities.append(opp)
 
     # --- Log market scarcity if fewer than 10 scoreable threads ---
+
+    # --- Filter out banned subreddits ---
+    try:
+        from app.services.subreddit_ban import get_banned_subreddits
+        banned_subs = get_banned_subreddits(db, avatar.id)
+        if banned_subs:
+            pre_filter = len(opportunities)
+            opportunities = [
+                opp for opp in opportunities
+                if (opp.subreddit or "").lower() not in banned_subs
+            ]
+            filtered_count = pre_filter - len(opportunities)
+            if filtered_count > 0:
+                logger.info(
+                    "scan_opportunities: avatar=%s filtered %d opportunities from banned subs: %s",
+                    avatar.reddit_username, filtered_count, list(banned_subs)[:5],
+                )
+    except Exception as e:
+        logger.warning("Failed to check subreddit bans in scan_opportunities: %s", str(e)[:100])
     if len(opportunities) < MIN_OPPORTUNITIES_FOR_SCARCITY:
         logger.warning(
             "market_scarcity: avatar=%s found only %d scoreable opportunities (min %d)",

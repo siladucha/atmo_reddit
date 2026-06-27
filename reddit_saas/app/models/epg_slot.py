@@ -64,4 +64,18 @@ class EPGSlot(Base):
             postgresql_where=text("status = 'planned'"),
         ),
         Index("ix_epg_slots_draft_id", "draft_id"),
+        # Idempotency: prevent duplicate slots for same avatar+date+thread
+        Index(
+            "uq_epg_slots_avatar_date_thread",
+            "avatar_id", "plan_date", "thread_id",
+            unique=True,
+            postgresql_where=text("thread_id IS NOT NULL"),
+        ),
+        # Idempotency: prevent duplicate slots for same avatar+date+hobby_post
+        Index(
+            "uq_epg_slots_avatar_date_hobby",
+            "avatar_id", "plan_date", "hobby_post_id",
+            unique=True,
+            postgresql_where=text("hobby_post_id IS NOT NULL"),
+        ),
     )

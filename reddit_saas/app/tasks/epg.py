@@ -87,51 +87,80 @@ def build_and_generate_epg_all_avatars():
             "epg2_enabled": epg2_enabled,
         }
 
+        # Track this pipeline run for observability
+        try:
+            from app.services.pipeline_tracker import start_pipeline_run, complete_pipeline_run, fail_pipeline_run
+            pipeline_run = start_pipeline_run(
+                db, "epg_build",
+                trigger_source="scheduler",
+                meta={"epg2_enabled": epg2_enabled, "eligible_avatars": len(eligible)},
+            )
+        except Exception:
+            pipeline_run = None
+
         for avatar in eligible:
             try:
-                # Resolve client
-                client = None
-                if avatar.client_ids:
-                    client = (
-                        db.query(Client)
-                        .filter(Client.id == uuid.UUID(avatar.client_ids[0]))
-                        .first()
+                # Acquire per-avatar distributed lock to prevent race conditions
+                # between morning (08:15) and afternoon (14:15) EPG runs
+                from app.services.distributed_lock import DistributedLock
+                epg_lock = DistributedLock(
+                    key=f"epg_build_lock:{avatar.id}",
+                    ttl=600,  # 10 min TTL — generous for LLM generation
+                )
+                if not epg_lock.acquire():
+                    logger.info(
+                        "EPG: avatar=%s skipped (lock held — concurrent build in progress)",
+                        avatar.reddit_username,
                     )
-
-                # Skip if client is inactive
-                if client and not client.is_active:
                     results["skipped_avatars"] += 1
                     continue
 
-                # Skip expired trial clients (prevent AI resource waste)
-                if client:
-                    from app.services.trial_guard import is_trial_expired
-                    if is_trial_expired(client):
+                try:
+                    # Resolve client
+                    client = None
+                    if avatar.client_ids:
+                        client = (
+                            db.query(Client)
+                            .filter(Client.id == uuid.UUID(avatar.client_ids[0]))
+                            .first()
+                        )
+
+                    # Skip if client is inactive
+                    if client and not client.is_active:
                         results["skipped_avatars"] += 1
                         continue
 
-                # Step 1: Build plan — EPG 2.0 or legacy depending on feature flag
-                if epg2_enabled:
-                    epg = build_portfolio(db, avatar, client)
-                else:
-                    epg = build_daily_epg(db, avatar, client)
+                    # Skip expired trial clients (prevent AI resource waste)
+                    if client:
+                        from app.services.trial_guard import is_trial_expired
+                        if is_trial_expired(client):
+                            results["skipped_avatars"] += 1
+                            continue
 
-                if epg.status in ("frozen", "excluded", "budget_exhausted"):
-                    results["skipped_avatars"] += 1
-                    continue
+                    # Step 1: Build plan — EPG 2.0 or legacy depending on feature flag
+                    if epg2_enabled:
+                        epg = build_portfolio(db, avatar, client)
+                    else:
+                        epg = build_daily_epg(db, avatar, client)
 
-                planned_count = len(epg.hobby_slots) + len(epg.business_slots)
-                results["planned"] += planned_count
+                    if epg.status in ("frozen", "excluded", "budget_exhausted"):
+                        results["skipped_avatars"] += 1
+                        continue
 
-                # Step 2: Generate comments for planned slots
-                generated = generate_all_planned_slots(db, avatar.id)
-                results["generated"] += generated
+                    planned_count = len(epg.hobby_slots) + len(epg.business_slots)
+                    results["planned"] += planned_count
 
-                if generated > 0:
-                    logger.info(
-                        "EPG: avatar=%s generated=%d/%d planned (epg2=%s)",
-                        avatar.reddit_username, generated, planned_count, epg2_enabled,
-                    )
+                    # Step 2: Generate comments for planned slots
+                    generated = generate_all_planned_slots(db, avatar.id)
+                    results["generated"] += generated
+
+                    if generated > 0:
+                        logger.info(
+                            "EPG: avatar=%s generated=%d/%d planned (epg2=%s)",
+                            avatar.reddit_username, generated, planned_count, epg2_enabled,
+                        )
+                finally:
+                    epg_lock.release()
 
             except Exception as e:
                 logger.error(
@@ -162,6 +191,19 @@ def build_and_generate_epg_all_avatars():
             )
         except Exception:
             pass
+
+        # Complete pipeline run tracking
+        if pipeline_run:
+            try:
+                complete_pipeline_run(
+                    db, pipeline_run,
+                    succeeded=results["generated"],
+                    failed=results["errors"],
+                    skipped=results["skipped_avatars"],
+                )
+                db.commit()
+            except Exception:
+                pass
 
         logger.info(
             "EPG daily run complete: planned=%d generated=%d skipped=%d errors=%d epg2=%s",

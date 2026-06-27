@@ -178,14 +178,13 @@ Upvotes: {hobby_post.post_ups or 0}"""
                 "EPG hobby slot AUTO-APPROVED (autopilot): avatar=%s sub=r/%s slot=%s",
                 avatar.reddit_username, hobby_post.subreddit, slot.id,
             )
-            # Flush so create_execution_task can find the draft via DB query
-            # (autoflush=False means pending objects aren't visible to filter queries)
-            db.flush()
+            # Commit draft+slot so create_execution_task can find them via DB query
+            db.commit()
             _dispatch_email_task_if_enabled(db, slot)
         else:
             slot.status = "generated"
+            db.commit()
 
-        db.commit()
         db.refresh(draft)
 
         # Audit: log successful generation for pipeline transparency
@@ -316,13 +315,12 @@ def _generate_professional_slot(db: Session, slot: EPGSlot, avatar: Avatar) -> C
                 "EPG pro slot AUTO-APPROVED (autopilot): avatar=%s sub=r/%s slot=%s",
                 avatar.reddit_username, thread.subreddit, slot.id,
             )
-            # Flush so create_execution_task can find the draft via DB query
-            db.flush()
+            # Commit so create_execution_task can find the draft via DB query
+            db.commit()
             _dispatch_email_task_if_enabled(db, slot)
         else:
             slot.status = "generated"
-
-        db.commit()
+            db.commit()
 
         # Audit: log successful generation for pipeline transparency
         _log_slot_generated(db, slot, avatar, thread.subreddit)
