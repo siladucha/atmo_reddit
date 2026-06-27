@@ -182,6 +182,24 @@
         "effort": "Medium",
         "priority": "P3 (observability)",
         "status": "deferred"
+      },
+      {
+        "id": "IMP-005",
+        "gap": "CQS deadlock + proxy cost + executor friction",
+        "title": "Browser Extension (Executor Posting)",
+        "method": "Chrome Manifest V3 extension on executor machines. Posts through authenticated browser session. Replaces proxy/OAuth. Enables CQS self-healing and passive health monitoring.",
+        "effort": "Large (4 phases, ~6 weeks total)",
+        "priority": "P0 (unblocks posting + CQS recovery)",
+        "status": "spec_ready",
+        "spec": ".kiro/specs/browser-extension/",
+        "decided": "2026-06-27",
+        "replaces": ["residential proxies ($50-200/mo)", "Reddit OAuth approval (blocked months)", "8-step manual executor workflow"],
+        "key_architecture": {
+          "action_classes": "system (CQS, health) vs content (comments) — separate rate limits",
+          "state_transitions": "measurement (extension reports) separated from decisions (backend). Dual confirmation for auto-unfreeze.",
+          "integrity": "idempotency_key + HMAC task_signature + execution lease",
+          "fallback": "email delivery when extension offline >30min"
+        }
       }
     ]
   }

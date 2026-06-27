@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "name": "Regenerate CSS Snapshot",
+  "description": "Regenerates the Canonical State Snapshot (.kiro/state/current.yaml) from the local database. Use after incidents, deploys, or structural changes.",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "cd /Volumes/2SSD/Projects/ReddirSaaS/reddit_saas && /Volumes/2SSD/Projects/ReddirSaaS/.venv/bin/python /Volumes/2SSD/Projects/ReddirSaaS/_generate_css.py",
+    "timeout": 30
+  }
+}

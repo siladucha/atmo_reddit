@@ -301,6 +301,18 @@
         "file": "services/onboarding/ai_prompts.py:446"
       },
       {
+        "id": "tone_calibration",
+        "what": "Generate 5 sample Reddit sentences in brand voice for client rating (1-5)",
+        "model": "gemini_flash",
+        "when": "Onboarding step 4 (user clicks 'Generate Sample Sentences')",
+        "frequency": "1-3 calls per new client (retry if <3 sentences rated 4+)",
+        "input": "Live form data (brand_voice, admired_style, never_associated) + DB context (company_profile, industry, icp_profiles, company_problem)",
+        "output": "{\"sentences\": [\"sentence 1\", ..., \"sentence 5\"]}",
+        "prompt_id": "TONE_CALIBRATION_PROMPT",
+        "file": "routes/onboarding.py:step4_calibrate",
+        "note": "Uses hx-include to read unsaved form fields. Generates industry-specific Reddit-style comments matching the declared voice. Rated sentences (4+) become training anchors stored in brand_voice."
+      },
+      {
         "id": "post_brief_generation",
         "what": "Convert topic into strategic post brief (strategist decides angle)",
         "model": "claude_sonnet",
@@ -516,6 +528,28 @@
       "purpose": "Extract subreddit rules from sidebar/wiki text",
       "retry": true,
       "circuit_breaker": true
+    },
+    "TONE_CALIBRATION": {
+      "id": "TONE_CALIBRATION_PROMPT",
+      "file": "routes/onboarding.py:step4_calibrate (inline)",
+      "model": "gemini/gemini-2.5-flash",
+      "purpose": "Generate sample Reddit comments for voice calibration — client rates them to train the AI",
+      "input_variables": [
+        "brand_name",
+        "brand_voice (from live form + DB fallback)",
+        "company_profile",
+        "industry",
+        "icp_profiles",
+        "company_problem"
+      ],
+      "output_schema": "{\"sentences\": [\"string\", \"string\", \"string\", \"string\", \"string\"]}",
+      "key_rules": [
+        "Industry-specific (references real tools/patterns from THIS industry)",
+        "Matches declared voice/tone closely",
+        "NO marketing language, NO buzzwords",
+        "Reddit comment fragment style (1-3 sentences)",
+        "5 varied approaches: expertise, advice, challenging opinion, experience, helpful"
+      ]
     }
   },
   "prompt_full_texts": {

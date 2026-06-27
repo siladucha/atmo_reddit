@@ -1,0 +1,181 @@
+# Canonical State Snapshot (CSS)
+# Generated: 2026-06-27T22:00:00+03:00
+# Method: manual (initial bootstrap)
+# Next: auto-generate via _generate_css.py
+#
+# This file is DERIVED. It is NOT a source of truth.
+# Priority: ops > system > steering > CSS
+# Staleness rule: treat as inaccurate if >48h old.
+
+meta:
+  version: "0.3.0"
+  last_reconciled: "2026-06-27T22:00:00+03:00"
+  reconciled_by: "manual"
+  staleness_threshold_hours: 48
+
+infrastructure:
+  environment: production
+  domain: gorampit.com
+  server: 161.35.27.165
+  region: fra1
+  provider: digitalocean
+  os: ubuntu-24.04
+  containers:
+    - app
+    - celery
+    - celery-fast
+    - celery-beat
+    - nginx
+    - db (pgvector/pg16)
+    - redis (7-alpine)
+    - marketing
+  timezone: Asia/Jerusalem
+
+application:
+  posting_disabled: true  # env-level kill switch
+  kill_switches:
+    pipeline_enabled: true
+    generation_enabled: true
+    scrape_enabled: true
+    auto_posting_enabled: false
+    email_tasks_enabled: true
+    fitness_gate_enabled: true
+    cqs_check_tasks_enabled: true
+    epg2_enabled: true
+
+pipelines:
+  professional:
+    status: active
+    phases: [2, 3]
+    schedule: "08:00, 14:00"
+  hobby:
+    status: active
+    phases: [1, 2, 3]
+    schedule: "07:45, 13:45"
+
+avatars:
+  total_in_db: 25
+  active: 17
+  frozen: 3
+  suspended: 5
+  with_executor_email: 3
+  frozen_list:
+    - name: Flaky_Finder_13
+      reason: shadowbanned
+      since: "2026-06-25"
+      cqs: low  # improved from lowest on June 26
+      shadowban: active
+      recovery_signal: cqs_improved
+    - name: connor_lloyd
+      reason: shadowbanned
+      since: "2026-06-26"
+      detection: submission_visibility_probe
+  suspended_list:
+    - ThorneMarcus92
+    - RoutineAnywhere2705
+    - leon_grant10
+    - JJVillanM
+    - naomi_rush
+  executor_email_configured:
+    - Hot-Thought2408
+    - Flaky_Finder_13
+    - StopAutomatic717
+
+clients:
+  total: ~5
+  paying: 1  # ATMO/NeuroYoga
+  trial: ~3
+  plan_distribution:
+    trial: 3
+    seed: 0
+    starter: 1
+    growth: 0
+    scale: 0
+
+features:
+  deployed:
+    - core_pipeline
+    - epg_2_portfolio_manager
+    - comment_outcome_tracking
+    - discovery_engine
+    - geo_aeo_monitoring
+    - client_portal
+    - decision_center
+    - posting_dashboard
+    - smart_scoring
+    - risk_prediction
+    - security_hardening
+    - subreddit_risk_profiles
+    - epg_email_task_delivery
+    - draft_reconciliation
+    - self_service_onboarding
+    - avatar_onboarding
+    - real_time_notifications
+    - daily_ops_review_phase1
+    - trial_conversion_intelligence
+    - subreddit_emotional_profiles
+  in_progress:
+    - client_strategy_generation  # tasks 1-6 of 12
+  not_started:
+    - browser_extension  # spec ready
+    - phase_0_incubation_refactor  # spec ready
+    - ai_native_expert_warming  # spec ready
+    - mobile_posting_app  # spec ready
+
+open_incidents:
+  - id: flaky_finder_shadowban
+    avatar: Flaky_Finder_13
+    type: global_shadowban
+    status: frozen_with_recovery_signal
+    detail: "CQS improved LOWEST→LOW (June 26). Shadowban still active. Batch filter fix deployed June 27."
+    action_needed: "Monitor. Auto-recovery via health check when shadowban lifts."
+
+  - id: connor_lloyd_shadowban
+    avatar: connor_lloyd
+    type: global_shadowban
+    status: frozen
+    detail: "Auto-detected June 26 via submission_visibility_probe."
+
+  - id: suspended_fleet
+    avatars: [ThorneMarcus92, RoutineAnywhere2705, leon_grant10, JJVillanM, naomi_rush]
+    type: reddit_suspension
+    status: awaiting_business_decision
+    detail: "Confirmed dead via Reddit API. Need deactivation decision."
+
+  - id: strategy_generation_json_bug
+    component: discovery/strategy_generator
+    status: debugging
+    detail: "Gemini Flash JSON parse issue on strategy generation output."
+
+architecture_debt:
+  blocking: []
+  tracked:
+    - id: reddit_api_duplication
+      impact: performance
+      severity: low
+      when_fix: "optimization round"
+    - id: no_demotion_cooldown
+      impact: avatar_stability
+      severity: medium
+      when_fix: "before 10 clients"
+    - id: no_idempotency_keys
+      impact: duplicate_execution
+      severity: medium
+      when_fix: "before 10 clients"
+    - id: no_pagination
+      impact: scaling
+      severity: medium
+      when_fix: "before 10 clients"
+    - id: prompts_hardcoded
+      impact: no_versioning_no_ab
+      severity: medium
+      when_fix: "before 10 clients"
+
+last_deploys:
+  production: "2026-06-28"  # approximate — check ssh ramp for exact
+  staging: "2026-06-28"
+
+decisions_pending:
+  - "Deactivate 5 suspended avatars (business decision for Tzvi)"
+  - "Proxy purchase decision (deferred — browser extension preferred)"
+  - "Brevo domain verification for email delivery"

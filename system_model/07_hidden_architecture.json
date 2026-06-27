@@ -483,15 +483,25 @@
       "implementation": {
         "answer": "services/phase.py — 3 classes",
         "classes": {
-          "PhasePolicy": "Enforcement rules per phase (what is allowed/blocked)",
-          "PhaseEvaluator": "Daily evaluation logic (check promotion + demotion conditions)",
+          "PhasePolicy": "Enforcement rules per phase (what is allowed/blocked). Phase 0 = incubation rules (1/day, safe subs).",
+          "PhaseEvaluator": "Daily evaluation logic (check promotion + demotion conditions). Includes Phase 0 graduation.",
           "PhaseTransitionManager": "Executes transitions (promote/demote/admin_override) with side effects"
         }
+      },
+      "mentor_extraction": {
+        "answer": "Mentor is NOT a phase. Mentor = avatar.pool=='mentor' (pool classification). Phase 0 = Incubation (real phase for fresh/recovering avatars).",
+        "spec": ".kiro/specs/phase-incubation-mentor-refactor/",
+        "status": "SPEC COMPLETE, NOT YET IMPLEMENTED"
       },
       "transition_initiator": {
         "answer": "CRON job (Celery Beat) — evaluate_all_avatar_phases daily at 06:00.",
         "NOT_event_driven": true,
-        "exception": "Shadowban detection (health_check at 07:30/13:30) triggers IMMEDIATE demotion outside the daily eval cycle."
+        "exception": "Shadowban detection (health_check at 07:30/13:30) triggers IMMEDIATE demotion to Phase 0 outside the daily eval cycle."
+      },
+      "recovery_architecture": {
+        "answer": "Shadowban/CQS-lowest → demote to Phase 0 (NOT freeze). Avatar stays in pipeline with 1/day probe. Health checks continue. Recovery auto-detected.",
+        "freeze_reserved_for": ["suspended (404/403)", "admin manual", "Phase 0 timeout >30d"],
+        "eliminates_deadlock": "Flaky_Finder_13 incident (June 25-27): frozen avatar could never show recovery because batch tasks skipped frozen. New model: no freeze → monitoring continues → recovery automatic."
       },
       "authority_score": {
         "answer": "NOT IMPLEMENTED in production code. Referenced in spec (.kiro/specs/ai-native-expert-warming/) but Phase > Expert transition does not exist in current phase.py.",

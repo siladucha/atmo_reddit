@@ -5,7 +5,8 @@
     "system_name": "RAMP",
     "system_version": "0.3.0",
     "extraction_method": "reverse_engineering_from_source",
-    "completeness": "AS-IS from production codebase"
+    "completeness": "AS-IS from production codebase",
+    "last_updated": "2026-06-27"
   },
   "deployment": {
     "environment": "production",
@@ -65,7 +66,7 @@
           "services/onboarding/quality_gate.py",
           "services/onboarding/landscape_report.py"
         ],
-        "flow": "6 steps: website URL > AI scrape > ICP synthesis > keywords/subreddits suggestions > avatar config > quality gate > activate",
+        "flow": "6 steps: (1) Company > (2) Problem > (3) ICP > (4) Voice+Keywords+Subreddits > (5) Avatar BYOA > (6) Review & activate",
         "output": "Client record (plan_type=trial, 14-day) + initial config",
         "models_used": "gemini-flash (ICP extraction, keyword gen, subreddit suggestions)"
       },
@@ -839,7 +840,8 @@
     "health": [
       "shadowban_detected",
       "suspension_detected",
-      "cqs_level_change"
+      "cqs_level_change",
+      "cqs_recovery_detected"
     ],
     "moderation": [
       "comment_removal",
@@ -966,6 +968,30 @@
       "severity": "medium",
       "description": "Prompts not versioned",
       "impact": "no rollback/A-B testing"
+    },
+    {
+      "id": "GAP-RESOLVED-027a",
+      "severity": "resolved",
+      "description": "Onboarding keywords not saved (step4_save dropped them)",
+      "resolved_at": "2026-06-27"
+    },
+    {
+      "id": "GAP-RESOLVED-027b",
+      "severity": "resolved",
+      "description": "Onboarding Edit loop (Keywords link pointed to BYOA step)",
+      "resolved_at": "2026-06-27"
+    },
+    {
+      "id": "GAP-RESOLVED-027c",
+      "severity": "resolved",
+      "description": "Discovery r/r/ prefix duplication",
+      "resolved_at": "2026-06-27"
+    },
+    {
+      "id": "GAP-RESOLVED-027d",
+      "severity": "resolved",
+      "description": "Avatar detail dict display (business_subreddits rendered as raw dict)",
+      "resolved_at": "2026-06-27"
     }
   ],
   "invariants": [

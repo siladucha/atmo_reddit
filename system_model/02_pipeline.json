@@ -17,9 +17,16 @@
           "services/onboarding/quality_gate.py",
           "services/onboarding/landscape_report.py"
         ],
-        "flow": "6 steps: website URL > AI scrape > ICP synthesis > keywords/subreddits suggestions > avatar config > quality gate > activate",
+        "flow": "6 steps: (1) website URL + AI scrape (dynamic placeholders from profile) > (2) problem/positioning (industry-specific examples) > (3) ICP > (4) voice/guardrails + tone calibration (reads live form) + keywords/subreddits > (5) avatar BYOA > (6) quality gate + activate",
         "output": "Client record (plan_type=trial, 14-day) + initial config",
-        "models_used": "gemini-flash (ICP extraction, keyword gen, subreddit suggestions)"
+        "models_used": "gemini-flash (profile synthesis, ICP extraction, keyword gen, subreddit suggestions, tone calibration, voice autofill)",
+        "fixes_june_28": [
+          "Dynamic placeholders: Step 2 shows industry-specific examples based on Step 1 AI profile (not hardcoded XM Cyber)",
+          "Tone calibration reads live form data via hx-include (voice/style available before form save)",
+          "Tone calibration prompt improved: industry-specific, NO marketing language, varied approaches",
+          "Keywords save: added flag_modified() for JSONB mutation detection",
+          "Settings page: removed redundant keywords/subreddits sections (dedicated nav pages exist)"
+        ]
       },
       {
         "id": "avatar_onboarding",
@@ -259,7 +266,69 @@
         ],
         "tasks": [
           "health_check_all_avatars"
+        ],
+        "fixes_june_27": [
+          "Young accounts (<90 days) checked every 4h instead of 12h",
+          "zero_content_with_history detection: 0 comments + 0 submissions + posted_drafts in DB = shadowban",
+          "Auto-freeze for health_status=unknown persisting >48h"
         ]
+      },
+      {
+        "id": "cqs_task_generator",
+        "layer": "signal",
+        "trigger": "daily 07:00",
+        "services": [
+          "cqs_task_generator.py"
+        ],
+        "tasks": [
+          "generate_cqs_check_tasks_all_avatars"
+        ],
+        "flow": "query eligible avatars (interval-based) > create ExecutionTask(type=cqs_check) > dispatch pipeline delivers email (or extension) > executor posts in r/WhatIsMyCQS > check_cqs_all_avatars reads bot reply",
+        "kill_switch": "cqs_check_tasks_enabled",
+        "intervals": {
+          "cqs_lowest_or_young": "7 days",
+          "mature_healthy": "30 days"
+        },
+        "eligibility_filters": {
+          "active": true,
+          "executor_email_verified": true,
+          "no_pending_cqs_task": true,
+          "interval_expired": true,
+          "NOTE": "is_frozen and health_status filters REMOVED June 27. Frozen/shadowbanned avatars ARE included for recovery detection."
+        },
+        "filters_removed_june_27": {
+          "removed": ["is_frozen == False", "health_status not in (shadowbanned, suspended)"],
+          "reason": "Deadlock: frozen avatars could never recover because CQS task was never generated. Diagnostic systems must not be gated by the condition they diagnose.",
+          "evidence": "Flaky_Finder_13: CQS improved LOWEST→LOW on June 26 but RAMP never saw it"
+        },
+        "added": "2026-06-27",
+        "reason": "Flaky_Finder_13 incident: CQS=lowest → budget=0 → no tasks → no recovery path. This creates the write-side of CQS monitoring."
+      },
+      {
+        "id": "cqs_batch_reader",
+        "layer": "signal",
+        "trigger": "daily 06:30",
+        "services": [
+          "cqs_checker.py"
+        ],
+        "tasks": [
+          "check_cqs_all_avatars"
+        ],
+        "flow": "query active avatars (stale cqs_checked_at) > PRAW read submissions in r/WhatIsMyCQS > parse AutoModerator reply > update cqs_level > emit recovery signal if improved",
+        "eligibility_filters": {
+          "active": true,
+          "cqs_checked_at_stale": true,
+          "NOTE": "is_frozen and warming_phase filters REMOVED June 27. All active avatars checked regardless of phase or frozen state."
+        },
+        "filters_removed_june_27": {
+          "removed": ["is_frozen == False", "warming_phase >= 2"],
+          "reason": "Same deadlock as cqs_task_generator. Phase 1 avatars with CQS posts need monitoring. Frozen avatars need recovery detection."
+        },
+        "recovery_signal": {
+          "condition": "frozen avatar CQS improves from 'lowest'",
+          "action": "emit cqs_recovery_detected activity event",
+          "future": "Browser extension will enable dual-confirmation auto-unfreeze (CQS improved + PRAW probe passes)"
+        }
       },
       {
         "id": "phase_evaluation",
@@ -336,6 +405,32 @@
         "tasks": [
           "system_heartbeat"
         ]
+      },
+      {
+        "id": "browser_extension",
+        "layer": "execution",
+        "status": "PLANNED",
+        "spec": ".kiro/specs/browser-extension/",
+        "description": "Chrome Manifest V3 extension on executor machines. Posts through authenticated browser session. Primary delivery channel for execution tasks when online, email as fallback.",
+        "architecture": {
+          "communication": "HTTPS polling 30s (upgrade path: long-poll/SSE)",
+          "action_classes": {
+            "system": "CQS check, health probe, karma read — separate rate limits, always runs",
+            "content": "comment posting — daily cap, 3 min interval, active hours, pauseable"
+          },
+          "state_transitions": "measurement (extension) separated from decisions (backend). Dual confirmation for auto-unfreeze.",
+          "integrity": "idempotency_key + HMAC task_signature + execution lease"
+        },
+        "replaces": ["proxy infrastructure ($50-200/mo)", "OAuth approval (blocked)", "8-step manual executor flow"],
+        "keeps_as_fallback": ["email task delivery (offline >30 min)"],
+        "phases": {
+          "1_mvp": "CQS auto-check + health monitoring + backend API + popup (manual mode)",
+          "2_auto": "Auto-mode comment posting + safety limits + thread checks",
+          "3_intelligence": "Dual-confirmation auto-unfreeze + multi-account + PRAW integration",
+          "4_polish": "Firefox port + Chrome Web Store + onboarding wizard"
+        },
+        "added": "2026-06-27",
+        "reason": "CQS deadlock + proxy cost + executor friction all solved by one component"
       }
     ],
     "edges": [
@@ -448,6 +543,28 @@
         "from": "health_check",
         "to": "phase_evaluation",
         "condition": "shadowban > demote"
+      },
+      {
+        "from": "cqs_batch_reader",
+        "to": "phase_evaluation",
+        "condition": "CQS change detected → recovery signal or freeze trigger"
+      },
+      {
+        "from": "cqs_task_generator",
+        "to": "email_task_delivery",
+        "condition": "creates ExecutionTask(type=cqs_check) → dispatched to executor"
+      },
+      {
+        "from": "browser_extension",
+        "to": "cqs_batch_reader",
+        "condition": "PLANNED: extension reports CQS result directly, bypasses email+PRAW path",
+        "status": "PLANNED"
+      },
+      {
+        "from": "browser_extension",
+        "to": "email_task_delivery",
+        "condition": "PLANNED: extension online → preferred channel; offline >30min → email fallback",
+        "status": "PLANNED"
       },
       {
         "from": "phase_evaluation",

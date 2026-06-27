@@ -34,15 +34,16 @@
       },
       {
         "order": 5,
-        "name": "phase_0_exclusion",
-        "check": "!=0"
+        "name": "mentor_pool_exclusion",
+        "check": "avatar.pool != 'mentor'",
+        "note": "Was 'phase_0_exclusion' (check !=0). Now pool-based. Phase 0 (Incubation) IS allowed in pipeline at reduced rate."
       },
       {
         "order": 6,
         "name": "daily_cap",
         "formula": "min(PHASE_LIMITS[phase],system_cap)",
         "phase_limits": {
-          "0": 0,
+          "0": 1,
           "1": 3,
           "2": 7,
           "3": 18

@@ -14,7 +14,8 @@
     "health": [
       "shadowban_detected",
       "suspension_detected",
-      "cqs_level_change"
+      "cqs_level_change",
+      "cqs_recovery_detected"
     ],
     "moderation": [
       "comment_removal",
@@ -54,14 +55,21 @@
       {
         "id": "phase_evaluation",
         "trigger": "daily 06:00 (evaluate_all_avatar_phases)",
-        "captures": "survival_rate (7d), avg_karma (14d), time_in_phase",
+        "captures": "survival_rate (7d), avg_karma (14d), time_in_phase, CQS level, shadowban status",
         "processes": "PhaseEvaluator.evaluate > check_promotion + check_demotion",
         "applies": "avatar.warming_phase change > changes which pipeline (professional/hobby) avatar uses",
-        "scope": "per-avatar",
+        "scope": "per-avatar (includes Phase 0 incubation avatars, excludes pool=mentor)",
         "latency": "immediate (next pipeline run respects new phase)",
+        "demotion_targets": {
+          "shadowban": "→ Phase 0 (NOT freeze)",
+          "cqs_lowest": "→ Phase 0 (NOT freeze)",
+          "survival_rate_low": "→ Phase 0",
+          "karma_drop": "→ current - 1"
+        },
         "side_effects": [
           "ActivityEvent emitted",
-          "Notification sent if demotion"
+          "Notification sent if demotion",
+          "Phase 0 timeout freeze if >30d without graduation"
         ]
       },
       {

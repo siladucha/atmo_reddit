@@ -1,0 +1,161 @@
+# Tension Registry
+# Format: architectural tensions detected, tracked, resolved.
+# Source types: incident | sbm_violation | observation | external
+# Status: open | investigating | proposed | resolved | deferred
+#
+# This file is append-mostly. Resolved tensions stay as history.
+# Open tensions feed into weekly architecture review.
+
+tensions:
+
+  # ─── RESOLVED (June 2026) ───────────────────────────────────────────────
+
+  - id: T-2026-06-22-001
+    title: "Phase demotion on 1-2 comments (false demotion)"
+    detected: 2026-06-22
+    source: incident
+    sbm_property: [P1]
+    severity: high
+    status: resolved
+    description: >
+      Single moderator removal in r/sysadmin (1/2 = 50% < 70%) triggered
+      demotion Phase 2→1. Statistically unreliable with small sample.
+    resolution:
+      date: 2026-06-22
+      action: "Added _DEMOTION_MIN_SAMPLE_SIZE = 5 in phase.py"
+      files: [app/services/phase.py]
+
+  - id: T-2026-06-24-001
+    title: "EPG budget miscounting (skipped slots consumed budget)"
+    detected: 2026-06-24
+    source: incident
+    sbm_property: [P1, P3]
+    severity: high
+    status: resolved
+    description: >
+      get_budget_used_today() counted ALL non-planned slots including
+      skipped-without-draft as consumed. Avatar with budget=3 showed 14/3 used.
+    resolution:
+      date: 2026-06-24
+      action: "Excluded skipped-without-draft from budget consumption"
+      files: [app/services/portfolio_manager.py]
+
+  - id: T-2026-06-25-001
+    title: "EPG dedup guard fails on all-skipped morning build"
+    detected: 2026-06-25
+    source: incident
+    sbm_property: [P8, P1]
+    severity: critical
+    status: resolved
+    description: >
+      Dedup guard counted status.notin_("skipped"). When morning build
+      all-skipped (Gemini empty response), afternoon saw count=0, created
+      duplicates. Deploy restarts compounded (22 slots for budget=3).
+    resolution:
+      date: 2026-06-25
+      action: "2-level dedup guard: active slots exist → skip; max 2 attempts/day"
+      files: [app/services/portfolio_manager.py]
+
+  - id: T-2026-06-25-002
+    title: "2AM email delivery to executor (persona TZ ≠ executor TZ)"
+    detected: 2026-06-25
+    source: incident
+    sbm_property: [P8]
+    severity: high
+    status: resolved
+    description: >
+      Flaky_Finder_13 persona=NY timezone, executor=Israel. Slots scheduled
+      for 19:15 NY = 02:15 Israel. Executor woken by work emails.
+    resolution:
+      date: 2026-06-26
+      action: "Quiet hours gate (23:00-07:00 Israel) in dispatch_due_email_tasks"
+      files: [app/tasks/execution_tasks.py]
+      notes: "Partial fix. Full fix requires per-executor timezone field."
+
+  - id: T-2026-06-26-001
+    title: "Hobby pipeline missing image/video/link filter"
+    detected: 2026-06-26
+    source: incident
+    sbm_property: [P4, P1]
+    severity: high
+    status: resolved
+    description: >
+      Professional pipeline had url filter (skip external URLs). Hobby
+      pipeline did not. Image posts (r/GYM progress photos) passed through
+      and generated nonsensical text-only replies.
+    resolution:
+      date: 2026-06-26
+      action: "Added url filter to opportunity_engine Source 2 + generate_hobby_comments"
+      files: [app/services/opportunity_engine.py, app/tasks/ai_pipeline.py]
+
+  - id: T-2026-06-27-001
+    title: "CQS diagnostic gated by frozen status (deadlock)"
+    detected: 2026-06-27
+    source: incident
+    sbm_property: [P2, P9]
+    severity: critical
+    status: resolved
+    description: >
+      Three-layer deadlock: run_cqs_check_batch skips is_frozen=True,
+      generate_cqs_check_tasks skips is_frozen=True AND health_status=shadowbanned,
+      health_check skips is_frozen=True. Frozen avatar gets NO diagnostics,
+      recovery signal (CQS LOWEST→LOW) invisible to RAMP.
+    resolution:
+      date: 2026-06-27
+      action: "Removed is_frozen and warming_phase filters from cqs_checker + cqs_task_generator"
+      files: [app/services/cqs_checker.py, app/services/cqs_task_generator.py]
+      principle: "Diagnostic systems must NEVER be gated by the condition they diagnose"
+
+  # ─── OPEN ───────────────────────────────────────────────────────────────
+
+  - id: T-2026-06-28-001
+    title: "No LLM cost circuit breaker on pipeline"
+    detected: 2026-06-28
+    source: observation
+    sbm_property: [P3]
+    severity: medium
+    status: open
+    owner: max
+    description: >
+      If Gemini Flash starts returning errors and retries fire (3× per task,
+      exponential backoff), cost accumulates without output. No hard stop
+      exists. cost_governor only caps Daily Review agent ops ($1/day), not
+      pipeline LLM calls.
+    proposed_fix: >
+      Daily pipeline cost ceiling (e.g., $5/day). If AIUsageLog sum for
+      today exceeds ceiling, pause generation tasks until next day.
+      Alternatively: per-task cost cap ($0.50) with circuit breaker after
+      3 consecutive failures.
+
+  - id: T-2026-06-28-002
+    title: "P6 feedback closure has no alert"
+    detected: 2026-06-28
+    source: sbm_violation
+    sbm_property: [P6]
+    severity: medium
+    status: open
+    owner: max
+    description: >
+      Comments posted >48h ago with 0 karma_snapshots are invisible to ops.
+      System may be blind to outcomes without anyone knowing.
+    proposed_fix: >
+      SQL query in signal_collector: count posted drafts without snapshots
+      after 48h. Alert if count > 0.
+
+  - id: T-2026-06-28-003
+    title: "Meta-loop has no automated OBSERVE for architecture pressure"
+    detected: 2026-06-28
+    source: observation
+    sbm_property: [P10]
+    severity: low
+    status: deferred
+    owner: max
+    description: >
+      Architecture tensions are currently detected only through incidents
+      (reactive) or manual observation. No automated pattern detection
+      (3-day recurring errors, cost outpacing growth, frozen count rising).
+    deferred_reason: >
+      Requires Phase 2 Daily Review (trend classification). Current scale
+      (1 engineer, 3 clients) doesn't justify complexity. Revisit when
+      Daily Review Phase 2 is built or client count > 10.
+    revisit_date: 2026-08-01

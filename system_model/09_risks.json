@@ -1,11 +1,15 @@
 {
   "meta": {
     "domain": "risk_registry",
-    "version": "1.0.0",
-    "description": "Complete risk registry for RAMP system. Covers infrastructure, architecture, business, security, posting, scaling, data, ops, documentation, AI, and platform risks. Escalation levels: CRITICAL (minutes), HIGH (hours), MEDIUM (days/weeks), LOW (opportunistic).",
-    "last_updated": "2026-06-25",
+    "version": "2.2.0",
+    "description": "Complete risk registry for RAMP system. Unified from code analysis, steering docs, production incidents (June 24-25, 2026), and manual risk assessment. Designed for consumption by RAMP AI agent and human analysts.",
+    "last_updated": "2026-06-26",
+    "authors": [
+      "Kiro (AI agent — code analysis, steering doc cross-reference)",
+      "Max Breger (production incident report, ban detection design)",
+      "Tzvi (shadowban detection proposal, risk feedback)"
+    ],
     "sources": [
-      "08_agent_instructions.json",
       "01_entities.json",
       "02_pipeline.json",
       "03_ai_prompts.json",
@@ -13,29 +17,1920 @@
       "05_signals_adaptation.json",
       "06_infrastructure.json",
       "07_hidden_architecture.json",
-      "production incident logs (June 24-25, 2026)",
-      "subreddit ban detection analysis (June 25, 2026)"
-    ]
+      "08_agent_instructions.json",
+      "Production incident: StopAutomatic717 / r/Juve shadowban (June 25, 2026)",
+      "Production incident: Flaky_Finder_13 global shadowban (June 25, 2026)",
+      "Code analysis: health_checker.py, snapshot_outcomes.py, subreddit_ban.py, subreddit_ban_probe.py, avatar_subreddit_ban.py, fitness_gate.py, rule_extractor.py, moderation_profiler.py, risk_scorer.py, reddit.py, praw_factory.py"
+    ],
+    "usage_notes": {
+      "for_ai_agent": "When asked about risks, always reference by ID. When proposing fixes, map to existing GAP/IMP IDs. When analyzing new incidents, check if they map to an existing risk or require a new entry.",
+      "for_analysts": "Escalation level determines response SLA. CRITICAL = page immediately. HIGH = same-day fix. MEDIUM = sprint backlog. LOW = backlog. INFORMATIONAL = track only."
+    }
   },
   "escalation_matrix": {
     "CRITICAL": {
       "color": "red",
       "response_time": "minutes",
-      "description": "Business shutdown, irrecoverable financial loss, fatal reputational leak"
+      "description": "Business shutdown, irrecoverable financial loss, fatal credential leak, mass avatar ban",
+      "notification": "Page on-call + Slack #incidents"
     },
     "HIGH": {
       "color": "orange",
       "response_time": "hours",
-      "description": "Serious service degradation, client SLA breach, account ban risk"
+      "description": "Serious service degradation, client SLA breach, single avatar ban cascade, significant cost overrun",
+      "notification": "Slack #incidents + same-day fix required"
     },
     "MEDIUM": {
       "color": "yellow",
-      "response_time": "days_or_weeks",
-      "description": "Reduced efficiency, growing opex, technical debt accumulation"
+      "response_time": "days_to_weeks",
+      "description": "Reduced efficiency, growing opex, technical debt, quality regression, moderate data inconsistency",
+      "notification": "Add to sprint backlog with priority label"
     },
     "LOW": {
       "color": "green",
       "response_time": "opportunistic",
-      "description": "Minimal process impact, cosmetic defects"
+      "description": "Minimal process impact, cosmetic defects, minor documentation inconsistencies",
+      "notification": "Track in backlog, fix when convenient"
+    },
+    "INFORMATIONAL": {
+      "color": "blue",
+      "response_time": "none",
+      "description": "Observation, not a risk per se, but context for other risks",
+      "notification": "None"
     }
   },
+  "risk_groups": [
+    {
+      "id": "PLATFORM",
+      "title": "Platform Risks (Reddit Interaction)",
+      "description": "Risks arising from RAMP's dependency on Reddit as an external platform. These are largely uncontrollable but mitigable through detection and adaptation."
+    },
+    {
+      "id": "INFRASTRUCTURE",
+      "title": "Infrastructure Risks",
+      "description": "Risks from single-server deployment, lack of HA, resource constraints on the DigitalOcean droplet."
+    },
+    {
+      "id": "ARCHITECTURE",
+      "title": "Pipeline Architecture Risks",
+      "description": "Risks from design decisions in the Celery-based pipeline: race conditions, lack of idempotency, state divergence."
+    },
+    {
+      "id": "BUSINESS",
+      "title": "Business & Operational Risks",
+      "description": "Financial, legal, and operational risks affecting the business model and client relationships."
+    },
+    {
+      "id": "SECURITY",
+      "title": "Security & Privacy Risks",
+      "description": "Risks from credential management, data isolation, kill switch limitations."
+    },
+    {
+      "id": "POSTING",
+      "title": "Posting Process Risks",
+      "description": "Risks specific to the comment generation → approval → posting pipeline."
+    },
+    {
+      "id": "SCALING",
+      "title": "Scaling Risks",
+      "description": "Risks that manifest when client count, avatar count, or data volume grows beyond current limits."
+    },
+    {
+      "id": "DATA",
+      "title": "Data & Versioning Risks",
+      "description": "Risks from lack of versioning, event sourcing, and data lifecycle management."
+    },
+    {
+      "id": "OPS",
+      "title": "Operational Risks",
+      "description": "Risks from lack of observability, testing infrastructure, and deployment tooling."
+    },
+    {
+      "id": "AI",
+      "title": "AI & Generation Risks",
+      "description": "Risks from LLM dependency: quality, cost, fallbacks, and learning loop integrity."
+    },
+    {
+      "id": "DOCUMENTATION",
+      "title": "Documentation Consistency Risks",
+      "description": "Risks from contradictions between steering documents, leading to incorrect AI agent behavior."
+    },
+    {
+      "id": "BAN_DETECTION",
+      "title": "Ban Detection System Risks",
+      "description": "Risks specific to the shadowban/subreddit-ban detection and response system, including the proposed 'fast probe' enhancement."
+    }
+  ],
+  "risks": [
+    {
+      "id": "R-PLATFORM-001",
+      "group": "PLATFORM",
+      "title": "Mass Shadowban or Account Suspension Wave",
+      "description": "Reddit changes anti-bot detection algorithms or applies blanket bans to infrastructure/IP ranges used by RAMP avatars.",
+      "impact": "Complete service stop for all clients. Replacement cost of avatars (warm-up period) is enormous — weeks of karma building lost per avatar.",
+      "likelihood": "Low",
+      "escalation": "CRITICAL",
+      "source": "Production incident analysis (June 25, 2026), 06_infrastructure.json",
+      "related_gaps": [
+        "GAP-004"
+      ],
+      "mitigation": "Diversify IP/proxy providers. Implement structural monitoring for PRAW error patterns. Maintain avatar reserve pool with pre-warmed karma.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-PLATFORM-002",
+      "group": "PLATFORM",
+      "title": "Reddit API Rate Limit Reduction",
+      "description": "Reddit reduces rate limits from 60 req/min per OAuth token, or changes API access policy (similar to mid-2023 API changes).",
+      "impact": "Scrape/Post pipeline cannot complete within allocated windows (08:00, 14:00). EPG plan disrupted. Cascading posting delays.",
+      "likelihood": "Medium",
+      "escalation": "HIGH",
+      "source": "07_scalability_boundaries, 06_infrastructure.json",
+      "related_gaps": [],
+      "mitigation": "Implement OAuth token rotation. Add adaptive rate limiting with backoff. Cache aggressively to reduce API calls.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-PLATFORM-003",
+      "group": "PLATFORM",
+      "title": "Reddit DOM/API Structure Change",
+      "description": "Reddit updates page elements or API endpoints incompatible with current PRAW version.",
+      "impact": "Parsing errors, Celery task crashes with ConnectionError or ParseError. Scrape pipeline stops silently.",
+      "likelihood": "Medium",
+      "escalation": "MEDIUM",
+      "source": "06_infrastructure.json",
+      "related_gaps": [
+        "GAP-004"
+      ],
+      "mitigation": "Pin PRAW version. Monitor PRAW release notes. Add structured error handling with alerting on unexpected response shapes.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-PLATFORM-004",
+      "group": "PLATFORM",
+      "title": "Shadowban Detection Window Gap",
+      "description": "Health checks run at fixed times (07:30, 13:30). A shadowban occurring outside these windows leaves 6-12 hours of posting activity on a dead account.",
+      "impact": "Wasted LLM spend, zero karma accumulation, potential Reddit flagging for posting on banned accounts.",
+      "likelihood": "High",
+      "escalation": "HIGH",
+      "source": "diagrams_state_machines.md, health_checker.py",
+      "related_gaps": [],
+      "mitigation": "Add lightweight health ping before posting (if time since last check > 2h). Or randomize health check times within a window.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-INFRA-001",
+      "group": "INFRASTRUCTURE",
+      "title": "PostgreSQL SPOF — No Replication (GAP-008)",
+      "description": "Single database instance on 4GB RAM droplet. No replication, no managed service. ~50 connection limit. OOM Killer or disk failure causes total data loss/outage.",
+      "impact": "Complete business halt. Potential loss of all karma history, learning data, and client configurations.",
+      "likelihood": "Medium",
+      "escalation": "CRITICAL",
+      "source": "06_known_gaps (GAP-008), 07_scalability_boundaries",
+      "related_gaps": [
+        "GAP-008"
+      ],
+      "mitigation": "Enable automated PG dumps to DigitalOcean Spaces (daily). Plan migration to managed DB (DigitalOcean DBaaS) before 50 clients. Add PgBouncer for connection pooling.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-INFRA-002",
+      "group": "INFRASTRUCTURE",
+      "title": "Celery Beat SPOF — Silent Scheduler Death",
+      "description": "Beat scheduler is a single process. If it hangs or crashes, the entire time-based pipeline (scoring, EPG, posting, health checks) stops silently. System appears 'up' but does nothing.",
+      "impact": "Missed posting windows, SLA breach. No new tasks launched. May go unnoticed for hours without external monitoring.",
+      "likelihood": "Medium",
+      "escalation": "CRITICAL",
+      "source": "07_scalability_boundaries, 02_temporal_model",
+      "related_gaps": [],
+      "mitigation": "Implement external heartbeat monitor (Uptime Kuma) checking 'last_task_run' timestamp in Redis/DB. Auto-restart Beat container on failure detection.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-INFRA-003",
+      "group": "INFRASTRUCTURE",
+      "title": "Redis — Single Instance, No Persistence Guarantees",
+      "description": "Redis stores locks, rate limits, EPG adjustments, heartbeat. No AOF/RDB persistence configured. On crash, all TTL-based state is lost.",
+      "impact": "Possible duplicate EPG slots (lock lost), race conditions (rate limiter reset), incorrect heartbeat readings.",
+      "likelihood": "Medium",
+      "escalation": "MEDIUM",
+      "source": "06_deployment, 07_missing_formal_layers > Consistency Manager",
+      "related_gaps": [],
+      "mitigation": "Enable Redis AOF persistence. Add reconciliation job that rebuilds Redis state from DB on startup. Accept eventual consistency for TTL data.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-INFRA-004",
+      "group": "INFRASTRUCTURE",
+      "title": "OOM Killer on Droplet (4GB RAM)",
+      "description": "Simultaneous LLM generation calls + PostgreSQL queries + Redis operations can exhaust 4GB RAM. Linux OOM Killer terminates processes, often PostgreSQL or Celery Worker first.",
+      "impact": "Destroyed transactions, corrupted in-flight states, cascading task failures. Recovery requires manual intervention.",
+      "likelihood": "Medium",
+      "escalation": "HIGH",
+      "source": "06_known_gaps, 07_scalability_boundaries",
+      "related_gaps": [
+        "GAP-008"
+      ],
+      "mitigation": "Set OOM score adjustments to protect PostgreSQL. Add memory monitoring with pre-emptive task throttling. Plan RAM upgrade or service split.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-INFRA-005",
+      "group": "INFRASTRUCTURE",
+      "title": "No Redis Backup / No Automated State Recovery",
+      "description": "Redis state (locks, adjustments, rate limiters) is ephemeral. No automated recovery procedure exists.",
+      "impact": "After Redis crash, system may operate with stale or missing state until manual intervention or natural TTL expiry.",
+      "likelihood": "Low",
+      "escalation": "MEDIUM",
+      "source": "07_consistency_manager",
+      "related_gaps": [],
+      "mitigation": "Document recovery runbook. Add startup reconciliation task. Consider Redis persistence (AOF).",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-ARCH-001",
+      "group": "ARCHITECTURE",
+      "title": "EPG Race Condition — Duplicate Slots (GAP-003)",
+      "description": "Previously: no distributed lock on build_portfolio(). FIXED June 25, 2026: Redis DistributedLock per avatar (key=epg_build_lock:{avatar.id}, TTL=600s) in tasks/epg.py + 2-level dedup guard in portfolio_manager.py (Level 1: active slots exist then skip; Level 2: max 2 build attempts per day). Both mechanisms verified in code.",
+      "impact": "MITIGATED. Distributed lock prevents concurrent builds. Dedup guard prevents duplicate slots from sequential runs. Residual: Redis crash during lock window.",
+      "likelihood": "Low (residual)",
+      "escalation": "MEDIUM",
+      "source": "AGENT_QUESTIONS.md (Q1), diagrams_pipeline.md, 06_known_gaps (GAP-003), 08_common_misinterpretations",
+      "related_gaps": [
+        "GAP-003"
+      ],
+      "related_improvements": [
+        "IMP-001"
+      ],
+      "mitigation": "DONE: Redis DistributedLock (TTL=600s) + 2-level dedup guard (active count + max 2 attempts/day). Monitor for duplicate slots weekly.",
+      "status": "fixed",
+      "detected_date": "2026-06-25",
+      "fixed_date": "2026-06-25"
+    },
+    {
+      "id": "R-ARCH-002",
+      "group": "ARCHITECTURE",
+      "title": "No Pipeline Orchestrator — Distributed Responsibility",
+      "description": "Orchestration is split between Beat (timing), task chaining (order), and polling (state). No single component sees the full picture. Cannot answer 'what is the system doing right now' without querying 5+ tables and Redis queues.",
+      "impact": "Hard to debug failures. No PipelineRun entity for tracing. Impossible to implement replay or partial retry.",
+      "likelihood": "High",
+      "escalation": "HIGH",
+      "source": "07_actual_orchestration_layer, 07_refactoring_prerequisites",
+      "related_gaps": [],
+      "mitigation": "Introduce PipelineRun entity that tracks each avatar's daily pipeline execution as a single trace. Query-friendly state machine.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-ARCH-003",
+      "group": "ARCHITECTURE",
+      "title": "No Idempotency — Duplicate Posts on Retry (GAP-001)",
+      "description": "If network drops after DB status update but before Reddit API response, or if Celery retries a posting task, the same draft can be published twice.",
+      "impact": "Duplicate comments in the same thread. Obvious bot behavior → ban risk. Wasted LLM cost.",
+      "likelihood": "Medium",
+      "escalation": "HIGH",
+      "source": "06_known_gaps (GAP-001), diagrams_pipeline.md",
+      "related_gaps": [
+        "GAP-001"
+      ],
+      "mitigation": "Add idempotency key (draft_id + subreddit) checked before reddit.submit(). Store posted comment IDs and reject duplicates.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-ARCH-004",
+      "group": "ARCHITECTURE",
+      "title": "No Cross-Avatar Deduplication (GAP-002)",
+      "description": "Two avatars (even from different clients) can reply to the same thread. This looks coordinated and suspicious.",
+      "impact": "Both avatars flagged as bots. Moderators may investigate and discover the service.",
+      "likelihood": "Medium",
+      "escalation": "HIGH",
+      "source": "06_known_gaps (GAP-002)",
+      "related_gaps": [
+        "GAP-002"
+      ],
+      "mitigation": "Before posting, query: 'Does any avatar have an approved/pending draft for this thread_fullname?' If yes, skip.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-ARCH-005",
+      "group": "ARCHITECTURE",
+      "title": "Kill Switch Propagation Latency (~5 min)",
+      "description": "Kill switch check happens at task fetch (every 5 min). No check immediately before praw.submit(). In-flight LLM calls complete even after kill switch is activated.",
+      "impact": "In an emergency (toxic output, client complaint), system continues to post for up to 5 minutes.",
+      "likelihood": "Low",
+      "escalation": "HIGH",
+      "source": "AGENT_QUESTIONS.md (Q2), diagrams_safety_ai.md, 08_when_discussing_security",
+      "related_improvements": [
+        "IMP-002"
+      ],
+      "mitigation": "IMPLEMENT (IMP-002): Add Redis GET 'ramp:kill:posting_disabled' inside posting.py just before submit call. Accept that in-flight LLM calls cannot be revoked.",
+      "status": "accepted_not_implemented",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-ARCH-006",
+      "group": "ARCHITECTURE",
+      "title": "Ghost Tasks — State Divergence",
+      "description": "Task fails after DB status update but before Reddit API response. Slot in DB has status 'approved'/'posted' but comment doesn't exist on Reddit.",
+      "impact": "Incorrect karma tracking. Client thinks post is live when it isn't. Feedback loop trains on wrong data.",
+      "likelihood": "Medium",
+      "escalation": "MEDIUM",
+      "source": "diagrams_pipeline.md",
+      "related_gaps": [],
+      "mitigation": "Use Draft Reconciliation (3-pass) to detect mismatches. Implement manual 'Force Re-post' button. Add periodic reconciliation job.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-ARCH-007",
+      "group": "ARCHITECTURE",
+      "title": "No Prompt Versioning (GAP-012)",
+      "description": "Prompts are Python string constants. No version tag stored on CommentDraft. Changing a prompt makes historical quality analysis impossible.",
+      "impact": "Cannot measure ROI of prompt changes. Cannot rollback. Learning loop trains on mixed-version data. Cannot A/B test.",
+      "likelihood": "High",
+      "escalation": "HIGH",
+      "source": "AGENT_QUESTIONS.md (Q5), 06_GAP-012, 07_missing_formal_layers",
+      "related_gaps": [
+        "GAP-012"
+      ],
+      "related_improvements": [
+        "IMP-004"
+      ],
+      "mitigation": "Add prompt_version field to CommentDraft. Bump version on any prompt change. Query karma/approval by version. Low-effort, high-value.",
+      "status": "deferred",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-ARCH-008",
+      "group": "ARCHITECTURE",
+      "title": "Client State — No Formal FSM",
+      "description": "Transitions trial→active→deactivated are not formalized. Deactivation cascades are spread across code. No single source of truth for valid transitions.",
+      "impact": "Inconsistent state handling. Possible orphaned resources on invalid transitions. Hard to audit.",
+      "likelihood": "Medium",
+      "escalation": "MEDIUM",
+      "source": "07_missing_formal_layers > Client State Machine",
+      "related_gaps": [],
+      "mitigation": "Define formal FSM with valid transitions. Enforce at ORM level or service layer.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-ARCH-009",
+      "group": "ARCHITECTURE",
+      "title": "No AI Registry / Model Router",
+      "description": "Model selection uses 2 DB settings + hardcoded service logic. No per-client routing, no A/B testing, no consistency guarantee within a single pipeline run.",
+      "impact": "Inconsistent output quality. Cannot route expensive clients to better models. Cannot test model changes safely.",
+      "likelihood": "Medium",
+      "escalation": "MEDIUM",
+      "source": "07_missing_formal_layers, 03_ai_usage_map",
+      "related_gaps": [],
+      "mitigation": "Create AIRegistry service that resolves model per client/context. Centralize model selection logic.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-ARCH-010",
+      "group": "ARCHITECTURE",
+      "title": "Redis↔DB Consistency Gap (No Cross-Store Transactions)",
+      "description": "No transactions between Redis lock acquire and DB commit. If crash occurs between lock acquire and DB write → lock expires (TTL). If crash between DB commit and lock release → lock remains until TTL (up to 600s).",
+      "impact": "Window for duplicate operations or unnecessary blocking. Acceptable at current scale but will worsen with concurrency.",
+      "likelihood": "Low",
+      "escalation": "MEDIUM",
+      "source": "07_reliability",
+      "related_gaps": [],
+      "mitigation": "Accept as known limitation at current scale. TTL already mitigates worst case. Revisit when concurrency > 10 parallel pipeline runs.",
+      "status": "accepted",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-ARCH-011",
+      "group": "ARCHITECTURE",
+      "title": "Celery Queue Starvation",
+      "description": "PARTIALLY MITIGATED: Two queues exist (celery + fast). Interactive/on-demand tasks (pipeline, EPG, strategy, emotional_profile) route to fast queue (concurrency=1). Bulk tasks (scraping, karma, health) stay on default celery queue (concurrency=2). Posting tasks (execute_pending_posts) also on default queue.",
+      "impact": "Posting delayed by hours. Comments published in non-optimal time windows. Karma impact.",
+      "likelihood": "Low",
+      "escalation": "MEDIUM",
+      "source": "06_deployment (notes 2 queues exist: celery + celery-fast, but 08_agent_instructions says only 1 — see DOC-002)",
+      "related_gaps": [],
+      "mitigation": "PARTIALLY DONE: fast queue separates interactive tasks. Posting currently via email executor (not automated), so queue starvation has no practical impact. If auto-posting enabled: consider routing posting to fast queue.",
+      "status": "mitigated",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-BIZ-001",
+      "group": "BUSINESS",
+      "title": "LLM Cost — 93% OPEX, Vulnerable to Price Increases",
+      "description": "Heavy dependency on Claude Sonnet for generation, persona, and editing (~$0.04/call). Gemini Flash is cheap but used less. Any Anthropic price increase directly hits >90% margin.",
+      "impact": "Margin collapse if Anthropic raises prices 2x+. No ability to pass cost to clients quickly.",
+      "likelihood": "Medium",
+      "escalation": "HIGH",
+      "source": "06_economics, 03_ai_usage_map",
+      "related_gaps": [],
+      "mitigation": "Implement per-client LLM cost tracking with alerts. Evaluate Claude Haiku for lower-stakes tasks. Maintain Gemini Flash as fallback.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-BIZ-002",
+      "group": "BUSINESS",
+      "title": "Reddit API Rate Limit — 60 req/min per OAuth Token",
+      "description": "At 100+ subreddits with 1h scrape intervals, system hits rate limit. No token rotation implemented.",
+      "impact": "Scrape pipeline throttled. Missing threads. Degraded content quality.",
+      "likelihood": "High",
+      "escalation": "HIGH",
+      "source": "07_scalability_boundaries",
+      "related_gaps": [],
+      "mitigation": "Implement OAuth token pool with round-robin. Add adaptive rate limiting. Prioritize active subreddits.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-BIZ-003",
+      "group": "BUSINESS",
+      "title": "Single Email Provider Dependency (Brevo)",
+      "description": "All executor emails go through Brevo. No SendGrid or fallback configured.",
+      "impact": "If Brevo blocks our account, executors receive no drafts. Posting stops.",
+      "likelihood": "Low",
+      "escalation": "LOW",
+      "source": "08_when_generating_diagrams > rule_8",
+      "related_gaps": [],
+      "mitigation": "Document Brevo as provider. Plan fallback provider integration when client count > 20.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-BIZ-004",
+      "group": "BUSINESS",
+      "title": "No GDPR / Data Erasure Mechanism (GAP-007)",
+      "description": "No procedure to delete all data for a user who requests erasure. Client strategy, avatar history, karma data — all persists.",
+      "impact": "Legal liability if EU-based client requests GDPR erasure. Potential fines.",
+      "likelihood": "Low",
+      "escalation": "MEDIUM",
+      "source": "06_GAP-007",
+      "related_gaps": [
+        "GAP-007"
+      ],
+      "mitigation": "Implement cascading soft-delete for client → avatars → drafts → activity_events. Add admin 'GDPR Erase' button.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-BIZ-005",
+      "group": "BUSINESS",
+      "title": "No SLI/SLO Defined (GAP-006)",
+      "description": "System health is not formally measured. No uptime percentage, no latency SLOs, no error rate budgets. Cannot give guarantees to clients.",
+      "impact": "Cannot demonstrate reliability to enterprise clients. No trigger for scaling decisions.",
+      "likelihood": "High",
+      "escalation": "MEDIUM",
+      "source": "06_GAP-006",
+      "related_gaps": [
+        "GAP-006"
+      ],
+      "mitigation": "Define basic SLIs: pipeline completion rate, posting success rate, karma trend. Set initial SLOs based on last 30 days.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-BIZ-006",
+      "group": "BUSINESS",
+      "title": "No Adversarial Adaptation to Reddit Changes (GAP-004)",
+      "description": "System does not automatically adapt to Reddit algorithm changes. Detection relies on manual observation or delayed metrics.",
+      "impact": "Slow response to Reddit policy/enforcement changes. Avatar behavior may become non-compliant without system knowing.",
+      "likelihood": "High",
+      "escalation": "MEDIUM",
+      "source": "06_GAP-004",
+      "related_gaps": [
+        "GAP-004"
+      ],
+      "mitigation": "Monitor removal_rate trends per subreddit. Alert on sudden spikes. Manual review trigger on >2x removal increase.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-BIZ-007",
+      "group": "BUSINESS",
+      "title": "Strategy Staleness — No Auto-Refresh",
+      "description": "Client strategy_context is generated once at onboarding. No mechanism to update when market conditions change.",
+      "impact": "Avatar becomes irrelevant over time. Client sees declining engagement but system doesn't know why.",
+      "likelihood": "Medium",
+      "escalation": "MEDIUM",
+      "source": "05_signals_adaptation",
+      "related_gaps": [],
+      "mitigation": "Add quarterly strategy refresh trigger. Or detect engagement decline and prompt for strategy update.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-BIZ-008",
+      "group": "BUSINESS",
+      "title": "Shared Avatar Cross-Client Contamination",
+      "description": "If avatar is shared between multiple clients in same niche, one client's strategy may cause removals that affect the other client's results.",
+      "impact": "Quality degradation for client B because of client A's strategy. Blame attribution problem.",
+      "likelihood": "Low",
+      "escalation": "MEDIUM",
+      "source": "05_signals_adaptation",
+      "related_gaps": [],
+      "mitigation": "Document shared avatar policy. Prefer 1:1 avatar-client mapping. If shared, segment subreddit assignments.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-SEC-001",
+      "group": "SECURITY",
+      "title": "No Encryption Key Rotation (GAP-010)",
+      "description": "Fernet AES-128 key used for encrypting Reddit passwords, refresh tokens, and proxy URLs is never rotated. Key is in .env file.",
+      "impact": "If .env or key is compromised, ALL avatar credentials are exposed. Immediate mass ban possible.",
+      "likelihood": "Low",
+      "escalation": "CRITICAL",
+      "source": "06_GAP-010, 04_safety_system",
+      "related_gaps": [
+        "GAP-010"
+      ],
+      "mitigation": "Implement key rotation: encrypt with new key, store old key for decryption during migration period, re-encrypt all values, discard old key. Run quarterly.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-SEC-002",
+      "group": "SECURITY",
+      "title": "Kill Switch — Not Instant (5 min propagation)",
+      "description": "Kill switch check happens at task fetch, not immediately before submit. In-flight LLM calls cannot be revoked.",
+      "impact": "5-minute window of continued posting after emergency stop activation.",
+      "likelihood": "Low",
+      "escalation": "MEDIUM",
+      "source": "08_when_discussing_security, 04_kill_switches",
+      "related_improvements": [
+        "IMP-002"
+      ],
+      "mitigation": "See R-ARCH-005. Add pre-submit Redis check. Accept in-flight LLM limitation.",
+      "status": "accepted_not_implemented",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-SEC-003",
+      "group": "SECURITY",
+      "title": "Client Data Isolation — ORM-Level Only",
+      "description": "No infrastructure-level isolation (per-client schemas, namespaces, network segmentation). query_scope.py is the only barrier between clients' data.",
+      "impact": "A single bug in query_scope.py could expose one client's strategy, avatar data, or karma history to another client.",
+      "likelihood": "Low",
+      "escalation": "MEDIUM",
+      "source": "04_rbac > isolation, 07_scaling",
+      "related_gaps": [],
+      "mitigation": "Add automated tests that verify no cross-client data access. Consider row-level security (RLS) in PostgreSQL as defense-in-depth.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-SEC-004",
+      "group": "SECURITY",
+      "title": "No Admin Action Audit Trail",
+      "description": "RBAC exists (7 roles) but no formal logging of who changed what and when. Sensitive fields (strategy, phases, kill switches) have no audit history.",
+      "impact": "Cannot investigate 'who disabled posting' or 'who changed this avatar's phase'. No accountability.",
+      "likelihood": "Medium",
+      "escalation": "LOW",
+      "source": "04_rbac",
+      "related_gaps": [],
+      "mitigation": "Add ActivityEvent entries for all admin mutations on sensitive fields. Simple but valuable.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-SEC-005",
+      "group": "SECURITY",
+      "title": "Credential Dump via SQL Injection or .env Leak",
+      "description": "Encrypted Reddit passwords, refresh tokens, proxy URLs stored in DB. If encryption key is also accessible (same .env), full credential compromise.",
+      "impact": "Attacker can log into all avatars, post malicious content, or mass-ban them. Fatal reputational damage.",
+      "likelihood": "Low",
+      "escalation": "CRITICAL",
+      "source": "04_safety_system, 06_known_gaps",
+      "related_gaps": [
+        "GAP-010"
+      ],
+      "mitigation": "Use parameterized queries exclusively (already done via ORM). Store encryption key separately from DB credentials. Consider HSM or secret manager.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-SEC-006",
+      "group": "SECURITY",
+      "title": "Client Strategy Data Leak",
+      "description": "strategy_context may contain commercial secrets (product launches, competitive positioning). If leaked to wrong client or external party — legal liability.",
+      "impact": "Legal liability. Loss of B2B client trust. Potential contract termination.",
+      "likelihood": "Low",
+      "escalation": "HIGH",
+      "source": "03_ai_prompts (strategy_context usage)",
+      "related_gaps": [],
+      "mitigation": "See R-SEC-003 for isolation. Add warning labels in admin UI for strategy fields. Consider field-level encryption for strategy_context.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-POS-001",
+      "group": "POSTING",
+      "title": "Posting Gates — Sequential, Not Distributed",
+      "description": "9 gates execute as one synchronous call chain. If gate 5 fails, gates 6-9 are not evaluated. No distributed safety net.",
+      "impact": "A failure in one gate may mask failures in others. No partial safety.",
+      "likelihood": "Low",
+      "escalation": "MEDIUM",
+      "source": "04_posting_gates",
+      "related_gaps": [],
+      "mitigation": "Log all gate results regardless of pass/fail. Consider running independent safety gates in parallel with AND logic.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-POS-002",
+      "group": "POSTING",
+      "title": "No Idempotency → Duplicate Posts (see R-ARCH-003)",
+      "description": "Duplicate of R-ARCH-003, listed here for posting process completeness.",
+      "impact": "Same as R-ARCH-003.",
+      "likelihood": "Medium",
+      "escalation": "HIGH",
+      "source": "06_GAP-001",
+      "related_gaps": [
+        "GAP-001"
+      ],
+      "related_risks": [
+        "R-ARCH-003"
+      ],
+      "mitigation": "See R-ARCH-003.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-POS-003",
+      "group": "POSTING",
+      "title": "POSTING_DISABLED=true in Production",
+      "description": "Auto-posting code exists but is disabled via env var. Executors post manually via email. This is intentional safety measure, not a bug.",
+      "impact": "Reduces risk significantly. But auto-posting code is untested in production — may have latent bugs when enabled.",
+      "likelihood": "N/A",
+      "escalation": "INFORMATIONAL",
+      "source": "08_rule_5, 08_common_misinterpretations",
+      "related_gaps": [],
+      "mitigation": "When enabling auto-posting, do gradual rollout: 1 avatar → 1 day → verify → 5 avatars → 3 days → verify → full.",
+      "status": "by_design",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-POS-004",
+      "group": "POSTING",
+      "title": "No Kill Switch Check Immediately Before Submit (see R-ARCH-005)",
+      "description": "Duplicate of R-ARCH-005, listed here for posting process completeness.",
+      "impact": "Same as R-ARCH-005.",
+      "likelihood": "Low",
+      "escalation": "HIGH",
+      "source": "06_accepted_improvements",
+      "related_improvements": [
+        "IMP-002"
+      ],
+      "related_risks": [
+        "R-ARCH-005"
+      ],
+      "mitigation": "See R-ARCH-005.",
+      "status": "accepted_not_implemented",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-SCL-001",
+      "group": "SCALING",
+      "title": "PostgreSQL — 50 Connections / 1M+ Rows",
+      "description": "At 50+ clients or 1M+ threads, connection pool exhaustion and query degradation expected.",
+      "impact": "Pipeline slowdowns. Task timeouts. Possible cascade failures.",
+      "likelihood": "Medium",
+      "escalation": "HIGH",
+      "source": "07_scalability_boundaries",
+      "related_gaps": [
+        "GAP-008"
+      ],
+      "mitigation": "Add PgBouncer (connection pooling). Implement table partitioning for threads/comments. Plan managed DB migration.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-SCL-002",
+      "group": "SCALING",
+      "title": "Celery Beat — No HA (see R-INFRA-002)",
+      "description": "Duplicate of R-INFRA-002, listed for scaling completeness.",
+      "impact": "Same as R-INFRA-002.",
+      "likelihood": "Medium",
+      "escalation": "CRITICAL",
+      "source": "07_scalability_boundaries",
+      "related_risks": [
+        "R-INFRA-002"
+      ],
+      "mitigation": "See R-INFRA-002.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-SCL-003",
+      "group": "SCALING",
+      "title": "Redis — ~100MB Memory Limit",
+      "description": "At 500+ clients with active locks, EPG adjustments, rate limiters — memory pressure on Redis.",
+      "impact": "Redis OOM or eviction of important keys. Lock loss. State corruption.",
+      "likelihood": "Low",
+      "escalation": "MEDIUM",
+      "source": "07_scalability_boundaries",
+      "related_gaps": [],
+      "mitigation": "Monitor Redis memory usage. Set maxmemory-policy to volatile-ttl. Add alert at 80% memory.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-SCL-004",
+      "group": "SCALING",
+      "title": "Single Droplet — 2 vCPU Saturates on Parallel LLM Calls",
+      "description": "At 10+ parallel pipeline runs, CPU becomes bottleneck. LLM calls are I/O-bound but serialization/deserialization is CPU-bound.",
+      "impact": "Pipeline runs queue up. Posting windows missed.",
+      "likelihood": "Medium",
+      "escalation": "MEDIUM",
+      "source": "07_scalability_boundaries",
+      "related_gaps": [
+        "GAP-008"
+      ],
+      "mitigation": "Monitor CPU utilization. Consider separating LLM-calling workers onto a second droplet or using serverless for generation.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-DAT-001",
+      "group": "DATA",
+      "title": "No Prompt Versioning (see R-ARCH-007)",
+      "description": "Duplicate of R-ARCH-007, listed for data completeness.",
+      "impact": "Same as R-ARCH-007.",
+      "likelihood": "High",
+      "escalation": "HIGH",
+      "source": "06_GAP-012",
+      "related_gaps": [
+        "GAP-012"
+      ],
+      "related_risks": [
+        "R-ARCH-007"
+      ],
+      "mitigation": "See R-ARCH-007.",
+      "status": "deferred",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-DAT-002",
+      "group": "DATA",
+      "title": "No Event Sourcing",
+      "description": "System uses current-state pattern. ActivityEvent exists but is not complete. Cannot reconstruct state at a point in time.",
+      "impact": "Cannot debug 'what happened on June 20' without manual log parsing. No undo capability.",
+      "likelihood": "Medium",
+      "escalation": "LOW",
+      "source": "07_data_versioning",
+      "related_gaps": [],
+      "mitigation": "Extend ActivityEvent to cover all mutations. Consider adding state snapshots for key entities weekly.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-DAT-003",
+      "group": "DATA",
+      "title": "Strategy History — Stored but No UI",
+      "description": "Strategy changes are stored as JSONB history but there is no admin UI to view, diff, or rollback.",
+      "impact": "Cannot answer 'what was the strategy 2 weeks ago when engagement dropped?'. Manual DB query required.",
+      "likelihood": "Medium",
+      "escalation": "LOW",
+      "source": "07_data_versioning",
+      "related_gaps": [],
+      "mitigation": "Add strategy history tab in admin UI with diff view.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-DAT-004",
+      "group": "DATA",
+      "title": "Draft Reconciliation False Positives",
+      "description": "3-pass matching uses 75% confidence. If executor posts a different comment in same thread with similar length, system may false-match.",
+      "impact": "Wrong karma assigned to wrong draft. Corrupts feedback loop data.",
+      "likelihood": "Low",
+      "escalation": "LOW",
+      "source": "AGENT_QUESTIONS.md (Q3)",
+      "related_gaps": [],
+      "mitigation": "Low probability but implement manual 'Un-reconcile' override in Admin UI.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-DAT-005",
+      "group": "DATA",
+      "title": "Learning Loop Data Loss (Caps)",
+      "description": "System caps EditRecords at 50 and CorrectionPatterns at 10. Oldest data is deleted/rotated without archival.",
+      "impact": "Loss of 'long tail' learning signals if avatar behavior oscillates. Cannot analyze why quality changed.",
+      "likelihood": "Medium",
+      "escalation": "LOW",
+      "source": "diagrams_safety_ai.md",
+      "related_gaps": [],
+      "mitigation": "Archive deleted patterns to cold storage (JSON file or separate table) before removal.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-OPS-001",
+      "group": "OPS",
+      "title": "No Simulation Mode (GAP-009)",
+      "description": "Cannot safely test pipeline changes on production data without risk of actual posting or state mutation.",
+      "impact": "Every deployment is a risk. No way to validate 'what would have happened' with new logic.",
+      "likelihood": "High",
+      "escalation": "MEDIUM",
+      "source": "06_GAP-009",
+      "related_gaps": [
+        "GAP-009"
+      ],
+      "mitigation": "Add dry_run flag to pipeline tasks that logs decisions without executing. Use production data copy for testing.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-OPS-002",
+      "group": "OPS",
+      "title": "No Unified Pipeline Run Observability",
+      "description": "No PipelineRun entity. Cannot trace a draft's journey from scraping → scoring → generation → approval → posting → reconciliation.",
+      "impact": "Debugging requires joining 5+ tables. Cannot measure pipeline latency per stage. Cannot identify bottlenecks.",
+      "likelihood": "High",
+      "escalation": "MEDIUM",
+      "source": "07_refactoring_prerequisites",
+      "related_gaps": [],
+      "mitigation": "See R-ARCH-002. PipelineRun entity is the foundational fix for multiple observability gaps.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-OPS-003",
+      "group": "OPS",
+      "title": "No Replay Failed Pipeline",
+      "description": "If pipeline fails midway, cannot restart from the failure point. Must wait for next scheduled run.",
+      "impact": "Wasted time. Delayed posting. Manual intervention required for urgent cases.",
+      "likelihood": "Medium",
+      "escalation": "MEDIUM",
+      "source": "07_refactoring_prerequisites",
+      "related_gaps": [],
+      "mitigation": "Add admin 'Retry from stage X' button per avatar/day. Requires PipelineRun entity first.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-OPS-004",
+      "group": "OPS",
+      "title": "Deploy — COPY into Docker Image, Not Volume",
+      "description": "Code is baked into Docker image at build time. Every code change requires full image rebuild and redeploy.",
+      "impact": "Slow deploy cycle (minutes per change). No hot-reload for config changes.",
+      "likelihood": "N/A",
+      "escalation": "INFORMATIONAL",
+      "source": "06_deployment",
+      "related_gaps": [],
+      "mitigation": "Standard practice. Accept for now. Consider volume mount for config files if deploy frequency increases.",
+      "status": "by_design",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-AI-001",
+      "group": "AI",
+      "title": "No Fallback When Claude Sonnet Fails",
+      "description": "ai.py has MODEL_FALLBACK_CHAIN but it's unclear which model replaces Claude for generation tasks. Gemini Flash fallback would cause significant quality drop.",
+      "impact": "If Claude is down, system either stops generating or produces lower quality. No graceful degradation plan.",
+      "likelihood": "Low",
+      "escalation": "MEDIUM",
+      "source": "03_ai_usage_map, ai.py",
+      "related_gaps": [],
+      "mitigation": "Document explicit fallback per task type. For generation: Claude Sonnet → Claude Haiku (not Gemini). Add alert on fallback activation.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-AI-002",
+      "group": "AI",
+      "title": "No Per-Client LLM Budget Control",
+      "description": "Smart Scoring has budget (remaining_budget*3, HARD_CAP=15), but no global per-client cost control. One client with many avatars could consume disproportionate LLM quota.",
+      "impact": "Cost overrun from single client. No way to enforce 'this client gets max $X/month in LLM calls'.",
+      "likelihood": "Medium",
+      "escalation": "MEDIUM",
+      "source": "02_smart_scoring, 05_smart_scoring_budget",
+      "related_gaps": [],
+      "mitigation": "Add monthly LLM cost counter per client. Alert at 80% of budget. Hard stop at 100%.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-AI-003",
+      "group": "AI",
+      "title": "No Voice Drift Detection",
+      "description": "Avatar voice_profile is static after onboarding. No monitoring for style changes over time (human edits pulling voice away from baseline).",
+      "impact": "Avatar gradually becomes inconsistent. Client notices 'something changed' but system doesn't.",
+      "likelihood": "Medium",
+      "escalation": "MEDIUM",
+      "source": "05_learning_loop",
+      "related_gaps": [],
+      "mitigation": "Periodically (monthly) compare recent approved comments to voice_profile using LLM similarity score. Alert on drift > threshold.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-AI-004",
+      "group": "AI",
+      "title": "Context Window Bloat",
+      "description": "learning_context (few-shots) and strategy_context are injected dynamically. No hard limit on total context size.",
+      "impact": "Token cost per generation grows linearly with avatar age. Risk of hitting Claude context limits (200K). Hidden cost increase.",
+      "likelihood": "High",
+      "escalation": "MEDIUM",
+      "source": "diagrams_safety_ai.md",
+      "related_gaps": [],
+      "mitigation": "Enforce hard token count limit (e.g., 2000 tokens) on context assembly. Summarize/rotate old few-shot examples.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-AI-005",
+      "group": "AI",
+      "title": "Tone-Deaf Generation — Avatar Breaks Character",
+      "description": "Claude produces comment that violates avatar persona (e.g., medical avatar gives dangerous advice, financial avatar gives illegal tip).",
+      "impact": "Reputational damage to client brand. Potential legal liability. Client churn.",
+      "likelihood": "Low",
+      "escalation": "HIGH",
+      "source": "03_ai_prompts, production observation",
+      "related_gaps": [],
+      "mitigation": "Add post-generation safety check (Claude Haiku) that validates comment against avatar domain constraints. Block if unsafe.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-AI-006",
+      "group": "AI",
+      "title": "Learning Loop Data Poisoning",
+      "description": "Human reviewer makes erroneous edits or intentionally corrupts correction data. System extracts CorrectionPatterns from bad data.",
+      "impact": "Gradual quality degradation for specific avatar. Hard to debug ('why did avatar become weird?').",
+      "likelihood": "Low",
+      "escalation": "MEDIUM",
+      "source": "05_learning_loop",
+      "related_gaps": [],
+      "mitigation": "Add pattern confidence score. Flag patterns that contradict voice_profile. Require >1 similar correction before pattern extraction.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-AI-007",
+      "group": "AI",
+      "title": "Runaway LLM Loop — Unbounded Token Spend",
+      "description": "Bug in retry logic or prompt causes infinite generation loop. Or scoring bug marks 100% threads as 'engage', triggering unlimited generation.",
+      "impact": "Anthropic/Google bill for thousands of dollars in hours. Direct financial loss.",
+      "likelihood": "Low",
+      "escalation": "CRITICAL",
+      "source": "06_economics, 02_smart_scoring",
+      "related_gaps": [],
+      "mitigation": "IMPLEMENT: Hard per-hour and per-day token/call limits at application level. Separate from per-scoring budget. Alert on >150% of daily baseline.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-AI-008",
+      "group": "AI",
+      "title": "Pre-Scoring Filter Inefficiency",
+      "description": "If Gemini Flash (cheap pre-scorer) passes garbage threads, expensive Claude Sonnet wastes time and money processing them.",
+      "impact": "Lower conversion rate (Scoring → Approval). Reduced margin per dollar spent on LLM.",
+      "likelihood": "Medium",
+      "escalation": "MEDIUM",
+      "source": "02_smart_scoring",
+      "related_gaps": [],
+      "mitigation": "Monitor pre-scoring → full-scoring conversion rate. If drops below baseline, tune Gemini Flash prompt or thresholds.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-DOC-001",
+      "group": "DOCUMENTATION",
+      "title": "GAP-003 Status Contradiction: 'NOT FIXED' vs 'FIXED June 25, 2026'",
+      "description": "08_agent_instructions.json states EPG race condition (GAP-003) is NOT FIXED. 06_infrastructure.json states FIXED June 25, 2026. CODE VERIFICATION: IT IS FIXED. DistributedLock in tasks/epg.py + dedup guard in portfolio_manager.py. 08_agent_instructions.json is stale.",
+      "impact": "AI agent may make incorrect assumptions about system state. Developer may not fix what they think is already fixed.",
+      "likelihood": "N/A",
+      "escalation": "LOW",
+      "source": "08_common_misinterpretations, 06_known_gaps",
+      "related_gaps": [
+        "GAP-003"
+      ],
+      "mitigation": "RESOLVED: Code confirms fix. Update 08_agent_instructions.json.",
+      "status": "resolved",
+      "detected_date": "2026-06-25",
+      "resolved_date": "2026-06-25"
+    },
+    {
+      "id": "R-DOC-002",
+      "group": "DOCUMENTATION",
+      "title": "Celery Queues: 'ONE queue' vs 'TWO queues'",
+      "description": "08_agent_instructions.json: ONE Celery queue. CODE VERIFICATION: TWO queues exist - celery (default) + fast (on-demand). Confirmed in docker-compose.yml, docker-compose.prod.yml, and worker.py task_routes.",
+      "impact": "AI agent may give incorrect guidance about queue architecture. Affects R-ARCH-011 analysis.",
+      "likelihood": "N/A",
+      "escalation": "LOW",
+      "source": "08_rule_7, 06_deployment",
+      "related_gaps": [],
+      "mitigation": "RESOLVED: Two queues confirmed. Fast tasks: analyze_subreddit_emotional_profile, run_full_pipeline_single_client, build_epg_single_avatar, generate_strategy_for_client.",
+      "status": "resolved",
+      "detected_date": "2026-06-25",
+      "resolved_date": "2026-06-25"
+    },
+    {
+      "id": "R-DOC-003",
+      "group": "DOCUMENTATION",
+      "title": "'80% threshold does NOT exist' vs PhaseEvaluator Code",
+      "description": "Steering says NO 80% promotion threshold. CODE: BOTH exist. phase.py min_survival_rate=80 for Phase 1-2 promotion. Demotion trigger: survival_rate<70%. Phase 2-3 requires 85%.",
+      "impact": "AI agent may deny existence of a threshold that actually exists in code, leading to incorrect analysis.",
+      "likelihood": "N/A",
+      "escalation": "LOW",
+      "source": "08_common_misinterpretations, 01_state_machines",
+      "related_gaps": [],
+      "mitigation": "RESOLVED: 70% = demotion, 80% = Phase 1-2 promotion, 85% = Phase 2-3 promotion. All verified in code.",
+      "status": "resolved",
+      "detected_date": "2026-06-25",
+      "resolved_date": "2026-06-25"
+    },
+    {
+      "id": "R-BAN-001",
+      "group": "BAN_DETECTION",
+      "title": "Slow Subreddit Ban Detection (3-Comment Threshold)",
+      "description": "Current system requires 3 consecutive deleted comments in same subreddit before declaring ban. For Phase 1 avatars posting 1-3/day, this means 3-7 days of wasted activity on a banned subreddit.",
+      "impact": "Wasted LLM spend on invisible comments. Executor time wasted. Delayed response to moderation policy changes.",
+      "likelihood": "High",
+      "escalation": "HIGH",
+      "source": "subreddit_ban.py, snapshot_outcomes.py, production incident StopAutomatic717/r/Juve",
+      "related_gaps": [],
+      "mitigation": "Implement 'fast probe' enhancement: on first deletion, cross-check 1 more recent comment (age > 24h) from same avatar in same subreddit. If both invisible → immediate ban detection. See R-BAN-002 for risks of this approach.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-BAN-002",
+      "group": "BAN_DETECTION",
+      "title": "Fast Probe False Positive — Automod Content Filter",
+      "description": "If fast probe (R-BAN-001 mitigation) is implemented, automod may delete 2 comments for content reasons (trigger words, links), not because of avatar ban. System would incorrectly flag subreddit as banned.",
+      "impact": "Subreddit incorrectly excluded from pipeline. Lost engagement opportunity. Need manual correction.",
+      "likelihood": "Medium",
+      "escalation": "MEDIUM",
+      "source": "Tzvi feedback analysis, risk_scorer.py",
+      "related_risks": [
+        "R-BAN-001"
+      ],
+      "mitigation": "Only cross-check with comments older than 24 hours (if a comment lived 24h and then became invisible, it's not a content filter — it's a ban). If no comment > 24h exists, fall back to 3-comment threshold.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-BAN-003",
+      "group": "BAN_DETECTION",
+      "title": "Fast Probe False Positive — Old Comment Deleted for Unrelated Reason",
+      "description": "Cross-check comment (5-7 days old) may have been removed by moderator for thread cleanup, offtopic, or thread lock — not shadowban.",
+      "impact": "Same as R-BAN-002.",
+      "likelihood": "Low",
+      "escalation": "MEDIUM",
+      "source": "Tzvi feedback analysis",
+      "related_risks": [
+        "R-BAN-001",
+        "R-BAN-002"
+      ],
+      "mitigation": "Limit cross-check to comments < 7 days old. Check if parent thread is still open (not locked/archived). If thread is locked, skip this comment as probe candidate.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-BAN-004",
+      "group": "BAN_DETECTION",
+      "title": "Fast Probe Timing Race with snapshot_outcomes",
+      "description": "If second comment hasn't passed through its 4-hour snapshot window yet, it may appear 'visible' when it will soon be [removed]. Fast probe gets false negative.",
+      "impact": "Fast probe fails, falls back to 3-comment threshold. No harm but no benefit either.",
+      "likelihood": "Medium",
+      "escalation": "LOW",
+      "source": "snapshot_outcomes.py analysis",
+      "related_risks": [
+        "R-BAN-001"
+      ],
+      "mitigation": "Accept as limitation. The fallback to 3-comment threshold handles this case. Could add explicit note in probe result logging.",
+      "status": "accepted",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-BAN-005",
+      "group": "BAN_DETECTION",
+      "title": "Cannot Distinguish Subreddit Shadowban from Automod Account-Age/Karma Filter",
+      "description": "If automod removes ALL comments from accounts with karma < N or age < M days, it looks identical to shadowban. System marks sub as banned. When avatar gains karma, removals would stop — but system won't know until weekly probe.",
+      "impact": "Unnecessary subreddit exclusion. Lost engagement during the 'gaining karma' period.",
+      "likelihood": "Medium",
+      "escalation": "LOW",
+      "source": "subreddit_ban.py analysis, fitness_gate.py",
+      "related_risks": [
+        "R-BAN-001"
+      ],
+      "mitigation": "Accept as known limitation. Weekly probe automatically re-enables subreddit when removals stop. Could add note in ban reason: 'possible automod filter vs shadowban — will auto-recheck weekly'.",
+      "status": "accepted",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-BAN-006",
+      "group": "BAN_DETECTION",
+      "title": "Insufficient Comments for Cross-Check",
+      "description": "If avatar has only 1 comment in a subreddit, fast probe has nothing to cross-check against. Also cannot reach 3-comment threshold.",
+      "impact": "Ban goes undetected until avatar posts enough comments to trigger threshold. For low-frequency subreddits, this could be weeks.",
+      "likelihood": "Medium",
+      "escalation": "MEDIUM",
+      "source": "Tzvi feedback analysis, subreddit_ban.py",
+      "related_risks": [
+        "R-BAN-001"
+      ],
+      "mitigation": "Manual flagging ('I'm banned from X') remains fastest path for new subreddits. Add admin button to manually mark subreddit as banned. This is already documented but worth reinforcing.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-BAN-007",
+      "group": "BAN_DETECTION",
+      "title": "Fitness Gate Passes Implicit Moderation Policies",
+      "description": "Fitness Gate checks extracted rules (min_karma, min_account_age, posting_frequency). But many subreddits have unwritten policies ('we don't like new accounts with generic advice'). Rule extractor cannot see these. r/Juve incident demonstrated this gap.",
+      "impact": "Avatar enters subreddit where it will be silently removed. No pre-emptive protection. Detection relies only on post-hoc ban detection (R-BAN-001).",
+      "likelihood": "High",
+      "escalation": "MEDIUM",
+      "source": "fitness_gate.py, rule_extractor.py, production incident StopAutomatic717/r/Juve",
+      "related_risks": [
+        "R-BAN-001"
+      ],
+      "mitigation": "Enhance Moderation Profiler to use external signals (subreddit age, moderator count, activity level) as proxy for 'strictness'. Flag new-to-system subreddits as 'low confidence' and enable faster ban detection for them.",
+      "status": "open",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-BAN-008",
+      "group": "BAN_DETECTION",
+      "title": "Reddit API Cannot Distinguish Shadowban Removal from Mod Removal",
+      "description": "Both return body='[removed]' via PRAW. Only pattern differentiates: mod removal = specific comment, shadowban = ALL comments invisible.",
+      "impact": "Fundamental limitation. Requires cross-check logic (which is what Tzvi's proposal and current 3-comment threshold both address).",
+      "likelihood": "N/A",
+      "escalation": "INFORMATIONAL",
+      "source": "reddit.py, praw_factory.py analysis",
+      "related_risks": [
+        "R-BAN-001"
+      ],
+      "mitigation": "This is a Reddit API limitation, not fixable. Cross-check approach is the correct mitigation. Document as known limitation.",
+      "status": "by_design",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-BAN-009",
+      "group": "BAN_DETECTION",
+      "title": "Fast Probe Adds API Calls — Rate Limit Impact",
+      "description": "Each active probe = 1 additional read-only API call. At 50 avatars × 5 subreddits × normal deletion churn, this could add 10-30 extra calls/day.",
+      "impact": "Minor rate limit pressure. Not critical at current scale.",
+      "likelihood": "Low",
+      "escalation": "LOW",
+      "source": "Tzvi feedback analysis",
+      "related_risks": [
+        "R-BAN-001"
+      ],
+      "mitigation": "Accept at current scale. Monitor API usage. If rate limits become tight, disable fast probe and rely on 3-comment threshold.",
+      "status": "accepted",
+      "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-POSTING-001",
+      "group": "POSTING",
+      "title": "Locked Thread Email Delivery — Executor Receives Unpostable Tasks",
+      "description": "EPG generates slots and email tasks for threads that get locked AFTER generation but BEFORE email dispatch. Executor receives email, opens thread, discovers it is locked. Task stuck in limbo (accepted but unpostable). Discovered June 26 via Tzvi report on r/GYM thread.",
+      "impact": "Executor frustration, wasted time, task stuck in non-terminal state. If frequent, damages executor trust in the system.",
+      "likelihood": "Medium",
+      "escalation": "MEDIUM",
+      "source": "Production incident: Tzvi June 26, 2026 — r/GYM locked thread task",
+      "related_gaps": [],
+      "mitigation": "DONE (June 26): 1) Pre-dispatch liveness check in dispatch_due_email_tasks — checks thread.is_locked and calls Reddit API for stale threads before sending email. Auto-cancels if locked. 2) Executor \"Can't Post\" button on task view page — allows self-service cancellation with reason (thread_locked/removed/archived/account_issue).",
+      "status": "fixed",
+      "detected_date": "2026-06-26",
+      "fixed_date": "2026-06-26"
+    },
+    {
+      "id": "R-POSTING-002",
+      "group": "POSTING",
+      "title": "Hobby Pipeline Missing Image/Video/Link Filter — Generates Comments on Media Posts",
+      "description": "The link/video/image post filter (url NOT like reddit.com = skip) existed only in the professional pipeline (smart_scoring.py + ai_pipeline.py for reddit_threads). The hobby pipeline (opportunity_engine.py Source 2 + generate_hobby_comments) had NO such filter. Image posts with body text > 20 chars passed through and generated nonsensical text-only replies to photo posts. Discovered June 26 via r/GYM progress photo post getting an EPG slot.",
+      "impact": "Low-quality comments on image posts that look obviously automated. Higher removal rate by mods. Often these posts also get locked (progress pics get locked after 1-2 days on fitness subs).",
+      "likelihood": "High",
+      "escalation": "MEDIUM",
+      "source": "Production incident: r/GYM image post with body text passed hobby filter (June 26)",
+      "related_gaps": [],
+      "mitigation": "DONE (June 26): Added url filter to 3 locations: 1) opportunity_engine.py Source 2 query (or_(url IS NULL, url = '', url LIKE %reddit.com%)), 2) generate_hobby_comments per-sub query, 3) generate_hobby_comments fallback query. Same pattern as professional pipeline.",
+      "status": "fixed",
+      "detected_date": "2026-06-26",
+      "fixed_date": "2026-06-26"
+    },
+    {
+      "id": "R-POSTING-003",
+      "group": "POSTING",
+      "title": "Email Task Dispatch — Narrow Window Causes Silent Slot Loss",
+      "description": "dispatch_due_email_tasks uses a rigid window [now-5min, now+30min] to find tasks with status=generated. If scheduled_at falls outside this window (Beat delayed >5 min, quiet hours overlap, deploy restart), the task is never picked up. It remains in generated status until expire_overdue_execution_tasks runs at 23:30 — but is never delivered to the executor. No alert, no retry, no catch-up mechanism exists.",
+      "impact": "Executor never receives the email. Comment slot silently lost for the day. At scale (3+ avatars x 3-7 slots/day), multiple slots can vanish per deploy cycle or quiet-hours boundary. Business sees reduced posting output with no visible error.",
+      "likelihood": "Medium",
+      "escalation": "HIGH",
+      "source": "Code analysis: app/tasks/execution_tasks.py dispatch_due_email_tasks() — window_start = now - 5min, window_end = now + 30min. No sweep for orphaned generated tasks.",
+      "related_gaps": [],
+      "scenarios": [
+        "Deploy restart: containers down 6+ min -> Beat fires late -> scheduled_at already outside window -> lost",
+        "Quiet hours: slot scheduled 22:50 -> Beat skips at 22:55 (quiet hours start 23:00) -> next run 07:00 -> slot 22:50 is 8h in past -> outside window -> lost",
+        "Beat jitter/overload: Beat fires at :06 instead of :00 -> slot at :58 from prev cycle with scheduled_at now 6+ min ago -> outside window -> lost",
+        "Celery worker backlog: dispatch task queued but not executed for >5 min -> by execution time, window has shifted -> some slots lost"
+      ],
+      "fix_required": "SHORT-TERM (email channel): 1) If dispatch missed the window (scheduled_at < now - 10min by the time Beat runs), cancel task with reason=missed_dispatch_window. No late delivery — stale timing breaks EPG chain (next slot interval collapses). 2) Ensure Beat reliability: reduce dispatch interval from 5min to 2min, or add health alert if Beat misses 2+ consecutive ticks. 3) Emit activity_event email_task_missed_window for ops visibility. LONG-TERM (browser extension): Replace email channel entirely. Extension receives push notification at exact slot time. Executor sees task inline (thread already open or one-click open). System controls timing precisely — no 30min pre-send, no human lag. Email becomes fallback-only (extension offline/uninstalled). This eliminates the human-as-bottleneck problem: extension can queue tasks, auto-open tabs, enforce posting order, and report back permalink automatically.",
+      "status": "open",
+      "detected_date": "2026-06-26",
+      "architectural_context": "Email delivery is a transitional solution. The real execution channel is a browser extension that gives the system precise timing control. Human remains in the loop (approves content at EPG level) but posting execution becomes near-instant: push at exact time -> one-click post -> permalink auto-captured. Until extension is built, email channel has inherent timing uncertainty that cannot be fully solved."
+    },
+    {
+      "id": "R-BAN-010",
+      "group": "BAN_DETECTION",
+      "title": "Young/Low-Karma Avatars — High Shadowban Risk + Undetectable by Submission Probe",
+      "description": "New Reddit accounts (<90 days, karma <50, CQS lowest) have drastically higher probability of being globally shadowbanned by Reddit's automated systems. Simultaneously, the submission_visibility_probe (which checks if posts are visible in subreddit feed) fails for these avatars because: (1) their only submissions are CQS test posts in r/WhatIsMyCQS which is a high-volume sub where posts fall off the /new/limit=100 feed within hours, and (2) the comment visibility check returns 0 comments (shadowbanned content hidden from API), leaving health_status stuck at 'unknown'. The cascade: unknown health → EPG not blocked → auto-approve → execution tasks → emails to executor for a dead account.",
+      "impact": "Executor receives tasks for dead accounts. Wasted executor time. Email spam at night (no quiet hours gate existed). Pipeline resources wasted on generation/scoring. If multiple young avatars get banned simultaneously, entire client's posting output drops to zero without system alerting.",
+      "likelihood": "High (for accounts <90 days with CQS lowest)",
+      "escalation": "HIGH",
+      "source": "Production incident: Flaky_Finder_13 (June 24-26, 2026). Account age=48d, karma=0, CQS=lowest. Shadowbanned but system continued building EPG slots and emailing executor for 3 days.",
+      "related_gaps": [],
+      "root_cause_factors": [
+        "Reddit shadowbans new accounts with low engagement signals aggressively",
+        "CQS=lowest is a leading indicator of impending shadowban (Reddit's own quality score)",
+        "Submission probe relies on post appearing in subreddit.new(limit=100) — high-volume subs flush posts quickly",
+        "health_status='unknown' passes EPG eligibility filter (only 'shadowbanned'/'suspended' blocked)",
+        "No email quiet hours gate existed (23:00-07:00)",
+        "No avatar health re-check at email dispatch time",
+        "health_check skips frozen avatars — once manually frozen, detection evidence stops accumulating"
+      ],
+      "fix_applied": "DONE (June 26): 1) health_checker.py: 'zero_content_with_history' detection — if API returns 0 comments AND submission probe inconclusive, but avatar has posted_drafts in DB → classify as shadowbanned. 2) dispatch_due_email_tasks: quiet hours gate (23:00-07:00 Israel). 3) dispatch_due_email_tasks: avatar health re-check before sending (cancel if frozen/banned). 4) Manual: Flaky_Finder_13 frozen + 23 tasks cancelled.",
+      "prevention": "DONE (June 27): 1) CQS=lowest → budget=0 (full stop, zero EPG slots). 2) Young accounts (<90 days) health check every 4h. 3) Auto-freeze on unknown >48h. 4) CQS self-healing tasks: generate_cqs_check_tasks_all_avatars (07:00 daily) sends executor email to post in r/WhatIsMyCQS every 7d (lowest/young) or 30d (mature). Closes the deadlock loop. STILL NEEDED: minimum account maturity gate before onboarding (90d + 50 karma).",
+      "status": "fixed",
+      "detected_date": "2026-06-24",
+      "fixed_date": "2026-06-26",
+      "avatar_profile": {
+        "username": "Flaky_Finder_13",
+        "account_age_days": 48,
+        "comment_karma": 0,
+        "link_karma": 1,
+        "cqs_level": "lowest",
+        "posted_drafts_in_system": 3,
+        "api_visible_comments": 0,
+        "api_visible_submissions": 2,
+        "submissions_visible_in_feed": false
+      },
+      "comparison_healthy_avatars": {
+        "Hot-Thought2408": {
+          "age_days": 1735,
+          "comment_karma": 10,
+          "cqs": "high",
+          "status": "active"
+        },
+        "StopAutomatic717": {
+          "age_days": 1198,
+          "comment_karma": 13,
+          "cqs": "low",
+          "status": "active"
+        }
+      },
+      "lesson": "Fresh Reddit accounts are fundamentally unsuitable for automated pipelines. The system should enforce minimum account maturity (age + karma + CQS) before allowing EPG/email task generation. Pre-warmed aged accounts are not a nice-to-have — they are a hard requirement for pipeline reliability."
+    },
+    {
+      "id": "R-BAN-011",
+      "group": "BAN_DETECTION",
+      "title": "Email Spam Cascade — No Safety Gates Between EPG Slot and Executor Inbox",
+      "description": "Once an EPG slot is auto-approved, the path to executor inbox has ZERO health verification: create_execution_task checks only slot.status='approved' + executor_email exists. dispatch_due_email_tasks (pre-fix) checked only timing window + thread liveness. Neither checked avatar health. Combined with health_status='unknown' not blocking EPG build, this creates a cascade: unhealthy avatar → EPG builds daily → auto-approve → task created → email sent. Executor receives tasks for accounts that cannot post.",
+      "impact": "Daily email spam to executors. Destroyed executor trust. Night-time disturbance (no quiet hours). Wasted human attention on impossible tasks.",
+      "likelihood": "Medium (any avatar with undetected health issue + auto-approve enabled)",
+      "escalation": "HIGH",
+      "source": "Production incident: Flaky_Finder_13 (24-26 June 2026). 23 tasks created, 8+ emails for single slot (dedup bug), emails at 02:15/03:30 AM.",
+      "related_gaps": [],
+      "fix_applied": "DONE (June 26): 1) Avatar health gate in dispatch_due_email_tasks — checks is_frozen, is_shadowbanned, health_status, active before sending. Cancels task with reason='avatar_unhealthy_at_dispatch'. 2) Quiet hours gate — 23:00-07:00 Israel time, all dispatches deferred. 3) Email subject includes task_code for traceability.",
+      "status": "fixed",
+      "detected_date": "2026-06-24",
+      "fixed_date": "2026-06-26"
+    }
+  ],
+  "priorities": {
+    "P0_critical_immediate": {
+      "description": "Fix now — business-stopping or existential risk",
+      "risks": [
+        "R-INFRA-001",
+        "R-INFRA-002",
+        "R-SEC-001",
+        "R-SEC-005",
+        "R-AI-007"
+      ],
+      "estimated_effort": "2-5 days total",
+      "quick_wins": [
+        {
+          "risk": "R-AI-007",
+          "action": "Add hard per-hour/per-day LLM call limits with Redis counter",
+          "effort": "2 hours",
+          "blocks": "Unbounded financial loss"
+        },
+        {
+          "risk": "R-INFRA-002",
+          "action": "Add Uptime Kuma check for 'last_task_run' timestamp",
+          "effort": "1 hour",
+          "blocks": "Silent scheduler death"
+        }
+      ]
+    },
+    "P1_high_this_sprint": {
+      "description": "Fix this sprint — serious degradation or significant risk",
+      "risks": [
+        "R-ARCH-003",
+        "R-ARCH-004",
+        "R-ARCH-005",
+        "R-ARCH-007",
+        "R-BAN-001",
+        "R-PLATFORM-004",
+        "R-BIZ-001",
+        "R-POSTING-003"
+      ],
+      "estimated_effort": "5-10 days total",
+      "quick_wins": [
+        {
+          "risk": "R-ARCH-005",
+          "action": "Add Redis GET before praw.submit() (IMP-002)",
+          "effort": "15 minutes",
+          "blocks": "5-minute emergency response gap"
+        },
+        {
+          "risk": "R-ARCH-007",
+          "action": "Add prompt_version field to CommentDraft, bump on change",
+          "effort": "2 hours",
+          "blocks": "Prompt ROI measurement, rollback capability"
+        },
+        {
+          "risk": "R-BAN-001",
+          "action": "Implement fast probe with 24h age guard (see R-BAN-002 mitigation)",
+          "effort": "4 hours",
+          "blocks": "3-7 day ban detection delay"
+        }
+      ]
+    },
+    "P2_medium_roadmap": {
+      "description": "Plan for roadmap — efficiency, tech debt, quality",
+      "risks": [
+        "R-ARCH-002",
+        "R-ARCH-008",
+        "R-ARCH-009",
+        "R-BIZ-005",
+        "R-BIZ-006",
+        "R-AI-003",
+        "R-AI-004",
+        "R-OPS-001",
+        "R-OPS-002",
+        "R-BAN-007"
+      ],
+      "estimated_effort": "2-4 weeks total"
+    },
+    "P3_low_backlog": {
+      "description": "Backlog — fix when convenient",
+      "risks": [
+        "R-ARCH-010",
+        "R-BIZ-003",
+        "R-BIZ-004",
+        "R-SEC-004",
+        "R-DAT-002",
+        "R-DAT-003",
+        "R-DAT-004",
+        "R-DAT-005",
+        "R-DOC-003",
+        "R-BAN-004",
+        "R-BAN-005",
+        "R-BAN-009"
+      ],
+      "estimated_effort": "Ongoing"
+    },
+    "informational_track_only": {
+      "description": "No action needed — by design or N/A",
+      "risks": [
+        "R-POS-003",
+        "R-OPS-004",
+        "R-BAN-008"
+      ]
+    },
+    "resolve_contradictions_first": {
+      "description": "Documentation contradictions that block correct risk assessment",
+      "risks": [],
+      "action": "All contradictions resolved via code verification June 25, 2026.",
+      "effort": "1 hour"
+    }
+  },
+  "gap_status_summary": {
+    "GAP-001": {
+      "title": "No idempotency on posting",
+      "status": "open",
+      "related_risks": [
+        "R-ARCH-003",
+        "R-POS-002"
+      ]
+    },
+    "GAP-003": {
+      "title": "EPG race condition",
+      "status": "FIXED (verified: DistributedLock + dedup guard in code)",
+      "related_risks": [
+        "R-ARCH-001",
+        "R-DOC-001"
+      ]
+    },
+    "GAP-004": {
+      "title": "No adversarial adaptation to Reddit changes",
+      "status": "open",
+      "related_risks": [
+        "R-PLATFORM-001",
+        "R-PLATFORM-003",
+        "R-BIZ-006"
+      ]
+    },
+    "GAP-006": {
+      "title": "No SLI/SLO",
+      "status": "open",
+      "related_risks": [
+        "R-BIZ-005"
+      ]
+    },
+    "GAP-007": {
+      "title": "No GDPR erasure",
+      "status": "open",
+      "related_risks": [
+        "R-BIZ-004"
+      ]
+    },
+    "GAP-008": {
+      "title": "Single server, no failover",
+      "status": "open",
+      "related_risks": [
+        "R-INFRA-001",
+        "R-INFRA-002",
+        "R-INFRA-004",
+        "R-SCL-001",
+        "R-SCL-002"
+      ]
+    },
+    "GAP-009": {
+      "title": "No simulation mode",
+      "status": "open",
+      "related_risks": [
+        "R-OPS-001"
+      ]
+    },
+    "GAP-010": {
+      "title": "No encryption key rotation",
+      "status": "open",
+      "related_risks": [
+        "R-SEC-001",
+        "R-SEC-005"
+      ]
+    },
+    "GAP-012": {
+      "title": "No prompt versioning",
+      "status": "deferred",
+      "related_risks": [
+        "R-ARCH-007",
+        "R-DAT-001"
+      ]
+    }
+  },
+  "improvement_status_summary": {
+    "IMP-001": {
+      "title": "EPG distributed lock",
+      "status": "implemented",
+      "related_risks": [
+        "R-ARCH-001"
+      ]
+    },
+    "IMP-002": {
+      "title": "Kill switch check before submit",
+      "status": "accepted_not_implemented",
+      "related_risks": [
+        "R-ARCH-005",
+        "R-POS-004",
+        "R-SEC-002"
+      ]
+    },
+    "IMP-004": {
+      "title": "Prompt Version Store",
+      "status": "deferred",
+      "related_risks": [
+        "R-ARCH-007"
+      ]
+    }
+  },
+  "production_incidents_referenced": [
+    {
+      "date": "2026-06-25",
+      "avatar": "StopAutomatic717",
+      "subreddit": "r/Juve",
+      "type": "subreddit_shadowban",
+      "description": "Avatar shadowbanned from r/Juve. Moderators silently removing comments. System continued generating content for 3-7 days before detection.",
+      "root_cause": "Implicit moderation policy not captured by rule_extractor. Fitness gate passed all checks. 3-comment threshold too slow for low-activity avatar.",
+      "risks_exposed": [
+        "R-BAN-001",
+        "R-BAN-007"
+      ],
+      "actions_taken": [
+        "Manually removed r/Juve from avatar pipeline",
+        "Designed two-layer ban detection system (Layer A: per-subreddit, Layer B: global shadowban)",
+        "Deployed Layer B (twice-daily global check)",
+        "Layer A uses existing 3-comment threshold (enhancement to fast probe pending)"
+      ],
+      "remaining_actions": [
+        "Implement fast probe (R-BAN-001 mitigation)",
+        "Enhance Fitness Gate for implicit policies (R-BAN-007)"
+      ]
+    },
+    {
+      "date": "2026-06-25",
+      "avatar": "Flaky_Finder_13",
+      "subreddit": "global",
+      "type": "global_shadowban",
+      "description": "Avatar globally shadowbanned by Reddit. Posts visible in profile but invisible to everyone else. System wasted executor time for days.",
+      "root_cause": "No automated global shadowban detection existed.",
+      "risks_exposed": [
+        "R-PLATFORM-004"
+      ],
+      "actions_taken": [
+        "Deployed Layer B: twice-daily check if posts are visible in subreddit feeds",
+        "Auto-freeze avatar on global shadowban detection"
+      ],
+      "remaining_actions": [
+        "Add pre-posting health ping if time since last check > 2h (R-PLATFORM-004)"
+      ]
+    }
+  ],
+  "spec_coverage": {
+    "meta": {
+      "description": "Mapping of risks to specifications that address them. Coverage levels: full (spec directly solves), partial (spec addresses symptoms but not root cause), documented_only (identified in spec but no implementation), none (no spec exists).",
+      "last_verified": "2026-06-25",
+      "total_specs_reviewed": 88,
+      "relevant_specs_analyzed": 25
+    },
+    "coverage": [
+      {
+        "risk_id": "R-ARCH-001",
+        "coverage": "full",
+        "specs": [
+          "pipeline-resilience-hardening",
+          "epg-attention-portfolio"
+        ],
+        "note": "DistributedLock class + EPG dedup guard. Both implemented and deployed.",
+        "implementation_status": "deployed"
+      },
+      {
+        "risk_id": "R-ARCH-003",
+        "coverage": "partial",
+        "specs": [
+          "automated-proxy-posting",
+          "pipeline-resilience-hardening"
+        ],
+        "note": "Per-avatar Redis locks prevent concurrent posting. DLQ captures failed tasks. But no formal idempotency keys for state mutations.",
+        "gap": "Needs dedicated idempotency key spec",
+        "implementation_status": "locks_deployed_idempotency_missing"
+      },
+      {
+        "risk_id": "R-ARCH-004",
+        "coverage": "full",
+        "specs": [
+          "ramp-pipeline-v2"
+        ],
+        "note": "Req 2: Cross-Avatar Deduplication — excludes threads with existing drafts from same client (30d approved/posted, any-age pending). Configurable via dedup_lookback_days.",
+        "implementation_status": "partially_implemented"
+      },
+      {
+        "risk_id": "R-ARCH-005",
+        "coverage": "full",
+        "specs": [
+          "mvp-hardening-sprint1",
+          "pipeline-resilience-hardening"
+        ],
+        "note": "Kill switches (pipeline_enabled, generation_enabled, scrape_enabled) + per-avatar freeze + circuit breaker for LLM.",
+        "gap": "Pre-submit Redis kill check (IMP-002) remains unimplemented",
+        "implementation_status": "kill_switches_deployed_pre_submit_missing"
+      },
+      {
+        "risk_id": "R-ARCH-007",
+        "coverage": "partial",
+        "specs": [
+          "context-assembler"
+        ],
+        "note": "Context-assembler provides provenance metadata (what data went into each LLM call) but no prompt template versioning or A/B testing.",
+        "gap": "Needs prompt versioning/A/B spec",
+        "implementation_status": "not_implemented"
+      },
+      {
+        "risk_id": "R-ARCH-002",
+        "coverage": "partial",
+        "specs": [
+          "ramp-pipeline-v2",
+          "ops-console-pipeline-observability"
+        ],
+        "note": "ramp-pipeline-v2 formalizes stages and check ordering. ops-console adds Pipeline_Run tracking. But no single centralized orchestrator.",
+        "gap": "System remains distributed. PipelineRun entity designed but orchestration not centralized.",
+        "implementation_status": "pipeline_run_not_implemented"
+      },
+      {
+        "risk_id": "R-ARCH-011",
+        "coverage": "full",
+        "specs": [
+          "pipeline-resilience-hardening"
+        ],
+        "note": "Two queues exist (celery + fast). DistributedLock prevents contention. Auto-posting disabled in prod.",
+        "implementation_status": "deployed"
+      },
+      {
+        "risk_id": "R-PLATFORM-001",
+        "coverage": "full",
+        "specs": [
+          "shadowban-detection",
+          "avatar-reddit-status"
+        ],
+        "note": "5-state health model, visibility-based detection, auto-freeze, periodic checks (07:30, 13:30). Manual check buttons.",
+        "implementation_status": "deployed"
+      },
+      {
+        "risk_id": "R-PLATFORM-004",
+        "coverage": "full",
+        "specs": [
+          "shadowban-detection"
+        ],
+        "note": "Twice-daily visibility checks close the detection gap from 24h to 6h. Configurable timing.",
+        "implementation_status": "deployed"
+      },
+      {
+        "risk_id": "R-INFRA-001",
+        "coverage": "documented_only",
+        "specs": [
+          "staging-cicd-infrastructure",
+          "production-readiness-audit"
+        ],
+        "note": "staging-cicd documents disaster recovery. production-readiness-audit identifies as tech debt. No spec implements PG redundancy.",
+        "gap": "Needs managed DB migration spec (DO DBaaS or RDS)",
+        "implementation_status": "not_implemented"
+      },
+      {
+        "risk_id": "R-INFRA-002",
+        "coverage": "full",
+        "specs": [
+          "sqs-valkey-migration",
+          "pipeline-resilience-hardening"
+        ],
+        "note": "pipeline-resilience adds Beat catch-up (near-term). sqs-valkey replaces Beat entirely (long-term). Both address the SPOF.",
+        "implementation_status": "catch_up_deployed_sqs_deferred"
+      },
+      {
+        "risk_id": "R-INFRA-003",
+        "coverage": "partial",
+        "specs": [
+          "sqs-valkey-migration"
+        ],
+        "note": "SQS migration moves task state to durable SQS. Redis state (locks, rate limiters) moves to Valkey with persistence. But migration not implemented yet.",
+        "implementation_status": "not_implemented"
+      },
+      {
+        "risk_id": "R-SEC-001",
+        "coverage": "partial",
+        "specs": [
+          "automated-proxy-posting",
+          "production-readiness-audit"
+        ],
+        "note": "automated-proxy-posting implements Fernet encryption + health detection. production-readiness-audit checks for exposure. No automated key rotation.",
+        "gap": "Needs key rotation automation spec",
+        "implementation_status": "encryption_deployed_rotation_missing"
+      },
+      {
+        "risk_id": "R-AI-007",
+        "coverage": "full",
+        "specs": [
+          "client-permissions-budget-controls",
+          "ai-usage-analytics"
+        ],
+        "note": "Budget Engine with hard per-avatar daily caps that block LLM calls when exceeded. Budget alerting at 80%/100%. ai-usage-analytics provides visibility.",
+        "implementation_status": "partially_implemented"
+      },
+      {
+        "risk_id": "R-AI-001",
+        "coverage": "partial",
+        "specs": [
+          "pipeline-resilience-hardening"
+        ],
+        "note": "Circuit breaker detects LLM failure and stops calling. But skips threads rather than routing to fallback model. No multi-provider failover.",
+        "gap": "Needs LLM failover routing spec (Claude -> Haiku -> Gemini hierarchy)",
+        "implementation_status": "circuit_breaker_deployed_failover_missing"
+      },
+      {
+        "risk_id": "R-AI-003",
+        "coverage": "partial",
+        "specs": [
+          "quality-sentinel",
+          "avatar-intelligence-learning"
+        ],
+        "note": "quality-sentinel tracks quality degradation. avatar-intelligence manages voice evolution. Neither explicitly monitors persona drift vs baseline.",
+        "gap": "No dedicated voice consistency monitoring",
+        "implementation_status": "not_implemented"
+      },
+      {
+        "risk_id": "R-AI-004",
+        "coverage": "full",
+        "specs": [
+          "context-assembler"
+        ],
+        "note": "Centralized assembly with bounded memory limits (configurable max 20 recent comments per scope). Prevents unbounded context growth.",
+        "implementation_status": "not_implemented"
+      },
+      {
+        "risk_id": "R-BAN-001",
+        "coverage": "full",
+        "specs": [
+          "shadowban-detection",
+          "subreddit-risk-profile"
+        ],
+        "note": "shadowban-detection is reactive (detects after ban). subreddit-risk-profile is proactive (fitness gate blocks risky pairings before generation).",
+        "implementation_status": "deployed"
+      },
+      {
+        "risk_id": "R-BIZ-002",
+        "coverage": "full",
+        "specs": [
+          "reddit-rate-limiting",
+          "reddit-api-health-dashboard"
+        ],
+        "note": "Singleton client, rate limit state tracking, configurable pacing, exponential backoff on 429, admin health visibility.",
+        "implementation_status": "partially_implemented"
+      },
+      {
+        "risk_id": "R-BIZ-004",
+        "coverage": "partial",
+        "specs": [
+          "cascade-delete"
+        ],
+        "note": "Soft-delete with cascade (Client -> assignments/drafts/avatars). Preserves data (not physical erasure). Not GDPR erasure but provides deactivation mechanism.",
+        "gap": "Needs hard delete/anonymization capability for GDPR compliance",
+        "implementation_status": "soft_delete_deployed"
+      },
+      {
+        "risk_id": "R-BIZ-005",
+        "coverage": "partial",
+        "specs": [
+          "production-readiness-audit"
+        ],
+        "note": "One SLI defined (Lost Response Rate <0.01%). Traffic-light readiness dashboard. No comprehensive SLI/SLO framework.",
+        "gap": "Needs formal SLI/SLO definition document",
+        "implementation_status": "not_implemented"
+      },
+      {
+        "risk_id": "R-OPS-001",
+        "coverage": "full",
+        "specs": [
+          "dry-run-workflow"
+        ],
+        "note": "Full pipeline simulation without LLM API calls. Prompt preview + manual response pasting for all 4 stages. System toggle.",
+        "implementation_status": "deployed"
+      },
+      {
+        "risk_id": "R-OPS-002",
+        "coverage": "full",
+        "specs": [
+          "ops-console-pipeline-observability",
+          "system-topology-timeline"
+        ],
+        "note": "Pipeline Run lifecycle tracking with step-level detail. 9-node topology visualization. 24h activity heatmap.",
+        "implementation_status": "partially_implemented"
+      },
+      {
+        "risk_id": "R-DAT-005",
+        "coverage": "full",
+        "specs": [
+          "self-learning-loop",
+          "avatar-intelligence-learning"
+        ],
+        "note": "Explicit caps: max 200 edit records per avatar-client, 50 for selection, 180-day retention. avatar-intelligence adds cache TTLs and rate limits.",
+        "implementation_status": "deployed"
+      },
+      {
+        "risk_id": "R-BIZ-001",
+        "coverage": "partial",
+        "specs": [
+          "ai-usage-analytics",
+          "client-permissions-budget-controls"
+        ],
+        "note": "Visibility into spend (ai-usage-analytics). Budget caps per client (client-permissions). But no automatic Haiku substitution for editing or fallback on price increases.",
+        "implementation_status": "monitoring_deployed_optimization_pending"
+      },
+      {
+        "risk_id": "R-BAN-007",
+        "coverage": "full",
+        "specs": [
+          "subreddit-risk-profile"
+        ],
+        "note": "Moderation profiler uses external signals. Fitness gate blocks dangerous pairings. Spike detection alerts on risk score changes.",
+        "implementation_status": "deployed"
+      }
+    ],
+    "uncovered_risks": [
+      {
+        "risk_id": "R-SEC-005",
+        "title": "Credential Dump via SQL Injection or .env Leak",
+        "gap": "No spec addresses secret manager integration or encryption key separation",
+        "recommended_action": "Add to production-readiness-audit or create dedicated spec"
+      },
+      {
+        "risk_id": "R-ARCH-008",
+        "title": "Client State — No Formal FSM",
+        "gap": "No spec defines client lifecycle state machine",
+        "recommended_action": "Add client FSM to platform-readiness or client-onboarding-wizard spec"
+      },
+      {
+        "risk_id": "R-ARCH-009",
+        "title": "No AI Registry / Model Router",
+        "gap": "No spec centralizes model selection",
+        "recommended_action": "Create ai-model-registry spec or add to intelligence-layer"
+      },
+      {
+        "risk_id": "R-BIZ-006",
+        "title": "No Adversarial Adaptation to Reddit Changes",
+        "gap": "No spec defines adaptive response to Reddit algorithm/policy changes",
+        "recommended_action": "Add to ramp-operations-agent as detection requirement"
+      },
+      {
+        "risk_id": "R-BIZ-007",
+        "title": "Strategy Staleness — No Auto-Refresh",
+        "gap": "No spec implements periodic strategy refresh trigger",
+        "recommended_action": "Add to discovery-strategy-handoff as quarterly refresh requirement"
+      },
+      {
+        "risk_id": "R-AI-006",
+        "title": "Learning Loop Data Poisoning",
+        "gap": "No spec validates correction patterns against voice profile",
+        "recommended_action": "Add pattern confidence scoring to quality-sentinel"
+      },
+      {
+        "risk_id": "R-SEC-006",
+        "title": "Client Strategy Data Leak",
+        "gap": "Context-assembler addresses isolation at LLM level. No spec adds field-level encryption for strategy_context.",
+        "recommended_action": "Add to context-assembler or production-readiness-audit"
+      }
+    ],
+    "stats": {
+      "fully_covered": 16,
+      "partially_covered": 11,
+      "documented_only": 1,
+      "uncovered": 7,
+      "total_mapped": 35
+    }
+  },
+  "resolved_issues": [
+    {
+      "date": "2026-06-27",
+      "category": "onboarding_ux",
+      "issues": [
+        {
+          "id": "onboarding_keywords_not_saved",
+          "severity": "critical",
+          "description": "Step 4 form had keywords/subreddits but step4_save() only processed voice data. Keywords silently dropped.",
+          "fix": "Added keyword parsing + subreddit creation to step4_save()",
+          "files": [
+            "app/routes/onboarding.py"
+          ]
+        },
+        {
+          "id": "onboarding_edit_loop",
+          "severity": "critical",
+          "description": "Review page 'Edit' link for Keywords pointed to step 5 (BYOA) instead of step 4. Created infinite loop.",
+          "fix": "Changed link to /onboard/step/4",
+          "files": [
+            "app/templates/onboarding/step6.html"
+          ]
+        },
+        {
+          "id": "discovery_r_r_prefix",
+          "severity": "medium",
+          "description": "SubredditSignal stored name as f'r/{name}'. Templates that added r/ prefix rendered r/r/name.",
+          "fix": "Changed source to store bare name. Templates use | replace('r/', '') defensively.",
+          "files": [
+            "app/services/discovery/reddit_researcher.py",
+            "app/templates/partials/discovery_results.html",
+            "app/templates/admin_discovery_results.html"
+          ]
+        },
+        {
+          "id": "avatar_detail_dict_display",
+          "severity": "medium",
+          "description": "business_subreddits stored as [{'subreddit':'name','source':'onboarding'}] but template rendered full dict.",
+          "fix": "Added {% set sub_name = sub.subreddit if sub is mapping else sub %} pattern",
+          "files": [
+            "app/templates/client/avatar_detail.html"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -63,26 +63,30 @@ stateDiagram-v2
 
 ```mermaid
 stateDiagram-v2
-    [*] --> phase_1 : Default on creation
+    [*] --> phase_0 : Fresh account (karma<10, age<14d)
+    [*] --> phase_1 : Pre-warmed account (karma≥10 or age≥14d)
 
-    phase_1 --> phase_2 : Promotion (daily 06:00 eval)\nPer-phase criteria in PhaseEvaluator
-    phase_2 --> phase_3 : Promotion
-    phase_2 --> phase_1 : Demotion: survival <70% (7d, min 5 samples)\nOR avg karma < -2 (14d)
-    phase_3 --> phase_2 : Demotion (same rules)
+    phase_0 --> phase_1 : Graduation: age≥7d, karma≥10, 3 posted, 0 deleted
+    phase_1 --> phase_2 : Promotion (daily 06:00 eval)\nage≥60d, karma≥100, activity≥20, survival≥80%, diversity≥2
+    phase_2 --> phase_3 : Promotion\nage≥150d, karma≥500, activity≥50, survival≥85%, avg_score≥2.0
 
-    state phase_0_mentor {
-        [*] : Excluded from ALL automation
-        note : Admin Phase Override ONLY
-    }
+    phase_1 --> phase_0 : Demotion: shadowban / survival <70% / CQS lowest
+    phase_2 --> phase_0 : Demotion: shadowban / CQS lowest / survival <70%
+    phase_3 --> phase_0 : Demotion: shadowban / CQS lowest
+    phase_3 --> phase_2 : Demotion: karma drop (avg < -2, 14d)
+    phase_2 --> phase_1 : Demotion: karma drop (avg < -2, 14d)
 
+    phase_0 --> frozen : Timeout >30d without graduation OR suspended (404/403)
+
+    note left of phase_0 : Incubation: 1/day, safe subs, mandatory approval\nAlso recovery destination (replaces freeze)
     note left of phase_1 : Hobby only, zero brand, 1-3/day
-    note left of phase_2 : Professional + hobby, 5-15/day
-    note left of phase_3 : Brand allowed (ratio-gated)
-
-    phase_1 --> phase_1 : Shadowban detected → stays Phase 1 + freeze
-    phase_2 --> phase_1 : Shadowban detected → demote + freeze
-    phase_3 --> phase_1 : Shadowban detected → demote + freeze
+    note left of phase_2 : Professional + hobby, 7/day
+    note left of phase_3 : Brand allowed (ratio-gated), 18/day
 ```
+
+**Mentor** is NOT a phase. Mentor = `avatar.pool == "mentor"` (excluded from all pipelines independently of phase).
+
+**Key architectural change (June 27 spec):** Shadowban/CQS-lowest → demote to Phase 0 (NOT freeze). Avatar stays in pipeline with 1/day probe activity. Health checks continue. Recovery is automatic. Freeze reserved for suspended (404/403) or Phase 0 timeout >30d.
 
 **NOTE:** Expert phase (authority_score > 75) is PLANNED but NOT IMPLEMENTED in production code.
 
@@ -95,9 +99,9 @@ stateDiagram-v2
     active --> shadowbanned : Profile inaccessible (health_check 07:30/13:30)
     active --> suspended : Reddit API 403/404 on profile
     active --> limited : Partial restrictions detected
-    shadowbanned --> active : Appeal successful (subsequent check passes)
+    shadowbanned --> active : Health check detects visibility restored
     limited --> active : Restrictions lifted
 
-    note right of shadowbanned : Side effects:\n- avatar.is_frozen = True\n- demote to Phase 1\n- cancel all ExecutionTasks\n- emit notification
-    note right of suspended : Side effects:\n- avatar.is_frozen = True\n- emit notification
+    note right of shadowbanned : Side effects:\n- avatar.is_shadowbanned = True\n- demote to Phase 0 (NOT freeze)\n- cancel pending ExecutionTasks\n- 1/day probe activity continues\n- recovery auto-detected
+    note right of suspended : Side effects:\n- avatar.is_frozen = True (only real freeze)\n- emit notification
 ```

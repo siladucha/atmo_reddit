@@ -127,7 +127,7 @@
         "reddit_account_created": "DateTime(tz) nullable",
         "reddit_icon_url": "String(500) nullable",
         "reddit_status_checked_at": "DateTime(tz) nullable",
-        "warming_phase": "Integer default=1 — 0(Mentor)|1|2|3",
+        "warming_phase": "Integer default=1 — 0(Incubation)|1(Credibility)|2(Seeding)|3(Brand). Mentor is pool-based, not phase.",
         "phase_changed_at": "DateTime(tz) default=now()",
         "last_phase_evaluated_at": "DateTime(tz) nullable",
         "is_frozen": "Boolean default=False",
@@ -155,23 +155,31 @@
       },
       "phase_system": {
         "values": {
-          "0": "Mentor (excluded from ALL automation)",
-          "1": "Warming (hobby only, zero brand)",
-          "2": "Seeding (professional + hobby, external refs)",
-          "3": "Integration (brand allowed, ratio-gated)"
+          "0": "Incubation (1/day, safe subs, mandatory approval. Also recovery destination for shadowban/CQS drop)",
+          "1": "Credibility Building (hobby only, zero brand, 1-3/day)",
+          "2": "Content Seeding (professional + hobby, external refs, 7/day)",
+          "3": "Brand Integration (brand allowed, ratio-gated, 18/day)"
         },
+        "mentor_note": "Mentor is NOT a phase value. Mentor = avatar.pool=='mentor'. Pipeline exclusion via pool, not phase.",
         "promotion_conditions": "PhaseEvaluator.check_promotion_eligibility: time_in_phase + karma + survival_rate thresholds",
         "demotion_conditions": {
-          "shadowban": "immediate > Phase 1",
-          "survival_rate": "<70% over 7d window (min 5 posted samples) > current-1",
-          "karma_drop": "avg reddit_score < -2 over 14d > current-1"
+          "shadowban": "immediate → Phase 0 (NOT freeze)",
+          "cqs_lowest": "Phase 2+ → Phase 0 (NOT freeze)",
+          "survival_rate": "<70% over 7d (min 5 samples) → Phase 0",
+          "karma_drop": "avg reddit_score < -2 over 14d → current-1"
         },
+        "freeze_conditions": {
+          "suspended": "Reddit 404/403 → freeze (account dead)",
+          "admin_manual": "Admin clicks freeze button",
+          "phase0_timeout": ">30d in Phase 0 without graduation → freeze (unrecoverable)"
+        },
+        "recovery_path": "Phase 0 avatars continue 1/day probe activity. Health checks detect shadowban clearance. CQS monitoring detects improvement. Graduation to Phase 1 is automatic.",
         "min_sample_size": 5
       },
       "pool_rules": {
         "b2b": "pipeline eligible, assigned to B2B clients",
         "b2c": "pipeline eligible, self-service users",
-        "mentor": "excluded from ALL pipelines, reputation presence only",
+        "mentor": "excluded from ALL pipelines, reputation presence only. Detected by avatar.pool=='mentor', NOT by warming_phase value.",
         "warm": "pipeline eligible (Smart Scoring), warming/aging"
       }
     },
@@ -712,51 +720,71 @@
     },
     "avatar_phase": {
       "states": [
-        "phase_0_mentor",
+        "phase_0_incubation",
         "phase_1",
         "phase_2",
         "phase_3",
-        "expert"
+        "expert_NOT_IMPLEMENTED"
       ],
-      "initial": "phase_1",
+      "initial": "phase_0 (if karma<10 AND age<14d) OR phase_1 (if pre-warmed)",
+      "mentor_note": "Mentor is NOT a phase. Mentor = avatar.pool=='mentor' (pipeline exclusion). Phase 0 = Incubation for fresh/recovering avatars.",
       "transitions": [
+        {
+          "from": "phase_0",
+          "to": "phase_1",
+          "trigger": "graduation (daily 06:00 eval)",
+          "conditions": "age>=7d AND karma>=10 AND posted>=3 AND deleted==0 (7d)"
+        },
         {
           "from": "phase_1",
           "to": "phase_2",
           "trigger": "promotion (06:00 eval)",
-          "conditions": "time+karma+survival>=80%"
+          "conditions": "age>=60d AND karma>=100 AND activity>=20 AND survival>=80% AND diversity>=2"
         },
         {
           "from": "phase_2",
           "to": "phase_3",
-          "trigger": "promotion"
+          "trigger": "promotion",
+          "conditions": "age>=150d AND karma>=500 AND activity>=50 AND survival>=85% AND avg_score>=2.0 AND pro_diversity>=1"
         },
         {
           "from": "phase_3",
           "to": "expert",
-          "trigger": "authority_score>75"
+          "trigger": "authority_score>75",
+          "status": "NOT_IMPLEMENTED (spec only)"
+        },
+        {
+          "from": "phase_1",
+          "to": "phase_0",
+          "trigger": "shadowban OR survival<70%(7d,min5) OR CQS=lowest"
+        },
+        {
+          "from": "phase_2",
+          "to": "phase_0",
+          "trigger": "shadowban OR CQS=lowest OR survival<70%"
+        },
+        {
+          "from": "phase_3",
+          "to": "phase_0",
+          "trigger": "shadowban OR CQS=lowest"
         },
         {
           "from": "phase_2",
           "to": "phase_1",
-          "trigger": "survival<70%(7d,min5) OR karma<-2(14d)"
+          "trigger": "karma_drop (avg<-2, 14d)"
         },
         {
           "from": "phase_3",
           "to": "phase_2",
-          "trigger": "same demotion rules"
+          "trigger": "karma_drop (avg<-2, 14d)"
         },
         {
-          "from": "any",
-          "to": "phase_1",
-          "trigger": "shadowban_detected"
-        },
-        {
-          "from": "any",
-          "to": "phase_0",
-          "trigger": "admin_override_only"
+          "from": "phase_0",
+          "to": "FROZEN",
+          "trigger": "timeout >30d without graduation OR suspended (404/403)"
         }
-      ]
+      ],
+      "key_change_june_27": "Shadowban/CQS-lowest → demote to Phase 0 (NOT freeze). Avatar stays in pipeline with 1/day probe activity. Health checks continue. Recovery is automatic. Freeze reserved for suspended or timeout."
     },
     "avatar_health": {
       "states": [
