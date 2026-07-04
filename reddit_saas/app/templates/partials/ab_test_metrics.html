@@ -1,0 +1,123 @@
+<!-- A/B Test Metrics Dashboard Partial (HTMX lazy-loaded) -->
+{% if not chart_data.weeks %}
+<div class="bg-slate-800 rounded-lg border border-slate-700 p-6 text-center">
+    <p class="text-gray-400">No metric data collected yet. Metrics are collected weekly (Monday 02:30).</p>
+</div>
+{% else %}
+<div class="space-y-6">
+    <!-- Removal Rate Chart -->
+    <div class="bg-slate-800 rounded-lg border border-slate-700 p-4">
+        <h3 class="text-sm font-medium text-gray-300 mb-3">Removal Rate (lower = better)</h3>
+        <canvas id="chart-removal-rate" height="200"></canvas>
+    </div>
+
+    <!-- Karma Velocity Chart -->
+    <div class="bg-slate-800 rounded-lg border border-slate-700 p-4">
+        <h3 class="text-sm font-medium text-gray-300 mb-3">Karma Velocity 4h (higher = better)</h3>
+        <canvas id="chart-karma-velocity" height="200"></canvas>
+    </div>
+
+    <!-- Shadowban Events Chart -->
+    <div class="bg-slate-800 rounded-lg border border-slate-700 p-4">
+        <h3 class="text-sm font-medium text-gray-300 mb-3">Shadowban Events (cumulative per week)</h3>
+        <canvas id="chart-shadowban" height="200"></canvas>
+    </div>
+
+    <!-- Weekly Reports Table -->
+    {% if reports %}
+    <div class="bg-slate-800 rounded-lg border border-slate-700 p-4">
+        <h3 class="text-sm font-medium text-gray-300 mb-3">Weekly Reports</h3>
+        <table class="min-w-full divide-y divide-slate-600 text-sm">
+            <thead>
+                <tr>
+                    <th class="px-3 py-2 text-left text-xs text-gray-400">Week</th>
+                    <th class="px-3 py-2 text-left text-xs text-gray-400">Generated</th>
+                    <th class="px-3 py-2 text-center text-xs text-gray-400">Early Term?</th>
+                    <th class="px-3 py-2 text-left text-xs text-gray-400">Alert Metrics</th>
+                    <th class="px-3 py-2 text-right text-xs text-gray-400">Details</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-700">
+                {% for report in reports %}
+                <tr>
+                    <td class="px-3 py-2 text-white">Week {{ report.week_number }}</td>
+                    <td class="px-3 py-2 text-gray-300">{{ report.generated_at.strftime('%Y-%m-%d %H:%M') if report.generated_at else '-' }}</td>
+                    <td class="px-3 py-2 text-center">
+                        {% if report.early_termination_recommended %}
+                        <span class="px-2 py-0.5 bg-red-900 text-red-300 rounded text-xs">⚠ Yes</span>
+                        {% else %}
+                        <span class="text-gray-500">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-3 py-2 text-gray-400">
+                        {% if report.alert_metrics %}
+                        {{ report.alert_metrics | join(', ') }}
+                        {% else %}
+                        —
+                        {% endif %}
+                    </td>
+                    <td class="px-3 py-2 text-right">
+                        <button hx-get="/admin/ab-tests/{{ experiment.id }}/report/{{ report.week_number }}"
+                                hx-target="#report-detail-slot"
+                                hx-swap="innerHTML"
+                                class="text-indigo-400 hover:text-indigo-300 text-xs">
+                            View →
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Report detail slot -->
+    <div id="report-detail-slot"></div>
+</div>
+
+<!-- Chart.js rendering -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+    const weeks = {{ chart_data.weeks | tojson }};
+    const colors = {
+        'old_reddit': '#3b82f6',        // blue
+        'manual_email': '#10b981',       // green
+        'new_reddit_debugger': '#a855f7' // purple
+    };
+
+    function makeChart(canvasId, dataByGroup, label) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+        const datasets = [];
+        for (const [method, values] of Object.entries(dataByGroup)) {
+            datasets.push({
+                label: method,
+                data: values,
+                borderColor: colors[method] || '#6b7280',
+                backgroundColor: (colors[method] || '#6b7280') + '33',
+                tension: 0.3,
+                fill: false,
+                pointRadius: 4,
+            });
+        }
+        new Chart(ctx, {
+            type: 'line',
+            data: { labels: weeks.map(w => 'W' + w), datasets },
+            options: {
+                responsive: true,
+                plugins: { legend: { labels: { color: '#9ca3af' } } },
+                scales: {
+                    x: { ticks: { color: '#9ca3af' }, grid: { color: '#1e293b' } },
+                    y: { ticks: { color: '#9ca3af' }, grid: { color: '#1e293b' } },
+                }
+            }
+        });
+    }
+
+    makeChart('chart-removal-rate', {{ chart_data.removal_rate | tojson }}, 'Removal Rate');
+    makeChart('chart-karma-velocity', {{ chart_data.karma_velocity_4h | tojson }}, 'Karma 4h');
+    makeChart('chart-shadowban', {{ chart_data.shadowban_events | tojson }}, 'Shadowban Events');
+})();
+</script>
+{% endif %}

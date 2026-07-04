@@ -1,0 +1,268 @@
+{% extends "admin_base.html" %}
+{% block title %}A/B Test — {{ experiment.name }}{% endblock %}
+{% block content %}
+<div class="mb-6">
+    <div class="flex justify-between items-start">
+        <div>
+            <a href="/admin/ab-tests" class="text-gray-400 hover:text-gray-200 text-sm">← Back to experiments</a>
+            <h1 class="text-2xl font-bold text-white mt-2">{{ experiment.name }}</h1>
+            <p class="text-gray-400 text-sm mt-1">{{ experiment.hypothesis }}</p>
+        </div>
+        <div class="flex items-center gap-3">
+            {% if experiment.status == 'draft' %}
+            <span class="px-3 py-1 bg-gray-600 text-gray-200 rounded-lg text-sm">Draft</span>
+            {% elif experiment.status == 'active' %}
+            <span class="px-3 py-1 bg-green-700 text-green-200 rounded-lg text-sm">Active</span>
+            {% elif experiment.status == 'paused' %}
+            <span class="px-3 py-1 bg-yellow-700 text-yellow-200 rounded-lg text-sm">Paused</span>
+            {% elif experiment.status == 'concluded' %}
+            <span class="px-3 py-1 bg-blue-700 text-blue-200 rounded-lg text-sm">Concluded</span>
+            {% elif experiment.status == 'aborted' %}
+            <span class="px-3 py-1 bg-red-700 text-red-200 rounded-lg text-sm">Aborted</span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Config summary -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <p class="text-xs text-gray-400 uppercase">Duration</p>
+        <p class="text-xl font-bold text-white">{{ experiment.planned_duration_weeks }}w</p>
+    </div>
+    <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <p class="text-xs text-gray-400 uppercase">Daily Volume</p>
+        <p class="text-xl font-bold text-white">{{ experiment.daily_volume_per_avatar }}/avatar</p>
+    </div>
+    <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <p class="text-xs text-gray-400 uppercase">Risk Max</p>
+        <p class="text-xl font-bold text-white">≤{{ experiment.subreddit_risk_max }}</p>
+    </div>
+    <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <p class="text-xs text-gray-400 uppercase">Violations</p>
+        <p class="text-xl font-bold text-white">{{ violation_count }}</p>
+    </div>
+</div>
+
+<!-- Action buttons -->
+<div class="flex gap-3 mb-6">
+    {% if experiment.status == 'draft' %}
+    <form method="POST" action="/admin/ab-tests/{{ experiment.id }}/start" onsubmit="return confirm('Start experiment? Config will be frozen.')">
+        <button class="px-4 py-2 bg-green-700 hover:bg-green-600 text-white rounded-lg text-sm font-medium">▶ Start</button>
+    </form>
+    {% elif experiment.status == 'active' %}
+    <form method="POST" action="/admin/ab-tests/{{ experiment.id }}/pause">
+        <input type="hidden" name="reason" value="Operator paused from UI">
+        <button class="px-4 py-2 bg-yellow-700 hover:bg-yellow-600 text-white rounded-lg text-sm font-medium" onclick="return confirm('Pause this experiment?')">⏸ Pause</button>
+    </form>
+    <form method="POST" action="/admin/ab-tests/{{ experiment.id }}/conclude" onsubmit="return confirm('Conclude experiment and generate final report?')">
+        <button class="px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded-lg text-sm font-medium">✓ Conclude</button>
+    </form>
+    {% elif experiment.status == 'paused' %}
+    <form method="POST" action="/admin/ab-tests/{{ experiment.id }}/resume" onsubmit="return confirm('Resume this experiment?')">
+        <button class="px-4 py-2 bg-green-700 hover:bg-green-600 text-white rounded-lg text-sm font-medium">▶ Resume</button>
+    </form>
+    {% endif %}
+    {% if experiment.status not in ['concluded', 'aborted'] %}
+    <form method="POST" action="/admin/ab-tests/{{ experiment.id }}/abort" onsubmit="return confirm('Abort experiment? This cannot be undone.')">
+        <input type="hidden" name="reason" value="Operator aborted from UI">
+        <button class="px-4 py-2 bg-red-800 hover:bg-red-700 text-white rounded-lg text-sm font-medium">✕ Abort</button>
+    </form>
+    {% endif %}
+</div>
+
+<!-- Tabbed Navigation -->
+<div class="mb-6">
+    <div class="border-b border-slate-700">
+        <nav class="flex gap-1 -mb-px" id="ab-tabs">
+            <button onclick="switchTab('groups')"
+                    id="tab-groups"
+                    class="ab-tab px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 border-indigo-500 text-white bg-slate-800">
+                Groups
+            </button>
+            <button onclick="switchTab('assignments')"
+                    id="tab-assignments"
+                    class="ab-tab px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 border-transparent text-gray-400 hover:text-gray-200">
+                Assignments
+            </button>
+            {% if experiment.status in ['active', 'paused', 'concluded'] %}
+            <button onclick="switchTab('metrics')"
+                    id="tab-metrics"
+                    class="ab-tab px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 border-transparent text-gray-400 hover:text-gray-200">
+                Metrics
+            </button>
+            <button onclick="switchTab('reports')"
+                    id="tab-reports"
+                    class="ab-tab px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 border-transparent text-gray-400 hover:text-gray-200">
+                Reports
+            </button>
+            {% endif %}
+        </nav>
+    </div>
+</div>
+
+<!-- Tab Panels -->
+
+<!-- Groups Panel -->
+<div id="panel-groups" class="ab-panel">
+    {% include "partials/ab_test_groups.html" %}
+
+    <!-- Add Group (draft only) -->
+    {% if experiment.status == 'draft' %}
+    <div class="mt-4 bg-slate-800 rounded-lg border border-slate-700 p-4">
+        <h3 class="text-sm font-medium text-gray-300 mb-3">Add Treatment Group</h3>
+        <form method="POST" action="/admin/ab-tests/{{ experiment.id }}/groups" class="flex items-end gap-3">
+            <div class="flex-1">
+                <label class="block text-xs text-gray-400 mb-1">Name</label>
+                <input type="text" name="name" required
+                       class="w-full bg-slate-700 border border-slate-600 rounded px-3 py-1.5 text-white text-sm"
+                       placeholder="Group name">
+            </div>
+            <div class="flex-1">
+                <label class="block text-xs text-gray-400 mb-1">Posting Method</label>
+                <input type="text" name="posting_method" required
+                       class="w-full bg-slate-700 border border-slate-600 rounded px-3 py-1.5 text-white text-sm"
+                       placeholder="e.g. old_reddit">
+            </div>
+            <div class="flex-1">
+                <label class="block text-xs text-gray-400 mb-1">Description</label>
+                <input type="text" name="description"
+                       class="w-full bg-slate-700 border border-slate-600 rounded px-3 py-1.5 text-white text-sm"
+                       placeholder="Optional">
+            </div>
+            <button type="submit" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-sm whitespace-nowrap">+ Add</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Assignments Panel -->
+<div id="panel-assignments" class="ab-panel hidden">
+    {% include "partials/ab_test_assignments.html" %}
+
+    <!-- Avatar Assignment (only for draft) -->
+    {% if experiment.status == 'draft' and available_avatars %}
+    <div class="bg-slate-800 rounded-lg border border-slate-700 p-4 mt-4">
+        <h3 class="text-sm font-medium text-gray-300 mb-3">Assign Avatars</h3>
+        <form method="POST" action="/admin/ab-tests/{{ experiment.id }}/assign">
+            <div class="mb-3">
+                <label class="block text-xs text-gray-400 mb-1">Target Group</label>
+                <select name="group_id" class="bg-slate-700 border border-slate-600 rounded px-3 py-1.5 text-white text-sm">
+                    {% for group in groups %}
+                    <option value="{{ group.id }}">{{ group.name }} ({{ group.posting_method }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3 max-h-48 overflow-y-auto">
+                {% for avatar in available_avatars %}
+                <label class="flex items-center gap-2 bg-slate-750 rounded px-3 py-1.5 cursor-pointer hover:bg-slate-700">
+                    <input type="checkbox" name="avatar_ids" value="{{ avatar.id }}" class="rounded">
+                    <span class="text-gray-300 text-sm">{{ avatar.reddit_username }}</span>
+                </label>
+                {% endfor %}
+            </div>
+            <button type="submit" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-sm">Assign Selected</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Metrics Panel (lazy-loaded) -->
+{% if experiment.status in ['active', 'paused', 'concluded'] %}
+<div id="panel-metrics" class="ab-panel hidden">
+    <div id="metrics-content"
+         hx-get="/admin/ab-tests/{{ experiment.id }}/metrics"
+         hx-trigger="intersect once"
+         hx-swap="innerHTML">
+        <div class="bg-slate-800 rounded-lg p-8 text-center border border-slate-700">
+            <p class="text-gray-400">Loading metrics...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Reports Panel (lazy-loaded) -->
+<div id="panel-reports" class="ab-panel hidden">
+    {% if latest_report %}
+    <div id="reports-content"
+         hx-get="/admin/ab-tests/{{ experiment.id }}/report/{{ latest_report.week_number }}"
+         hx-trigger="intersect once"
+         hx-swap="innerHTML">
+        <div class="bg-slate-800 rounded-lg p-8 text-center border border-slate-700">
+            <p class="text-gray-400">Loading latest report (Week {{ latest_report.week_number }})...</p>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-slate-800 rounded-lg p-8 text-center border border-slate-700">
+        <p class="text-gray-400">No reports generated yet. Reports are generated weekly (Monday 02:30).</p>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Conclusion Summary -->
+{% if experiment.conclusion_summary %}
+<div class="bg-slate-800 rounded-lg border border-slate-700 p-6 mt-8">
+    <h2 class="text-lg font-semibold text-white mb-3">Conclusion</h2>
+    {% set cs = experiment.conclusion_summary %}
+    <div class="space-y-3">
+        <div class="flex items-center gap-2">
+            {% if cs.h0_rejected %}
+            <span class="px-2 py-1 bg-red-900 text-red-200 rounded text-sm font-medium">H0 Rejected</span>
+            <span class="text-gray-300 text-sm">Posting method DOES affect avatar health</span>
+            {% else %}
+            <span class="px-2 py-1 bg-green-900 text-green-200 rounded text-sm font-medium">H0 Not Rejected</span>
+            <span class="text-gray-300 text-sm">No significant effect detected</span>
+            {% endif %}
+        </div>
+        <p class="text-gray-300 text-sm">{{ cs.recommendation }}</p>
+        <div class="grid grid-cols-3 gap-3 text-sm">
+            <div class="bg-slate-750 rounded p-2">
+                <span class="text-gray-400">Weeks analyzed:</span>
+                <span class="text-white ml-1">{{ cs.total_weeks }}</span>
+            </div>
+            <div class="bg-slate-750 rounded p-2">
+                <span class="text-gray-400">Avatars:</span>
+                <span class="text-white ml-1">{{ cs.total_avatars_analyzed }}</span>
+            </div>
+            <div class="bg-slate-750 rounded p-2">
+                <span class="text-gray-400">Exclusions:</span>
+                <span class="text-white ml-1">{{ cs.exclusions }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Tab switching script -->
+<script>
+function switchTab(tabName) {
+    // Deactivate all tabs
+    document.querySelectorAll('.ab-tab').forEach(t => {
+        t.classList.remove('border-indigo-500', 'text-white', 'bg-slate-800');
+        t.classList.add('border-transparent', 'text-gray-400');
+    });
+    // Hide all panels
+    document.querySelectorAll('.ab-panel').forEach(p => p.classList.add('hidden'));
+
+    // Activate selected tab
+    const tab = document.getElementById('tab-' + tabName);
+    if (tab) {
+        tab.classList.add('border-indigo-500', 'text-white', 'bg-slate-800');
+        tab.classList.remove('border-transparent', 'text-gray-400');
+    }
+    // Show selected panel
+    const panel = document.getElementById('panel-' + tabName);
+    if (panel) panel.classList.remove('hidden');
+
+    // Trigger HTMX load for lazy panels
+    if (tabName === 'metrics') {
+        htmx.trigger(document.getElementById('metrics-content'), 'intersect');
+    }
+    if (tabName === 'reports') {
+        const rc = document.getElementById('reports-content');
+        if (rc) htmx.trigger(rc, 'intersect');
+    }
+}
+</script>
+
+{% endblock %}

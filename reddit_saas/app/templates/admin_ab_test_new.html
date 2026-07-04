@@ -1,0 +1,93 @@
+{% extends "admin_base.html" %}
+{% block title %}New A/B Test Experiment{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <a href="/admin/ab-tests" class="text-gray-400 hover:text-gray-200 text-sm">← Back to experiments</a>
+    <h1 class="text-2xl font-bold text-white mt-2 mb-6">New A/B Test Experiment</h1>
+
+    {% if error %}
+    <div class="bg-red-900/50 border border-red-700 rounded-lg p-4 mb-6">
+        <p class="text-red-300 text-sm">{{ error }}</p>
+    </div>
+    {% endif %}
+
+    <form method="POST" action="/admin/ab-tests" class="space-y-6">
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">Experiment Name</label>
+            <input type="text" name="name" required
+                   class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                   placeholder="Posting Method Health Impact — July 2026">
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-gray-300 mb-1">Hypothesis</label>
+            <textarea name="hypothesis" rows="3" required
+                      class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                      placeholder="H0: Posting method has no statistically significant effect on avatar health metrics (removal rate, shadowban events)."></textarea>
+            <p class="text-xs text-gray-500 mt-1">Define the null hypothesis (H0) — what you expect to disprove.</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">Duration (weeks)</label>
+                <input type="number" name="duration_weeks" value="8" min="2" max="16"
+                       class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                <p class="text-xs text-gray-500 mt-1">Recommended: 8 weeks minimum for statistical power.</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">Daily Volume / Avatar</label>
+                <input type="number" name="daily_volume" value="3" min="1" max="10"
+                       class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                <p class="text-xs text-gray-500 mt-1">Comments per avatar per day (controlled across groups).</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">Max Subreddit Risk Score</label>
+                <input type="number" name="risk_max" value="40" min="10" max="80"
+                       class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                <p class="text-xs text-gray-500 mt-1">Only subreddits with risk ≤ this value are used.</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">Generation Model</label>
+                <input type="text" name="generation_model" value="gemini/gemini-2.5-flash"
+                       class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+                <p class="text-xs text-gray-500 mt-1">Same model for all groups (controlled variable).</p>
+            </div>
+        </div>
+
+        <div class="bg-slate-800 rounded-lg border border-slate-700 p-4">
+            <h3 class="text-sm font-medium text-gray-300 mb-2">Treatment Groups (auto-created)</h3>
+            <ul class="text-sm text-gray-400 space-y-1.5">
+                <li class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                    <span class="text-blue-300 font-medium">Old Reddit (textarea)</span>
+                    <span class="text-gray-500">— extension posts via old.reddit.com</span>
+                </li>
+                <li class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                    <span class="text-green-300 font-medium">Manual Email</span>
+                    <span class="text-gray-500">— executor posts manually from email instructions</span>
+                </li>
+                <li class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+                    <span class="text-purple-300 font-medium">New Reddit (debugger)</span>
+                    <span class="text-gray-500">— extension posts via chrome.debugger on www.reddit.com</span>
+                </li>
+            </ul>
+        </div>
+
+        <div class="flex gap-3 pt-2">
+            <button type="submit"
+                    class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">
+                Create Experiment
+            </button>
+            <a href="/admin/ab-tests"
+               class="px-6 py-2 bg-slate-700 hover:bg-slate-600 text-gray-300 rounded-lg font-medium">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

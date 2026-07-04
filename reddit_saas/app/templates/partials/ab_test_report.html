@@ -1,0 +1,97 @@
+<!-- A/B Test Weekly Report Partial (HTMX lazy-loaded) -->
+{% if not report %}
+<div class="bg-slate-800 rounded-lg border border-slate-700 p-4 text-center">
+    <p class="text-gray-400">No report available for week {{ week_number }}.</p>
+</div>
+{% else %}
+<div class="bg-slate-800 rounded-lg border border-slate-700 p-5 space-y-4">
+    <div class="flex justify-between items-center">
+        <h4 class="text-sm font-semibold text-white">Week {{ report.week_number }} Statistical Report</h4>
+        <span class="text-xs text-gray-400">{{ report.generated_at.strftime('%Y-%m-%d %H:%M') if report.generated_at else '' }}</span>
+    </div>
+
+    {% if report.early_termination_recommended %}
+    <div class="bg-red-900/40 border border-red-700 rounded-lg p-3">
+        <p class="text-red-300 text-sm font-medium">⚠ Early termination recommended</p>
+        <p class="text-red-400 text-xs mt-1">Significant results detected on primary metrics for 2+ consecutive weeks: {{ report.alert_metrics | join(', ') if report.alert_metrics else 'N/A' }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Per-metric comparison table -->
+    {% set stats = report.statistics_json %}
+    {% if stats %}
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-600 text-xs">
+            <thead>
+                <tr class="bg-slate-750">
+                    <th class="px-3 py-2 text-left text-gray-400 font-medium">Metric</th>
+                    <th class="px-3 py-2 text-left text-gray-400 font-medium">Comparison</th>
+                    <th class="px-3 py-2 text-right text-gray-400 font-medium">Group A Mean</th>
+                    <th class="px-3 py-2 text-right text-gray-400 font-medium">Group B Mean</th>
+                    <th class="px-3 py-2 text-right text-gray-400 font-medium">p-value</th>
+                    <th class="px-3 py-2 text-right text-gray-400 font-medium">Effect Size</th>
+                    <th class="px-3 py-2 text-center text-gray-400 font-medium">Sig?</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-700">
+                {% for metric_name, metric_data in stats.items() %}
+                {% for comp in metric_data.get('comparisons', []) %}
+                <tr>
+                    <td class="px-3 py-2 text-gray-200 font-medium">{{ metric_name }}</td>
+                    <td class="px-3 py-2 text-gray-400">{{ comp.pair | join(' vs ') if comp.pair else comp.get('test', '') }}</td>
+                    <td class="px-3 py-2 text-right text-gray-300">
+                        {% if comp.group_a_mean is defined %}{{ '%.3f' % comp.group_a_mean }}{% elif comp.mean_a is defined %}{{ '%.3f' % comp.mean_a }}{% else %}—{% endif %}
+                    </td>
+                    <td class="px-3 py-2 text-right text-gray-300">
+                        {% if comp.group_b_mean is defined %}{{ '%.3f' % comp.group_b_mean }}{% elif comp.mean_b is defined %}{{ '%.3f' % comp.mean_b }}{% else %}—{% endif %}
+                    </td>
+                    <td class="px-3 py-2 text-right {% if comp.p_value < 0.05 %}text-yellow-300{% else %}text-gray-300{% endif %}">
+                        {{ '%.4f' % comp.p_value }}
+                    </td>
+                    <td class="px-3 py-2 text-right text-gray-300">{{ '%.3f' % comp.effect_size }}</td>
+                    <td class="px-3 py-2 text-center">
+                        {% if comp.significant %}
+                        <span class="text-yellow-400 text-base">★</span>
+                        {% else %}
+                        <span class="text-gray-600">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-gray-500 text-sm">No statistical comparisons available for this week.</p>
+    {% endif %}
+
+    <!-- Cumulative summary if available -->
+    {% if report.cumulative_json %}
+    {% set cum = report.cumulative_json %}
+    <div class="border-t border-slate-700 pt-3 mt-3">
+        <h5 class="text-xs font-medium text-gray-400 uppercase mb-2">Cumulative (Weeks 1–{{ report.week_number }})</h5>
+        <div class="grid grid-cols-3 gap-3 text-xs">
+            {% if cum.total_observations is defined %}
+            <div class="bg-slate-750 rounded p-2">
+                <span class="text-gray-400">Total observations:</span>
+                <span class="text-white ml-1">{{ cum.total_observations }}</span>
+            </div>
+            {% endif %}
+            {% if cum.power_estimate is defined %}
+            <div class="bg-slate-750 rounded p-2">
+                <span class="text-gray-400">Power estimate:</span>
+                <span class="text-white ml-1">{{ '%.0f' % (cum.power_estimate * 100) }}%</span>
+            </div>
+            {% endif %}
+            {% if cum.min_weeks_remaining is defined %}
+            <div class="bg-slate-750 rounded p-2">
+                <span class="text-gray-400">Min weeks left:</span>
+                <span class="text-white ml-1">{{ cum.min_weeks_remaining }}</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
