@@ -13,7 +13,9 @@ from app.middleware.trial_signals import TrialSignalMiddleware
 from app.version import __version__
 from app.middleware.errors import ErrorMiddleware
 from app.middleware.security import SecurityHeadersMiddleware, RateLimitMiddleware
-from app.routes import admin, auth, dashboard, review, pipeline, avatars, avatar_analysis, avatar_pipeline, avatar_workflow, clients, pages, dry_run, export, decision_center, portal, portal_actions, onboarding, oauth, posting_dashboard, discovery, admin_geo, sse, avatar_onboard, admin_tasks, executor_tasks, trial_intelligence, admin_risk_profile, portal_risk_profile, daily_review
+from app.routes import admin, auth, dashboard, review, pipeline, avatars, avatar_analysis, avatar_pipeline, avatar_workflow, clients, pages, dry_run, export, decision_center, portal, portal_actions, portal_requests, onboarding, oauth, posting_dashboard, discovery, admin_geo, sse, avatar_onboard, admin_tasks, executor_tasks, trial_intelligence, admin_risk_profile, portal_risk_profile, daily_review, intelligence_report, admin_intelligence_report, demo, admin_ab_test
+from app.routes.extension_api import router as extension_api_router
+from app.routes.extension_events import router as extension_events_router
 from app.routes import notifications as notifications_routes
 from app.routes import manual as manual_routes
 from app.services.metrics_collector import (
@@ -135,6 +137,7 @@ app.include_router(dry_run.router, tags=["dry-run"])
 app.include_router(portal.router, tags=["client-portal"])
 app.include_router(manual_routes.router)
 app.include_router(portal_actions.router, tags=["client-portal-actions"])
+app.include_router(portal_requests.router, tags=["client-portal-requests"])
 app.include_router(sse.router, tags=["sse"])
 app.include_router(notifications_routes.router, tags=["notifications"])
 app.include_router(onboarding.router, tags=["onboarding"])
@@ -146,18 +149,32 @@ app.include_router(export.router, tags=["export"])
 app.include_router(admin_geo.router, tags=["admin-geo"])
 app.include_router(admin_tasks.router, tags=["admin-tasks"])
 app.include_router(executor_tasks.router, tags=["executor-tasks"])
+app.include_router(extension_api_router, tags=["extension-api"])
+app.include_router(extension_events_router, tags=["extension-events"])
 app.include_router(trial_intelligence.router, tags=["trial-intelligence"])
 app.include_router(admin_risk_profile.router, tags=["admin-risk-profile"])
 app.include_router(portal_risk_profile.router, tags=["portal-risk-profile"])
 app.include_router(daily_review.router, tags=["daily-review"])
+app.include_router(intelligence_report.router, tags=["intelligence-report"])
+app.include_router(admin_intelligence_report.router, tags=["admin-intelligence-report"])
+app.include_router(demo.router, tags=["demo"])
+app.include_router(admin_ab_test.router, tags=["admin-ab-tests"])
 
 
 @app.get("/health")
 def health_check():
-    """Health check endpoint — verifies DB and Redis connectivity.
+    """Health check endpoint — verifies DB, Redis, and pipeline liveness.
 
-    Returns 200 if all services are reachable, 503 otherwise.
-    Used by load balancers and container orchestrators.
+    Returns 200 if all services reachable AND pipeline alive.
+    Returns 503 if DB/Redis down (infrastructure dead).
+    Returns 200 with pipeline_alive=false if workers dead but infra OK
+    (allows external monitors to alert on pipeline death separately).
+
+    Key fields for external monitoring:
+    - status: "ok" | "degraded" | "pipeline_dead"
+    - pipeline_alive: true/false (are Celery workers producing output?)
+    - worker_alive: true/false (last heartbeat < 5 min?)
+    - scrape_stale_hours: hours since last successful scrape
     """
     checks = {"version": __version__, "env": app_env, "posting_disabled": settings.posting_disabled}
     all_ok = True
@@ -168,11 +185,11 @@ def health_check():
         from sqlalchemy import text
         db = SessionLocal()
         db.execute(text("SELECT 1"))
-        db.close()
         checks["database"] = "ok"
     except Exception as e:
         checks["database"] = f"error: {type(e).__name__}"
         all_ok = False
+        db = None
 
     # Check Redis
     try:
@@ -183,12 +200,58 @@ def health_check():
     except Exception as e:
         checks["redis"] = f"error: {type(e).__name__}"
         all_ok = False
+        r = None
 
-    checks["status"] = "ok" if all_ok else "degraded"
+    # Check worker heartbeat (Redis key written by system_heartbeat task)
+    worker_alive = False
+    try:
+        if r is not None:
+            last_heartbeat_str = r.get("ramp:heartbeat:last_at")
+            if last_heartbeat_str:
+                from datetime import datetime, timezone
+                last_hb = datetime.fromisoformat(last_heartbeat_str.decode() if isinstance(last_heartbeat_str, bytes) else last_heartbeat_str)
+                hb_age_sec = (datetime.now(timezone.utc) - last_hb).total_seconds()
+                worker_alive = hb_age_sec < 300  # 5 min threshold
+                checks["worker_heartbeat_age_sec"] = int(hb_age_sec)
+            else:
+                checks["worker_heartbeat_age_sec"] = -1  # no heartbeat ever
+    except Exception:
+        checks["worker_heartbeat_age_sec"] = -1
+    checks["worker_alive"] = worker_alive
 
+    # Check pipeline liveness: when was the last successful scrape?
+    pipeline_alive = False
+    scrape_stale_hours = -1
+    try:
+        if db is not None:
+            from datetime import datetime, timezone
+            from sqlalchemy import func as sa_func
+            from app.models.subreddit import Subreddit
+            last_scrape = db.query(sa_func.max(Subreddit.last_scraped_at)).scalar()
+            if last_scrape:
+                scrape_age = (datetime.now(timezone.utc) - last_scrape).total_seconds() / 3600
+                scrape_stale_hours = round(scrape_age, 1)
+                pipeline_alive = scrape_age < 24  # pipeline alive if scraped in last 24h
+            else:
+                scrape_stale_hours = 9999
+    except Exception:
+        pass
+    finally:
+        if db is not None:
+            db.close()
+
+    checks["pipeline_alive"] = pipeline_alive
+    checks["scrape_stale_hours"] = scrape_stale_hours
+
+    # Determine overall status
     if not all_ok:
+        checks["status"] = "degraded"
         from fastapi.responses import JSONResponse
         return JSONResponse(content=checks, status_code=503)
+    elif not pipeline_alive or not worker_alive:
+        checks["status"] = "pipeline_dead"
+    else:
+        checks["status"] = "ok"
 
     return checks
 

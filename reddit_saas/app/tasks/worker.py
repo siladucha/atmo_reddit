@@ -35,6 +35,10 @@ celery_app = Celery(
         "app.tasks.execution_tasks",
         "app.tasks.subreddit_ban_probe",
         "app.tasks.cqs_tasks",
+        "app.tasks.extension_tasks",
+        "app.tasks.geo_monitoring",
+        "app.tasks.intelligence_report",
+        "app.tasks.ab_test",
     ],
 )
 
@@ -183,6 +187,27 @@ celery_app.conf.update(
             "task": "probe_subreddit_bans",
             "schedule": crontab(hour=3, minute=45, day_of_week="sunday"),  # Weekly, after karma tracking
         },
+        "expire-extension-leases": {
+            "task": "expire_extension_leases",
+            "schedule": 300.0,  # Every 5 minutes — expire stale extension task leases
+        },
+        "geo-monitoring-scheduled": {
+            "task": "run_geo_monitoring_all_clients",
+            "schedule": crontab(hour=9, minute=30, day_of_week="tuesday,friday"),  # Every ~3 days, after morning pipeline
+        },
+        "generate-weekly-reports": {
+            "task": "generate_weekly_reports_all_clients",
+            "schedule": crontab(hour=8, minute=0, day_of_week=1),  # Monday 08:00 — after weekend pipeline, before Tue GEO batch
+        },
+        # A/B Test Framework
+        "ab-test-collect-metrics-weekly": {
+            "task": "collect_weekly_ab_metrics",
+            "schedule": crontab(hour=2, minute=30, day_of_week=1),  # Monday 02:30 — collect previous week
+        },
+        "ab-test-check-durations-daily": {
+            "task": "check_experiment_durations",
+            "schedule": crontab(hour=7, minute=0),  # Daily 07:00 — alert on reached durations
+        },
     },
     # Task routing: on-demand user-triggered tasks go to 'fast' queue
     # so they don't get blocked behind long-running bulk tasks.
@@ -193,6 +218,7 @@ celery_app.conf.update(
         'run_full_pipeline_single_client': {'queue': 'fast'},
         'build_epg_single_avatar': {'queue': 'fast'},
         'generate_strategy_for_client': {'queue': 'fast'},
+        'generate_intelligence_report_for_client': {'queue': 'fast'},
         # Everything else → default 'celery' queue (implicit)
     },
     task_default_queue='celery',
