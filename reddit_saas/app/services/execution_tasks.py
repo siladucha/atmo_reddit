@@ -111,12 +111,21 @@ def create_execution_task(
         if avatar_obj and avatar_obj.executor_email and avatar_obj.executor_email_verified:
             executor_contact = avatar_obj.executor_email
         else:
-            reason = "no executor email" if not (avatar_obj and avatar_obj.executor_email) else "executor email not verified"
-            logger.warning(
-                "Skipping email task for slot %s: %s (avatar=%s)",
-                epg_slot_id, reason, avatar_obj.reddit_username if avatar_obj else "?"
-            )
-            return None
+            # Extension channel doesn't require email
+            channel = getattr(avatar_obj, "delivery_channel", "email") if avatar_obj else "email"
+            if channel == "extension":
+                # Extension-only: no email needed, use avatar username as contact
+                executor_contact = avatar_obj.reddit_username if avatar_obj else None
+            else:
+                reason = "no executor email" if not (avatar_obj and avatar_obj.executor_email) else "executor email not verified"
+                logger.warning(
+                    "Skipping email task for slot %s: %s (avatar=%s)",
+                    epg_slot_id, reason, avatar_obj.reddit_username if avatar_obj else "?"
+                )
+                return None
+
+    # Determine delivery channel from avatar setting
+    delivery_channel = getattr(avatar_obj, "delivery_channel", "email") if avatar_obj else "email"
 
     # Resolve related data
     draft = db.query(CommentDraft).filter(CommentDraft.id == slot.draft_id).first() if slot.draft_id else None
@@ -170,7 +179,7 @@ def create_execution_task(
         thread_id=slot.thread_id,
         executor_contact=executor_contact,
         executor_type=executor_type,
-        delivery_channel="email",
+        delivery_channel=delivery_channel,
         task_type=task_type,
         subreddit=slot.subreddit or (thread.subreddit if thread else ""),
         thread_url=thread_url,
@@ -184,6 +193,30 @@ def create_execution_task(
         status_history=[{"status": "generated", "at": datetime.now(timezone.utc).isoformat(), "by": "system"}],
         delivery_count=0,
     )
+
+    # Extension channel: set lifecycle status so extension can poll it immediately
+    if delivery_channel in ("extension", "both"):
+        task.task_lifecycle_status = "CREATED"
+        task.idempotency_key = str(uuid.uuid4())
+        task.priority = "content"
+        # Default posting strategy: old_reddit (most reliable, no Shadow DOM / reCAPTCHA)
+        task.posting_strategy = "old_reddit"
+
+    # A/B Test: override posting method if avatar in active experiment
+    from app.services.settings import get_setting
+    ab_test_enabled = get_setting(db, "ab_test_enabled") == "true"
+    if ab_test_enabled:
+        from app.services.ab_test.posting_router import get_posting_method
+        posting_config = get_posting_method(db, slot.avatar_id)
+        if posting_config:
+            task.delivery_channel = posting_config.delivery_channel
+            task.posting_strategy = posting_config.posting_strategy
+            # Re-apply extension lifecycle setup if channel changed to extension
+            if posting_config.delivery_channel in ("extension", "both"):
+                task.task_lifecycle_status = "CREATED"
+                if not task.idempotency_key:
+                    task.idempotency_key = str(uuid.uuid4())
+                task.priority = "content"
 
     try:
         db.add(task)
@@ -282,6 +315,26 @@ def dispatch_delivery(db: Session, task_id: uuid.UUID, force: bool = False) -> D
         return None
 
     # Send via channel
+    # Extension channel: tasks are picked up by polling — no email needed
+    if task.delivery_channel == "extension":
+        attempt.status = "delivered"
+        attempt.sent_at = datetime.now(timezone.utc)
+        attempt.provider_message_id = "extension_poll"
+
+        task.status = "emailed"  # reuse status for compat (means "delivered to executor")
+        task.status_changed_at = datetime.now(timezone.utc)
+        task.last_delivered_at = datetime.now(timezone.utc)
+        task.delivery_count = attempt_number
+        task.latest_delivery_attempt_id = attempt.id
+
+        history = task.status_history or []
+        history.append({"status": "extension_delivered", "at": datetime.now(timezone.utc).isoformat(), "by": "system"})
+        task.status_history = history
+
+        db.commit()
+        logger.info("Task %s marked for extension delivery (avatar=%s)", task.task_code, task.avatar_username)
+        return attempt
+
     headers = {
         "X-RAMP-Task-ID": str(task.id),
         "X-RAMP-Task-Code": task.task_code,
@@ -366,7 +419,8 @@ def compose_task_email(task: ExecutionTask) -> tuple[str, str, str | None]:
     body_html is None for MVP (plain text only).
     """
     # --- CQS Check Task: dedicated template ---
-    if task.task_type == "cqs_check":
+    # Matches both legacy "cqs_check" and new "diagnostic_probe" with probe_type=reddit_cqs
+    if task.task_type == "cqs_check" or (task.task_type == "diagnostic_probe" and task.probe_type == "reddit_cqs"):
         base_url = "https://gorampit.com"
         token_link = f"{base_url}/tasks/{task.task_code}/{task.executor_token}"
 
