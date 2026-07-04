@@ -163,10 +163,84 @@ CQS checks and health monitoring require ZERO executor time in all modes.
 | API rate limits | Shared 60 req/min | Posting via browser session, no API consumption |
 | Executor friction | 8 steps manual | 1 click (MVP) → 0 steps (Phase 2) |
 
+## Current Status (Updated July 2, 2026)
+
+**Extension v2 deployed and working.** Full automated flow via `chrome.debugger` API for trusted clicks.
+
+**Spec:** `.kiro/specs/extension-v2-debugger/requirements.md`
+
+### What's Live (v2)
+
+- **Backend API endpoints (production):** activate, dashboard, tasks, report, heartbeat, events, tasks/{id}/approve, tasks/{id}/retry, tasks/{id} PATCH (edit) — all working
+- **Extension (Chrome MV3, Load Unpacked):** polling, heartbeat, auto-auth, text insertion via InputEvent — working
+- **chrome.debugger trusted clicks:** Composer open + submit via CDP `Input.dispatchMouseEvent` — reliable
+- **Content script bundle rebuilt:** All message handlers present (DISMISS_BANNERS, CLEAR_DRAFTS, WAIT_FOR_COMPOSER, INSERT_TEXT, VERIFY_POSTED, GET_ELEMENT_COORDS)
+- **Scheduler:** 15s tick, 3-min minimum interval, active hours 08:00-22:00, dom_health check, pause_all
+- **Popup UI v2:** Clean executor UI — "Needs Approval" → "Today stats" → "Done/Failed". No debug clutter.
+- **Delivery channel selector:** Admin → Avatar → Posting tab → "Task Delivery Channel" (email/extension/both)
+- **Download:** https://gorampit.com/static/extension/index.html
+
+### v1 → v2 Migration Summary (July 2, 2026)
+
+| Component | v1 (broken) | v2 (working) |
+|-----------|------------|-------------|
+| Composer open | `.click()` on shadow DOM (50% success) | `chrome.debugger` CDP trusted mousePressed/Released (reliable) |
+| Submit | Manual (executor clicks) | `chrome.debugger` trusted click on submit button |
+| Execution mode | PREPARE_ONLY (stop before submit) | Full auto after approval |
+| Popup | Debug-heavy (execution state, 6 stats, EPG slots, drafts) | Clean (approve → today → done/failed) |
+| Delivery routing | Email only, extension auto-detected on dispatch | Explicit `delivery_channel` field on Avatar (admin selectable) |
+| Content bundle | Stale (missing DISMISS_BANNERS, CLEAR_DRAFTS handlers) | Rebuilt with all 5 source modules |
+
+### v2 → v3 Default Strategy Change (July 4, 2026)
+
+**Decision:** Default posting strategy changed from `new_reddit_debugger` to `old_reddit`.
+
+| Aspect | v2 (before) | v3 (now) |
+|--------|------------|----------|
+| Default strategy | `new_reddit_debugger` (chrome.debugger) | `old_reddit` (textarea + .save) |
+| Fallback | old_reddit only for explicit A/B test | new_reddit_debugger only for explicit A/B test |
+| Task creation | `posting_strategy` = NULL → debugger | `posting_strategy` = "old_reddit" → textarea |
+| Extension scheduler | NULL → executeTask() | NULL/old_reddit → executeTaskOldReddit() |
+| Debugger permission | Required | Kept (only used when A/B test assigns new_reddit_debugger) |
+
+**Rationale:**
+- Old reddit is 10× more reliable (no Shadow DOM, no reCAPTCHA, no isTrusted)
+- DOM unchanged for 10+ years — zero maintenance
+- chrome.debugger path kept exclusively for A/B test comparison
+- Simpler executor experience (no debugger permission warnings)
+
+**Files changed:**
+- `ramp_extension/background/scheduler.js` — default strategy = old_reddit
+- `app/services/execution_tasks.py` — set `posting_strategy="old_reddit"` on extension tasks
+- `app/services/extension_dispatcher.py` — set `posting_strategy="old_reddit"` on created tasks + API response default
+- `app/routes/extension_api.py` — API response default "old_reddit"
+
+### Delivery Channel Architecture (July 2, 2026)
+
+Avatar model field: `delivery_channel` (email | extension | both)
+
+| Channel | Behavior |
+|---------|----------|
+| `email` | ExecutionTask created → email sent to executor_email ~30min before scheduled_at |
+| `extension` | ExecutionTask created with `task_lifecycle_status="CREATED"` → extension polls `/tasks` → auto-executes |
+| `both` | Task created for extension. If extension offline >30min, `dispatch_due_email_tasks` falls back to email |
+
+Admin UI: Avatar → Posting tab → "Task Delivery Channel" dropdown.
+
+Migration: `ext04_avatar_delivery_channel.py` (depends on raa01).
+
+### REQUIRED_UI Mode → Executor Approval Mode
+
+**v2:** Executor approves tasks in morning (popup "Approve All") → extension auto-executes at scheduled times → submits → verifies → reports.
+
+P5 (Human Gate) satisfied: executor explicitly approves content before auto-execution.
+P11 (Execution Gate) satisfied: explicit Approve action required.
+
 ## Spec Location
 
 `.kiro/specs/browser-extension/` — requirements.md, design.md, tasks.md
 
-## Related Incident
+## Related Incidents
 
-June 27, 2026: Flaky_Finder_13 CQS improved from LOWEST to LOW (Jenny posted manually). RAMP never detected improvement because frozen avatar = skipped by all diagnostic batch tasks. Batch filters fixed same day. Browser extension decision made to close remaining gaps.
+- June 27, 2026: Flaky_Finder_13 CQS improved from LOWEST to LOW (Jenny posted manually). RAMP never detected improvement because frozen avatar = skipped by all diagnostic batch tasks. Batch filters fixed same day. Browser extension decision made to close remaining gaps.
+- June 29, 2026: First successful automated comment posted via extension (r/test, Hot-Thought2408). End-to-end flow confirmed working: task poll → approve → navigate → expand composer → insert text → submit → verify → report back.

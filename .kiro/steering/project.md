@@ -30,7 +30,7 @@ A Reddit marketing SaaS platform. AI monitors subreddits, scores posts, generate
 - **Task Queue:** Celery + Redis
 - **Cache/Locks:** Redis 7
 - **Reddit:** PRAW
-- **AI/LLM:** LiteLLM (Gemini Flash for scoring/reports/strategy, Claude Sonnet for generation)
+- **AI/LLM:** LiteLLM (model selection via DB `system_settings`: 13 model keys, all calls through `ai.py` → `call_llm()` + `log_ai_usage()`. Gemini Flash for scoring/reports/strategy, Claude Sonnet for generation, Perplexity Sonar + Claude + OpenAI for GEO/AEO)
 - **Real-time:** Server-Sent Events (SSE) + Redis PubSub (notifications)
 - **Mobile App:** Flutter (Dart) — posting app for avatar owners
 - **Browser Extension:** Chrome Manifest V3 — executor posting + CQS auto-check + health monitoring (spec ready, not yet built)
@@ -47,7 +47,8 @@ A Reddit marketing SaaS platform. AI monitors subreddits, scores posts, generate
 - **Celery workers:** 2 containers — `celery` (concurrency=2, queue=celery, bulk tasks) + `celery-fast` (concurrency=1, queue=fast, on-demand/interactive tasks)
 - **Access:** `ssh ramp` (alias in `~/.ssh/config`), project at `/app/`
 - **Domain:** gorampit.com (SSL via Let's Encrypt)
-- **Backups:** DO weekly backups enabled
+- **Backups:** DO weekly backups enabled + **daily pg_dump** (`/opt/ramp/backups/`, 14-day rotation, systemd timer 03:00 UTC)
+- **External Watchdog:** `/opt/ramp/ramp_watchdog.sh` (systemd timer every 30s). Checks: Redis, PG, App, Beat, Workers, Disk. Auto-restarts on failure. Telegram alerts to operator (live since July 3, 2026). Deployed July 2, 2026.
 
 ### SSH Configuration (local Mac)
 
@@ -142,16 +143,16 @@ reddit_saas/
 │   │   ├── auth.py            # JWT auth middleware
 │   │   ├── errors.py          # Error handling middleware
 │   │   └── security.py        # Security headers + rate limiting middleware
-│   ├── models/                # SQLAlchemy models (47 models)
-│   │   ├── user.py            # User (role, is_active, client_id)
+│   ├── models/                # SQLAlchemy models (65+ models)
+│   │   ├── user.py            # User (role, is_active, client_id, email_verified, password_reset_token_hash)
 │   │   ├── user_role.py       # UserRole enum (owner/partner/client_admin/client_manager/client_viewer/avatar_manager/b2c_user)
 │   │   ├── user_client_assignment.py # UserClientAssignment (user↔client mapping)
 │   │   ├── client.py          # Client (keywords JSONB, profiles, max_avatars, plan_type, draft_approval_enabled, strategy_context, strategy_version)
-│   │   ├── avatar.py          # Avatar (client_ids, voice, is_frozen, warming_phase, is_farm_avatar, executor_email)
+│   │   ├── avatar.py          # Avatar (client_ids, voice, is_frozen, warming_phase, is_farm_avatar, executor_email, delivery_channel)
 │   │   ├── avatar_rental.py   # AvatarRental (farm avatar rentals)
 │   │   ├── avatar_assignment.py # AvatarAssignment (avatar↔owner for mobile posting) [PLANNED]
 │   │   ├── thread.py          # RedditThread (is_locked, locked_detected_at)
-│   │   ├── comment_draft.py   # CommentDraft (status workflow, learning_metadata, posted_by, posted_source)
+│   │   ├── comment_draft.py   # CommentDraft (status workflow, learning_metadata, posted_by, posted_source, hobby_post FK+relationship)
 │   │   ├── post_draft.py      # PostDraft (posted_by, posted_source)
 │   │   ├── subreddit.py       # Subreddit, ClientSubreddit, ClientSubredditAssignment (priority, engagement_approach)
 │   │   ├── hobby.py           # HobbySubreddit
@@ -186,10 +187,26 @@ reddit_saas/
 │   │   ├── zero_day_report.py # ZeroDayReport
 │   │   ├── notification.py    # Notification (client-scoped real-time SSE notifications)
 │   │   ├── avatar_pool.py     # AvatarPool enum (b2b/b2c/mentor/warm)
+│   │   ├── avatar_draft.py    # AvatarDraft (BYOA async provisioning)
+│   │   ├── avatar_subreddit_ban.py # AvatarSubredditBan (per-sub ban tracking)
 │   │   ├── voice_feedback.py  # VoiceFeedback (client voice/tone training signals)
 │   │   ├── client_action_log.py # ClientActionLog (rate-limited portal actions)
 │   │   ├── subreddit_request.py # SubredditRequest (client requests: pending → approved/rejected)
-│   │   └── avatar_subreddit_compatibility.py # AvatarSubredditCompatibility (emotional profile scoring)
+│   │   ├── avatar_subreddit_compatibility.py # AvatarSubredditCompatibility (emotional profile scoring)
+│   │   ├── execution_node.py  # ExecutionNode (browser extension nodes)
+│   │   ├── pipeline_run.py    # PipelineRun (pipeline observability)
+│   │   ├── trial_signal.py    # TrialSignal (conversion intelligence)
+│   │   ├── trial_score.py     # TrialScore (trial health scoring)
+│   │   ├── trial_failure.py   # TrialFailure (expired trial classification)
+│   │   ├── trial_sales_summary.py # TrialSalesSummary (AI sales brief)
+│   │   ├── trial_intelligence_event.py # TrialIntelligenceEvent (lifecycle events)
+│   │   ├── audit_finding.py   # AuditRun, AuditFinding, LLMTaskRecord
+│   │   ├── review_snapshot.py # ReviewSnapshot (daily ops review)
+│   │   ├── daily_review_session.py # DailyReviewSession
+│   │   ├── review_decision.py # ReviewDecision
+│   │   ├── intelligence_report.py # IntelligenceReport, ClientIntelligenceReport
+│   │   ├── forecast_accuracy.py # ForecastAccuracyLog
+│   │   └── observed_snapshot.py # ObservedSnapshot (GEO observed data)
 │   ├── schemas/               # Pydantic validation schemas
 │   │   ├── avatar_analysis.py # BehavioralProfile, AvatarAnalysisRequest
 │   │   ├── client_strategy.py # ClientStrategyOutput (Positioning, SubredditPriority, ContentPillar, ForbiddenZone, AeoTarget, PhaseRoadmap)
@@ -199,6 +216,7 @@ reddit_saas/
 │   │   ├── mobile.py          # Mobile API (/api/mobile/*) [PLANNED]
 │   │   ├── pages.py           # User-facing pages (dashboard, review, etc.)
 │   │   ├── auth.py            # Login/register API
+│   │   ├── pages.py          # Login, logout, verify-email, forgot-password, reset-password, home redirect
 │   │   ├── avatar_analysis.py # Avatar behavioral analysis API
 │   │   ├── avatar_pipeline.py # Avatar pipeline management
 │   │   ├── avatars.py         # Avatar API
@@ -221,8 +239,22 @@ reddit_saas/
 │   │   ├── notifications.py   # Notification feed + unread count + mark read
 │   │   ├── sse.py             # Server-Sent Events for real-time notifications (Redis PubSub)
 │   │   ├── oauth.py           # OAuth callback for Reddit
-│   │   └── daily_review.py   # Daily Ops Review (10 endpoints, HTMX partials, owner/partner)
-│   ├── services/              # Business logic (95+ services)
+│   │   ├── daily_review.py   # Daily Ops Review (10 endpoints, HTMX partials, owner/partner)
+│   │   ├── intelligence_report.py # Client-facing intelligence reports
+│   │   ├── admin_intelligence_report.py # Admin report management
+│   │   ├── demo.py            # Demo pages (share-of-voice, intelligence report)
+│   │   ├── extension_api.py   # Browser Extension API (activate, tasks, report, heartbeat, approve, retry)
+│   │   ├── extension_events.py # Extension event stream
+│   │   ├── trial_intelligence.py # Trial conversion intelligence dashboard
+│   │   ├── admin_risk_profile.py # Subreddit risk profile admin views
+│   │   ├── portal_risk_profile.py # Client-facing risk profile views
+│   │   ├── admin_tasks.py     # Execution task admin management
+│   │   ├── executor_tasks.py  # Executor-facing task verification
+│   │   ├── manual.py          # UX manual overlay (contextual help)
+│   │   ├── subreddit_bans.py  # Per-subreddit ban management
+│   │   └── admin_ab_test.py   # A/B Test experiment management (create, assign, start, metrics)
+│   ├── services/              # Business logic (120+ services)
+│   │   ├── activation_router.py # Risk-Aware zone routing (safe→bridge→target)
 │   │   ├── admin.py           # Admin CRUD
 │   │   ├── ai.py              # LLM calls (LiteLLM) + schema validation
 │   │   ├── audit.py           # Audit logging
@@ -239,6 +271,7 @@ reddit_saas/
 │   │   ├── generation.py      # Comment generation (with learning injection)
 │   │   ├── health_checker.py  # Shadowban/health detection
 │   │   ├── health_metrics.py  # Health metrics aggregation
+│   │   ├── hobby_proxy.py     # Shared HobbyThreadProxy (makes HobbySubreddit look like RedditThread for templates)
 │   │   ├── inspector.py       # System inspector
 │   │   ├── isolation.py       # LLM context isolation (avatar_accessible_by_client)
 │   │   ├── karma_feedback.py  # Karma feedback loop
@@ -274,7 +307,9 @@ reddit_saas/
 │   │   ├── thread_liveness.py # Thread locked/removed/archived detection
 │   │   ├── topology.py        # System topology (9 nodes, heatmap, forecast)
 │   │   ├── transparency.py    # Activity events, pipeline stats
+│   │   ├── zone_evaluator.py  # Activation zone graduation/demotion criteria
 │   │   ├── encryption.py      # Fernet field encryption (proxy URLs, passwords, tokens)
+│   │   ├── email_verification.py # Email verification + password reset (SHA-256 token hash, Brevo delivery)
 │   │   ├── posting_safety.py  # 9 pre-posting safety gates
 │   │   ├── timing_engine.py   # Jitter, active hours, daily cap, peak bias
 │   │   ├── praw_factory.py    # Dual-mode PRAW client (password + OAuth) with proxy
@@ -293,8 +328,22 @@ reddit_saas/
 │   │   ├── execution_tasks.py # EPG task creation, dispatch, lifecycle (per-avatar routing)
 │   │   ├── discovery/          # Discovery Engine subsystem (strategy_generator, strategy_handoff, session_manager, entity_extractor, hypothesis_engine, reddit_researcher, confidence_scorer, report_generator, continuous, artifact_store)
 │   │   ├── onboarding/        # AI-driven onboarding subsystem (prompts, scraper, quality gate, landscape)
-│   │   └── daily_review/     # Daily Ops Review (signal_collector, cost_governor, review_engine Phase 2)
-│   ├── tasks/                 # Celery background tasks
+│   │   ├── forecast/          # Forecast & Reporting Layer (report_generator, s_curve, data_collector)
+│   │   ├── audit/             # Production readiness audit subsystem
+│   │   ├── geo_providers.py    # Multi-provider GEO abstraction (Perplexity, OpenAI, Anthropic configs + execution)
+│   │   ├── extension_dispatcher.py # Extension task routing + HMAC computation
+│   │   ├── trial_scoring.py   # Trial health score computation (0-100)
+│   │   ├── trial_lifecycle.py # Trial stage detection and transitions
+│   │   ├── trial_negative_signals.py # Negative signal detection (drop-offs)
+│   │   ├── trial_outreach.py  # AI-generated outreach messages
+│   │   ├── trial_summary.py   # AI sales summary for expired trials
+│   │   ├── trial_failure.py   # Trial failure classification
+│   │   ├── byoa_pipeline.py   # BYOA avatar async provisioning
+│   │   ├── avatar_invariant.py # Active client → must have avatar check
+│   │   ├── daily_review/     # Daily Ops Review (signal_collector, cost_governor, review_engine Phase 2)
+│   │   ├── ab_test/          # A/B Test Framework (experiment_manager, control_enforcer, posting_router, metric_collector, statistical_reporter)
+│   │   └── forecast/         # Forecast & Reporting Layer (observed_reality, visibility_forecaster, report_composer, platform_risk, business_impact, accuracy_tracker)
+│   ├── tasks/                 # Celery background tasks (31 files)
 │   │   ├── ai_pipeline.py     # AI scoring/generation (retry, kill switches)
 │   │   ├── health_check.py    # Avatar health checks
 │   │   ├── heartbeat.py       # Worker heartbeat
@@ -313,21 +362,44 @@ reddit_saas/
 │   │   ├── snapshot_outcomes.py # Comment karma/deletion snapshots (4h/24h/48h/7d)
 │   │   ├── feedback.py        # Feedback loop (outcome analysis → model correction)
 │   │   ├── emotional_profile.py # Subreddit emotional profile refresh (weekly)
-│   │   └── worker.py          # Celery worker configuration
-│   ├── templates/             # Jinja2 templates (60+ pages + 100+ partials)
+│   │   ├── risk_profile.py    # Subreddit risk profiling (rules, moderation, scoring)
+│   │   ├── execution_tasks.py # Email task dispatch + liveness checks
+│   │   ├── extension_tasks.py # Extension lease expiry + task lifecycle
+│   │   ├── cqs_tasks.py       # CQS check task generation for executors
+│   │   ├── geo_monitoring.py  # GEO/AEO scheduled monitoring
+│   │   ├── intelligence_report.py # Weekly intelligence report generation
+│   │   ├── trial_scoring.py   # Trial health score computation
+│   │   ├── trial_negative_signals.py # Trial drop-off signal detection
+│   │   ├── byoa.py            # BYOA avatar provisioning lifecycle
+│   │   ├── subreddit_ban_probe.py # Weekly per-subreddit ban detection
+│   │   ├── onboarding.py      # Onboarding stall detection
+│   │   ├── ab_test.py         # A/B test metric collection + duration checks
+│   │   └── worker.py          # Celery worker configuration (41 beat tasks)
+│   ├── templates/             # Jinja2 templates (70+ pages + 120+ partials)
 │   │   ├── base.html          # Light theme (user pages)
 │   │   ├── admin_base.html    # Dark theme (admin panel)
 │   │   ├── admin_*.html       # Admin pages (35+ templates)
+│   │   ├── auth/              # Email verification & password reset (6 templates)
 │   │   └── partials/          # HTMX partials (65 files)
 │   └── static/
 ├── alembic/                   # DB migrations
-├── tests/                     # 50+ test files (incl. RBAC property-based tests)
+├── tests/                     # 60+ test files (incl. RBAC property-based tests)
 ├── Makefile                   # Docker/DB commands (db-sync, fresh-start, etc.)
 ├── DOCKER.md                  # Container data management docs
 ├── pyproject.toml
 ├── Dockerfile
 ├── docker-compose.yml
-└── entrypoint.sh              # Migrations + seed on startup
+├── docker-compose.prod.yml
+├── entrypoint.sh              # Migrations + seed on startup
+└── watchdog/                  # External watchdog (deployed to /opt/ramp/ on host)
+    ├── ramp_watchdog.sh       # Main watchdog (Redis, PG, App, Beat, Workers, Disk)
+    ├── pg_backup.sh           # Daily pg_dump + rotation
+    ├── install.sh             # One-click setup script for production
+    └── systemd/               # Timer + service unit files
+        ├── ramp-watchdog.timer
+        ├── ramp-watchdog.service
+        ├── ramp-backup.timer
+        └── ramp-backup.service
 
 ramp_poster/                   # Flutter mobile app [PLANNED — parallel development]
 ├── lib/
@@ -356,6 +428,8 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **User-facing pages**: dashboard, review queue, threads, avatars, settings
 - **RBAC** (7 roles): owner, partner, client_admin, client_manager, client_viewer, avatar_manager, b2c_user — with query scoping, permission guards, LLM context isolation
 - **JWT authentication** + role-based access control + client data isolation
+- **Email verification** — signup sends verification link (48h expiry), account inactive until confirmed. Honeypot field for bot protection.
+- **Password reset** — forgot-password flow via email link (1h expiry), SHA-256 token hash in DB
 - **Avatar Farm & Rentals**: farm avatars, rental model, client-scoped access
 - **Docker workflow**: Makefile with `db-sync`, `fresh-start`, `db-dump`/`db-restore` commands
 - **Entrypoint**: auto-detects existing tables (pg_restore), stamps Alembic instead of re-creating
@@ -452,11 +526,16 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **Hypothesis confirmation limit** — MAX_CONFIRMED_HYPOTHESES=7, counter UI, "Confirm All" removed
 
 ### GEO/AEO Prompt Monitoring (June 2026)
+- **Multi-provider architecture** (June 30) — same prompts run against Perplexity + Claude + ChatGPT (all enabled providers per batch)
+- **Provider abstraction** — `geo_providers.py` with GeoProviderConfig per engine
 - **Prompt management** — track brand visibility queries for AI platforms
 - **Competitor tracking** — monitor competitor mentions in AI responses
 - **Brand detection** — automated scoring of brand presence in AI search
 - **Citation parsing** — extract and analyze citations from AI responses
 - **Batch execution** — run monitoring queries with history and detail views
+- **Scheduled automation** — Celery Beat Tue+Fri 09:30 for all enabled clients (`triggered_by="scheduler"`)
+- **Batch timeout resilience** — 20 min hard limit, per-provider circuit breaker (3 consecutive failures), 2 retries per query
+- **Per-provider UI** — color-coded cards (Perplexity purple, ChatGPT green, Claude orange) in batch detail
 
 ### Client Portal (June 2026)
 - **Full portal** — home, review queue, avatars, avatar detail, subreddits, keywords, strategy, report, EPG
@@ -472,9 +551,9 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **Execute action** — trigger pipeline ops from Decision Center
 - **Risk Prediction** — 6-factor ban risk scoring + prescriptive actions per avatar
 
-### Self-Service Onboarding (June 2026, bugs fixed June 27)
+### Self-Service Onboarding (June 2026, bugs fixed June 27, email verification July 2026)
 - **6-step AI wizard** — (1) Company URL → AI scrapes → (2) Problem/positioning → (3) ICP → (4) Voice + keywords + subreddits → (5) Avatar connect (BYOA) → (6) Review & activate
-- **Trial signup** — work-email-only, 14-day free trial (plan_type="trial")
+- **Trial signup** — any email accepted (domain restriction removed July 2026), 14-day free trial (plan_type="trial"), **email verification required before wizard access**
 - **Quality gate** — validates minimum config before activation
 - **Landscape report** — competitive analysis generated during onboarding
 - **Trial guard** — pipeline tasks automatically skip expired trial clients
@@ -506,11 +585,25 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **Compatibility scoring** — AvatarSubredditCompatibility model (0-100 score per pair)
 - **Mismatch detection** — score < 40 triggers tone mismatch warning
 
+### Risk-Aware Avatar Activation (July 2026)
+- **Zone routing** — personalized activation routes: safe (risk 0-25) → bridge (26-50) → target (51-80) subreddits
+- **ActivationRouter service** — `plan_route()`, `get_current_zone_subs()`, `refresh_route()`, `graduate()`, `demote_zone()`
+- **Zone evaluator** — daily 06:00 graduation/demotion check (safe→bridge: karma≥10, survival≥90%; bridge→target: karma≥15 in 2+ subs, survival≥85%)
+- **Bridge discovery** — finds thematic subs between safe and target using SubredditRiskProfile + AvatarSubredditCompatibility
+- **Dangerous hours filtering** — `is_safe_posting_time()` excludes opportunities during high-deletion hours
+- **EPG integration** — `scan_opportunities()` Source 2 uses zone subs for Phase 0-1 when route exists
+- **Auto-triggers** — route planned on avatar creation, refreshed on subreddit changes, replanned on demotion
+- **Admin + Portal UI** — zone badge, progress bar, graduation checklist, history timeline
+- **Feature flag** — `activation_routing_enabled` (default: false, gradual rollout)
+
 ### Security Hardening (June 2026)
 - **SecurityHeadersMiddleware** — X-Frame-Options, X-Content-Type-Options, HSTS, Referrer-Policy, Permissions-Policy
 - **RateLimitMiddleware** — 5 auth attempts per 15 min per IP (production only), global 100 req/min per IP
 - **Custom 403 page** — friendly HTML error page instead of raw JSON
 - **Auto-logout on inactivity** — 10 min idle timer (JS-based), warning toast at 9 min, redirect to /logout at 10 min. Covers all base templates (admin, client, user).
+- **Email verification** (July 2026) — trial signup sends verification email via Brevo, account blocked until click. Token: 32-byte URL-safe, SHA-256 hash stored in DB, 48h expiry. Existing users grandfathered as verified.
+- **Password reset** (July 2026) — /forgot-password sends reset link via Brevo. Token: 1h expiry, single-use (cleared on password change). Rate: each request overwrites previous token (no accumulation).
+- **Executor email verification** (July 4, 2026) — changing avatar's executor_email automatically sends verification email to the new executor. 72h expiry. All task delivery (EPG email, CQS tasks) blocked until executor confirms. Admin can override via "Mark as Verified". Service: `app/services/executor_email_verification.py`. Public endpoint: `/verify-executor-email?token=...`. Migration: `exv01`.
 
 ### Daily Operations Review (June 2026)
 - **Phase 1 deployed** — session lifecycle, immutable snapshot, signal collector (SQL), cost governor ($1/day cap)
@@ -524,6 +617,12 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **Intelligence Report** — immutable artifact per day, template-based narrative (Phase 1), JSONB structured data
 - **Phase 2 (planned)**: trend classification, weak signals, forecast generation, forecast accuracy
 - **Phase 3 (planned)**: hypothesis workflows, LLM narrative summaries, learning loops
+
+### Risk Registry (July 2026)
+- **Route**: `/admin/risk-registry` — owner-only, reads `data/09_risks.json`
+- **Features**: grouped by risk domain, escalation/status counters, priority badges
+- **Sidebar link**: in admin navigation under "Operations" section
+- **Data source**: `data/09_risks.json` (inside Docker image). Update JSON to add/modify risks.
 
 ## What's NOT Built Yet
 - ~~Production deployment~~ → **DONE** (gorampit.com, DigitalOcean, SSL)
@@ -590,31 +689,45 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **Rate Limiter**: Redis sorted set sliding window
 - **Retry**: bind=True, max_retries=3, countdown=60×2^attempt (AI tasks only)
 
-### Celery Beat Schedule (Israel Time — Asia/Jerusalem) — Updated June 23, 2026
+### Celery Beat Schedule (Israel Time — Asia/Jerusalem) — Updated July 2, 2026
 | Time | Task | Purpose |
 |------|------|---------|
 | every 60s | `queue_tick` | Scrape scheduling (gated by DB interval) |
 | every 60s | `system_heartbeat` | System health pulse |
 | every 5 min | `execute_pending_posts` | Automated posting (approved EPG slots) |
 | every 5 min | `dispatch_due_email_tasks` | Email executor ~30 min before slot time |
-| every 4h at :15 | `track_karma_all_avatars` | Karma tracking |
+| every 5 min | `expire_extension_leases` | Expire stale extension task leases |
+| every 10 min | `check_stale_avatar_drafts` | Fail stuck BYOA drafts |
+| every hour at :45 | `check_onboarding_stall` | Detect stalled onboardings |
+| every 4h at :15 | `track_karma_all_avatars` | Karma tracking + draft reconciliation |
+| every 4h at :30 | `check_trial_negative_signals` | Trial negative signal detection |
 | every 4h at :45 | `snapshot_comment_outcomes` | Karma/deletion snapshots |
 | 01:00 | `compute_daily_performance_metrics` | Aggregate yesterday's avatar metrics |
 | 01:30 | `archive_old_decision_records` | Prune records > 90 days |
 | 02:00 | `run_feedback_loop_all` | Outcome analysis → EPG model correction |
+| 02:30 | `classify_expired_trials` | Trial failure classification |
+| 02:30 | `check_avatar_invariant` | Verify active clients have avatars |
 | 03:00 Sun | `scrape_repurpose_all_subreddits` | Weekly evergreen harvest |
+| 03:45 Sun | `probe_subreddit_bans` | Weekly per-subreddit ban probe |
 | 04:00 Sun | `run_continuous_discovery_all` | Weekly continuous discovery |
+| 04:30 Sun | `refresh_subreddit_emotional_profiles` | Weekly subreddit emotional profile refresh |
+| 05:00 Sun | `extract_subreddit_rules_batch` | Weekly rule extraction (PRAW + Gemini Flash) |
+| 05:15 Sun | `compute_moderation_profiles_batch` | Weekly moderation profile computation |
 | 05:20 | `snapshot_profile_analytics_all_avatars` | Profile analytics |
-| 06:00 | `evaluate_all_avatar_phases` | Phase evaluation |
+| 05:30 Sun | `compute_risk_scores_batch` | Weekly risk score computation |
+| 06:00 | `evaluate_all_avatar_phases` | Phase evaluation + zone evaluation |
 | 06:30 | `check_cqs_all_avatars` | CQS batch check (auto-freeze on lowest) |
+| 07:00 | `generate_cqs_check_tasks_all_avatars` | CQS check tasks for executors |
 | 07:30, 13:30 | `health_check_all_avatars` | Shadowban/suspension detection |
 | 07:45, 13:45 | `scrape_hobby_all_avatars` | Hobby scraping (before EPG) |
 | 08:00, 14:00 | `run_full_pipeline_all_clients` | Score → Generate → Posts |
+| 08:00 Mon | `generate_weekly_reports_all_clients` | Weekly intelligence reports |
 | 08:15, 14:15 | `build_and_generate_epg_all_avatars` | EPG plan + generate |
+| 09:30 Tue,Fri | `run_geo_monitoring_all_clients` | GEO/AEO brand visibility (multi-provider) |
 | 12:15, 18:15 | `check_karma_outcomes` | 4h karma outcome check |
 | 00:15, 06:15 | `check_karma_outcomes` | 24-28h karma outcome check |
-| 04:30 Sun | `refresh_subreddit_emotional_profiles` | Weekly subreddit emotional profile refresh |
-| 23:30 | `expire_overdue_execution_tasks` | Expire email tasks past deadline |
+| 02:30 Mon | `collect_weekly_ab_metrics` | A/B test metric collection + report generation |
+| 07:00 | `check_experiment_durations` | A/B test duration alerts |
 
 ## Comment Draft Status Workflow
 `pending` → `approved` / `rejected` → `posted`
@@ -639,7 +752,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 ## EPG Email Task Delivery (Implemented June 23, Fully Automated June 24, 2026)
 1. EPG Portfolio Manager builds slots (Phase 1: hobby Source 2, Phase 2+: professional Source 1 + hobby)
 2. `generate_all_planned_slots` calls LLM → draft created → slot `generated`
-3. If `auto_approve_drafts=true` on avatar: slot + draft → `approved`
+3. If `auto_approve_drafts=true` on avatar OR `autopilot_enabled=true` on client: slot + draft → `approved`
 4. On approve: `_dispatch_email_task_if_enabled` creates `ExecutionTask` with status `generated` (no email yet)
 5. `dispatch_due_email_tasks` Beat task (every 5 min) finds tasks where `scheduled_at` is within [now-5min, now+30min]
 6. Dispatches `deliver_execution_task` Celery task → sends ONE email to `avatar.executor_email`
@@ -732,6 +845,9 @@ Automatically links approved CommentDrafts to Reddit comments posted outside the
 - `.kiro/specs/ramp-operations-agent/` — Autonomous Operations Agent (requirements only, not implemented)
 - `.kiro/specs/discovery-strategy-handoff/` — Discovery → Client Strategy handoff (Tasks 1-6 done, 7-11 pending)
 - `.kiro/specs/browser-extension/` — Browser Extension for executor posting (CQS auto-check, comment posting, health monitoring, zero proxy needed)
+- `.kiro/specs/risk-aware-activation/` — Risk-Aware Avatar Activation (zone routing safe→bridge→target using risk profiles, dangerous hours, graduation criteria) — **90% implemented July 2, 2026**
+- `.kiro/specs/forecast-reporting-layer/` — Forecast & Reporting Layer v1 (5-layer truth-separated client reports: observed reality, execution intent, forecasting, composition, business impact) — **85% implemented July 4, 2026**
+- `.kiro/specs/extension-posting-ab-test/` — Extension Posting A/B Test (controlled experiment comparing old_reddit vs manual_email vs new_reddit_debugger) — **90% implemented July 4, 2026**
 
 ### Legacy / Ori Handoff
 - `docs/file_index.md` — Index of all Ori's handoff files
