@@ -62,7 +62,7 @@
 <p style="font-size:var(--text-small);color:var(--color-amber);margin-bottom:12px;">You have {{ pending_requests_count }} pending request{{ 's' if pending_requests_count > 1 else '' }}.</p>
 {% endif %}
 
-{% if can_edit %}
+{% if can_edit and (hidden_actions is not defined or "add_subreddit" not in hidden_actions) %}
     {% if current_subreddit_count >= plan_limit %}
     <!-- Plan limit reached — upsell -->
     <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:var(--radius-input);padding:12px 16px;margin-top:12px;">
@@ -72,7 +72,7 @@
     <!-- Request to add subreddit -->
     <div style="margin-top:12px;">
         <button type="button" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'; this.style.display='none';" class="btn btn-orange-outline" style="min-height:36px;padding:6px 16px;font-size:var(--text-small);">
-            Request to add subreddit
+            Request to add subreddit{% if approval_actions is defined and "add_subreddit" in approval_actions %}<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(251,191,36,0.15);color:#fbbf24;margin-left:4px;">Requires Approval</span>{% endif %}
         </button>
         <div style="display:none;margin-top:12px;">
             <form hx-post="/clients/{{ client_id }}/settings/subreddits/request" hx-target="#settings-subreddits" hx-swap="innerHTML" style="display:flex;flex-direction:column;gap:8px;">

@@ -108,6 +108,16 @@ __all__ = [
     "DailyReviewSession",
     "ReviewDecision",
     "IntelligenceReport",
+    "ExecutionNode",
+    "ClientIntelligenceReport",
+    "ForecastAccuracyLog",
+    "ObservedSnapshot",
+    "ExperimentRun",
+    "TreatmentGroup",
+    "AvatarAssignment",
+    "MetricSnapshot",
+    "WeeklyReport",
+    "ControlViolation",
 ]
 
 # GEO/AEO Prompt Monitoring
@@ -140,3 +150,21 @@ from app.models.intelligence_report import IntelligenceReport
 
 # Pipeline Observability
 from app.models.pipeline_run import PipelineRun
+
+# Browser Extension
+from app.models.execution_node import ExecutionNode
+
+# Forecast & Reporting Layer
+from app.models.intelligence_report import ClientIntelligenceReport
+from app.models.forecast_accuracy import ForecastAccuracyLog
+from app.models.observed_snapshot import ObservedSnapshot
+
+# A/B Test Framework
+from app.models.ab_test import (
+    ExperimentRun,
+    TreatmentGroup,
+    AvatarAssignment,
+    MetricSnapshot,
+    WeeklyReport,
+    ControlViolation,
+)

@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>AI Visibility Intelligence Report — {{ client.name }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-bg: #0F172A;
+            --color-surface: #1E293B;
+            --color-surface-alt: #334155;
+            --color-border: #475569;
+            --color-white: #F8FAFC;
+            --color-muted: #94A3B8;
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--color-bg); color: var(--color-white); }
+        .report-card { background: var(--color-surface); border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+        .report-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+        .report-card-header h2 { font-size: 18px; font-weight: 700; color: var(--color-white); margin: 0; }
+        .measured-value { color: #3B82F6; font-weight: 700; }
+        .projected-value { color: #8B5CF6; font-weight: 600; font-style: italic; }
+        .confidence-interval { color: var(--color-muted); font-size: 13px; margin-left: 4px; }
+        .freshness-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+        .freshness-fresh { background: rgba(34,197,94,0.15); color: #22c55e; }
+        .freshness-stale { background: rgba(251,146,60,0.15); color: #fb923c; }
+        .hero-card { background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(139,92,246,0.08)); border: 1px solid rgba(139,92,246,0.2); border-radius: 16px; padding: 32px; text-align: center; margin-bottom: 32px; }
+        .hero-main { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
+        .hero-sub { font-size: 15px; color: var(--color-muted); }
+        .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+        .metric-item { background: var(--color-surface-alt); border-radius: 8px; padding: 16px; text-align: center; }
+        .metric-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted); margin-bottom: 6px; }
+        .metric-value { font-size: 24px; font-weight: 700; }
+        .risk-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--color-border); }
+        .risk-item:last-child { border-bottom: none; }
+        .risk-level { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; white-space: nowrap; }
+        .risk-low { background: rgba(34,197,94,0.15); color: #22c55e; }
+        .risk-medium { background: rgba(251,191,36,0.15); color: #fbbf24; }
+        .risk-high { background: rgba(239,68,68,0.15); color: #ef4444; }
+        .chart-container { position: relative; width: 100%; max-width: 100%; }
+        .section-empty { text-align: center; padding: 32px; color: var(--color-muted); font-size: 14px; }
+        @media (max-width: 768px) {
+            .hero-main { font-size: 20px; }
+            .metric-grid { grid-template-columns: 1fr; }
+            .report-card { padding: 16px; }
+        }
+    </style>
+</head>
+<body>
+<div style="max-width: 900px; margin: 0 auto; padding: 32px 16px;">
+
+{% set observed = report.observed_json or {} %}
+{% set planned = report.planned_json or {} %}
+{% set forecasted = report.forecasted_json or {} %}
+{% set risks = report.risks_json or {} %}
+{% set impact = report.business_impact_json or {} %}
+{% set freshness = report.data_freshness_json or {} %}
+
+<!-- ═══════════════════ HEADER ═══════════════════ -->
+<div style="margin-bottom: 32px; text-align: center;">
+    <div style="display: inline-flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+        <span style="font-size: 24px;">📊</span>
+        <span style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--color-muted);">AI Visibility Intelligence Report</span>
+    </div>
+    <h1 style="font-size: 32px; font-weight: 800; color: var(--color-white); margin: 0 0 8px;">{{ client.name }}</h1>
+    <p style="font-size: 14px; color: var(--color-muted); margin: 0;">
+        Period: {{ report.report_period|default('N/A') }} ·
+        Generated {{ report.generated_at.strftime('%b %d, %Y') if report.generated_at else 'N/A' }}
+    </p>
+    <div style="margin-top: 12px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
+        {% if freshness.geo_age_hours is defined %}
+            {% if freshness.geo_age_hours <= 96 %}
+            <span class="freshness-badge freshness-fresh">● GEO data fresh ({{ freshness.geo_age_hours|int }}h ago)</span>
+            {% else %}
+            <span class="freshness-badge freshness-stale">● GEO data stale ({{ freshness.geo_age_hours|int }}h ago)</span>
+            {% endif %}
+        {% endif %}
+        {% if freshness.reddit_age_hours is defined %}
+            {% if freshness.reddit_age_hours <= 48 %}
+            <span class="freshness-badge freshness-fresh">● Reddit data fresh</span>
+            {% else %}
+            <span class="freshness-badge freshness-stale">● Reddit data stale</span>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+<!-- ═══════════════════ HERO CARD ═══════════════════ -->
+{% if observed %}
+<div class="hero-card">
+    <div class="hero-main">
+        <span class="measured-value">📍 {{ observed.brand_rate|default('N/A') }}%</span>
+        <span style="color: var(--color-muted); margin: 0 12px;">→</span>
+        {% if forecasted and forecasted.expected_24w is defined %}
+        <span class="projected-value">📈 ~{{ forecasted.expected_24w|round(1) }}%</span>
+        <span class="confidence-interval">(Projected, 6 mo)</span>
+        {% else %}
+        <span class="projected-value">📈 Forecast pending</span>
+        {% endif %}
+    </div>
+    <div class="hero-sub">
+        {% if forecasted and forecasted.expected_24w is defined and observed.brand_rate is defined %}
+            {% set growth = forecasted.expected_24w - observed.brand_rate %}
+            +{{ growth|round(0)|int }}pp projected growth
+            {% if forecasted.confidence_pp is defined %}
+             · ±{{ forecasted.confidence_pp|round(0)|int }}pp confidence
+            {% endif %}
+        {% else %}
+            Measured (solid) vs Projected (dashed)
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+<!-- ═══════════════════ 📍 OBSERVED RESULTS ═══════════════════ -->
+{% if observed %}
+<div class="report-card">
+    <div class="report-card-header">
+        <h2>📍 Observed Results</h2>
+        <span style="font-size: 12px; color: var(--color-muted);">(Measured)</span>
+    </div>
+
+    <div class="metric-grid" style="margin-bottom: 20px;">
+        <div class="metric-item">
+            <div class="metric-label">Brand Visibility Rate</div>
+            <div class="metric-value measured-value">{{ observed.brand_rate|default('0') }}%</div>
+        </div>
+        {% if observed.per_engine is defined %}
+        {% for engine, rate in observed.per_engine.items() %}
+        <div class="metric-item">
+            <div class="metric-label">{{ engine|capitalize }}</div>
+            <div class="metric-value measured-value">{{ rate }}%</div>
+        </div>
+        {% endfor %}
+        {% endif %}
+    </div>
+
+    {% if observed.competitors is defined and observed.competitors %}
+    <div style="margin-bottom: 20px;">
+        <h3 style="font-size: 14px; font-weight: 600; color: var(--color-white); margin-bottom: 12px;">Competitor Visibility Comparison</h3>
+        <div class="chart-container" style="height: 250px;">
+            <canvas id="competitorChart"></canvas>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if observed.brand_excerpts is defined and observed.brand_excerpts %}
+    <div style="margin-top: 16px;">
+        <h3 style="font-size: 14px; font-weight: 600; color: var(--color-white); margin-bottom: 8px;">Brand Mentions in AI Responses</h3>
+        {% for excerpt in observed.brand_excerpts[:3] %}
+        <div style="background: var(--color-surface-alt); border-radius: 8px; padding: 12px; margin-bottom: 8px; border-left: 3px solid #3B82F6;">
+            <p style="font-size: 13px; color: var(--color-white); line-height: 1.5; margin: 0;">{{ excerpt.text|truncate(200) }}</p>
+            {% if excerpt.engine is defined %}
+            <p style="font-size: 11px; color: var(--color-muted); margin-top: 6px;">— {{ excerpt.engine|capitalize }}</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% else %}
+<div class="report-card">
+    <div class="report-card-header"><h2>📍 Observed Results</h2></div>
+    <div class="section-empty">Observation data is being collected. This section will populate after the first GEO monitoring batch.</div>
+</div>
+{% endif %}
+<!-- ═══════════════════ 📋 EXECUTION PLAN ═══════════════════ -->
+{% if planned %}
+<div class="report-card">
+    <div class="report-card-header">
+        <h2>📋 Execution Plan</h2>
+        <span style="font-size: 12px; color: var(--color-muted);">(Intent)</span>
+    </div>
+
+    <div class="metric-grid">
+        <div class="metric-item">
+            <div class="metric-label">Active Avatars</div>
+            <div class="metric-value" style="color: var(--color-white);">{{ planned.active_avatars|default('N/A') }}</div>
+        </div>
+        <div class="metric-item">
+            <div class="metric-label">Planned Comments/Week</div>
+            <div class="metric-value" style="color: var(--color-white);">{{ planned.planned_comments_week|default('N/A') }}</div>
+        </div>
+        <div class="metric-item">
+            <div class="metric-label">Target Subreddits</div>
+            <div class="metric-value" style="color: var(--color-white);">{{ planned.target_subreddits|default('N/A') }}</div>
+        </div>
+        <div class="metric-item">
+            <div class="metric-label">Next GEO Batch</div>
+            <div class="metric-value" style="color: var(--color-white); font-size: 16px;">{{ planned.next_geo_batch|default('Tue/Fri') }}</div>
+        </div>
+    </div>
+
+    {% if planned.subreddit_coverage is defined and planned.subreddit_coverage %}
+    <div style="margin-top: 16px;">
+        <h3 style="font-size: 14px; font-weight: 600; color: var(--color-white); margin-bottom: 8px;">Subreddit Coverage</h3>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+            {% for sub in planned.subreddit_coverage[:12] %}
+            <span style="background: var(--color-surface-alt); padding: 4px 10px; border-radius: 4px; font-size: 12px; color: var(--color-muted);">r/{{ sub }}</span>
+            {% endfor %}
+            {% if planned.subreddit_coverage|length > 12 %}
+            <span style="padding: 4px 10px; font-size: 12px; color: var(--color-muted);">+{{ planned.subreddit_coverage|length - 12 }} more</span>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+<!-- ═══════════════════ 📈 FORECAST ═══════════════════ -->
+{% if forecasted %}
+<div class="report-card">
+    <div class="report-card-header">
+        <h2>📈 Forecast</h2>
+        <span style="font-size: 12px; color: var(--color-muted);">(Projected — dashed = estimated)</span>
+    </div>
+
+    <div class="metric-grid" style="margin-bottom: 20px;">
+        <div class="metric-item" style="border-top: 3px dashed #8B5CF6;">
+            <div class="metric-label">4 Weeks</div>
+            <div class="metric-value projected-value">
+                ~{{ forecasted.expected_4w|default('N/A')|round(1) if forecasted.expected_4w is defined else 'N/A' }}%
+            </div>
+            {% if forecasted.confidence_4w is defined %}
+            <div class="confidence-interval">±{{ forecasted.confidence_4w|round(0)|int }}pp</div>
+            {% endif %}
+        </div>
+        <div class="metric-item" style="border-top: 3px dashed #8B5CF6;">
+            <div class="metric-label">12 Weeks</div>
+            <div class="metric-value projected-value">
+                ~{{ forecasted.expected_12w|default('N/A')|round(1) if forecasted.expected_12w is defined else 'N/A' }}%
+            </div>
+            {% if forecasted.confidence_12w is defined %}
+            <div class="confidence-interval">±{{ forecasted.confidence_12w|round(0)|int }}pp</div>
+            {% endif %}
+        </div>
+        <div class="metric-item" style="border-top: 3px dashed #8B5CF6;">
+            <div class="metric-label">24 Weeks</div>
+            <div class="metric-value projected-value">
+                ~{{ forecasted.expected_24w|default('N/A')|round(1) if forecasted.expected_24w is defined else 'N/A' }}%
+            </div>
+            {% if forecasted.confidence_24w is defined %}
+            <div class="confidence-interval">±{{ forecasted.confidence_24w|round(0)|int }}pp</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Trend Chart -->
+    <div style="margin-bottom: 20px;">
+        <h3 style="font-size: 14px; font-weight: 600; color: var(--color-white); margin-bottom: 12px;">Visibility Trend — Measured vs Projected</h3>
+        <div class="chart-container" style="height: 300px;">
+            <canvas id="trendChart"></canvas>
+        </div>
+    </div>
+
+    {% if forecasted.gap_to_leader is defined %}
+    <div style="background: var(--color-surface-alt); border-radius: 8px; padding: 16px;">
+        <h3 style="font-size: 14px; font-weight: 600; color: var(--color-white); margin-bottom: 8px;">Gap to Leader</h3>
+        <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+            <div>
+                <span style="font-size: 12px; color: var(--color-muted);">Leader:</span>
+                <span style="color: var(--color-white); font-weight: 600;">{{ forecasted.gap_to_leader.target_name|default('Top Competitor') }}</span>
+                <span style="color: var(--color-muted);"> at {{ forecasted.gap_to_leader.target_rate|default('?') }}%</span>
+            </div>
+            <div>
+                <span style="font-size: 12px; color: var(--color-muted);">Current gap:</span>
+                <span style="color: #ef4444; font-weight: 600;">{{ forecasted.gap_to_leader.gap_pp|default('?') }}pp</span>
+            </div>
+            {% if forecasted.gap_to_leader.projected_gap_12w is defined %}
+            <div>
+                <span style="font-size: 12px; color: var(--color-muted);">Projected gap (12w):</span>
+                <span class="projected-value">{{ forecasted.gap_to_leader.projected_gap_12w }}pp</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+<!-- ═══════════════════ ⚠️ RISKS ═══════════════════ -->
+{% if risks %}
+<div class="report-card">
+    <div class="report-card-header">
+        <h2>⚠️ Risks & Sensitivities</h2>
+    </div>
+
+    {% if risks.platform_risk_level is defined %}
+    <div style="margin-bottom: 16px;">
+        <span style="font-size: 12px; color: var(--color-muted);">Platform Risk Level: </span>
+        <span class="risk-level risk-{{ risks.platform_risk_level }}">{{ risks.platform_risk_level|upper }}</span>
+    </div>
+    {% endif %}
+
+    {% if risks.platform_risk_factors is defined and risks.platform_risk_factors %}
+    <div style="margin-bottom: 16px;">
+        <h3 style="font-size: 14px; font-weight: 600; color: var(--color-white); margin-bottom: 8px;">Risk Factors</h3>
+        {% for factor in risks.platform_risk_factors %}
+        <div class="risk-item">
+            <span class="risk-level risk-{{ factor.level|default('medium') }}">{{ factor.level|default('?')|upper }}</span>
+            <div>
+                <p style="font-size: 14px; color: var(--color-white); margin: 0;">{{ factor.factor|default('')|replace('_', ' ')|capitalize }}</p>
+                {% if factor.impact_on_forecast is defined %}
+                <p style="font-size: 12px; color: var(--color-muted); margin: 4px 0 0;">Impact: {{ factor.impact_on_forecast }}</p>
+                {% endif %}
+                {% if factor.mitigation is defined %}
+                <p style="font-size: 12px; color: #22c55e; margin: 2px 0 0;">Mitigation: {{ factor.mitigation }}</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if risks.forecast_sensitivity is defined and risks.forecast_sensitivity %}
+    <div style="margin-bottom: 16px;">
+        <h3 style="font-size: 14px; font-weight: 600; color: var(--color-white); margin-bottom: 8px;">Forecast Sensitivity</h3>
+        {% for item in risks.forecast_sensitivity %}
+        <div style="background: var(--color-surface-alt); border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+            <p style="font-size: 13px; color: var(--color-white); margin: 0;">{{ item.assumption|default('') }}</p>
+            <p style="font-size: 12px; color: #fb923c; margin: 4px 0 0;">If wrong: {{ item.if_wrong|default('') }}</p>
+            <p style="font-size: 12px; color: var(--color-muted); margin: 2px 0 0;">Detection: {{ item.how_we_detect|default('') }}</p>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if risks.data_gaps is defined and risks.data_gaps %}
+    <div>
+        <h3 style="font-size: 14px; font-weight: 600; color: var(--color-white); margin-bottom: 8px;">Data Gaps</h3>
+        <ul style="list-style: none; padding: 0; margin: 0;">
+            {% for gap in risks.data_gaps %}
+            <li style="font-size: 13px; color: var(--color-muted); padding: 4px 0;">⚬ {{ gap }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+<!-- ═══════════════════ 💰 BUSINESS IMPACT ═══════════════════ -->
+{% if impact %}
+<div class="report-card">
+    <div class="report-card-header">
+        <h2>💰 Business Impact</h2>
+    </div>
+
+    <div class="metric-grid" style="margin-bottom: 20px;">
+        {% if impact.category_rank is defined %}
+        <div class="metric-item">
+            <div class="metric-label">Category Rank</div>
+            <div class="metric-value" style="color: var(--color-white);">#{{ impact.category_rank }}<span style="font-size: 14px; color: var(--color-muted);"> of {{ impact.category_total|default('?') }}</span></div>
+            {% if impact.projected_rank_12w is defined %}
+            <div style="font-size: 12px; color: #8B5CF6; margin-top: 4px;">📈 Projected #{{ impact.projected_rank_12w }} in 12w</div>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% if impact.gap_closure_rate is defined %}
+        <div class="metric-item">
+            <div class="metric-label">Gap Closure Rate</div>
+            <div class="metric-value projected-value">{{ impact.gap_closure_rate|round(2) }}pp/wk</div>
+        </div>
+        {% endif %}
+        {% if impact.cost_per_visibility_point is defined %}
+        <div class="metric-item">
+            <div class="metric-label">Cost per Visibility Point</div>
+            <div class="metric-value" style="color: var(--color-white);">${{ impact.cost_per_visibility_point|round(0)|int }}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if impact.projected_visibility_gain_pp is defined %}
+    <div style="background: var(--color-surface-alt); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+        <h3 style="font-size: 14px; font-weight: 600; color: var(--color-white); margin-bottom: 8px;">ROI Projection</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+            <div>
+                <div class="metric-label">Monthly Investment</div>
+                <div style="font-size: 18px; font-weight: 600; color: var(--color-white);">${{ impact.investment_monthly|default(0)|round(0)|int }}</div>
+            </div>
+            <div>
+                <div class="metric-label">Projected Gain</div>
+                <div style="font-size: 18px; font-weight: 600;" class="projected-value">+{{ impact.projected_visibility_gain_pp|round(1) }}pp</div>
+            </div>
+            {% if impact.full_parity_weeks is defined and impact.full_parity_weeks %}
+            <div>
+                <div class="metric-label">Parity With Leader</div>
+                <div style="font-size: 18px; font-weight: 600;" class="projected-value">~{{ impact.full_parity_weeks }}wk</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if impact.measurable is defined or impact.inferred is defined %}
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        {% if impact.measurable is defined and impact.measurable %}
+        <div>
+            <h3 style="font-size: 13px; font-weight: 600; color: #3B82F6; margin-bottom: 6px;">📍 Measurable</h3>
+            <ul style="list-style: none; padding: 0; margin: 0;">
+                {% for m in impact.measurable %}
+                <li style="font-size: 12px; color: var(--color-muted); padding: 2px 0;">✓ {{ m }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        {% if impact.inferred is defined and impact.inferred %}
+        <div>
+            <h3 style="font-size: 13px; font-weight: 600; color: #8B5CF6; margin-bottom: 6px;">📈 Inferred</h3>
+            <ul style="list-style: none; padding: 0; margin: 0;">
+                {% for i in impact.inferred %}
+                <li style="font-size: 12px; color: var(--color-muted); padding: 2px 0;">~ {{ i }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if impact.disclaimer is defined %}
+    <div style="margin-top: 16px; padding: 12px; background: rgba(251,191,36,0.05); border: 1px solid rgba(251,191,36,0.15); border-radius: 8px;">
+        <p style="font-size: 11px; color: var(--color-muted); line-height: 1.5; margin: 0;">{{ impact.disclaimer }}</p>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+<!-- ═══════════════════ FOOTER ═══════════════════ -->
+<div style="margin-top: 40px; padding: 24px; border-top: 1px solid var(--color-border); text-align: center;">
+    <p style="font-size: 13px; color: var(--color-muted); margin: 0 0 8px;">
+        Generated by <strong style="color: var(--color-white);">RAMP</strong> · For demonstration purposes
+    </p>
+    <p style="font-size: 11px; color: var(--color-muted); line-height: 1.6; margin: 0; max-width: 700px; display: inline-block;">
+        <strong>Methodology:</strong> Observed data (📍 solid) comes from automated GEO monitoring across AI search engines.
+        Projections (📈 dashed) use a logistic S-curve model calibrated to historical data with per-engine multipliers.
+        Conservative/optimistic bounds represent ±1σ scenarios. All projections assume continued content production at current volume.
+    </p>
+</div>
+
+</div><!-- end max-width container -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const observed = {{ (report.observed_json or {})|tojson }};
+    const forecasted = {{ (report.forecasted_json or {})|tojson }};
+
+    // === TREND CHART ===
+    const trendCanvas = document.getElementById('trendChart');
+    if (trendCanvas && forecasted && forecasted.trend_data) {
+        const td = forecasted.trend_data;
+        new Chart(trendCanvas.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: td.labels || [],
+                datasets: [
+                    {
+                        label: 'Observed',
+                        data: td.historical || [],
+                        borderColor: '#3B82F6',
+                        backgroundColor: 'rgba(59,130,246,0.1)',
+                        borderWidth: 3,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#3B82F6',
+                        fill: false,
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Expected',
+                        data: td.expected || [],
+                        borderColor: '#8B5CF6',
+                        backgroundColor: 'rgba(139,92,246,0.05)',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        pointRadius: 2,
+                        pointBackgroundColor: '#8B5CF6',
+                        fill: false,
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Optimistic',
+                        data: td.optimistic || [],
+                        borderColor: '#D1D5DB',
+                        backgroundColor: 'rgba(209,213,219,0.08)',
+                        borderWidth: 1,
+                        borderDash: [3, 3],
+                        pointRadius: 0,
+                        fill: '-1',
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Conservative',
+                        data: td.conservative || [],
+                        borderColor: '#D1D5DB',
+                        borderWidth: 1,
+                        borderDash: [3, 3],
+                        pointRadius: 0,
+                        fill: false,
+                        tension: 0.3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { intersect: false, mode: 'index' },
+                plugins: {
+                    legend: { labels: { color: '#94a3b8', usePointStyle: true, pointStyle: 'line' } },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        titleColor: '#fff',
+                        bodyColor: '#94a3b8',
+                        borderColor: '#334155',
+                        borderWidth: 1,
+                        callbacks: {
+                            label: function(ctx) {
+                                const v = ctx.parsed.y;
+                                if (v === null) return null;
+                                const prefix = ctx.datasetIndex === 0 ? '📍 ' : '📈 ~';
+                                return prefix + ctx.dataset.label + ': ' + v.toFixed(1) + '%';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(148,163,184,0.1)' },
+                        ticks: { color: '#64748b', font: { size: 11 } }
+                    },
+                    y: {
+                        grid: { color: 'rgba(148,163,184,0.1)' },
+                        ticks: { color: '#64748b', font: { size: 11 }, callback: v => v + '%' },
+                        beginAtZero: true,
+                        suggestedMax: 50
+                    }
+                }
+            }
+        });
+    }
+    // === COMPETITOR BAR CHART ===
+    const compCanvas = document.getElementById('competitorChart');
+    if (compCanvas && observed && observed.competitors) {
+        const competitors = observed.competitors;
+        const clientRate = observed.brand_rate || 0;
+        const labels = competitors.map(c => c.name);
+        const rates = competitors.map(c => c.rate);
+
+        labels.unshift('You');
+        rates.unshift(clientRate);
+
+        const bgColors = rates.map((r, i) => {
+            if (i === 0) return 'rgba(59,130,246,0.8)';
+            return r > clientRate ? 'rgba(239,68,68,0.6)' : 'rgba(148,163,184,0.4)';
+        });
+        const borderColors = rates.map((r, i) => {
+            if (i === 0) return '#3B82F6';
+            return r > clientRate ? '#ef4444' : '#94a3b8';
+        });
+
+        new Chart(compCanvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Visibility Rate',
+                    data: rates,
+                    backgroundColor: bgColors,
+                    borderColor: borderColors,
+                    borderWidth: 1,
+                    barThickness: 20
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        titleColor: '#fff',
+                        bodyColor: '#94a3b8',
+                        borderColor: '#334155',
+                        borderWidth: 1,
+                        callbacks: {
+                            label: function(ctx) { return ctx.parsed.x.toFixed(1) + '%'; }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(148,163,184,0.1)' },
+                        ticks: { color: '#64748b', callback: v => v + '%' },
+                        beginAtZero: true,
+                        suggestedMax: 100
+                    },
+                    y: {
+                        grid: { display: false },
+                        ticks: { color: '#e2e8f0', font: { size: 12 } }
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+</body>
+</html>

@@ -20,7 +20,6 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from uuid import UUID
 
-import litellm
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from zoneinfo import ZoneInfo
@@ -29,6 +28,7 @@ from app.models.client import Client
 from app.models.trial_failure import TrialFailure
 from app.models.trial_signal import TrialSignal
 from app.models.user import User
+from app.services.ai import call_llm, log_ai_usage
 
 logger = logging.getLogger(__name__)
 
@@ -209,15 +209,24 @@ class FailureAnalyzer:
         )
 
         try:
-            response = litellm.completion(
-                model="claude-sonnet-4-20250514",
+            result = call_llm(
                 messages=[{"role": "user", "content": prompt}],
+                model="anthropic/claude-sonnet-4-20250514",
                 timeout=30,
                 max_tokens=500,
                 temperature=0.3,
             )
 
-            content = response.choices[0].message.content.strip()
+            # Log AI usage for cost tracking
+            log_ai_usage(
+                db=db,
+                client_id=str(client_id),
+                operation="trial_reactivation_intel",
+                result=result,
+                triggered_by="manual",
+            )
+
+            content = result["content"].strip()
             # Parse JSON from response (handle markdown code blocks)
             if content.startswith("```"):
                 content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()

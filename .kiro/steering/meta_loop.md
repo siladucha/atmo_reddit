@@ -27,6 +27,7 @@ OBSERVE → TENSION → PROPOSE → COMMIT
 | External change (Reddit API, model deprecation) | Observation → manual entry | Manual |
 | Recurring alert (same alert 3+ days) | Pattern detection → auto-create tension | Automated (future) |
 | Scale threshold crossed | clients >10, avatars >100, cost >$500/mo | Manual (monitoring) |
+| Risk Registry review | `/admin/risk-registry` — visual dashboard of all identified risks + status | Manual (weekly architecture review) |
 
 ### TENSION — Formalize the problem
 

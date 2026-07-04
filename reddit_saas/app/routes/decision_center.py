@@ -295,7 +295,11 @@ def decision_center_bulk_approve(
 
     approved_count = 0
     skipped_count = 0
+    plan_blocked_count = 0
     learning_service = LearningService()
+
+    # Cache plan limit checks per client to avoid repeated DB queries
+    _client_limit_cache: dict[str, bool] = {}
 
     for draft in drafts:
         confidence = _compute_confidence_score(draft)
@@ -305,6 +309,17 @@ def decision_center_bulk_approve(
             if avatar and (avatar.is_frozen or avatar.is_shadowbanned or avatar.health_status == "shadowbanned"):
                 skipped_count += 1
                 continue
+
+            # Hard gate: plan enforcement — check monthly limit per client
+            client_id_str = str(draft.client_id) if draft.client_id else None
+            if client_id_str:
+                if client_id_str not in _client_limit_cache:
+                    from app.services.plan_enforcement import check_approval_allowed_for_client
+                    is_allowed, _ = check_approval_allowed_for_client(db, draft.client_id)
+                    _client_limit_cache[client_id_str] = is_allowed
+                if not _client_limit_cache[client_id_str]:
+                    plan_blocked_count += 1
+                    continue
 
             draft.status = "approved"
             approved_count += 1
@@ -334,6 +349,7 @@ def decision_center_bulk_approve(
         f'<div class="px-4 py-2 bg-green-900/30 border border-green-700 rounded-lg text-sm text-green-300">'
         f'✓ Bulk approved {approved_count} drafts (confidence ≥ {min_confidence}%). '
         f'{skipped_count} skipped (low confidence or high risk).'
+        f'{f" {plan_blocked_count} blocked by plan limit." if plan_blocked_count else ""}'
         f'</div>'
     )
 

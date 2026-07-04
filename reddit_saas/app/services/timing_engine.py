@@ -51,6 +51,45 @@ DEFAULT_TIMEZONE = "America/New_York"
 # --- Public API ---
 
 
+def is_safe_posting_time(
+    subreddit_name: str, current_hour: int, db: Session
+) -> bool:
+    """Check if current hour is NOT in dangerous_hours for this subreddit.
+
+    Uses cached SubredditRiskProfile data. If no profile exists or no
+    dangerous_hours data, returns True (safe — fail-open).
+
+    Args:
+        subreddit_name: Subreddit to check.
+        current_hour: Hour (0-23) in UTC.
+        db: Database session.
+
+    Returns:
+        True if posting is safe (hour not in dangerous list), False otherwise.
+    """
+    from app.models.subreddit import Subreddit
+    from app.models.subreddit_risk_profile import SubredditRiskProfile
+    from sqlalchemy import func as sa_func
+
+    subreddit_obj = (
+        db.query(Subreddit)
+        .filter(sa_func.lower(Subreddit.subreddit_name) == subreddit_name.lower())
+        .first()
+    )
+    if not subreddit_obj:
+        return True  # no data = assume safe
+
+    profile = (
+        db.query(SubredditRiskProfile)
+        .filter(SubredditRiskProfile.subreddit_id == subreddit_obj.id)
+        .first()
+    )
+    if not profile or not profile.dangerous_hours:
+        return True  # no data = assume safe
+
+    return current_hour not in profile.dangerous_hours
+
+
 def get_effective_daily_cap(avatar: Avatar, auto_posting_daily_cap: int = 8) -> int:
     """Calculate effective daily posting cap for an avatar.
 

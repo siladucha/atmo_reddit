@@ -122,7 +122,7 @@ USER_FLOWS = {
         "expected_error_recovery": True,
     },
     "trial_signup": {
-        "description": "14-day free trial signup with work email",
+        "description": "14-day free trial signup (any email, honeypot anti-bot)",
         "entry_point": "/onboard/trial",
         "route_file": "onboarding.py",
         "template_dir": None,

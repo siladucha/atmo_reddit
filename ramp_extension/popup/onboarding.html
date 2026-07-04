@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RAMP — Setup</title>
+  <link rel="stylesheet" href="onboarding.css">
+</head>
+<body>
+  <div class="onboarding-container">
+
+    <!-- Detecting Reddit session -->
+    <section id="step-detect" class="step">
+      <div class="step-icon">🔍</div>
+      <h2>Looking for Reddit...</h2>
+      <p class="step-desc">Checking if you're logged in to Reddit.</p>
+      <div class="spinner"></div>
+    </section>
+
+    <!-- No Reddit session -->
+    <section id="step-no-reddit" class="step hidden">
+      <div class="step-icon">⚠️</div>
+      <h2>Log in to Reddit</h2>
+      <p class="step-desc">Open Reddit and log in to the account you manage.</p>
+      <ol class="instructions">
+        <li>Open <a href="https://www.reddit.com" target="_blank">reddit.com</a></li>
+        <li>Log in to your Reddit account</li>
+        <li>Come back and click below</li>
+      </ol>
+      <button id="retry-btn" class="btn-primary">Check Again</button>
+    </section>
+
+    <!-- Connecting to RAMP -->
+    <section id="step-connecting" class="step hidden">
+      <div class="step-icon">🔗</div>
+      <h2>Connecting...</h2>
+      <p class="step-desc">Found <strong id="connecting-username"></strong>. Registering with RAMP.</p>
+      <div class="spinner"></div>
+    </section>
+
+    <!-- Not found on RAMP -->
+    <section id="step-not-found" class="step hidden">
+      <div class="step-icon">❌</div>
+      <h2>Account not recognized</h2>
+      <p class="step-desc">
+        <strong id="notfound-username"></strong> is not registered in RAMP.
+        <br>Contact your admin to set up this account.
+      </p>
+      <button id="retry-btn-2" class="btn-secondary">Try another account</button>
+    </section>
+
+    <!-- Success -->
+    <section id="step-success" class="step hidden">
+      <div class="step-icon">✅</div>
+      <h2>Connected!</h2>
+      <p class="step-desc">
+        <strong id="success-username"></strong> is ready.
+        <br>Tasks will appear here automatically.
+      </p>
+      <button id="done-btn" class="btn-primary">Done</button>
+    </section>
+
+  </div>
+  <script src="onboarding.js" type="module"></script>
+</body>
+</html>

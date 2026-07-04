@@ -75,11 +75,34 @@
             </div>
             <div>
                 <label class="block text-xs text-gray-400 mb-1">
+                    Display Name
+                    <span class="ml-1 text-gray-600 cursor-help" title="Client-facing name shown in portal/reports instead of Reddit username. Max 100 chars.">ⓘ</span>
+                </label>
+                <input type="text" name="display_name" value="{{ avatar.display_name or '' }}"
+                       maxlength="100"
+                       placeholder="e.g. Security Expert, DevOps Pro"
+                       class="w-full bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-600">
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">
                     Email Address
                     <span class="ml-1 text-gray-600 cursor-help" title="Email linked to the Reddit account. Used for recovery.">ⓘ</span>
                 </label>
                 <input type="email" name="email_address" value="{{ avatar.email_address or '' }}"
                        placeholder="account@email.com"
+                       class="w-full bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-600">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">
+                    Persona Bio
+                    <span class="ml-1 text-gray-600 cursor-help" title="Short bio shown in client-facing views. Who is this avatar? Max 255 chars.">ⓘ</span>
+                </label>
+                <input type="text" name="persona_bio" value="{{ avatar.persona_bio or '' }}"
+                       maxlength="255"
+                       placeholder="Brief persona description for client views"
                        class="w-full bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-600">
             </div>
         </div>

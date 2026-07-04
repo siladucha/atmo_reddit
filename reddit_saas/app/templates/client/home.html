@@ -33,6 +33,7 @@
     <!-- Quick Actions (client_manager + client_admin) -->
     {% if user_role in ['owner', 'partner', 'client_admin', 'client_manager'] %}
     <div style="display:flex;gap:12px;margin-bottom:var(--space-4);flex-wrap:wrap;">
+        {% if hidden_actions is not defined or "trigger_pipeline" not in hidden_actions %}
         <button
             hx-post="/clients/{{ client_id }}/actions/pipeline"
             hx-target="#home-action-status"
@@ -40,8 +41,10 @@
             class="btn-outline"
             style="font-size:var(--text-small);padding:8px 16px;"
         >
-            ▶ Run Pipeline{{ tooltip("Triggers AI scoring + comment generation for all your subreddits. Takes 5-10 minutes.") }}
+            ▶ Run Pipeline{% if approval_actions is defined and "trigger_pipeline" in approval_actions %}<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(251,191,36,0.15);color:#fbbf24;margin-left:4px;">Requires Approval</span>{% endif %}{{ tooltip("Triggers AI scoring + comment generation for all your subreddits. Takes 5-10 minutes.") }}
         </button>
+        {% endif %}
+        {% if hidden_actions is not defined or "trigger_epg_rebuild" not in hidden_actions %}
         <button
             hx-post="/clients/{{ client_id }}/actions/epg-rebuild"
             hx-target="#home-action-status"
@@ -49,8 +52,9 @@
             class="btn-outline"
             style="font-size:var(--text-small);padding:8px 16px;"
         >
-            📅 Rebuild EPG{{ tooltip("Regenerates today's publishing schedule. Use after approving/skipping drafts to fill empty slots.") }}
+            📅 Rebuild EPG{% if approval_actions is defined and "trigger_epg_rebuild" in approval_actions %}<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(251,191,36,0.15);color:#fbbf24;margin-left:4px;">Requires Approval</span>{% endif %}{{ tooltip("Regenerates today's publishing schedule. Use after approving/skipping drafts to fill empty slots.") }}
         </button>
+        {% endif %}
         <span id="home-action-status" style="display:inline-flex;align-items:center;font-size:var(--text-small);"></span>
     </div>
     {% endif %}

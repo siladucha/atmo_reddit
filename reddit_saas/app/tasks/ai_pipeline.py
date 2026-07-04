@@ -17,7 +17,7 @@ from app.models.avatar import Avatar
 from app.models.comment_draft import CommentDraft
 from app.services.generation import select_persona, generate_comment, edit_comment
 from app.services.transparency import record_activity_event
-from app.services.ai import ai_trigger_context
+from app.services.ai import ai_trigger_context, reset_task_call_counter
 
 logger = get_logger(__name__)
 
@@ -33,6 +33,7 @@ def score_threads(self, client_id: str, triggered_by: str = "scheduler"):
     This reduces scoring calls from 300+/run to 10-30/run total.
     """
     ai_trigger_context.set(triggered_by)
+    reset_task_call_counter()  # R-AI-007: reset per-task LLM call counter
     db = SessionLocal()
     try:
         from app.services.settings import is_pipeline_enabled
@@ -67,8 +68,7 @@ def score_threads(self, client_id: str, triggered_by: str = "scheduler"):
                 and not a.is_frozen
                 and not a.is_shadowbanned
                 and a.health_status not in ("shadowbanned", "suspended")
-                and a.warming_phase != 0  # Mentor excluded
-                and getattr(a, "pool", "b2b") in ("b2b", "b2c", "warm")  # Pipeline-eligible pools
+                and getattr(a, "pool", "b2b") in ("b2b", "b2c", "warm")  # Pipeline-eligible pools (excludes mentor)
             ]
 
             total_scored = 0
@@ -171,6 +171,7 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
     Full pipeline: select persona → generate comment → edit comment.
     """
     ai_trigger_context.set(triggered_by)
+    reset_task_call_counter()  # R-AI-007: reset per-task LLM call counter
     db = SessionLocal()
     try:
         from app.services.settings import is_pipeline_enabled, is_generation_enabled
@@ -212,8 +213,7 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
                 and not a.is_shadowbanned
                 and a.health_status not in ("shadowbanned", "suspended")
                 and a.cqs_level != "lowest"  # CQS lowest → hobby only, no brand comments
-                and a.warming_phase != 0  # Mentor — excluded from pipelines
-                and getattr(a, "pool", "b2b") in ("b2b", "b2c", "warm")  # Pipeline-eligible pools
+                and getattr(a, "pool", "b2b") in ("b2b", "b2c", "warm")  # Pipeline-eligible pools (excludes mentor)
             ]
 
             # Log avatars excluded due to health_status
@@ -240,6 +240,29 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
                     client.client_name,
                 )
                 return 0
+
+            # A/B Test: filter out avatars forced to hobby-only content type
+            from app.services.settings import get_setting
+            if get_setting(db, "ab_test_enabled") == "true":
+                from app.services.ab_test.control_enforcer import get_forced_content_type
+                pre_ab_count = len(client_avatars)
+                client_avatars = [
+                    a for a in client_avatars
+                    if get_forced_content_type(db, a.id) != "hobby"
+                ]
+                ab_excluded = pre_ab_count - len(client_avatars)
+                if ab_excluded > 0:
+                    logger.info(
+                        "generate_comments: %d avatar(s) excluded by A/B test "
+                        "(forced content_type=hobby) for client %s",
+                        ab_excluded, client.client_name,
+                    )
+                if not client_avatars:
+                    logger.info(
+                        "generate_comments: all avatars for client %s excluded by A/B test (hobby-only)",
+                        client.client_name,
+                    )
+                    return 0
 
             # Get engage threads that don't have drafts yet
             threads_with_drafts = (
@@ -709,6 +732,7 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
 def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, triggered_by: str = "scheduler"):
     """Generate hobby comments for karma building using Ori-style prompt with voice profile."""
     ai_trigger_context.set(triggered_by)
+    reset_task_call_counter()  # R-AI-007: reset per-task LLM call counter
     db = SessionLocal()
     try:
         from app.services.settings import is_pipeline_enabled, is_generation_enabled
@@ -725,8 +749,8 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
         avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
         if not avatar:
             return 0
-        if avatar.warming_phase == 0:
-            logger.info(f"generate_hobby_comments: avatar {avatar.reddit_username} is Mentor (phase 0), skipping")
+        if avatar.pool == "mentor":
+            logger.info(f"generate_hobby_comments: avatar {avatar.reddit_username} is Mentor (pool), skipping")
             return 0
         if not getattr(avatar, "pool", "b2b") in ("b2b", "b2c", "warm"):
             logger.info(f"generate_hobby_comments: avatar {avatar.reddit_username} pool={avatar.pool}, skipping")
@@ -785,6 +809,11 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
                 hobby_sub_names = list(DEFAULT_PHASE1_HOBBY_SUBREDDITS)
 
             # Distribute max_comments evenly across subreddits
+            # Freshness filter: skip posts older than 7 days — replying to
+            # stale threads looks suspicious and provides zero engagement value.
+            from datetime import datetime as _dt, timezone as _tz, timedelta as _hobby_td
+            hobby_freshness_cutoff = _dt.now(_tz.utc) - _hobby_td(days=7)
+
             posts = []
             if hobby_sub_names:
                 per_sub_limit = max(2, max_comments // len(hobby_sub_names))
@@ -798,6 +827,8 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
                             HobbySubreddit.status == "new",
                             HobbySubreddit.post_body.isnot(None),
                             sa_func.length(HobbySubreddit.post_body) > 20,
+                            # Freshness: only posts scraped within last 7 days
+                            HobbySubreddit.created_at >= hobby_freshness_cutoff,
                             # Skip image/video/link posts - text-only replies
                             # to photo posts look out of place and often get locked
                             sa_or(
@@ -823,6 +854,8 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
                         HobbySubreddit.status == "new",
                         HobbySubreddit.post_body.isnot(None),
                         sa_func.length(HobbySubreddit.post_body) > 20,
+                        # Freshness: only posts scraped within last 7 days
+                        HobbySubreddit.created_at >= hobby_freshness_cutoff,
                         # Skip image/video/link posts
                         sa_or(
                             HobbySubreddit.url.is_(None),
@@ -850,8 +883,13 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
             generated = 0
             for post in posts:
                 try:
-                    # Build Ori-style hobby comment prompt
-                    system_prompt = _build_hobby_system_prompt(avatar, previous_comments)
+                    # Phase 0 (Incubation) uses ultra-simple newcomer prompt
+                    from app.services.settings import get_setting
+                    incubation_enabled = get_setting(db, "incubation_phase_enabled") == "true"
+                    if avatar.warming_phase == 0 and incubation_enabled:
+                        system_prompt = _build_incubation_system_prompt(avatar, previous_comments)
+                    else:
+                        system_prompt = _build_hobby_system_prompt(avatar, previous_comments)
                     user_prompt = _build_hobby_user_prompt(post)
 
                     # Hobby comments: use scoring model (Gemini Flash when available, Sonnet as fallback)
@@ -859,6 +897,17 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
                     # This mirrors Ori's setup: Opus for pro, Flash for hobby
                     from app.config import get_config
                     gen_model = get_config("llm_scoring_model") or get_config("llm_generation_model")
+
+                    # A/B Test: force generation model if avatar in experiment
+                    if get_setting(db, "ab_test_enabled") == "true":
+                        from app.services.ab_test.control_enforcer import get_forced_generation_model
+                        forced_model = get_forced_generation_model(db, avatar.id)
+                        if forced_model:
+                            logger.info(
+                                "A/B test: overriding model to '%s' for avatar %s",
+                                forced_model, avatar.reddit_username,
+                            )
+                            gen_model = forced_model
 
                     result = call_llm(
                         messages=[
@@ -1037,6 +1086,44 @@ def _build_hobby_user_prompt(post) -> str:
 {comments_section}"""
 
 
+def _build_incubation_system_prompt(avatar, previous_comments: list[str]) -> str:
+    """Build Phase 0 (Incubation) prompt: ultra-short, newcomer-style comments.
+
+    Goal: survive first week without AutoMod kills. Comments must be
+    indistinguishable from a genuine new Reddit user exploring communities.
+    """
+    prev_section = ""
+    if previous_comments:
+        import json as json_mod
+        prev_section = f"\n\nPrevious comments (do NOT repeat patterns):\n{json_mod.dumps(previous_comments[-3:], ensure_ascii=False)}"
+
+    return f"""You are a new Reddit user casually browsing and exploring communities.
+
+Write ONE very short comment (10-30 words maximum). You are curious, friendly, and brief.
+
+ALLOWED styles (pick one):
+- Ask a genuine question about the topic
+- Share a brief personal reaction ("oh wow, this happened to me too")
+- Agree with someone and add one small detail from your life
+- Express surprise or interest in a specific detail
+
+ABSOLUTELY FORBIDDEN:
+- Opinions longer than one sentence
+- Technical advice or expertise
+- Links of any kind
+- Any formatting (no bold, no lists, no headers, no bullets)
+- Multi-sentence or multi-paragraph responses
+- Starting with "I think" or "In my opinion"
+- Brand, product, or company mentions
+- Em-dashes (—)
+- Sounding like an authority or expert
+
+Your comment MUST be under 30 words. If it's longer, make it shorter.
+{prev_section}
+
+Output ONLY the comment text. Nothing else."""
+
+
 @celery_app.task(name="generate_posts", bind=True, max_retries=3)
 def generate_posts(self, client_id: str, max_posts: int = 3, triggered_by: str = "scheduler"):
     """Generate post drafts for a client.
@@ -1045,6 +1132,7 @@ def generate_posts(self, client_id: str, max_posts: int = 3, triggered_by: str =
     Only generates for avatars in Phase 2+ (posts require established karma).
     """
     ai_trigger_context.set(triggered_by)
+    reset_task_call_counter()  # R-AI-007: reset per-task LLM call counter
     db = SessionLocal()
     try:
         from app.services.settings import is_pipeline_enabled, is_generation_enabled
@@ -1086,7 +1174,7 @@ def generate_posts(self, client_id: str, max_posts: int = 3, triggered_by: str =
                 a for a in avatars
                 if a.client_ids and str(client.id) in a.client_ids
                 and not a.is_frozen
-                and a.warming_phase >= 2  # Phase gate: posts require Phase 2+ (also excludes Mentor=0)
+                and a.warming_phase >= 2  # Phase gate: posts require Phase 2+
                 and a.health_status not in ("shadowbanned", "suspended")
             ]
 
@@ -1285,9 +1373,7 @@ def evaluate_all_avatar_phases():
             db.query(Avatar)
             .filter(
                 Avatar.active.is_(True),
-                Avatar.is_shadowbanned.is_(False),
-                Avatar.warming_phase != 0,  # Mentor — not subject to phase evaluation
-                Avatar.pool.in_(["b2b", "b2c", "warm"]),  # Pipeline-eligible pools
+                Avatar.pool.in_(["b2b", "b2c", "warm"]),  # Pipeline-eligible pools (excludes mentor)
             )
             .all()
         )
@@ -1335,6 +1421,43 @@ def evaluate_all_avatar_phases():
             errors,
         )
 
+        # --- Zone Evaluation (Risk-Aware Activation) ---
+        # Run zone graduation/demotion for Phase 0-1 avatars with activation routes
+        zone_graduated = 0
+        zone_demoted = 0
+        zone_errors = 0
+        try:
+            from app.services.settings import get_setting
+            activation_enabled = get_setting(db, "activation_routing_enabled")
+            if activation_enabled in ("true", "True", "1"):
+                from app.services.zone_evaluator import run_zone_evaluation_for_avatar
+
+                phase01_avatars = [
+                    a for a in avatars
+                    if a.warming_phase <= 1 and a.activation_route
+                ]
+                for avatar in phase01_avatars:
+                    try:
+                        result = run_zone_evaluation_for_avatar(db, avatar)
+                        if result["action"] == "graduated":
+                            zone_graduated += 1
+                        elif result["action"] == "demoted":
+                            zone_demoted += 1
+                    except Exception as e:
+                        zone_errors += 1
+                        logger.error(
+                            "Zone evaluation failed for avatar %s: %s",
+                            avatar.reddit_username, e,
+                        )
+
+                if zone_graduated or zone_demoted:
+                    logger.info(
+                        "Zone evaluation: %d graduated, %d demoted, %d errors",
+                        zone_graduated, zone_demoted, zone_errors,
+                    )
+        except Exception as e:
+            logger.error("Zone evaluation batch failed: %s", e)
+
         try:
             from app.services.audit import log_system_action
             log_system_action(
@@ -1346,6 +1469,9 @@ def evaluate_all_avatar_phases():
                     "promoted": promoted,
                     "demoted": demoted,
                     "errors": errors,
+                    "zone_graduated": zone_graduated,
+                    "zone_demoted": zone_demoted,
+                    "zone_errors": zone_errors,
                 },
             )
         except Exception as e:

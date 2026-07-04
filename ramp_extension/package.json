@@ -1,0 +1,18 @@
+{
+  "name": "ramp-extension",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RAMP Browser Extension — Execution Node for Reddit tasks",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "node scripts/bundle-content.js && vite build",
+    "bundle": "node scripts/bundle-content.js",
+    "lint": "eslint src/",
+    "test": "vitest --run"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "eslint": "^9.0.0",
+    "vitest": "^2.0.0"
+  }
+}

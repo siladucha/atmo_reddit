@@ -405,6 +405,21 @@ def compute_compatibility(
             max_tokens=256,
             schema=CompatibilityResult,
         )
+
+        # Log AI usage for cost tracking
+        try:
+            log_ai_usage(
+                db=db,
+                client_id=None,
+                operation="emotional_compatibility",
+                result=result,
+                avatar_id=str(avatar.id),
+                subreddit_name=subreddit_name_lower,
+                triggered_by="scheduler",
+            )
+        except Exception:
+            pass  # Don't fail compatibility scoring on logging error
+
     except Exception as e:
         logger.warning(
             "EP_COMPAT | avatar=%s | sub=r/%s | error=%s",

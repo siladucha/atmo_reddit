@@ -17,6 +17,14 @@ Smart Scoring (`get_candidate_threads`) queries **only `reddit_threads`**. Hobby
 
 This is by design: Phase 1 professional generation is intentionally disabled. Hobby generation still works via the separate hobby pipeline (1-3 comments/day from `generate_hobby_comments`).
 
+### Display Unification (Fixed June 28)
+
+Despite separate storage, hobby drafts now have **structural parity** with professional drafts for display:
+- `CommentDraft.hobby_post_id` has FK → `hobby_subreddits.id` (ondelete=SET NULL)
+- `CommentDraft.hobby_post` relationship (lazy="joined") — auto-loaded like `draft.thread`
+- Shared `HobbyThreadProxy` (`app/services/hobby_proxy.py`) makes `HobbySubreddit` look like `RedditThread` for templates
+- Admin review queue, portal, avatar workflow — all resolve hobby context via relationship (no manual lookups needed)
+
 **When an avatar is demoted Phase 2→1:** Professional generation drops to 0. Only hobby pipeline (1-3/day) continues. This is the expected safety behavior but can appear as "system broken" to business users.
 
 ---
@@ -112,9 +120,97 @@ In `smart_scoring.py` (`get_candidate_threads`):
 
 **Why:** Strictly moderated subs (r/sysadmin, r/networking, r/devops) aggressively remove comments from low-karma accounts on viral/trending posts. This is the #1 cause of moderator removals.
 
-### 3. Subreddit-Specific Risks
+### 3. Subreddit Risk Profile & Fitness Gate (ADDED June 23, 2026)
 
-r/sysadmin moderation patterns (learned June 2026):
+Full subreddit intelligence pipeline: rule extraction → moderation profiling → risk scoring → pre-generation fitness gate.
+
+#### Components
+
+| Service | Purpose | Output |
+|---------|---------|--------|
+| `rule_extractor.py` | PRAW sidebar/wiki fetch → Gemini Flash structured extraction | `extracted_rules` JSONB (min_karma, min_age, frequency_limit, banned_topics, etc.) |
+| `moderation_profiler.py` | 30-day deletion aggregation from `SubredditDailyStats` | `moderation_profile` JSONB (aggressiveness, dangerous_hours, removal_patterns) |
+| `risk_scorer.py` | Weighted formula → composite score 0-100 | `risk_score`, `risk_score_history` FIFO (12 weeks), `is_high_risk` flag |
+| `fitness_gate.py` | Pre-generation safety gate (6 checks) | Pass/Block decision per avatar×subreddit pair |
+
+#### Fitness Gate Checks (in order)
+
+1. **Subreddit ban** — hard block if avatar banned from this sub (per-subreddit ban detection)
+2. **Profile exists?** — fail-open if no profile (returns score=50, allows generation)
+3. **min_karma** — extracted rule vs `SubredditKarma.comment_karma`
+4. **min_account_age** — extracted rule vs `avatar.reddit_account_created`
+5. **posting_frequency_limit** — extracted rule vs recent comment count in this sub
+6. **Extreme aggressiveness + <50 karma** — block (sub too dangerous for low-karma avatar)
+7. **Dangerous hours + <200 karma** — block during hours with >2x avg deletion rate
+
+#### Schedule — WEEKLY (Not Daily)
+
+| Time | Task | Purpose |
+|------|------|---------|
+| 05:00 Sun | `extract_subreddit_rules_batch` | PRAW sidebar/wiki → Gemini Flash → structured rules |
+| 05:15 Sun | `compute_moderation_profiles_batch` | 30-day deletion aggregation, dangerous hours, aggressiveness |
+| 05:30 Sun | `compute_risk_scores_batch` | Weighted score computation + high_risk flags + spike detection |
+
+**Why weekly, not daily:**
+- Subreddit rules change rarely (month/quarter cadence)
+- Moderation profile uses 30-day window — daily refresh adds ~1 day of data, negligible change
+- PRAW API calls + Gemini Flash = resource consumption (Reddit rate limits + LLM cost)
+- Historical FIFO window is 12 weeks — weekly granularity is appropriate
+
+**Exception:** `fitness_gate.py` runs in real-time (every generation attempt) using CACHED data from the weekly batch. No staleness issue — the gate reads existing `SubredditRiskProfile` rows, doesn't trigger fresh extraction.
+
+#### Data Model
+
+- **`SubredditRiskProfile`** — 1:1 with `Subreddit` (FK, ondelete=CASCADE)
+  - `risk_score` (0-100, CHECK constraint)
+  - `extracted_rules` JSONB (structured rules array)
+  - `moderation_profile` JSONB (aggressiveness, patterns, hours)
+  - `dangerous_hours` (array of hours with >2x avg deletion rate)
+  - `recommendations` (AI-generated text)
+  - `risk_score_history` JSONB (FIFO, 12 weekly entries)
+  - `extraction_status` (success/no_content/failed/pending)
+  - `confidence_level` (high/medium/low)
+
+- **`SubredditDailyStats`** — daily posting stats per subreddit (UNIQUE on subreddit_id+date)
+  - `posted_count`, `deleted_count`, `hour_distribution` JSONB
+  - Populated by `snapshot_comment_outcomes` (writes deletion data)
+
+#### Pipeline Integration Point
+
+```
+Smart Scoring → candidate threads selected
+                     ↓
+              Fitness Gate (per avatar × subreddit)
+                     ↓
+              Pass → generation proceeds
+              Block → budget decremented, thread skipped, activity event emitted
+```
+
+The gate runs BETWEEN scoring and generation in the professional pipeline. Budget is decremented for blocked threads (avatar won't get replacement thread — budget loss is the safety cost).
+
+#### UI Access
+
+- **Admin → Subreddits** (`/admin/subreddits`) — color-coded risk_score badge next to each sub name. Click → full risk profile page.
+- **Admin → Subreddit Risk Profile** (`/admin/subreddits/{id}/risk-profile`) — full page: header, extracted rules, moderation insights, dangerous hours, avatar fitness table, 12-week trend chart (HTMX lazy), 30-day daily history (HTMX lazy).
+- **Portal → Subreddits** (`/clients/{id}/subreddits`) — same badge. Click → client-scoped risk profile page.
+- **Portal → Risk Profile** (`/portal/subreddits/{id}/risk-profile`) — client-scoped: daily stats filtered to client's avatars only.
+
+**Color coding:** ≤30 = green, 31-60 = yellow, 61-80 = orange, >80 = red.
+
+**Kill switch:** `fitness_gate_enabled` system setting (default: true). When disabled, gate returns pass for all.
+
+#### Why Badges May Not Appear
+
+If risk_score is NULL (never computed), the badge is hidden (`{% if item.risk_score is not none %}`). This happens when:
+- Weekly batch hasn't run yet (new subreddit added mid-week)
+- Migration `srp01` not applied
+- Subreddit has <5 posted comments (insufficient data → profile exists but risk_score may be NULL)
+
+**Manual trigger:** Admin can trigger batch via Celery CLI or future "Refresh Now" button.
+
+#### Known Subreddit-Specific Patterns (learned June 2026)
+
+r/sysadmin moderation:
 - New/low-karma accounts on popular posts get removed
 - "my client" / consultant language → flagged as vendor
 - Pile-on comments on viral threads → removed as low-effort
@@ -230,6 +326,152 @@ When budget=0 (CQS=lowest), the system previously had no way to recover — no E
 **Kill switch:** `cqs_check_tasks_enabled` (default true)
 **Spec:** `.kiro/specs/cqs-execution-tasks/`
 
+### Auto-Approve Precedence (Documented June 29)
+
+Draft auto-approval uses **OR logic** across two levels:
+
+```
+auto_approve = avatar.auto_approve_drafts OR client.autopilot_enabled
+```
+
+| Level | Flag | Scope | Where set |
+|-------|------|-------|-----------|
+| Avatar | `auto_approve_drafts` | Single avatar | Admin → Avatar → Posting tab → toggle |
+| Client | `autopilot_enabled` | ALL avatars of that client | Admin → Client → settings |
+
+**Implementation:** `epg_executor.py` → `_should_auto_approve(db, avatar_id)`:
+1. Checks `avatar.auto_approve_drafts` first
+2. If False, checks `client.autopilot_enabled`
+3. If either is True → draft+slot move to `approved` immediately after generation
+
+**Common confusion:** Avatar toggle shows OFF, but drafts still auto-approved because client-level `autopilot_enabled=True` overrides it.
+
+**P5 compliance:** Both settings are explicit operator decisions (configured via admin UI). Not bypass — pre-authorized policy.
+
+---
+
+## Extension Posting Safety (ADDED June 29, 2026)
+
+The browser extension introduces a new posting path that bypasses proxy/OAuth/API infrastructure entirely. Safety is maintained through structural constraints:
+
+### Principle: Extension is Execution-Only
+
+The extension **cannot generate tasks**. It can only execute tasks created by RAMP backend. This means:
+- Extension cannot decide WHAT to post (backend decides)
+- Extension cannot decide WHERE to post (backend decides)
+- Extension cannot decide WHEN to post (backend decides)
+- Extension can only execute pre-approved actions and report results
+
+### Safety Gates
+
+| Gate | Mechanism | Bypass possible? |
+|------|-----------|-----------------|
+| **1. HMAC-signed tasks** | Every task delivered to extension includes HMAC signature (backend secret). Extension verifies signature before execution. Prevents task tampering or injection. | No — requires backend secret |
+| **2. REQUIRED_UI mode** | Executor must click Approve in popup before ANY post is submitted. No auto-post code path exists (auto-dispatch was prototyped June 29 then removed). | No — structural (code removed) |
+| **3. State machine verification** | Before executing, state machine transitions through PRECHECK → NAVIGATING → CONTEXT_VERIFIED. Context verification confirms: correct subreddit loaded, correct thread visible, comment composer accessible. | No — each step validates preconditions |
+| **4. DOM_CHANGED detection** | If expected selectors fail (Reddit DOM update, page layout change), state machine emits `DOM_CHANGED` error and aborts. No blind posting into wrong context. | No — selector failure = abort |
+| **5. Event stream audit trail** | Every state transition is emitted to backend (`/api/extension/events`). Full audit trail of: what was attempted, what succeeded, what failed, timing of each step. | No — events emitted before/after every action |
+| **6. Heartbeat liveness** | Extension sends heartbeat every 60s. If backend doesn't receive heartbeat for >5 min, executor is considered offline. Tasks are not delivered to offline executors. | No — server-side check |
+
+### What Extension CANNOT Do
+
+- Generate content (no LLM access, no prompt assembly)
+- Create tasks (receives tasks only)
+- Modify task content (HMAC prevents tampering)
+- Post without user approval (REQUIRED_UI enforced)
+- Access other Reddit accounts (content script runs in current tab only)
+- Exfiltrate credentials (never reads cookies/tokens — only interacts with DOM)
+
+### Relationship to SBM Properties
+
+| Property | How extension satisfies |
+|----------|----------------------|
+| **P5 (Human Gate)** | Executor approves content in popup before execution |
+| **P11 (Execution Gate)** | REQUIRED_UI mode — no path from intent to post without Approve click |
+| **P4 (Safety Monotonicity)** | Tasks are phase-gated at creation time (backend), not at extension |
+| **P7 (Isolation)** | Extension operates on single avatar per session, cannot cross-post |
+| **P9 (Diagnostic Independence)** | System actions (CQS check, health probe) run independently of content actions |
+
+## Risk-Aware Avatar Activation (ADDED July 2, 2026)
+
+Zone-based subreddit routing for Phase 0-1 avatars, replacing static hobby_subreddits with personalized routes derived from SubredditRiskProfile data.
+
+### Architecture
+
+```
+Avatar Created / Demoted to Phase 0-1
+    ↓
+ActivationRouter.plan_route(db, avatar, client)
+    ↓
+activation_route JSONB → { safe_subs, bridge_subs, target_subs, current_zone }
+    ↓
+EPG scan_opportunities() reads zone subs instead of hobby_subreddits
+    ↓
+Daily 06:00: ZoneEvaluator.run_zone_evaluation_for_avatar()
+    → graduate (safe→bridge→target) or demote (bridge→safe)
+```
+
+### Zone Classification
+
+| Zone | Risk Score | Purpose | Budget (Phase 0) | Budget (Phase 1) |
+|------|-----------|---------|-------------------|-------------------|
+| Safe | 0-25 | Foundation karma, zero risk | 1/day | 1/day |
+| Bridge | 26-50 | Niche footprint, moderate risk | 0/day | 3/day |
+| Target | 51-80 | Client's actual subreddits | 0/day (Phase 2+ only) | 0/day (Phase 2+ only) |
+| Dangerous | 81-100 | Blocked for Phase 0-1 entirely | — | — |
+
+### Graduation Criteria
+
+**Safe → Bridge:**
+- total_karma ≥ 10
+- CQS ≠ lowest
+- account_age ≥ 7 days
+- ≥ 3 posted in safe zone, 0 deleted
+- survival_rate ≥ 90% (min 5 sample)
+
+**Bridge → Target:**
+- karma ≥ 15 in 2+ bridge subs
+- total_karma ≥ 50
+- survival_rate ≥ 85% (min 5 sample)
+- compatibility_score ≥ 60 for target subs
+
+### Demotion Within Zones
+
+- Survival rate < 70% in current zone → demote to previous zone
+- Per-subreddit ban in bridge sub → sub removed from route, alternative found
+- Phase demotion (Phase 2→1 or Phase 2→0) → fresh route planned automatically
+
+### Bridge Discovery
+
+For each client target subreddit, finds 3-8 bridge candidates:
+- Same category/topic but risk_score 26-50
+- AvatarSubredditCompatibility ≥ 50
+- Not in another client's exclusive list
+- Fallback: avatar's hobby_subreddits if < 3 bridges found
+
+### Safety Properties
+
+- **Feature-flagged:** `activation_routing_enabled` (default: false). Legacy behavior unchanged when disabled.
+- **Fail-open:** no route = existing hobby_subreddits path. Never blocks pipeline.
+- **Dangerous hours:** `is_safe_posting_time()` filters opportunities in scan_opportunities() before slot creation.
+- **All existing safety gates still apply:** fitness_gate, hot thread filter, phase policy, daily caps.
+- **Zone graduation ≠ phase promotion:** zone routes within a phase; phase gates content type.
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `app/services/activation_router.py` | Core routing: plan, refresh, graduate, demote |
+| `app/services/zone_evaluator.py` | Graduation/demotion criteria evaluation |
+| `app/services/timing_engine.py` | `is_safe_posting_time()` for dangerous hours |
+| `app/services/opportunity_engine.py` | Reads zone subs for Phase 0-1 (integration) |
+| `app/tasks/ai_pipeline.py` | Zone eval hook after phase eval (daily 06:00) |
+| `app/services/phase.py` | Route re-plan on demotion to Phase 0-1 |
+| `app/services/admin.py` | Route refresh on client subreddit changes |
+| `alembic/versions/raa01_activation_route.py` | Migration: activation_route JSONB + zone fields |
+
+---
+
 ## Architecture Debt
 
 | Issue | Impact | Status |
@@ -250,3 +492,5 @@ When budget=0 (CQS=lowest), the system previously had no way to recover — no E
 | Reddit API call duplication | karma_tracking + profile_analytics + presence all fetch comments independently | Optimization (non-blocking) |
 | ~~Hobby pipeline missing image/video filter~~ | Image posts with body text passed hobby filter, generated nonsensical replies | **FIXED June 26** (url filter added to opportunity_engine + generate_hobby_comments) |
 | ~~Locked thread email delivery~~ | Executor receives tasks for locked threads, stuck in limbo | **FIXED June 26** (pre-dispatch liveness check + executor "Can't Post" button) |
+| ~~Hobby drafts "Unknown thread" in review queue~~ | hobby_post_id had no FK, no relationship, no eager load → admin review never resolved hobby context | **FIXED June 28** (shared HobbyThreadProxy + FK + relationship) |
+| ~~Phase 0-1 sub selection is static~~ | Hobby subs hardcoded, no risk-aware routing | **DONE July 2** (`activation_router.py` — zone routing safe→bridge→target using SubredditRiskProfile, feature-flagged) |

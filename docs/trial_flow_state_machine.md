@@ -18,8 +18,8 @@
    ▼
 ┌──────────────────────┐
 │ 1. TRIAL_SIGNUP      │ POST /onboard/trial/signup
-│                      │ • Validate work email (blocks Gmail etc.)
-│                      │ • Honeypot check
+│                      │ • Validate email format (any domain accepted)
+│                      │ • Honeypot anti-bot check
 │                      │ • Creates Client(plan_type="trial", max_avatars=1,
 │                      │   max_comments_per_month=30, is_active=True)
 │                      │ • Creates User(role=client_admin, client_id=client.id)

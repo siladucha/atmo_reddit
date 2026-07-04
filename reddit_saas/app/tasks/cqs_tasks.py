@@ -21,8 +21,9 @@ def generate_cqs_check_tasks_all_avatars():
     """Daily task: generate CQS check execution tasks for eligible avatars.
 
     Checks kill switch 'cqs_check_tasks_enabled' before processing.
-    Creates task_type='cqs_check' ExecutionTasks that flow through
-    the standard dispatch pipeline (dispatch_due_email_tasks → email).
+    Creates task_type='diagnostic_probe' with probe_type='reddit_cqs'
+    ExecutionTasks that flow through the extension dispatcher (preferred)
+    or standard dispatch pipeline (email fallback).
     """
     from app.services.settings import get_setting
     from app.services.cqs_task_generator import generate_cqs_check_tasks

@@ -8,6 +8,26 @@
 
 tensions:
 
+  # ─── RESOLVED (July 2026) ─────────────────────────────────────────────
+
+  - id: T-2026-07-02-001
+    title: "No pipeline architecture documentation (tribal knowledge only)"
+    detected: 2026-07-02
+    source: observation
+    sbm_property: [P10]
+    severity: medium
+    status: resolved
+    description: >
+      Full end-to-end pipeline flow existed only as scattered references across
+      project.md, pipeline_safety_architecture.md, and gaps doc. No single
+      document described SCRAPE→SCORE→GENERATE→REVIEW→EXECUTE→MEASURE→LEARN
+      with schedules, phase routing, safety gates, and failure cascade.
+      New engineers or AI agents had to reconstruct the mental model from 10+ files.
+    resolution:
+      date: 2026-07-02
+      action: "Created .kiro/steering/pipeline_end_to_end.md — complete E2E reference"
+      files: [.kiro/steering/pipeline_end_to_end.md]
+
   # ─── RESOLVED (June 2026) ───────────────────────────────────────────────
 
   - id: T-2026-06-22-001
@@ -106,7 +126,168 @@ tensions:
       files: [app/services/cqs_checker.py, app/services/cqs_task_generator.py]
       principle: "Diagnostic systems must NEVER be gated by the condition they diagnose"
 
-  # ─── OPEN ───────────────────────────────────────────────────────────────
+  - id: T-2026-06-28-001a
+    title: "Hobby pipeline missing post age filter (24-day-old content generated)"
+    detected: 2026-06-28
+    source: incident
+    sbm_property: [P1, P8]
+    severity: high
+    status: resolved
+    description: >
+      Hobby pipeline (generate_hobby_comments + opportunity_engine Source 2) had
+      NO freshness filter on post age. Posts 24-25 days old in hobby_subreddits
+      table with status="new" were being served to LLM for comment generation.
+      Replying to month-old posts looks suspicious and provides zero engagement.
+    resolution:
+      date: 2026-06-28
+      action: "Added 7-day freshness filter (created_at >= now - 7d) to all hobby queries"
+      files: [app/tasks/ai_pipeline.py, app/services/opportunity_engine.py]
+
+  - id: T-2026-06-28-001b
+    title: "Review queue count includes stale/frozen drafts (496 vs 4)"
+    detected: 2026-06-28
+    source: incident
+    sbm_property: [P1]
+    severity: medium
+    status: resolved
+    description: >
+      Sidebar pending_count in client portal counted ALL pending drafts without
+      filtering by avatar frozen/active status or draft age. 496 total pending
+      (all >14 days old) vs 4 actually actionable. Misleads client.
+    resolution:
+      date: 2026-06-28
+      action: "Added frozen/active filter + 14-day age cap to sidebar count and pending tab"
+      files: [app/routes/portal.py]
+
+  # ─── OPEN (Critical — require immediate action) ─────────────────────────
+
+  - id: T-2026-06-28-004
+    title: "No external watchdog — in-band monitoring dies with system"
+    detected: 2026-06-28
+    source: sbm_violation
+    sbm_property: [P10, P1]
+    severity: critical
+    status: open
+    owner: max
+    description: >
+      All monitoring (alert_aggregation, signal_collector, heartbeat) runs
+      inside Celery or is rendered on admin dashboard. When Celery workers die,
+      monitoring dies too. Result: 17-day total system outage (June 11-28)
+      undetected. XM Cyber client received zero value for 17 days. P1 violated
+      for entire period. Nobody was alerted because the alerter was dead.
+      
+      Root cause: observer co-located with observed. Classic self-monitoring failure.
+    evidence: |
+      - Last successful scrape: 2026-06-11
+      - Last activity_event: 2026-06-14
+      - Celery workers died between June 11-13 (zero scrape_log records)
+      - alert_aggregation.py only renders alerts in admin UI (no push)
+      - signal_collector is a Celery task → dead with Celery
+      - Tzvi reported issues June 27 (16 days after failure)
+    proposed_fix: |
+      IMMEDIATE (hours):
+      - Add external uptime monitor (UptimeRobot/BetterUptime) on /health endpoint
+      - /health should return unhealthy if last_scrape > 12h OR last_heartbeat > 5min
+      - External monitor sends email/Telegram on failure
+      
+      SHORT-TERM (days):
+      - Standalone cron on server (outside Docker) that checks container health
+      - If celery container unhealthy > 5min → auto-restart + notify
+      - If scrape_log count(24h) = 0 AND scrape_enabled=true → critical alert
+      
+      MEDIUM-TERM (weeks):
+      - DigitalOcean Monitoring alerts on container CPU/memory
+      - Telegram bot for system alerts (not just admin UI)
+
+  - id: T-2026-06-28-005
+    title: "Submission visibility probe false positives on stale posts"
+    detected: 2026-06-28
+    source: incident
+    sbm_property: [P9, P2]
+    severity: high
+    status: resolved
+    description: >
+      check_submission_visibility() checks if avatar's last submission is in
+      subreddit's top-100 new posts. If post is older than ~24h in any active
+      sub, it falls out of top-100 naturally. This is NOT shadowban evidence.
+      
+      Impact: connor_lloyd marked as shadowbanned (CSS June 27) despite being
+      healthy. Tzvi confirmed "not shadowbanned" via manual check.
+      
+      Deeper issue: When Celery workers die, avatars stop generating content.
+      No new submissions → last submission ages → probe finds old post →
+      "shadowban detected" → avatar frozen. System's own failure triggers
+      false punishment of healthy avatars.
+    evidence: |
+      - connor_lloyd: health_status=active in DB, CSS says "frozen, shadowbanned"
+      - Tzvi email June 27 22:56: "connor_lloyd isn't shadowbanned"
+      - Flaky_Finder_13: Tzvi confirms "doesn't seem shadowbanned"
+      - Probe only checks top-100 new — post >24h in active sub = invisible
+    resolution:
+      date: 2026-06-28
+      action: "Added 24h age check to submission_visibility_probe. Posts older than 24h return inconclusive instead of shadowbanned."
+      files: [app/services/health_checker.py]
+      principle: "Absence of evidence is not evidence of absence. Probe must be time-bounded."
+
+  - id: T-2026-06-28-006
+    title: "No pipeline-alive backpressure signal (0 output = silent death)"
+    detected: 2026-06-28
+    source: sbm_violation
+    sbm_property: [P1]
+    severity: high
+    status: open
+    owner: max
+    description: >
+      When scraping stops, the cascade is silent: scoring finds 0 fresh threads
+      (MAX_AGE_HOURS=48) → generation finds 0 engage threads (7-day filter) →
+      EPG finds 0 opportunities → 0 slots → 0 emails → executor idle.
+      
+      At no point does ANY component say "I expected work but got zero input."
+      Zero output is treated as "nothing to do" not "something is wrong."
+      
+      This violates P1 because a paying client can have 0 drafts for weeks
+      without a single alarm firing inside the pipeline itself.
+    proposed_fix: |
+      Add "expected_output > 0" assertion at pipeline boundaries:
+      - queue_tick: if scrape_enabled=true AND active_subs > 0 AND 0 dispatched for >6h → alert
+      - score_threads: if 0 fresh threads for client with active avatars → emit warning event
+      - generate_comments: if 0 engage threads for 48h → emit P1_threat activity_event
+      - build_portfolio: if 0 opportunities for avatar with budget > 0 → escalate
+      
+      These are not just logs — they should feed alert_aggregation and be
+      visible on dashboard without requiring signal_collector (which is Celery-dependent).
+
+  - id: T-2026-06-28-007
+    title: "Celery death = total system death (no component isolation)"
+    detected: 2026-06-28
+    source: sbm_violation
+    sbm_property: [P10]
+    severity: high
+    status: open
+    owner: max
+    description: >
+      Single Celery worker process handles ALL tasks: scraping, scoring,
+      generation, health checks, karma tracking, CQS, EPG, email dispatch,
+      feedback loops, discovery, emotional profiles, risk scoring.
+      
+      One crash = all functions stop. No priority separation means a
+      broken scoring prompt (Gemini 500 errors) can starve scraping queue.
+      Docker Compose restart policy exists but if the issue is persistent
+      (bad DB connection, Redis down), restarts don't help.
+    proposed_fix: |
+      IMMEDIATE: Ensure docker-compose has restart: unless-stopped on all workers.
+      
+      SHORT-TERM: Split into priority classes:
+      - CRITICAL (must run): queue_tick, heartbeat, health_check, email dispatch
+      - NORMAL (value delivery): scoring, generation, EPG, hobby scrape
+      - BACKGROUND (can wait): feedback loop, discovery, analytics, profiles
+      
+      If CRITICAL tasks fail 3x → alert. NORMAL can retry. BACKGROUND can be skipped.
+      
+      Note: Docker Compose already has 2 workers (celery + celery-fast).
+      But both can die simultaneously from shared root causes (Redis down, DB down).
+
+  # ─── OPEN (Medium — scheduled for next sprint) ──────────────────────────
 
   - id: T-2026-06-28-001
     title: "No LLM cost circuit breaker on pipeline"
@@ -124,8 +305,6 @@ tensions:
     proposed_fix: >
       Daily pipeline cost ceiling (e.g., $5/day). If AIUsageLog sum for
       today exceeds ceiling, pause generation tasks until next day.
-      Alternatively: per-task cost cap ($0.50) with circuit breaker after
-      3 consecutive failures.
 
   - id: T-2026-06-28-002
     title: "P6 feedback closure has no alert"
@@ -142,6 +321,27 @@ tensions:
       SQL query in signal_collector: count posted drafts without snapshots
       after 48h. Alert if count > 0.
 
+  - id: T-2026-06-28-008
+    title: "CSS generated manually, staleness undetectable without human"
+    detected: 2026-06-28
+    source: observation
+    sbm_property: [P10]
+    severity: medium
+    status: open
+    owner: max
+    description: >
+      CSS (current.yaml) was manually written June 27. It contained incorrect
+      state (connor_lloyd listed as frozen/shadowbanned — actually active).
+      No automated regeneration exists. _generate_css.py script referenced
+      but not implemented. Truth Resolution Model says "CSS older than 48h
+      should be treated as potentially inaccurate" but nothing enforces this.
+    proposed_fix: >
+      Implement _generate_css.py that reads live DB state and regenerates
+      current.yaml. Run as weekly Celery task or userTriggered hook.
+      Add "generated_at" visible in admin UI footer.
+
+  # ─── DEFERRED ───────────────────────────────────────────────────────────
+
   - id: T-2026-06-28-003
     title: "Meta-loop has no automated OBSERVE for architecture pressure"
     detected: 2026-06-28
@@ -150,10 +350,6 @@ tensions:
     severity: low
     status: deferred
     owner: max
-    description: >
-      Architecture tensions are currently detected only through incidents
-      (reactive) or manual observation. No automated pattern detection
-      (3-day recurring errors, cost outpacing growth, frozen count rising).
     deferred_reason: >
       Requires Phase 2 Daily Review (trend classification). Current scale
       (1 engineer, 3 clients) doesn't justify complexity. Revisit when

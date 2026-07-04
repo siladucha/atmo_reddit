@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     app_env: str = "production"
     posting_disabled: bool = False  # env-level kill switch (cannot be toggled from admin UI)
+    extension_hmac_secret: str | None = None  # HMAC secret for browser extension task signing
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
@@ -23,7 +24,7 @@ def get_settings() -> Settings:
 
 
 # Bootstrap keys that are resolved from env, never from DB
-_BOOTSTRAP_KEYS = frozenset({"database_url", "redis_url", "app_env"})
+_BOOTSTRAP_KEYS = frozenset({"database_url", "redis_url", "app_env", "extension_hmac_secret"})
 
 
 def get_config(key: str, db=None) -> str:

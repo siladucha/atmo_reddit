@@ -1,0 +1,82 @@
+<!-- HTMX lazy-load partial: Competitor bar chart -->
+{% set observed = report.observed_json or {} %}
+
+{% if observed and observed.competitors is defined and observed.competitors %}
+<div class="chart-container" style="height: 250px;">
+    <canvas id="competitorChartLazy"></canvas>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script>
+(function() {
+    const observed = {{ observed|tojson }};
+    const canvas = document.getElementById('competitorChartLazy');
+    if (!canvas || !observed || !observed.competitors) return;
+
+    const competitors = observed.competitors;
+    const clientRate = observed.brand_rate || 0;
+    const labels = competitors.map(c => c.name);
+    const rates = competitors.map(c => c.rate);
+
+    // Add client to the list
+    labels.unshift('You');
+    rates.unshift(clientRate);
+
+    // Colors
+    const bgColors = rates.map((r, i) => {
+        if (i === 0) return 'rgba(59, 130, 246, 0.8)';
+        return r > clientRate ? 'rgba(239, 68, 68, 0.6)' : 'rgba(148, 163, 184, 0.4)';
+    });
+    const borderColors = rates.map((r, i) => {
+        if (i === 0) return '#3B82F6';
+        return r > clientRate ? '#ef4444' : '#94a3b8';
+    });
+
+    new Chart(canvas.getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Visibility Rate',
+                data: rates,
+                backgroundColor: bgColors,
+                borderColor: borderColors,
+                borderWidth: 1,
+                barThickness: 20
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1e293b',
+                    titleColor: '#fff',
+                    bodyColor: '#94a3b8',
+                    borderColor: '#334155',
+                    borderWidth: 1,
+                    callbacks: {
+                        label: function(ctx) { return ctx.parsed.x.toFixed(1) + '%'; }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(148, 163, 184, 0.1)' },
+                    ticks: { color: '#64748b', callback: v => v + '%' },
+                    beginAtZero: true,
+                    suggestedMax: 100
+                },
+                y: {
+                    grid: { display: false },
+                    ticks: { color: '#e2e8f0', font: { size: 12 } }
+                }
+            }
+        }
+    });
+})();
+</script>
+{% else %}
+<p style="color: var(--color-muted); text-align: center; padding: 24px;">No competitor data available.</p>
+{% endif %}

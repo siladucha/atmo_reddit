@@ -1,0 +1,10 @@
+[Unit]
+Description=RAMP External Watchdog — checks Beat, PG, Redis, App, Disk
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/ramp/ramp_watchdog.sh
+TimeoutSec=30
+StandardOutput=journal
+StandardError=journal

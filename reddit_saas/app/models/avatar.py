@@ -93,7 +93,12 @@ class Avatar(Base):
     # --- Executor (who posts for this avatar) ---
     executor_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     executor_email_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    executor_verification_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    executor_verification_token_expires: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     auto_approve_drafts: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+
+    # EPG execution mode: "required" (executor approval needed), "optional" (auto-execute), "disabled" (pure runtime)
+    epg_mode: Mapped[str] = mapped_column(String(20), nullable=False, default="required", server_default="required")
 
     # --- Automated Posting ---
     # Proxy & fingerprint
@@ -103,6 +108,7 @@ class Avatar(Base):
 
     # Posting control
     posting_mode: Mapped[str] = mapped_column(String(20), default="disabled", server_default="disabled")  # auto | disabled
+    delivery_channel: Mapped[str] = mapped_column(String(20), default="email", server_default="email")  # email | extension | both
     reddit_app_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("reddit_apps.id"), nullable=True
     )
@@ -110,6 +116,11 @@ class Avatar(Base):
     # Auth credentials (encrypted — Fernet AES-128-CBC)
     refresh_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     reddit_password_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # --- Risk-Aware Activation (zone routing) ---
+    activation_route: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=None)
+    activation_zone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    zone_entered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Posting state
     last_posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

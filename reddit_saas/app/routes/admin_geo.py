@@ -67,6 +67,10 @@ def geo_main_page(
         .all()
     )
 
+    # Compute visibility report for the analytics dashboard section
+    from app.services.visibility_report import compute_visibility_report
+    report = compute_visibility_report(db, client_id, include_excerpts=True)
+
     return templates.TemplateResponse(
         request,
         "admin_geo.html",
@@ -77,6 +81,7 @@ def geo_main_page(
             "prompts": prompts,
             "competitors": competitors,
             "batches": batches,
+            "report": report,
         },
     )
 
@@ -732,6 +737,226 @@ Generate {count} buyer-intent prompts for GEO/AEO monitoring."""
         "partials/geo_prompts.html",
         {
             "prompts": prompts,
+            "client_id": str(client_id),
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# AI-powered competitor suggestion
+# ---------------------------------------------------------------------------
+
+_SUGGEST_COMPETITORS_SYSTEM = """You are an expert competitive intelligence analyst.
+Your task: identify the top competitors for a given brand in its industry.
+
+For each competitor, provide:
+- Company/product name (the commonly known brand name)
+- Domain (their primary website, without https://)
+- Aliases (alternative names, abbreviations, or product names they are known by)
+
+RULES:
+- Suggest exactly {count} competitors
+- Focus on DIRECT competitors (same market category, similar target audience)
+- Include a mix of: established leaders, growing challengers, and niche alternatives
+- Do NOT include the client's own brand
+- Do NOT include generic/broad companies unless they directly compete in this niche
+- Prioritize competitors that are likely to appear in AI search results for the same buyer queries
+- Use real company/product names — no made-up entities
+- Domain should be the primary marketing domain (e.g., "crowdstrike.com", not "crowdstrike.io")
+- Aliases should include abbreviations, product sub-brands, or informal names (e.g., ["CS", "CrowdStrike Falcon"])
+
+OUTPUT FORMAT (valid JSON — MUST be a JSON object with a "competitors" array):
+{{"competitors": [{{"name": "...", "domain": "...", "aliases": ["...", "..."]}}]}}
+
+IMPORTANT: Always return ALL competitors inside the "competitors" array, even if suggesting only one.
+"""
+
+
+@router.post("/{client_id}/geo/suggest-competitors", response_class=HTMLResponse)
+def suggest_competitors_ai(
+    request: Request,
+    client_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_superuser),
+):
+    """Suggest competitors using AI based on client profile and industry."""
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    # Check how many competitors can still be added (limit: 30)
+    active_count = (
+        db.query(func.count(GeoCompetitor.id))
+        .filter(GeoCompetitor.client_id == client_id, GeoCompetitor.is_active.is_(True))
+        .scalar()
+    ) or 0
+
+    remaining_slots = 30 - active_count
+    if remaining_slots <= 0:
+        raise HTTPException(status_code=400, detail="Maximum 30 active competitors reached")
+
+    # Suggest up to 10 competitors (or remaining slots, whichever is smaller)
+    count = min(10, remaining_slots)
+
+    # Build context from client data
+    keywords_str = ""
+    if client.keywords:
+        all_kw = []
+        for priority, kw_list in client.keywords.items():
+            if isinstance(kw_list, list):
+                all_kw.extend(kw_list)
+        keywords_str = ", ".join(all_kw[:30])
+
+    # Get existing competitors to avoid duplicates
+    existing_competitors = (
+        db.query(GeoCompetitor)
+        .filter(GeoCompetitor.client_id == client_id)
+        .all()
+    )
+    existing_names = {c.competitor_name.lower().strip() for c in existing_competitors}
+
+    # Get existing prompts for additional context
+    existing_prompts = (
+        db.query(GeoPrompt.prompt_text)
+        .filter(GeoPrompt.client_id == client_id, GeoPrompt.is_active.is_(True))
+        .limit(10)
+        .all()
+    )
+    sample_prompts = [p.prompt_text for p in existing_prompts]
+
+    user_content = f"""Client brand: {client.brand_name}
+Industry: {client.industry or 'not specified'}
+Keywords: {keywords_str or 'not specified'}
+Company profile: {(client.company_profile or '')[:500]}
+Already tracked competitors: {', '.join(existing_names) if existing_names else 'none'}
+Sample buyer-intent prompts: {'; '.join(sample_prompts[:5]) if sample_prompts else 'none'}
+
+Suggest {count} direct competitors that are NOT already tracked."""
+
+    from app.config import get_config
+    from app.services.ai import call_llm_json, log_ai_usage
+
+    system_prompt = _SUGGEST_COMPETITORS_SYSTEM.format(count=count)
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_content},
+    ]
+
+    # Try primary model (Gemini Flash), fallback to Claude Haiku if <3 results
+    result = None
+    suggested = []
+
+    for model_name in ["anthropic/claude-haiku-4-5", get_config("llm_scoring_model")]:
+        try:
+            result = call_llm_json(
+                messages=messages,
+                model=model_name,
+                temperature=0.7,
+                max_tokens=2048,
+            )
+        except Exception as e:
+            logger.warning(f"GEO suggest competitors failed with {model_name}: {e}")
+            continue
+
+        # Log AI cost for every attempt
+        log_ai_usage(
+            db=db,
+            client_id=str(client_id),
+            operation="geo_suggest_competitors",
+            result=result,
+            triggered_by="manual",
+        )
+
+        # Parse response (handle malformed formats)
+        data = result.get("data", {})
+        suggested = data.get("competitors", [])
+
+        if not suggested:
+            if isinstance(data, dict) and "name" in data:
+                suggested = [data]
+            elif isinstance(data, list):
+                suggested = data
+
+        # If got enough results, stop
+        if len(suggested) >= 3:
+            break
+        else:
+            logger.warning(
+                "GEO_SUGGEST_INSUFFICIENT | model=%s | got=%d | expected=%d | retrying",
+                model_name, len(suggested), count,
+            )
+
+    if not suggested:
+        raise HTTPException(status_code=500, detail="AI returned no competitor suggestions")
+
+    # Insert suggested competitors (skip duplicates)
+    created_count = 0
+    for item in suggested:
+        name = item.get("name", "").strip()
+        domain = item.get("domain", "").strip() or None
+        aliases = item.get("aliases", [])
+
+        if not name:
+            continue
+        if name.lower().strip() in existing_names:
+            continue
+        # Skip if same as client brand
+        if client.brand_name and name.lower().strip() == client.brand_name.lower().strip():
+            continue
+
+        # Normalize aliases
+        if isinstance(aliases, str):
+            aliases = [a.strip() for a in aliases.split(",") if a.strip()]
+        elif isinstance(aliases, list):
+            aliases = [str(a).strip() for a in aliases if str(a).strip()]
+        else:
+            aliases = []
+
+        comp = GeoCompetitor(
+            client_id=client_id,
+            competitor_name=name,
+            competitor_domain=domain,
+            aliases=aliases,
+        )
+        db.add(comp)
+        existing_names.add(name.lower().strip())
+        created_count += 1
+
+    db.commit()
+
+    # Audit log
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="ai_suggest",
+        entity_type="geo_competitors",
+        client_id=client_id,
+        details={
+            "suggested": created_count,
+            "model": result.get("model", "unknown"),
+            "cost_usd": float(result.get("cost_usd", 0)),
+            "input_tokens": result.get("input_tokens", 0),
+            "output_tokens": result.get("output_tokens", 0),
+        },
+    )
+
+    logger.info(
+        "GEO_SUGGEST_COMPETITORS | client=%s | created=%d | model=%s | cost=$%.4f",
+        client.brand_name, created_count, result.get("model", "?"), result.get("cost_usd", 0),
+    )
+
+    # Return updated competitor list
+    competitors = (
+        db.query(GeoCompetitor)
+        .filter(GeoCompetitor.client_id == client_id)
+        .order_by(desc(GeoCompetitor.created_at))
+        .all()
+    )
+    return templates.TemplateResponse(
+        request,
+        "partials/geo_competitors.html",
+        {
+            "competitors": competitors,
             "client_id": str(client_id),
         },
     )

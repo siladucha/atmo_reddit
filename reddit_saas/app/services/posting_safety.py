@@ -89,9 +89,14 @@ def check_posting_safety(
     if avatar.health_status in ("shadowbanned", "suspended"):
         return SafetyResult(False, f"Avatar health_status is '{avatar.health_status}'")
 
-    # 5. Phase 0 (Mentor) excluded from automated posting
+    # 5. Mentor (pool) excluded from automated posting
+    if avatar.pool == "mentor":
+        return SafetyResult(False, "Mentor (pool): excluded from automated posting")
+
+    # Phase 0 (Incubation) — posting via automated system not allowed
+    # (Phase 0 drafts go through email tasks / manual posting only)
     if avatar.warming_phase == 0:
-        return SafetyResult(False, "Phase 0 (Mentor): excluded from automated posting")
+        return SafetyResult(False, "Phase 0 (Incubation): automated posting not allowed")
 
     # 6. Daily cap check
     effective_cap = get_effective_daily_cap(db, avatar)
@@ -128,14 +133,19 @@ def get_effective_daily_cap(db: Session, avatar: Avatar) -> int:
     """Calculate effective daily posting cap: min(phase_limit, system_cap).
 
     Phase limits:
-        Phase 0: 0 (Mentor, excluded)
+        Mentor (pool): 0 (excluded)
+        Phase 0: 1 (Incubation)
         Phase 1: 3 (CQS "lowest": 1)
         Phase 2: 7
         Phase 3: 18
     """
     from app.services.settings import get_setting
 
-    PHASE_DAILY_LIMITS = {0: 0, 1: 3, 2: 7, 3: 18}
+    # Mentor pool always excluded
+    if avatar.pool == "mentor":
+        return 0
+
+    PHASE_DAILY_LIMITS = {0: 1, 1: 3, 2: 7, 3: 18}
 
     phase_limit = PHASE_DAILY_LIMITS.get(avatar.warming_phase, 0)
     if avatar.warming_phase == 1 and avatar.cqs_level == "lowest":

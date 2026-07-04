@@ -52,14 +52,16 @@
                     {% endif %}
                     <span class="text-small">{{ s.generated_at }}</span>
                     {% if user_role in ['owner', 'partner', 'client_admin', 'client_manager'] %}
+                    {% if hidden_actions is not defined or "trigger_strategy" not in hidden_actions %}
                     <button
                         hx-post="/clients/{{ client_id }}/actions/strategy/{{ s.avatar_id }}"
                         hx-target="#strategy-status-{{ s.avatar_id }}"
                         hx-swap="innerHTML"
                         class="btn-outline"
                         style="font-size:var(--text-micro);padding:4px 10px;margin-left:8px;"
-                    >↻ Regenerate</button>
+                    >↻ Regenerate{% if approval_actions is defined and "trigger_strategy" in approval_actions %}<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(251,191,36,0.15);color:#fbbf24;margin-left:4px;">Requires Approval</span>{% endif %}</button>
                     <span id="strategy-status-{{ s.avatar_id }}"></span>
+                    {% endif %}
                     {% endif %}
                 </div>
             </div>

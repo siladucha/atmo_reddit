@@ -11,12 +11,12 @@ from datetime import datetime, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-import litellm
 from sqlalchemy.orm import Session
 
 from app.models.client import Client
 from app.models.trial_sales_summary import TrialSalesSummary
 from app.models.trial_score import TrialScore
+from app.services.ai import call_llm, log_ai_usage
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +88,7 @@ class SalesSummaryGenerator:
 
         # Build and send LLM prompt
         user_prompt = self._build_user_prompt(client, score, signals)
-        response_text = self._call_llm(user_prompt)
+        response_text = self._call_llm(db, client_id, user_prompt)
 
         if response_text is None:
             return {"status": "error", "message": "LLM call failed or timed out"}
@@ -254,8 +254,8 @@ class SalesSummaryGenerator:
 
         return "\n".join(lines) if lines else "No score breakdown available."
 
-    def _call_llm(self, user_prompt: str) -> str | None:
-        """Call Claude Sonnet via LiteLLM with 15s timeout.
+    def _call_llm(self, db: Session, client_id: UUID, user_prompt: str) -> str | None:
+        """Call Claude Sonnet via centralized call_llm with cost logging.
 
         Returns:
             Response text or None on failure.
@@ -266,25 +266,32 @@ class SalesSummaryGenerator:
         ]
 
         try:
-            response = litellm.completion(
-                model=LLM_MODEL,
+            result = call_llm(
                 messages=messages,
+                model=LLM_MODEL,
                 temperature=0.7,
                 max_tokens=2048,
                 timeout=LLM_TIMEOUT,
             )
-            content = response.choices[0].message.content
-            logger.info(
-                "LLM sales summary generated | model=%s | tokens_in=%d | tokens_out=%d",
-                LLM_MODEL,
-                response.usage.prompt_tokens,
-                response.usage.completion_tokens,
-            )
-            return content
 
-        except litellm.exceptions.Timeout:
-            logger.error("LLM timeout (%ds) generating sales summary", LLM_TIMEOUT)
-            return None
+            # Log AI usage for cost tracking
+            log_ai_usage(
+                db=db,
+                client_id=str(client_id),
+                operation="trial_sales_summary",
+                result=result,
+                triggered_by="manual",
+            )
+
+            logger.info(
+                "LLM sales summary generated | model=%s | tokens_in=%d | tokens_out=%d | cost=$%.6f",
+                result["model"],
+                result["input_tokens"],
+                result["output_tokens"],
+                result["cost_usd"],
+            )
+            return result["content"]
+
         except Exception as e:
             logger.error("LLM call failed for sales summary: %s", str(e))
             return None

@@ -560,6 +560,13 @@ DEFAULTS: dict[str, dict] = {
         "desc": "Enable/disable Fitness Gate in the generation pipeline. When false, all Smart Scoring engage results pass through to generation unfiltered.",
         "group": "pipeline_v2",
     },
+    # --- Risk-Aware Activation ---
+    "activation_routing_enabled": {
+        "value": "false",
+        "secret": False,
+        "desc": "Enable risk-aware zone routing for Phase 0-1 avatars (safe → bridge → target). When false, legacy hobby_subreddits used.",
+        "group": "pipeline_v2",
+    },
     # --- Trial Conversion Intelligence ---
     "trial_scoring_weights": {
         "value": '{"engagement": 0.20, "intent": 0.25, "value_realization": 0.25, "conversion": 0.20, "negative_cap": 0.30}',
@@ -879,6 +886,7 @@ def seed_from_env(db: Session) -> None:
         "llm_provider": "LITELLM_PROVIDER",
         "llm_scoring_model": "LITELLM_SCORING_MODEL",
         "llm_generation_model": "LITELLM_GENERATION_MODEL",
+        "geo_perplexity_api_key": "PERPLEXITY_API_KEY",
         "app_env": "APP_ENV",
         "app_host": "APP_HOST",
         "app_port": "APP_PORT",

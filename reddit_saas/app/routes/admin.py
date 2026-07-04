@@ -844,6 +844,52 @@ def admin_toggle_user_active(
     )
 
 
+@router.post("/users/{user_id}/toggle-verified", response_class=HTMLResponse)
+def admin_toggle_user_verified(
+    request: Request,
+    user_id: uuid.UUID,
+    current_user: User = Depends(require_user_management_access),
+    db: Session = Depends(get_db),
+):
+    """Toggle email_verified status for a user. Owner/Partner only."""
+    from datetime import datetime, timezone
+    from app.models.user_role import UserRole as _UR
+
+    # Only owner/partner can manually verify emails (not client_admin)
+    if current_user.user_role not in (_UR.owner, _UR.partner):
+        return HTMLResponse(status_code=403, content="Only owner/partner can toggle email verification")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return HTMLResponse(status_code=404, content="User not found")
+
+    user.email_verified = not user.email_verified
+    if user.email_verified:
+        user.email_verified_at = datetime.now(timezone.utc)
+    else:
+        user.email_verified_at = None
+    # Clear any pending verification token
+    user.verification_token_hash = None
+    user.verification_token_expires = None
+    db.commit()
+    db.refresh(user)
+
+    audit_service.log_action(
+        db,
+        action="email_verified_toggled",
+        entity_type="user",
+        entity_id=user.id,
+        user_id=current_user.id,
+        details={"email_verified": user.email_verified, "target_email": user.email},
+    )
+
+    return templates.TemplateResponse(
+        name="partials/admin_user_row.html",
+        context={"request": request, "user": user, "current_user": current_user},
+        request=request,
+    )
+
+
 @router.post("/users/{user_id}/toggle-superuser", response_class=HTMLResponse)
 def admin_toggle_user_superuser(
     request: Request,
@@ -3729,6 +3775,45 @@ def admin_unassign_avatar_from_client(
     )
 
 
+@router.post("/avatars/{avatar_id}/display-name", response_class=HTMLResponse)
+def admin_avatar_display_name(
+    request: Request,
+    avatar_id: uuid.UUID,
+    display_name: str = Form(""),
+    current_user: User = Depends(require_avatar_admin),
+    db: Session = Depends(get_db),
+):
+    """Update avatar's display_name (shown to clients in portal)."""
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        return HTMLResponse("Avatar not found", status_code=404)
+
+    old_name = avatar.display_name
+    new_name = display_name.strip() or None
+    avatar.display_name = new_name
+    db.commit()
+
+    audit_service.log_action(
+        db=db,
+        user_id=current_user.id,
+        action="avatar_display_name_updated",
+        entity_type="avatar",
+        entity_id=avatar.id,
+        details={
+            "reddit_username": avatar.reddit_username,
+            "old_display_name": old_name,
+            "new_display_name": new_name,
+        },
+    )
+
+    return HTMLResponse(
+        "",
+        headers={
+            "HX-Trigger": '{"showToast": {"type": "success", "message": "Display name updated"}}'
+        },
+    )
+
+
 @router.post("/avatars/{avatar_id}/phase-override", response_class=HTMLResponse)
 def admin_avatar_phase_override(
     request: Request,
@@ -5480,6 +5565,71 @@ async def onboard_step4_avatars(
 
 
 # ---------------------------------------------------------------------------
+# Risk Registry (read-only view of system_model/09_risks.json)
+# ---------------------------------------------------------------------------
+
+@router.get("/risk-registry", response_class=HTMLResponse)
+def admin_risk_registry(
+    request: Request,
+    current_user: User = Depends(require_superuser),
+):
+    """Display risk registry from system_model/09_risks.json."""
+    import json
+    from pathlib import Path
+
+    # In Docker: file is at /app/data/09_risks.json (COPY'd into image)
+    # Local dev: relative to this file
+    risk_file = Path(__file__).resolve().parent.parent.parent / "data" / "09_risks.json"
+    if not risk_file.exists():
+        # Fallback: workspace root system_model/
+        risk_file = Path(__file__).resolve().parents[3] / "system_model" / "09_risks.json"
+
+    risks_data = {}
+    if risk_file.exists():
+        with open(risk_file, "r") as f:
+            risks_data = json.load(f)
+
+    # Prepare data for template
+    risk_groups = risks_data.get("risk_groups", [])
+    risks = risks_data.get("risks", [])
+    priorities = risks_data.get("priorities", {})
+    meta = risks_data.get("meta", {})
+
+    # Group risks by group id
+    grouped_risks: dict[str, list] = {}
+    for r in risks:
+        grouped_risks.setdefault(r.get("group", "UNKNOWN"), []).append(r)
+
+    # Count by escalation
+    escalation_counts = {}
+    for r in risks:
+        esc = r.get("escalation", "UNKNOWN")
+        escalation_counts[esc] = escalation_counts.get(esc, 0) + 1
+
+    # Count by status
+    status_counts = {}
+    for r in risks:
+        st = r.get("status", "unknown")
+        status_counts[st] = status_counts.get(st, 0) + 1
+
+    return templates.TemplateResponse(
+        name="admin_risk_registry.html",
+        context={
+            "request": request,
+            "active_nav": "risk-registry",
+            "meta": meta,
+            "risk_groups": risk_groups,
+            "grouped_risks": grouped_risks,
+            "priorities": priorities,
+            "escalation_counts": escalation_counts,
+            "status_counts": status_counts,
+            "total_risks": len(risks),
+        },
+        request=request,
+    )
+
+
+# ---------------------------------------------------------------------------
 # System settings (admin UI)
 # ---------------------------------------------------------------------------
 
@@ -6494,7 +6644,7 @@ def admin_review(
     # --- Comment drafts query (default) ---
     query = (
         db.query(CommentDraft)
-        .options(joinedload(CommentDraft.thread), joinedload(CommentDraft.avatar))
+        .options(joinedload(CommentDraft.thread), joinedload(CommentDraft.avatar), joinedload(CommentDraft.hobby_post))
         .filter(CommentDraft.status == status)
     )
 
@@ -6506,9 +6656,30 @@ def admin_review(
         except ValueError:
             pass
 
-    # Subreddit filter
+    # Subreddit filter — includes both professional (via thread) and hobby (via hobby_post_id)
     if subreddit:
-        query = query.join(CommentDraft.thread).filter(RedditThread.subreddit == subreddit)
+        from app.models.hobby import HobbySubreddit as _HobbySubreddit
+        from sqlalchemy import or_
+        # Find hobby post IDs matching the subreddit
+        hobby_ids_for_sub = [
+            row[0] for row in
+            db.query(_HobbySubreddit.id).filter(_HobbySubreddit.subreddit == subreddit).all()
+        ]
+        # Find thread IDs matching the subreddit
+        thread_ids_for_sub = [
+            row[0] for row in
+            db.query(RedditThread.id).filter(RedditThread.subreddit == subreddit).all()
+        ]
+        conditions = []
+        if thread_ids_for_sub:
+            conditions.append(CommentDraft.thread_id.in_(thread_ids_for_sub))
+        if hobby_ids_for_sub:
+            conditions.append(CommentDraft.hobby_post_id.in_(hobby_ids_for_sub))
+        if conditions:
+            query = query.filter(or_(*conditions))
+        else:
+            # No matching threads/hobby posts — return empty
+            query = query.filter(CommentDraft.id == None)
 
     # Avatar filter
     if avatar_id:
@@ -6554,21 +6725,34 @@ def admin_review(
         )
         scores_map = {(s.thread_id, s.client_id): s for s in scores}
 
+    # Batch-fetch HobbySubreddit records for hobby drafts (thread_id is NULL)
+    # NOTE: With the hobby_post relationship on CommentDraft, eager loading handles
+    # most cases. This batch lookup covers any drafts where the relationship wasn't loaded.
+    from app.services.hobby_proxy import HobbyThreadProxy
+
     enriched = []
     for draft in drafts:
         thread = draft.thread
         avatar = draft.avatar
         score = scores_map.get((draft.thread_id, draft.client_id))
 
+        # For hobby drafts, resolve thread info from HobbySubreddit relationship
+        if thread is None and draft.hobby_post_id:
+            hobby_post = draft.hobby_post
+            if hobby_post:
+                thread = HobbyThreadProxy(hobby_post)
+
         # Compute comment count from comments_json
-        if thread and thread.comments_json:
+        if thread and hasattr(thread, 'comments_json') and thread.comments_json:
             try:
                 import json as _json
                 _comments = _json.loads(thread.comments_json)
                 thread.comment_count = len(_comments) if isinstance(_comments, list) else 0
             except Exception:
                 thread.comment_count = 0
-        elif thread:
+        elif thread and not hasattr(thread, 'comment_count'):
+            thread.comment_count = 0
+        elif thread and hasattr(thread, 'comments_json'):
             thread.comment_count = 0
 
         item = {"draft": draft, "thread": thread, "avatar": avatar, "score": score}
@@ -6631,7 +6815,7 @@ def admin_review(
 
     # Get unique subreddits and avatars for filter dropdowns
     subreddit_options = sorted(set(
-        d.thread.subreddit for d in drafts if d.thread and d.thread.subreddit
+        item["thread"].subreddit for item in enriched if item["thread"] and item["thread"].subreddit
     ))
     avatar_options = sorted(
         set((str(d.avatar.id), d.avatar.reddit_username) for d in drafts if d.avatar),
@@ -7477,6 +7661,8 @@ def admin_avatar_update_profile(
     avatar_id: uuid.UUID,
     section: str = Form(...),
     reddit_username: str = Form(""),
+    display_name: str = Form(""),
+    persona_bio: str = Form(""),
     email_address: str = Form(""),
     voice_profile_md: str = Form(""),
     tone_principles: str = Form(""),
@@ -7530,6 +7716,14 @@ def admin_avatar_update_profile(
         if email != avatar.email_address:
             changes["email_address"] = email
             avatar.email_address = email
+        new_display_name = display_name.strip() or None
+        if new_display_name != avatar.display_name:
+            changes["display_name"] = new_display_name
+            avatar.display_name = new_display_name
+        new_persona_bio = persona_bio.strip() or None
+        if new_persona_bio != avatar.persona_bio:
+            changes["persona_bio"] = new_persona_bio
+            avatar.persona_bio = new_persona_bio
 
     elif section == "voice":
         new_voice = voice_profile_md.strip().replace("\r\n", "\n").replace("\r", "\n") or None
@@ -8219,6 +8413,38 @@ def admin_avatar_posting_mode(
     return RedirectResponse(url=f"/admin/avatars/{avatar_id}#posting-section", status_code=303)
 
 
+@router.post("/avatars/{avatar_id}/delivery-channel", response_class=HTMLResponse)
+def admin_avatar_delivery_channel(
+    request: Request,
+    avatar_id: uuid.UUID,
+    channel: str = Form(...),
+    current_user: User = Depends(require_owner),
+    db: Session = Depends(get_db),
+):
+    """Set avatar delivery channel: email, extension, or both."""
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+
+    if channel not in ("email", "extension", "both"):
+        raise HTTPException(status_code=400, detail="Channel must be 'email', 'extension', or 'both'")
+
+    old_channel = avatar.delivery_channel
+    avatar.delivery_channel = channel
+    db.commit()
+
+    audit_service.log_action(
+        db,
+        action="delivery_channel_changed",
+        entity_type="avatar",
+        entity_id=avatar.id,
+        user_id=current_user.id,
+        details={"old_channel": old_channel, "new_channel": channel},
+    )
+
+    return RedirectResponse(url=f"/admin/avatars/{avatar_id}#posting-section", status_code=303)
+
+
 @router.post("/avatars/{avatar_id}/reset-posting-failures", response_class=HTMLResponse)
 def admin_avatar_reset_posting_failures(
     request: Request,
@@ -8290,17 +8516,23 @@ def admin_avatar_executor_email(
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
-    """Save executor email for per-avatar email task routing."""
+    """Save executor email for per-avatar email task routing.
+
+    When email changes, verification is reset and a verification email is sent
+    automatically. All task delivery is blocked until the executor confirms.
+    """
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
         raise HTTPException(status_code=404, detail="Avatar not found")
 
     new_email = executor_email.strip() if executor_email else None
 
-    # If email changed, reset verification
+    # If email changed, reset verification and send verification email
     if new_email != avatar.executor_email:
         avatar.executor_email = new_email
         avatar.executor_email_verified = False
+        avatar.executor_verification_token_hash = None
+        avatar.executor_verification_token_expires = None
         db.commit()
         audit_service.log_action(
             db,
@@ -8310,6 +8542,11 @@ def admin_avatar_executor_email(
             user_id=current_user.id,
             details={"new_email": new_email, "verified": False},
         )
+
+        # Send verification email to the new executor
+        if new_email:
+            from app.services.executor_email_verification import send_executor_verification
+            send_executor_verification(db, avatar)
     else:
         # Same email, no changes needed
         pass
@@ -8324,7 +8561,7 @@ def admin_avatar_executor_email_verify(
     current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
-    """Mark executor email as verified."""
+    """Mark executor email as verified (admin override)."""
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
         raise HTTPException(status_code=404, detail="Avatar not found")
@@ -8333,11 +8570,46 @@ def admin_avatar_executor_email_verify(
         raise HTTPException(status_code=400, detail="No executor email to verify")
 
     avatar.executor_email_verified = True
+    avatar.executor_verification_token_hash = None
+    avatar.executor_verification_token_expires = None
     db.commit()
 
     audit_service.log_action(
         db,
         action="executor_email_verified",
+        entity_type="avatar",
+        entity_id=avatar.id,
+        user_id=current_user.id,
+        details={"email": avatar.executor_email, "method": "admin_override"},
+    )
+
+    return RedirectResponse(url=f"/admin/avatars/{avatar_id}#posting-section", status_code=303)
+
+
+@router.post("/avatars/{avatar_id}/executor-email/resend", response_class=HTMLResponse)
+def admin_avatar_executor_email_resend(
+    request: Request,
+    avatar_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Resend verification email to the executor."""
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+
+    if not avatar.executor_email:
+        raise HTTPException(status_code=400, detail="No executor email configured")
+
+    if avatar.executor_email_verified:
+        return RedirectResponse(url=f"/admin/avatars/{avatar_id}#posting-section", status_code=303)
+
+    from app.services.executor_email_verification import send_executor_verification
+    send_executor_verification(db, avatar)
+
+    audit_service.log_action(
+        db,
+        action="executor_verification_resent",
         entity_type="avatar",
         entity_id=avatar.id,
         user_id=current_user.id,
@@ -8427,6 +8699,81 @@ def admin_avatar_posting_config(
             user_id=current_user.id,
             details={"fields_updated": changes},
         )
+
+    return RedirectResponse(url=f"/admin/avatars/{avatar_id}#posting-section", status_code=303)
+
+
+@router.post("/avatars/{avatar_id}/create-extension-task", response_class=HTMLResponse)
+def admin_create_extension_task(
+    request: Request,
+    avatar_id: uuid.UUID,
+    thread_url: str = Form(...),
+    thread_title: str = Form(""),
+    comment_text: str = Form(...),
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Create an ExecutionTask for browser extension (prepare_only mode).
+
+    Task will be picked up by extension on next poll (30s) and appear in popup.
+    Extension inserts text into Reddit editor but does NOT submit.
+    """
+    from app.models.execution_task import ExecutionTask
+    from datetime import timedelta
+    import re
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+
+    # Extract subreddit from URL
+    subreddit_match = re.search(r'/r/([\w]+)/', thread_url)
+    subreddit = subreddit_match.group(1) if subreddit_match else "unknown"
+
+    now = datetime.now(timezone.utc)
+    task_code = f"EXT-{now.strftime('%Y%m%d')}-{uuid.uuid4().hex[:4].upper()}"
+    idempotency_key = f"ext-admin-{uuid.uuid4().hex[:8]}"
+
+    task = ExecutionTask(
+        task_code=task_code,
+        executor_token=uuid.uuid4(),
+        avatar_id=avatar.id,
+        client_id=uuid.UUID(avatar.client_ids[0]) if avatar.client_ids else None,
+        avatar_username=avatar.reddit_username,
+        client_name="Admin Test",
+        executor_contact=current_user.email or "admin@ramp.local",
+        executor_type="admin",
+        delivery_channel="extension",
+        task_type="post_comment",
+        subreddit=subreddit,
+        thread_url=thread_url.strip(),
+        thread_title=thread_title.strip() or f"Thread in r/{subreddit}",
+        generated_text=comment_text.strip(),
+        scheduled_at=None,
+        deadline=now + timedelta(hours=4),
+        status="generated",
+        task_lifecycle_status="CREATED",
+        idempotency_key=idempotency_key,
+        priority="content",
+    )
+
+    db.add(task)
+    db.commit()
+
+    audit_service.log_action(
+        db,
+        action="extension_task_created",
+        entity_type="avatar",
+        entity_id=avatar.id,
+        user_id=current_user.id,
+        details={
+            "task_id": str(task.id),
+            "task_code": task_code,
+            "subreddit": subreddit,
+            "thread_url": thread_url,
+            "mode": "prepare_only",
+        },
+    )
 
     return RedirectResponse(url=f"/admin/avatars/{avatar_id}#posting-section", status_code=303)
 
@@ -9497,4 +9844,361 @@ def admin_help(
             "user_role": role,
         },
         request=request,
+    )
+
+
+# ---------------------------------------------------------------------------
+# ActionRequest Management (Permission Map Spec — Task 8.3)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/action-requests", response_class=HTMLResponse)
+def admin_action_requests(
+    request: Request,
+    client_id: str | None = None,
+    status: str | None = None,
+    action_type: str | None = None,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """List pending/resolved ActionRequests with filters."""
+    from sqlalchemy import case, desc
+    from app.models.action_request import ActionRequest
+
+    query = db.query(ActionRequest)
+
+    # Apply filters
+    if client_id:
+        try:
+            query = query.filter(ActionRequest.client_id == uuid.UUID(client_id))
+        except ValueError:
+            pass
+    if status:
+        query = query.filter(ActionRequest.status == status)
+    if action_type:
+        query = query.filter(ActionRequest.action_type == action_type)
+
+    # Order: pending first, then most recent
+    query = query.order_by(
+        case(
+            (ActionRequest.status == "pending", 0),
+            else_=1,
+        ),
+        desc(ActionRequest.created_at),
+    )
+
+    requests_list = query.limit(100).all()
+
+    # Get clients for filter dropdown
+    clients_list = (
+        db.query(Client)
+        .filter(Client.is_active.is_(True))
+        .order_by(Client.client_name)
+        .all()
+    )
+
+    # Get distinct action_types for filter dropdown
+    action_types = (
+        db.query(ActionRequest.action_type)
+        .distinct()
+        .order_by(ActionRequest.action_type)
+        .all()
+    )
+    action_types = [at[0] for at in action_types]
+
+    return templates.TemplateResponse(
+        name="admin_action_requests.html",
+        context={
+            "request": request,
+            "active_nav": "action-requests",
+            "requests": requests_list,
+            "clients": clients_list,
+            "action_types": action_types,
+            "filter_client_id": client_id or "",
+            "filter_status": status or "",
+            "filter_action_type": action_type or "",
+        },
+        request=request,
+    )
+
+
+@router.post("/action-requests/{request_id}/approve", response_class=HTMLResponse)
+def admin_approve_action_request(
+    request: Request,
+    request_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Approve a pending ActionRequest."""
+    from app.services.action_request import approve_action_request
+
+    try:
+        ar = approve_action_request(db, request_id, resolver=current_user)
+        db.commit()
+    except Exception as e:
+        logger.error("Failed to approve ActionRequest %s: %s", request_id, e)
+        return HTMLResponse(
+            f'<span class="text-red-400 text-sm">Error: {str(e)[:100]}</span>',
+            status_code=400,
+        )
+
+    # Return HTMX partial showing updated row
+    return HTMLResponse(
+        f'<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-900/50 text-green-300">'
+        f'✓ Approved</span>',
+    )
+
+
+@router.post("/action-requests/{request_id}/reject", response_class=HTMLResponse)
+def admin_reject_action_request(
+    request: Request,
+    request_id: uuid.UUID,
+    reason: str = Form(""),
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Reject a pending ActionRequest with optional reason."""
+    from app.services.action_request import reject_action_request
+
+    try:
+        ar = reject_action_request(db, request_id, resolver=current_user, reason=reason)
+        db.commit()
+    except Exception as e:
+        logger.error("Failed to reject ActionRequest %s: %s", request_id, e)
+        return HTMLResponse(
+            f'<span class="text-red-400 text-sm">Error: {str(e)[:100]}</span>',
+            status_code=400,
+        )
+
+    # Return HTMX partial showing updated row
+    return HTMLResponse(
+        f'<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-300">'
+        f'✗ Rejected</span>',
+    )
+
+
+# ---------------------------------------------------------------------------
+# Client Permission Matrix Management
+# ---------------------------------------------------------------------------
+
+
+@router.get("/clients/{client_id}/permissions", response_class=HTMLResponse)
+def admin_client_permissions(
+    request: Request,
+    client_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Display the effective permission matrix for a client with source indicators."""
+    from app.services.permission_map import DEFAULT_PERMISSION_MAP, get_effective_tier
+
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        return HTMLResponse("Client not found", status_code=404)
+
+    client_matrix = client.permission_matrix or {}
+
+    # Build actions list with effective tier, default tier, and override status
+    actions = []
+    for action_id, default_tier in DEFAULT_PERMISSION_MAP.items():
+        effective_tier = get_effective_tier(client_matrix, action_id)
+        is_override = action_id in client_matrix and client_matrix[action_id] != default_tier
+        actions.append({
+            "id": action_id,
+            "label": action_id.replace("_", " ").title(),
+            "tier": effective_tier,
+            "default_tier": default_tier,
+            "is_override": is_override,
+        })
+
+    return templates.TemplateResponse(
+        name="admin_client_permissions.html",
+        context={
+            "request": request,
+            "client": client,
+            "actions": actions,
+            "active_nav": "clients",
+        },
+        request=request,
+    )
+
+
+@router.post("/clients/{client_id}/permissions", response_class=HTMLResponse)
+def admin_save_client_permissions(
+    request: Request,
+    client_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Save changed tiers to the client's permission_matrix JSONB field."""
+    import asyncio
+    from sqlalchemy.orm.attributes import flag_modified
+    from app.services.permission_map import DEFAULT_PERMISSION_MAP, PermissionTier
+
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        return HTMLResponse("Client not found", status_code=404)
+
+    # Parse form data
+    loop = asyncio.new_event_loop()
+    form_data = loop.run_until_complete(request.form())
+    loop.close()
+
+    old_matrix = dict(client.permission_matrix or {})
+    new_matrix = {}
+
+    valid_tiers = {t.value for t in PermissionTier}
+
+    for action_id in DEFAULT_PERMISSION_MAP:
+        tier_value = form_data.get(f"tier_{action_id}")
+        if tier_value and tier_value in valid_tiers:
+            # Only store overrides — entries that differ from default
+            if tier_value != DEFAULT_PERMISSION_MAP[action_id]:
+                new_matrix[action_id] = tier_value
+
+    # Compute diff for audit log
+    diff = {}
+    all_actions = set(list(old_matrix.keys()) + list(new_matrix.keys()))
+    for action_id in all_actions:
+        old_val = old_matrix.get(action_id)
+        new_val = new_matrix.get(action_id)
+        if old_val != new_val:
+            diff[action_id] = {"old": old_val, "new": new_val}
+
+    # Update client
+    client.permission_matrix = new_matrix
+    flag_modified(client, "permission_matrix")
+    db.commit()
+
+    # Audit log
+    if diff:
+        audit_service.log_action(
+            db=db,
+            user_id=current_user.id,
+            action="permission_matrix_updated",
+            entity_type="client",
+            entity_id=client_id,
+            client_id=client_id,
+            details={"changes": diff},
+        )
+
+    # Return redirect for full page reload (HTMX will handle with hx-redirect)
+    return RedirectResponse(
+        url=f"/admin/clients/{client_id}/permissions",
+        status_code=303,
+    )
+
+
+@router.post("/clients/{client_id}/permissions/reset/{action_id}", response_class=HTMLResponse)
+def admin_reset_single_permission(
+    request: Request,
+    client_id: uuid.UUID,
+    action_id: str,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Remove a single override from the client's permission_matrix."""
+    from sqlalchemy.orm.attributes import flag_modified
+    from app.services.permission_map import DEFAULT_PERMISSION_MAP, get_effective_tier
+
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        return HTMLResponse("Client not found", status_code=404)
+
+    matrix = dict(client.permission_matrix or {})
+    old_tier = matrix.pop(action_id, None)
+
+    client.permission_matrix = matrix
+    flag_modified(client, "permission_matrix")
+    db.commit()
+
+    # Audit
+    if old_tier:
+        audit_service.log_action(
+            db=db,
+            user_id=current_user.id,
+            action="permission_matrix_updated",
+            entity_type="client",
+            entity_id=client_id,
+            client_id=client_id,
+            details={"changes": {action_id: {"old": old_tier, "new": None}}},
+        )
+
+    # Return updated row HTML for HTMX swap
+    default_tier = DEFAULT_PERMISSION_MAP.get(action_id, "admin_only")
+    effective_tier = get_effective_tier(matrix, action_id)
+    label = action_id.replace("_", " ").title()
+
+    tier_colors = {
+        "self_service": "bg-green-900/50 text-green-300",
+        "approval_required": "bg-yellow-900/50 text-yellow-300",
+        "admin_only": "bg-red-900/50 text-red-300",
+    }
+    tier_labels = {
+        "self_service": "Self-Service",
+        "approval_required": "Approval Required",
+        "admin_only": "Admin Only",
+    }
+
+    row_html = f'''<tr id="row-{action_id}">
+        <td class="px-4 py-3 text-sm text-gray-300">{label}</td>
+        <td class="px-4 py-3">
+            <select name="tier_{action_id}" form="permissions-form"
+                    class="bg-gray-700 text-gray-200 text-sm rounded px-2 py-1 border border-gray-600 focus:border-blue-500 focus:outline-none">
+                <option value="self_service" {"selected" if effective_tier == "self_service" else ""}>Self-Service</option>
+                <option value="approval_required" {"selected" if effective_tier == "approval_required" else ""}>Approval Required</option>
+                <option value="admin_only" {"selected" if effective_tier == "admin_only" else ""}>Admin Only</option>
+            </select>
+        </td>
+        <td class="px-4 py-3">
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-700 text-gray-400">Default</span>
+        </td>
+        <td class="px-4 py-3 text-sm text-gray-500">
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {tier_colors.get(default_tier, "")}">{tier_labels.get(default_tier, default_tier)}</span>
+        </td>
+        <td class="px-4 py-3"></td>
+    </tr>'''
+
+    return HTMLResponse(row_html)
+
+
+@router.post("/clients/{client_id}/permissions/reset-all", response_class=HTMLResponse)
+def admin_reset_all_permissions(
+    request: Request,
+    client_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Replace the client's permission_matrix with DEFAULT_PERMISSION_MAP (empty overrides)."""
+    from sqlalchemy.orm.attributes import flag_modified
+    from app.services.permission_map import DEFAULT_PERMISSION_MAP
+
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        return HTMLResponse("Client not found", status_code=404)
+
+    old_matrix = dict(client.permission_matrix or {})
+
+    # Reset = empty dict (no overrides, everything falls back to default)
+    client.permission_matrix = {}
+    flag_modified(client, "permission_matrix")
+    db.commit()
+
+    # Audit
+    if old_matrix:
+        diff = {k: {"old": v, "new": None} for k, v in old_matrix.items()}
+        audit_service.log_action(
+            db=db,
+            user_id=current_user.id,
+            action="permission_matrix_updated",
+            entity_type="client",
+            entity_id=client_id,
+            client_id=client_id,
+            details={"changes": diff, "reset_all": True},
+        )
+
+    # Redirect to reload the page
+    return RedirectResponse(
+        url=f"/admin/clients/{client_id}/permissions",
+        status_code=303,
     )

@@ -42,6 +42,12 @@ MAX_BRAND_RATIO = 0.30             # TODO(pipeline-v2): move to system_settings 
 BRAND_RAMP_UP_EARLY_MAX = 1
 BRAND_RAMP_UP_MID_RATIO = 0.10
 
+# Phase 0 (Incubation) — default safe subreddits for fresh/recovering avatars
+_DEFAULT_INCUBATION_SAFE_SUBS = [
+    "AskReddit", "CasualConversation", "NoStupidQuestions",
+    "TooAfraidToAsk", "Showerthoughts", "LifeProTips",
+]
+
 
 class PhasePolicy:
     """Content restriction rules per warming phase.
@@ -227,16 +233,18 @@ class PhasePolicy:
             PolicyResult with status (allowed/blocked/requires_review),
             reason string, and detected brand_mention_level.
         """
-        phase = avatar.warming_phase
-
-        # Mentor phase — not subject to pipeline content restrictions
-        if phase == 0:
+        # Pool-based gate: Mentor avatars are excluded regardless of phase
+        if getattr(avatar, "pool", None) == "mentor":
             return PolicyResult(
                 status=PolicyStatus.blocked,
-                reason="Phase 0 (Mentor): avatar excluded from automated pipelines",
+                reason="Mentor (pool): excluded from automated pipelines",
             )
 
-        if phase == 1:
+        phase = avatar.warming_phase
+
+        if phase == 0:
+            return self._check_phase0(db, avatar, comment_type, target_subreddit, comment_text, client)
+        elif phase == 1:
             return self._check_phase1(db, avatar, comment_type, target_subreddit, comment_text, client)
         elif phase == 2:
             return self._check_phase2(db, avatar, comment_type, target_subreddit, comment_text, client)
@@ -247,6 +255,76 @@ class PhasePolicy:
                 status=PolicyStatus.blocked,
                 reason=f"Unknown warming phase: {phase}",
             )
+
+    def _check_phase0(
+        self,
+        db: Session,
+        avatar: Avatar,
+        comment_type: str,
+        target_subreddit: str,
+        comment_text: str,
+        client: Client,
+    ) -> PolicyResult:
+        """Phase 0 (Incubation): ultra-conservative engagement for fresh/recovering avatars.
+
+        Rules:
+        - Only hobby type allowed
+        - Only safe subreddits (from system setting)
+        - Max 1 comment per day
+        - Zero brand mentions
+        """
+        from app.services.settings import get_setting
+        import json as _json
+
+        # Feature flag check — if disabled, treat as Phase 1
+        incubation_enabled = get_setting(db, "incubation_phase_enabled")
+        if incubation_enabled != "true":
+            return self._check_phase1(db, avatar, comment_type, target_subreddit, comment_text, client)
+
+        # Rule: Only hobby type
+        if comment_type != "hobby":
+            return PolicyResult(
+                status=PolicyStatus.blocked,
+                reason=f"Phase 0 (Incubation): only hobby comments allowed, got '{comment_type}'",
+            )
+
+        # Rule: Only safe subreddits
+        safe_subs_json = get_setting(db, "incubation_safe_subreddits")
+        if safe_subs_json:
+            try:
+                safe_subs = {s.lower() for s in _json.loads(safe_subs_json)}
+            except (ValueError, TypeError):
+                safe_subs = {s.lower() for s in _DEFAULT_INCUBATION_SAFE_SUBS}
+        else:
+            safe_subs = {s.lower() for s in _DEFAULT_INCUBATION_SAFE_SUBS}
+
+        if (target_subreddit or "").lower() not in safe_subs:
+            return PolicyResult(
+                status=PolicyStatus.blocked,
+                reason=f"Phase 0 (Incubation): subreddit '{target_subreddit}' not in safe subreddits",
+            )
+
+        # Rule: Max 1 comment per day
+        daily_count = self.get_daily_comment_count(db, avatar)
+        if daily_count >= 1:
+            return PolicyResult(
+                status=PolicyStatus.blocked,
+                reason="Phase 0 (Incubation): daily limit reached (1/1)",
+            )
+
+        # Rule: Zero brand mentions
+        brand_level = self.classify_brand_mention(comment_text, client)
+        if brand_level is not None:
+            return PolicyResult(
+                status=PolicyStatus.blocked,
+                reason=f"Phase 0 (Incubation): brand mentions not allowed ({brand_level.value})",
+                brand_mention_level=brand_level,
+            )
+
+        return PolicyResult(
+            status=PolicyStatus.allowed,
+            reason="Phase 0 (Incubation): comment allowed",
+        )
 
     def _check_phase1(
         self,
@@ -325,8 +403,15 @@ class PhasePolicy:
 
         # Rule: Subreddits in hobby_subreddits OR business_subreddits allowed.
         # Both fields are JSONB; normalize for the dict-vs-string shape (see Phase 1).
+        # Fallback: if avatar.business_subreddits is empty, inherit from client's
+        # subreddit assignments (ClientSubredditAssignment table).
         hobby_subs = {s.lower() for s in clean_subreddit_list(avatar.hobby_subreddits)}
         business_subs = {s.lower() for s in clean_subreddit_list(avatar.business_subreddits)}
+
+        # Fallback to client subreddit assignments when avatar has no business_subreddits
+        if not business_subs and client:
+            business_subs = self._get_client_subreddit_names(db, client)
+
         allowed_subs = hobby_subs | business_subs
         if (target_subreddit or "").lower() not in allowed_subs:
             return PolicyResult(
@@ -470,8 +555,37 @@ class PhasePolicy:
 
         return brand_count
 
+    def _get_client_subreddit_names(
+        self,
+        db: Session,
+        client: Client,
+    ) -> set[str]:
+        """Get active subreddit names from client's subreddit assignments.
+
+        Used as fallback when avatar.business_subreddits is empty — inherits
+        the client's configured professional subreddits.
+        """
+        from app.models.subreddit import ClientSubredditAssignment, Subreddit
+
+        rows = (
+            db.query(Subreddit.subreddit_name)
+            .join(ClientSubredditAssignment, ClientSubredditAssignment.subreddit_id == Subreddit.id)
+            .filter(
+                ClientSubredditAssignment.client_id == client.id,
+                ClientSubredditAssignment.is_active.is_(True),
+            )
+            .all()
+        )
+        return {row[0].lower() for row in rows if row[0]}
 
 # --- Phase Evaluator Constants (defaults) ---
+_P0_DEFAULTS = {
+    "min_age_days": 7,
+    "min_karma": 10,
+    "min_posted_comments": 3,
+    "max_deleted_comments": 0,
+}
+
 _P1_DEFAULTS = {
     "min_age_days": 60,
     "min_karma": 100,
@@ -662,12 +776,16 @@ class PhaseEvaluator:
 
         current_phase = avatar.warming_phase
 
-        # Mentor (phase 0) — not subject to warming evaluation
-        if current_phase == 0:
+        # Mentor (pool) — not subject to warming evaluation
+        if getattr(avatar, "pool", None) == "mentor":
             return (False, {})
 
         if current_phase >= 3:
             return (False, {})
+
+        # Phase 0 → 1 (Incubation graduation)
+        if current_phase == 0:
+            return self._check_phase0_graduation(db, avatar)
 
         thresholds = self.get_thresholds(db, current_phase)
 
@@ -782,8 +900,9 @@ class PhaseEvaluator:
         """Check if any demotion trigger is active.
 
         Triggers checked:
-        - Shadowban detected → demote to Phase 1, reason "shadowban_detected"
-        - Survival rate < 70% (7-day window) → demote by 1 phase, reason "low_survival_rate"
+        - Shadowban detected → demote to Phase 0, reason "shadowban_detected"
+        - CQS lowest (Phase 2+) → demote to Phase 0, reason "cqs_lowest"
+        - Survival rate < 70% (7-day window) → demote to Phase 0, reason "low_survival_rate"
         - Karma drop (avg reddit_score < -2 over 14-day window) → demote by 1, reason "karma_drop"
 
         Returns:
@@ -791,41 +910,132 @@ class PhaseEvaluator:
         """
         current_phase = avatar.warming_phase
 
-        # Can't demote below Phase 1; Mentors (phase 0) are not subject to demotion
-        if current_phase <= 1:
-            return (False, current_phase or 1, None)
+        # Can't demote below Phase 0; Mentors (pool) are not subject to demotion
+        if getattr(avatar, "pool", None) == "mentor":
+            return (False, current_phase, None)
+        if current_phase <= 0:
+            return (False, 0, None)
 
-        # Check shadowban — demote to Phase 1
+        # Check feature flag — if incubation disabled, floor stays at 1
+        from app.services.settings import get_setting
+        incubation_enabled = get_setting(db, "incubation_phase_enabled") == "true"
+        demotion_floor = 0 if incubation_enabled else 1
+
+        # Check shadowban — demote to floor
         if avatar.is_shadowbanned:
-            return (True, 1, "shadowban_detected")
+            return (True, demotion_floor, "shadowban_detected")
 
-        # Check survival rate < 70% over 7-day window — demote by 1
+        # Check CQS lowest (Phase 2+) — demote to floor
+        if current_phase >= 2 and getattr(avatar, "cqs_level", None) == "lowest":
+            return (True, demotion_floor, "cqs_lowest")
+
+        # Check survival rate < 70% over 7-day window — demote to floor
         survival_rate = self.compute_comment_survival_rate(
             db, avatar, _DEMOTION_WINDOW_DAYS
         )
         survival_pct = survival_rate * 100
 
         if survival_pct < _DEMOTION_MIN_SURVIVAL_RATE:
-            target_phase = max(1, current_phase - 1)
+            target_phase = max(demotion_floor, current_phase - 1)
             return (True, target_phase, "low_survival_rate")
 
         # Check karma drop — avg reddit_score below threshold over 14-day window
         from app.services.karma_feedback import check_karma_drop_demotion
         should_demote_karma, avg_score = check_karma_drop_demotion(db, avatar)
         if should_demote_karma:
-            target_phase = max(1, current_phase - 1)
+            target_phase = max(demotion_floor, current_phase - 1)
             return (True, target_phase, f"karma_drop (avg_score={avg_score:.2f})")
 
         return (False, current_phase, None)
+
+    def _check_phase0_graduation(
+        self, db: Session, avatar: Avatar
+    ) -> tuple[bool, dict]:
+        """Check Phase 0 → Phase 1 graduation criteria.
+
+        Criteria:
+        - Account age >= 7 days (configurable)
+        - Comment karma >= 10 (configurable)
+        - At least 3 posted comments (configurable)
+        - Zero deleted comments in last 7 days (configurable)
+
+        Returns (eligible, criteria_values).
+        """
+        from app.services.settings import get_setting
+
+        # Check feature flag
+        if get_setting(db, "incubation_phase_enabled") != "true":
+            # If incubation disabled, Phase 0 avatars immediately eligible for Phase 1
+            return (True, {"reason": "incubation_disabled_auto_promote"})
+
+        # Load thresholds
+        min_age = int(get_setting(db, "phase_gate_p0_min_age_days") or 7)
+        min_karma = int(get_setting(db, "phase_gate_p0_min_karma") or 10)
+        min_posted = int(get_setting(db, "phase_gate_p0_min_posted_comments") or 3)
+        max_deleted = int(get_setting(db, "phase_gate_p0_max_deleted_comments") or 0)
+
+        now = datetime.now(timezone.utc)
+
+        # Account age
+        if avatar.reddit_account_created:
+            age_days = (now - avatar.reddit_account_created).days
+        else:
+            age_days = (now - avatar.created_at).days
+
+        # Karma
+        karma = avatar.reddit_karma_comment or 0
+
+        # Posted count (all time)
+        posted_count = (
+            db.query(sa_func.count(CommentDraft.id))
+            .filter(
+                CommentDraft.avatar_id == avatar.id,
+                CommentDraft.status == "posted",
+            )
+            .scalar()
+        ) or 0
+
+        # Deleted count (last 7 days)
+        week_ago = now - timedelta(days=7)
+        deleted_count = (
+            db.query(sa_func.count(CommentDraft.id))
+            .filter(
+                CommentDraft.avatar_id == avatar.id,
+                CommentDraft.is_deleted.is_(True),
+                CommentDraft.posted_at >= week_ago,
+            )
+            .scalar()
+        ) or 0
+
+        criteria = {
+            "age_days": age_days,
+            "age_required": min_age,
+            "karma": karma,
+            "karma_required": min_karma,
+            "posted_count": posted_count,
+            "posted_required": min_posted,
+            "deleted_count": deleted_count,
+            "deleted_max": max_deleted,
+        }
+
+        eligible = (
+            age_days >= min_age
+            and karma >= min_karma
+            and posted_count >= min_posted
+            and deleted_count <= max_deleted
+        )
+
+        return (eligible, criteria)
 
     def evaluate(self, db: Session, avatar: Avatar) -> EvaluationResult:
         """Evaluate promotion eligibility and demotion triggers for an avatar.
 
         Orchestrates the full evaluation:
-        1. Skip if avatar is inactive (but still check demotion for shadowban)
-        2. Check demotion triggers first (demotion takes priority)
-        3. If no demotion, check promotion eligibility
-        4. Update last_phase_evaluated_at timestamp
+        1. Skip if avatar is in active A/B experiment (phase held constant)
+        2. Skip if avatar is inactive (but still check demotion for shadowban)
+        3. Check demotion triggers first (demotion takes priority)
+        4. If no demotion, check promotion eligibility
+        5. Update last_phase_evaluated_at timestamp
 
         Args:
             db: Database session.
@@ -836,6 +1046,24 @@ class PhaseEvaluator:
             target_phase, criteria_values dict, and trigger_reason.
         """
         now = datetime.now(timezone.utc)
+
+        # A/B Test: skip phase evaluation for avatars in active experiments
+        try:
+            from app.services.ab_test.experiment_manager import get_active_experiment_for_avatar
+
+            experiment = get_active_experiment_for_avatar(db, avatar.id)
+            if experiment:
+                # Emit activity event for audit trail
+                event = ActivityEvent(
+                    event_type="ab_phase_eval_blocked",
+                    message=f"Phase evaluation skipped: avatar in active A/B experiment '{experiment.name}'",
+                    event_metadata={"avatar_id": str(avatar.id), "experiment_id": str(experiment.id)},
+                )
+                db.add(event)
+                logger.info("Phase eval skipped for avatar %s (in active A/B test %s)", avatar.id, experiment.id)
+                return EvaluationResult(action="none")
+        except ImportError:
+            pass  # ab_test module not available — continue normally
 
         # Check demotion triggers first (even for shadowbanned avatars)
         should_demote, target_phase, trigger_reason = self.check_demotion_triggers(
@@ -993,6 +1221,29 @@ class PhaseTransitionManager:
                 target_phase,
                 trigger_reason,
             )
+
+            # Plan fresh activation route on demotion to Phase 0 or 1
+            if target_phase <= 1:
+                try:
+                    from app.services.activation_router import ActivationRouter
+                    from app.models.client import Client
+
+                    router = ActivationRouter()
+                    client = None
+                    if avatar.client_ids:
+                        try:
+                            client = db.query(Client).filter(
+                                Client.id == uuid.UUID(avatar.client_ids[0])
+                            ).first()
+                        except (ValueError, TypeError, IndexError):
+                            pass
+                    router.plan_route(db, avatar, client)
+                except Exception as e:
+                    logger.warning(
+                        "Activation route planning failed on demotion for %s: %s",
+                        avatar.reddit_username, e,
+                    )
+
             return True
         finally:
             self.lock.release(avatar_id_str)

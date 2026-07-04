@@ -107,9 +107,12 @@ class SmartScoreResult:
 
 def get_avatar_daily_limit(avatar: Avatar) -> int:
     """Get the daily comment limit based on avatar's warming phase."""
+    # Mentor pool — excluded from pipelines
+    if avatar.pool == "mentor":
+        return 0
     phase = avatar.warming_phase
     if phase == 0:
-        return 0  # Mentor — excluded from pipelines
+        return 1  # Incubation: 1/day
     elif phase == 1:
         # CQS lowest gets reduced limit
         if avatar.cqs_level == "lowest":
@@ -331,7 +334,7 @@ def smart_score_for_avatar(
         result.message = f"Avatar is frozen: {avatar.freeze_reason or 'no reason'}"
         return result
 
-    if avatar.warming_phase == 0:
+    if avatar.pool == "mentor":
         result.status = "excluded"
         result.message = "Mentor avatars are excluded from automated pipelines"
         return result

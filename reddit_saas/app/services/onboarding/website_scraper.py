@@ -63,44 +63,67 @@ async def scrape_company_website(url: str) -> dict:
         "error": None,
     }
 
+    # User-Agent rotation for sites that block bots
+    USER_AGENTS = [
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+    ]
+
     try:
-        async with httpx.AsyncClient(
-            timeout=15.0,
-            follow_redirects=True,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            },
-        ) as client:
-            # Fetch homepage
+        homepage_fetched = False
+
+        for ua in USER_AGENTS:
             try:
-                resp = await client.get(url)
-                if resp.status_code == 200:
-                    soup = BeautifulSoup(resp.text, "html.parser")
+                async with httpx.AsyncClient(
+                    timeout=12.0,
+                    follow_redirects=True,
+                    headers={"User-Agent": ua},
+                ) as client:
+                    resp = await client.get(url)
+                    if resp.status_code == 200:
+                        soup = BeautifulSoup(resp.text, "html.parser")
 
-                    # Extract title
-                    title_tag = soup.find("title")
-                    if title_tag:
-                        result["title"] = title_tag.get_text(strip=True)[:200]
+                        # Extract title
+                        title_tag = soup.find("title")
+                        if title_tag:
+                            result["title"] = title_tag.get_text(strip=True)[:200]
 
-                    # Extract meta description
-                    meta = soup.find("meta", attrs={"name": "description"})
-                    if meta and meta.get("content"):
-                        result["meta_description"] = meta["content"][:500]
+                        # Extract meta description
+                        meta = soup.find("meta", attrs={"name": "description"})
+                        if meta and meta.get("content"):
+                            result["meta_description"] = meta["content"][:500]
 
-                    # Extract main text
-                    result["pages"]["home"] = _extract_text(soup)
+                        # Extract main text
+                        result["pages"]["home"] = _extract_text(soup)
+                        homepage_fetched = True
 
-                    # Find about/product links
-                    subpages_to_fetch = _find_subpage_links(soup, url)
-                else:
-                    result["error"] = f"Homepage returned status {resp.status_code}"
-                    return result
-            except Exception as e:
-                result["error"] = f"Failed to fetch homepage: {str(e)[:100]}"
-                return result
+                        # Find about/product links
+                        subpages_to_fetch = _find_subpage_links(soup, url)
+                        break  # Success, stop retrying
+                    elif resp.status_code in (403, 401, 429, 503):
+                        # Blocked — try next UA
+                        continue
+                    else:
+                        # Other error — don't retry
+                        result["error"] = f"Homepage returned status {resp.status_code}"
+                        break
+            except (httpx.TimeoutException, httpx.ConnectError):
+                continue  # Try next UA
 
-            # Fetch subpages (best effort, don't fail if these timeout)
-            for path, page_type in subpages_to_fetch[:3]:  # Max 3 subpages
+        if not homepage_fetched:
+            # All retries failed — return partial result with domain-derived name
+            result["error"] = f"Website blocked our request (tried {len(USER_AGENTS)} approaches). Fill in details manually."
+            result["company_name_fallback"] = _derive_company_name(domain)
+            return result
+
+        # Fetch subpages (best effort)
+        async with httpx.AsyncClient(
+            timeout=10.0,
+            follow_redirects=True,
+            headers={"User-Agent": USER_AGENTS[0]},
+        ) as client:
+            for path, page_type in subpages_to_fetch[:3]:
                 try:
                     sub_url = urljoin(url, path)
                     sub_resp = await client.get(sub_url)
@@ -110,12 +133,14 @@ async def scrape_company_website(url: str) -> dict:
                         if text and len(text) > 50:
                             result["pages"][page_type] = text
                 except Exception:
-                    continue  # Skip failed subpages
+                    continue
 
     except asyncio.TimeoutError:
-        result["error"] = "Website scraping timed out (15s)"
+        result["error"] = "Website scraping timed out"
+        result["company_name_fallback"] = _derive_company_name(domain)
     except Exception as e:
         result["error"] = f"Scraping failed: {str(e)[:150]}"
+        result["company_name_fallback"] = _derive_company_name(domain)
 
     logger.info(
         "Scraped %s: pages=%d title='%s' error=%s",
@@ -126,6 +151,24 @@ async def scrape_company_website(url: str) -> dict:
     )
 
     return result
+
+
+def _derive_company_name(domain: str) -> str:
+    """Derive a company name from domain (strip TLD, capitalize).
+
+    Examples:
+        atera.com → Atera
+        xmcyber.com → Xmcyber
+        my-company.io → My-Company
+    """
+    # Remove www prefix
+    name = domain.lower().removeprefix("www.")
+    # Take the part before the TLD
+    parts = name.split(".")
+    if len(parts) >= 2:
+        name = parts[0]
+    # Capitalize
+    return name.capitalize()
 
 
 def _extract_text(soup) -> str:

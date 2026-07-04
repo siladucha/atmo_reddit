@@ -865,11 +865,18 @@ def scan_opportunities(
                 )
                 opportunities.append(opp)
 
-    # --- Source 2: HobbySubreddit posts (for Phase 1 avatars) ---
+    # --- Source 2: HobbySubreddit posts (for Phase 0-1 avatars) ---
     if avatar.warming_phase <= 1:
-        # Get hobby subreddit names from avatar config
+        # Risk-Aware Activation: use zone subs if activation_route exists
         hobby_sub_names: set[str] = set()
-        if avatar.hobby_subreddits:
+        if avatar.activation_route:
+            from app.services.activation_router import ActivationRouter
+            _router = ActivationRouter()
+            zone_subs = _router.get_current_zone_subs(avatar)
+            hobby_sub_names = {s.lower().lstrip("r/") for s in zone_subs if s}
+        
+        # Fallback: get hobby subreddit names from avatar config
+        if not hobby_sub_names and avatar.hobby_subreddits:
             if isinstance(avatar.hobby_subreddits, dict):
                 for sub_list in avatar.hobby_subreddits.values():
                     if isinstance(sub_list, list):
@@ -887,6 +894,8 @@ def scan_opportunities(
 
         if hobby_sub_names:
             from sqlalchemy import func as sa_func, or_
+            from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+            hobby_freshness_cutoff = _dt.now(_tz.utc) - _td(days=7)
             hobby_posts = (
                 db.query(HobbySubreddit)
                 .filter(
@@ -895,6 +904,8 @@ def scan_opportunities(
                     HobbySubreddit.status == "new",  # fresh posts not yet used
                     HobbySubreddit.ai_comment.is_(None),
                     HobbySubreddit.post_body.isnot(None),
+                    # Freshness: only posts from last 7 days
+                    HobbySubreddit.created_at >= hobby_freshness_cutoff,
                     # Filter out image/video/link posts - LLM cant see media,
                     # comments on image posts often get locked, and text-only
                     # replies to photo posts look out of place.
@@ -954,6 +965,57 @@ def scan_opportunities(
                 )
                 opportunities.append(opp)
 
+    # --- A/B Test: restrict subreddits to configured risk range if avatar in experiment ---
+    try:
+        from app.services.settings import get_setting
+
+        if get_setting(db, "ab_test_enabled") == "true":
+            from app.services.ab_test.control_enforcer import get_allowed_risk_range
+
+            risk_range = get_allowed_risk_range(db, avatar.id)
+            if risk_range is not None:
+                min_risk, max_risk = risk_range
+                from app.models.subreddit_risk_profile import SubredditRiskProfile
+                from app.models.subreddit import Subreddit as SubredditModel
+                from sqlalchemy import func as _fn
+
+                # Build a set of allowed subreddit names (lowercased) within risk range
+                allowed_subs_query = (
+                    db.query(_fn.lower(SubredditModel.subreddit_name))
+                    .join(
+                        SubredditRiskProfile,
+                        SubredditRiskProfile.subreddit_id == SubredditModel.id,
+                    )
+                    .filter(
+                        SubredditRiskProfile.risk_score >= min_risk,
+                        SubredditRiskProfile.risk_score <= max_risk,
+                    )
+                    .all()
+                )
+                allowed_sub_names = {row[0] for row in allowed_subs_query}
+
+                pre_filter_ab = len(opportunities)
+                opportunities = [
+                    opp for opp in opportunities
+                    if (opp.subreddit or "").lower() in allowed_sub_names
+                ]
+                filtered_ab = pre_filter_ab - len(opportunities)
+                if filtered_ab > 0:
+                    logger.info(
+                        "scan_opportunities: avatar=%s A/B test risk filter removed %d "
+                        "opportunities (allowed risk range %d-%d, %d subs allowed)",
+                        avatar.reddit_username,
+                        filtered_ab,
+                        min_risk,
+                        max_risk,
+                        len(allowed_sub_names),
+                    )
+    except Exception as e:
+        logger.warning(
+            "Failed to apply A/B test risk range filter in scan_opportunities: %s",
+            str(e)[:200],
+        )
+
     # --- Log market scarcity if fewer than 10 scoreable threads ---
 
     # --- Filter out banned subreddits ---
@@ -974,6 +1036,27 @@ def scan_opportunities(
                 )
     except Exception as e:
         logger.warning("Failed to check subreddit bans in scan_opportunities: %s", str(e)[:100])
+
+    # --- Filter out opportunities in dangerous hours ---
+    try:
+        from app.services.timing_engine import is_safe_posting_time
+        from datetime import datetime as _dt_dh, timezone as _tz_dh
+
+        current_hour = _dt_dh.now(_tz_dh.utc).hour
+        pre_filter_dh = len(opportunities)
+        opportunities = [
+            opp for opp in opportunities
+            if is_safe_posting_time(opp.subreddit or "", current_hour, db)
+        ]
+        filtered_dh = pre_filter_dh - len(opportunities)
+        if filtered_dh > 0:
+            logger.info(
+                "scan_opportunities: avatar=%s filtered %d opportunities in dangerous hours (hour=%d)",
+                avatar.reddit_username, filtered_dh, current_hour,
+            )
+    except Exception as e:
+        logger.warning("Failed to check dangerous hours in scan_opportunities: %s", str(e)[:100])
+
     if len(opportunities) < MIN_OPPORTUNITIES_FOR_SCARCITY:
         logger.warning(
             "market_scarcity: avatar=%s found only %d scoreable opportunities (min %d)",

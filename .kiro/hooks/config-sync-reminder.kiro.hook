@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "name": "Config Sync Reminder",
+  "description": "Напоминает проверить и обновить .env.example при изменении config.py, чтобы конфигурация оставалась актуальной (engineering.md)",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "**/config.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Проверь, отражает ли .env.example все переменные окружения, используемые в изменённом config.py. Если есть новые/удалённые переменные — обнови .env.example. Если всё уже синхронизировано, ничего не делай и не сообщай пользователю."
+  },
+  "workspaceFolderName": "Robi",
+  "shortName": "config-sync-reminder"
+}

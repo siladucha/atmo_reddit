@@ -13,7 +13,9 @@ class CommentDraft(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     thread_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("reddit_threads.id"), nullable=True)
-    hobby_post_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    hobby_post_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("hobby_subreddits.id", ondelete="SET NULL"), nullable=True
+    )
     client_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("clients.id"), nullable=True)
     avatar_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("avatars.id"), nullable=False)
     type: Mapped[str] = mapped_column(String(50), default="professional")  # professional | hobby
@@ -50,6 +52,7 @@ class CommentDraft(Base):
 
     # Relationships
     thread = relationship("RedditThread", lazy="joined")
+    hobby_post = relationship("HobbySubreddit", lazy="joined", foreign_keys=[hobby_post_id])
     avatar = relationship("Avatar", lazy="joined")
 
     __table_args__ = (

@@ -32,6 +32,7 @@ from app.schemas.client_portal import (
 )
 from app.services.safety_blocks import check_safety_blocks
 from app.services.trial_guard import is_trial_expired
+from app.services.permission_context import get_permission_context
 
 logger = get_logger(__name__)
 
@@ -79,8 +80,22 @@ def _karma_tier(karma: int) -> str:
 
 
 def _avatar_display_name(avatar) -> str:
-    """Return client-facing name: display_name if set, else reddit_username."""
-    return avatar.display_name or avatar.reddit_username
+    """Return client-facing name: display_name if set, else friendly version of reddit_username."""
+    if avatar.display_name:
+        return avatar.display_name
+    # Generate a friendly name from reddit_username
+    # e.g. "Flaky_Finder_13" -> "Flaky Finder", "Hot-Thought2408" -> "Hot Thought"
+    import re
+    name = avatar.reddit_username or "Avatar"
+    # Remove u/ prefix if present
+    name = name.removeprefix("u/")
+    # Replace underscores and hyphens with spaces
+    name = name.replace("_", " ").replace("-", " ")
+    # Remove trailing/leading numbers
+    name = re.sub(r'\d+$', '', name).strip()
+    # Title case
+    name = name.title() if name else "Avatar"
+    return name
 
 
 
@@ -92,13 +107,16 @@ def _get_sidebar_context(client_id: UUID, db: Session) -> dict:
     client = db.query(Client).filter(Client.id == client_id).first()
     client_name = client.client_name if client else "Client"
 
-    # Pending drafts count
+    # Pending drafts count — only from active/unfrozen avatars, max 14 days old
     pending_count = (
         db.query(func.count(CommentDraft.id))
         .join(Avatar, CommentDraft.avatar_id == Avatar.id)
         .filter(
             CommentDraft.status == "pending",
             Avatar.client_ids.any(str(client_id)),
+            Avatar.active.is_(True),
+            Avatar.is_frozen.is_(False),
+            CommentDraft.created_at >= datetime.now(timezone.utc) - timedelta(days=14),
         )
         .scalar()
     ) or 0
@@ -155,6 +173,22 @@ def _portal_render(
 
     # Inject usage/budget context for banners and upsells
     ctx.update(_get_usage_context(client_id, db))
+
+    # Inject permission context (hidden_actions, approval_actions, pending_requests_count)
+    user_role_str = ctx.get("user_role", "")
+    try:
+        user_role_enum = UserRole(user_role_str) if user_role_str else None
+    except ValueError:
+        user_role_enum = None
+    if user_role_enum:
+        perm_ctx = get_permission_context(db, client_id, user_role_enum)
+        ctx.update(perm_ctx)
+    else:
+        # Fallback: no permission context available (should not happen in normal flow)
+        ctx.setdefault("hidden_actions", set())
+        ctx.setdefault("approval_actions", set())
+        ctx.setdefault("pending_requests_count", 0)
+
     if extra_context:
         ctx.update(extra_context)
     return templates.TemplateResponse(name=template, context=ctx, request=request)
@@ -415,15 +449,17 @@ def portal_avatar_detail(
 
     activity = []
     for d in recent_drafts:
-        # Resolve subreddit from thread or hobby_post
+        # Resolve subreddit from thread or hobby_post (relationship)
         subreddit_name = ""
         thread_title = ""
         if d.thread:
             subreddit_name = d.thread.subreddit or ""
             thread_title = (d.thread.post_title or "")[:60]
         elif d.hobby_post_id:
-            from app.models.hobby import HobbySubreddit
-            hobby = db.query(HobbySubreddit).filter(HobbySubreddit.id == d.hobby_post_id).first()
+            hobby = d.hobby_post
+            if not hobby:
+                from app.models.hobby import HobbySubreddit
+                hobby = db.query(HobbySubreddit).filter(HobbySubreddit.id == d.hobby_post_id).first()
             if hobby:
                 subreddit_name = hobby.subreddit or ""
                 thread_title = (hobby.post_title or "")[:60]
@@ -813,6 +849,8 @@ def settings_keywords_add(
             "can_edit": can_edit,
             "client_id": str(client_id),
             "error": error,
+            "hidden_actions": get_permission_context(db, client_id, user.user_role).get("hidden_actions", set()),
+            "approval_actions": get_permission_context(db, client_id, user.user_role).get("approval_actions", set()),
         },
         request=request,
     )
@@ -897,6 +935,8 @@ def settings_keywords_remove(
             "can_edit": can_edit,
             "client_id": str(client_id),
             "error": None,
+            "hidden_actions": get_permission_context(db, client_id, user.user_role).get("hidden_actions", set()),
+            "approval_actions": get_permission_context(db, client_id, user.user_role).get("approval_actions", set()),
         },
         request=request,
     )
@@ -1012,6 +1052,8 @@ def settings_subreddit_request(
             "pending_requests_count": pending_requests_count,
             "error": error,
             "success": None,
+            "hidden_actions": get_permission_context(db, client_id, user.user_role).get("hidden_actions", set()),
+            "approval_actions": get_permission_context(db, client_id, user.user_role).get("approval_actions", set()),
         },
         request=request,
     )
@@ -1783,135 +1825,20 @@ def portal_visibility(
     db: Session = Depends(get_db),
 ):
     """Client portal — AI Search Visibility (Share of Voice, Competitor Comparison)."""
-    from app.models.geo_execution import GeoExecutionBatch, GeoFrequencyMetric, GeoQueryResult
-    from app.models.geo_competitor import GeoCompetitor
-    from app.models.geo_prompt import GeoPrompt
-    from app.models.thread_score import ThreadScore
+    from app.services.visibility_report import compute_visibility_report
 
     client_obj = db.query(Client).filter(Client.id == client_id).first()
     if not client_obj:
         raise HTTPException(status_code=404, detail="Client not found")
 
-    # --- GEO: Share of Voice ---
-    # Get baseline batch
-    baseline_batch = (
-        db.query(GeoExecutionBatch)
-        .filter(
-            GeoExecutionBatch.client_id == client_id,
-            GeoExecutionBatch.is_baseline.is_(True),
-            GeoExecutionBatch.status == "completed",
-        )
-        .order_by(GeoExecutionBatch.started_at.asc())
-        .first()
-    )
+    # Compute full visibility report from GEO batch data
+    report = compute_visibility_report(db, client_id, include_excerpts=True)
 
-    # Get latest completed batch
-    latest_batch = (
-        db.query(GeoExecutionBatch)
-        .filter(
-            GeoExecutionBatch.client_id == client_id,
-            GeoExecutionBatch.status == "completed",
-        )
-        .order_by(GeoExecutionBatch.started_at.desc())
-        .first()
-    )
+    # Also compute high-intent thread participation (not part of GEO, Reddit-specific)
+    from app.models.thread_score import ThreadScore
 
-    # Brand appearance rate from latest batch
-    latest_brand_rate = 0.0
-    baseline_brand_rate = 0.0
-    brand_rate_history = []
-
-    if latest_batch:
-        metrics = (
-            db.query(GeoFrequencyMetric)
-            .filter(GeoFrequencyMetric.execution_batch_id == latest_batch.id)
-            .all()
-        )
-        if metrics:
-            total_runs = sum(m.total_runs for m in metrics)
-            total_brand = sum(m.brand_appearances for m in metrics)
-            latest_brand_rate = round(total_brand / total_runs * 100, 1) if total_runs > 0 else 0
-
-    if baseline_batch:
-        base_metrics = (
-            db.query(GeoFrequencyMetric)
-            .filter(GeoFrequencyMetric.execution_batch_id == baseline_batch.id)
-            .all()
-        )
-        if base_metrics:
-            total_runs = sum(m.total_runs for m in base_metrics)
-            total_brand = sum(m.brand_appearances for m in base_metrics)
-            baseline_brand_rate = round(total_brand / total_runs * 100, 1) if total_runs > 0 else 0
-
-    # History: all completed batches for trend
-    all_batches = (
-        db.query(GeoExecutionBatch)
-        .filter(
-            GeoExecutionBatch.client_id == client_id,
-            GeoExecutionBatch.status == "completed",
-        )
-        .order_by(GeoExecutionBatch.started_at.asc())
-        .all()
-    )
-
-    for batch in all_batches:
-        batch_metrics = (
-            db.query(GeoFrequencyMetric)
-            .filter(GeoFrequencyMetric.execution_batch_id == batch.id)
-            .all()
-        )
-        if batch_metrics:
-            total_runs = sum(m.total_runs for m in batch_metrics)
-            total_brand = sum(m.brand_appearances for m in batch_metrics)
-            rate = round(total_brand / total_runs * 100, 1) if total_runs > 0 else 0
-            brand_rate_history.append({
-                "date": batch.started_at.strftime("%m/%d"),
-                "rate": rate,
-                "is_baseline": batch.is_baseline,
-            })
-
-    brand_rate_delta = round(latest_brand_rate - baseline_brand_rate, 1)
-
-    # --- Competitor Comparison ---
-    competitors = (
-        db.query(GeoCompetitor)
-        .filter(GeoCompetitor.client_id == client_id, GeoCompetitor.is_active.is_(True))
-        .all()
-    )
-
-    competitor_data = []
-    if latest_batch and competitors:
-        for comp in competitors:
-            # Count how many results mentioned this competitor in latest batch
-            comp_mentions = (
-                db.query(func.count(GeoQueryResult.id))
-                .filter(
-                    GeoQueryResult.execution_batch_id == latest_batch.id,
-                    GeoQueryResult.competitors_mentioned.has_key(comp.competitor_name),
-                )
-                .scalar()
-            ) or 0
-
-            total_results = (
-                db.query(func.count(GeoQueryResult.id))
-                .filter(GeoQueryResult.execution_batch_id == latest_batch.id)
-                .scalar()
-            ) or 1
-
-            comp_rate = round(comp_mentions / total_results * 100, 1) if total_results > 0 else 0
-            competitor_data.append({
-                "name": comp.competitor_name,
-                "domain": comp.competitor_domain or "",
-                "appearance_rate": comp_rate,
-            })
-
-        # Sort by appearance rate
-        competitor_data.sort(key=lambda x: x["appearance_rate"], reverse=True)
-
-    # --- High-Intent Thread Participation ---
     now = datetime.now(timezone.utc)
     month_ago = now - timedelta(days=30)
-
     high_intent_types = ["comparison", "recommendation", "troubleshooting", "buying", "evaluation"]
 
     total_posted_30d = (
@@ -1925,7 +1852,6 @@ def portal_visibility(
         .scalar()
     ) or 0
 
-    # Count posted comments in high-intent threads
     high_intent_posted = (
         db.query(func.count(CommentDraft.id))
         .join(Avatar, CommentDraft.avatar_id == Avatar.id)
@@ -1942,7 +1868,6 @@ def portal_visibility(
 
     high_intent_rate = round(high_intent_posted / total_posted_30d * 100) if total_posted_30d > 0 else 0
 
-    # Intent breakdown
     intent_breakdown = (
         db.query(
             ThreadScore.intent,
@@ -1965,24 +1890,26 @@ def portal_visibility(
 
     intent_data = [{"intent": r.intent, "count": r.count, "is_high": r.intent in high_intent_types} for r in intent_breakdown]
 
-    # --- GEO monitoring status ---
-    geo_enabled = client_obj.geo_monitoring_enabled
-    prompts_count = (
-        db.query(func.count(GeoPrompt.id))
-        .filter(GeoPrompt.client_id == client_id, GeoPrompt.is_active.is_(True))
-        .scalar()
-    ) or 0
-
+    # Build combined context
     visibility = {
-        "geo_enabled": geo_enabled,
-        "prompts_count": prompts_count,
-        "latest_brand_rate": latest_brand_rate,
-        "baseline_brand_rate": baseline_brand_rate,
-        "brand_rate_delta": brand_rate_delta,
-        "brand_rate_history": brand_rate_history,
-        "competitors": competitor_data,
-        "latest_batch_date": latest_batch.started_at.strftime("%b %d, %Y") if latest_batch else None,
-        "baseline_date": baseline_batch.started_at.strftime("%b %d, %Y") if baseline_batch else None,
+        "geo_enabled": client_obj.geo_monitoring_enabled,
+        "has_data": report["has_data"],
+        "summary": report["summary"],
+        "engines": report["engines"],
+        "projected": report["projected"],
+        "trend_history": report["trend_history"],
+        "trend_chart": report["trend_chart"],
+        "competitors": report["competitors"],
+        "queries": report["queries"],
+        "categories": report["categories"],
+        "excerpts": report["excerpts"],
+        # Legacy fields for backward compat
+        "latest_brand_rate": report["summary"]["latest_brand_rate"],
+        "baseline_brand_rate": report["summary"]["baseline_brand_rate"],
+        "brand_rate_delta": report["summary"]["brand_rate_delta"],
+        "latest_batch_date": report["summary"]["latest_batch_date"],
+        "baseline_date": report["summary"]["baseline_date"],
+        # High-intent data
         "high_intent_rate": high_intent_rate,
         "high_intent_posted": high_intent_posted,
         "total_posted_30d": total_posted_30d,
@@ -2181,6 +2108,11 @@ def portal_drafts_partial(
         query = query.filter(
             CommentDraft.created_at >= datetime.now(timezone.utc) - timedelta(days=30)
         )
+    # For pending tab, skip stale drafts older than 14 days — threads are dead by then
+    elif status == "pending":
+        query = query.filter(
+            CommentDraft.created_at >= datetime.now(timezone.utc) - timedelta(days=14)
+        )
 
     drafts_raw = query.order_by(CommentDraft.created_at.desc()).limit(50).all()
 
@@ -2198,8 +2130,10 @@ def portal_drafts_partial(
         # For hobby drafts, get info from HobbySubreddit
         hobby_post = None
         if not thread and d.hobby_post_id:
-            from app.models.hobby import HobbySubreddit
-            hobby_post = db.query(HobbySubreddit).filter(HobbySubreddit.id == d.hobby_post_id).first()
+            hobby_post = d.hobby_post
+            if not hobby_post:
+                from app.models.hobby import HobbySubreddit
+                hobby_post = db.query(HobbySubreddit).filter(HobbySubreddit.id == d.hobby_post_id).first()
 
         safety_block = None
         if avatar and client:
@@ -2270,6 +2204,8 @@ def portal_drafts_partial(
             "last_draft_at": last_draft_at,
             "can_review": user.user_role.can_review,
             "status": status,
+            "hidden_actions": get_permission_context(db, client_id, user.user_role).get("hidden_actions", set()),
+            "approval_actions": get_permission_context(db, client_id, user.user_role).get("approval_actions", set()),
         },
         request=request,
     )
@@ -2304,6 +2240,12 @@ def portal_approve_draft(
             block = check_safety_blocks(draft, avatar, client)
             if block:
                 return JSONResponse(status_code=422, content=block)
+
+        # Hard gate: plan enforcement — block if monthly limit reached
+        from app.services.plan_enforcement import check_approval_allowed_for_client
+        is_allowed, limit_msg = check_approval_allowed_for_client(db, client_id)
+        if not is_allowed:
+            return JSONResponse(status_code=422, content={"message": limit_msg, "code": "plan_limit_exceeded"})
 
         draft.status = "approved"
         db.commit()
@@ -2503,6 +2445,12 @@ def portal_edit_draft(
         if block:
             return JSONResponse(status_code=422, content=block)
 
+    # Hard gate: plan enforcement — block if monthly limit reached
+    from app.services.plan_enforcement import check_approval_allowed_for_client
+    is_allowed, limit_msg = check_approval_allowed_for_client(db, client_id)
+    if not is_allowed:
+        return JSONResponse(status_code=422, content={"message": limit_msg, "code": "plan_limit_exceeded"})
+
     draft.status = "approved"
     db.commit()
 
@@ -2669,8 +2617,10 @@ def portal_epg(
             thread_title = (d.thread.post_title or "")[:60]
             thread_url = d.thread.url or ""
         elif d.hobby_post_id:
-            from app.models.hobby import HobbySubreddit
-            hobby_post = db.query(HobbySubreddit).filter(HobbySubreddit.id == d.hobby_post_id).first()
+            hobby_post = d.hobby_post
+            if not hobby_post:
+                from app.models.hobby import HobbySubreddit
+                hobby_post = db.query(HobbySubreddit).filter(HobbySubreddit.id == d.hobby_post_id).first()
             if hobby_post:
                 subreddit_name = hobby_post.subreddit or ""
                 thread_title = (hobby_post.post_title or "")[:60]

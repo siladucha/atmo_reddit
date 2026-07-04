@@ -1,344 +1,302 @@
 # Browser Extension — Design
 
-## Architecture Overview
+## Overview
+
+Backend-controlled task orchestration over leased Execution Nodes. Extension is an untrusted, stateless runtime that executes signed tasks and reports raw results. All intelligence resides in backend.
+
+**Single Authority Principle:** Backend is sole truth engine for scheduling, state transitions, validation, and policy. Referenced once here — not repeated.
+
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  Executor's Machine                                      │
-│                                                          │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │  Chrome Browser                                  │    │
-│  │                                                  │    │
-│  │  ┌─────────────────────────────────────────┐    │    │
-│  │  │  RAMP Extension (Manifest V3)           │    │    │
-│  │  │                                         │    │    │
-│  │  │  ┌──────────┐  ┌──────────────────┐    │    │    │
-│  │  │  │ Service  │  │  Content Script   │    │    │    │
-│  │  │  │ Worker   │  │  (reddit.com/*)   │    │    │    │
-│  │  │  │          │  │                    │    │    │    │
-│  │  │  │ - Poller │  │ - DOM interaction │    │    │    │
-│  │  │  │ - Queue  │  │ - Post comments   │    │    │    │
-│  │  │  │ - Timer  │  │ - Read karma      │    │    │    │
-│  │  │  │ - Auth   │  │ - Detect bans     │    │    │    │
-│  │  │  └────┬─────┘  └──────────────────┘    │    │    │
-│  │  │       │                                  │    │    │
-│  │  │  ┌────┴─────┐                           │    │    │
-│  │  │  │  Popup   │ (task queue, settings)    │    │    │
-│  │  │  └──────────┘                           │    │    │
-│  │  └─────────────────────────────────────────┘    │    │
-│  │                                                  │    │
-│  │  Reddit session (cookies, logged in)             │    │
-│  └──────────────────────┬───────────────────────────┘    │
-│                          │                                │
-└──────────────────────────┼────────────────────────────────┘
-                           │ HTTPS (polling every 30s)
-                           ▼
-┌──────────────────────────────────────────────────────────┐
-│  RAMP Backend (gorampit.com)                              │
-│                                                           │
-│  ┌──────────────────────────────────────────────────┐    │
-│  │  Extension API Layer (FastAPI)                    │    │
-│  │                                                   │    │
-│  │  GET  /api/extension/tasks     → pending tasks   │    │
-│  │  POST /api/extension/report    → results/signals │    │
-│  │  POST /api/extension/heartbeat → online status   │    │
-│  │  POST /api/extension/register  → initial setup   │    │
-│  │  GET  /api/extension/config    → limits/settings │    │
-│  └──────────────────────────────────────────────────┘    │
-│                                                           │
-│  ┌──────────────────────────────────────────────────┐    │
-│  │  Extension Dispatcher (replaces email for online) │    │
-│  │                                                   │    │
-│  │  - Checks executor online status                 │    │
-│  │  - Routes task to extension (online) or email    │    │
-│  │  - Handles fallback (offline > 30 min → email)   │    │
-│  └──────────────────────────────────────────────────┘    │
-│                                                           │
-│  ┌──────────────────────────────────────────────────┐    │
-│  │  Health Signal Ingestion                          │    │
-│  │                                                   │    │
-│  │  - Processes extension health reports            │    │
-│  │  - Updates avatar.health_status                  │    │
-│  │  - Triggers auto-unfreeze on recovery            │    │
-│  │  - Emits activity events + notifications         │    │
-│  └──────────────────────────────────────────────────┘    │
-└──────────────────────────────────────────────────────────┘
+EXECUTION NODE (executor machine)          RAMP BACKEND (sole authority)
+┌────────────────────────────┐            ┌──────────────────────────────┐
+│ Chrome + Extension Runtime │  polling   │ Extension API (FastAPI)      │
+│                            │ ────────→  │  GET  /policy (immutable)    │
+│ - Service Worker (poll,    │            │  GET  /tasks (assigned)      │
+│   HMAC verify, timer,      │  report    │  POST /report (untrusted)    │
+│   queue, heartbeat)        │ ────────→  │  POST /heartbeat             │
+│                            │            │  POST /register              │
+│ - Content Script           │            ├──────────────────────────────┤
+│   (reddit.com DOM actions) │            │ Task Orchestrator            │
+│                            │            │  - create, assign, validate  │
+│ - Popup (mode-dependent)   │            │  - lease management          │
+│                            │            │  - expiry + re-delivery      │
+│ Reddit Identity = resource │            ├──────────────────────────────┤
+└────────────────────────────┘            │ Policy Engine                │
+                                          │  - EPG mode per avatar       │
+ execution_node_id: uuid                  │  - rate limits, active hours │
+ binding: (node_id, username)             ├──────────────────────────────┤
+                                          │ Signal Validator             │
+                                          │  - normalize raw reports     │
+                                          │  - weight health signals     │
+                                          │  - trigger PRAW probes       │
+                                          │  - emit events/notifications │
+                                          └──────────────────────────────┘
 ```
 
-## Extension Components (Manifest V3)
 
-### Service Worker (background.js)
+## Components and Interfaces
 
-Long-lived background process. Handles:
-- **Polling loop** — GET /api/extension/tasks every 30s (when active)
-- **Task queue** — local storage of pending tasks
-- **Timer engine** — fires tasks at scheduled_at time
-- **Heartbeat** — POST /api/extension/heartbeat every 60s
-- **Auth management** — JWT token storage + refresh
-- **Kill switch** — instant pause on "pause_all" command from backend
+### Backend Components
 
-```
-State Machine (Service Worker):
-  idle → polling → task_received → dispatching → waiting_result → reporting → idle
-                                                     ↓
-                                               content_script
-```
+**1. Extension API** (FastAPI routes):
+- `GET /api/extension/policy` — immutable per-avatar config (epg_mode, limits, allowed types)
+- `GET /api/extension/tasks` — assigned tasks filtered by active_reddit_username
+- `POST /api/extension/report` — receives untrusted results, validates idempotency
+- `POST /api/extension/heartbeat` — node liveness + active account
+- `POST /api/extension/register` — creates execution_node_id
 
-### Content Script (reddit_actions.js)
+**2. Task Orchestrator** (`extension_dispatcher.py`):
+- Creates tasks with HMAC signature
+- Assigns to online nodes (CREATED → ASSIGNED)
+- Validates reports (REPORTED → FINALIZED)
+- Expires stale leases (→ EXPIRED, may re-create)
+- Routes: extension (preferred) or email (fallback after 30min offline)
 
-Injected into reddit.com pages. Handles:
-- **Comment posting** — locate comment box, fill text, submit
-- **CQS posting** — navigate to r/WhatIsMyCQS/submit, create post, read reply
-- **Karma reading** — parse profile page for karma values
-- **Health monitoring** — detect ban notices, removed content indicators
-- **Session detection** — identify currently logged-in Reddit username
+**3. Policy Engine** (per-avatar config):
+- `epg_mode`: REQUIRED / OPTIONAL / DISABLED
+- Rate limits: daily_cap, min_interval, active_hours
+- Priority: diagnostic > content
+- Backpressure: max 1 concurrent, queue limit 20
 
-DOM interaction strategy:
-```
-Primary: CSS selectors (Reddit's Shreddit web components)
-Fallback 1: data-testid attributes
-Fallback 2: ARIA labels
-Fallback 3: XPath (last resort)
+**4. Signal Validator** (`extension_health.py`):
+- Normalizes raw probe output → structured data (CQS level extraction)
+- Weights health signals (trust_weight, decay_hours)
+- Aggregates signals: N signals × weight > threshold → action candidate
+- Creates recovery_candidate flags
+- Triggers independent PRAW verification
 
-If all fail → report "dom_structure_changed" error to RAMP
-```
+### Extension Components (Manifest V3)
 
-### Popup (popup.html + popup.js)
+**1. Service Worker** (background.js):
+- Poller: GET /tasks every 30s (from policy config)
+- HMAC verifier: validates task_hash before queueing
+- Timer: holds tasks until scheduled_at
+- Queue: local chrome.storage (max 20, priority ordering)
+- Heartbeat: every 60s
+- Kill switch: instant pause_all
+- Account monitor: detects username change → abort executing task
 
-Executor-facing UI:
-- Task queue with approve/reject buttons
-- Auto/Manual mode toggle
-- Pause button
-- Connection status indicator
-- History tab (last 20 completed tasks)
-- Settings (RAMP URL, active hours)
+**2. Content Script** (reddit_actions.js):
+- Reddit variant detection (shreddit / old / redesign)
+- Action executors: postComment(), postCQSCheck(), readKarma(), checkVisibility()
+- DOM selector chains (CSS → data-testid → ARIA → XPath)
+- Reports raw results only (no interpretation)
+- Reports dom_structure_changed if all selectors fail
 
-## Backend API Design
+**3. Popup** (mode-dependent):
+- REQUIRED_UI: task queue + approve/reject
+- NOTIFICATION_ONLY: activity feed + alerts
+- MINIMAL: errors only (invisible otherwise)
+- Common: connection indicator, pause button, badge
 
-### Data Models
+---
+
+## Data Models
 
 ```python
-# New model: ExtensionSession
-class ExtensionSession(Base):
-    __tablename__ = "extension_sessions"
-
+class ExecutionNode(Base):
+    __tablename__ = "execution_nodes"
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     executor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
-    avatar_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("avatars.id"))
-    device_fingerprint: Mapped[str | None]  # browser/OS identifier
-    extension_version: Mapped[str]
-    last_heartbeat: Mapped[datetime]
+    device_fingerprint: Mapped[str | None]
+    extension_version: Mapped[str | None]
+    last_heartbeat: Mapped[datetime | None]
     is_online: Mapped[bool] = mapped_column(default=False)
-    active_reddit_username: Mapped[str | None]  # currently logged-in account
-    mode: Mapped[str] = mapped_column(default="manual")  # "auto" | "manual" | "paused"
+    active_reddit_username: Mapped[str | None]
+    tasks_in_queue: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime]
     updated_at: Mapped[datetime]
+
+# Additional fields on ExecutionTask:
+execution_node_id: Mapped[uuid.UUID | None]
+task_hash: Mapped[str]                       # HMAC-SHA256
+lease_expires_at: Mapped[datetime | None]    # attribute, not state
+idempotency_key: Mapped[str]
+task_lifecycle_status: Mapped[str]           # CREATED/ASSIGNED/EXECUTING/REPORTED/FINALIZED/FAILED/EXPIRED
+probe_type: Mapped[str | None]
+priority: Mapped[str] = mapped_column(default="content")  # diagnostic | content
+
+# Avatar policy:
+epg_mode: Mapped[str] = mapped_column(default="required")
 ```
 
-### API Endpoints
+---
 
-#### GET /api/extension/tasks
+## Task Lifecycle
 
-Returns pending tasks for the executor's currently active Reddit account.
+```
+CREATED → ASSIGNED → EXECUTING → REPORTED → FINALIZED (terminal)
+                         ↓
+                    FAILED (terminal)
 
+EXPIRED: lease_expires_at passed (terminal, may trigger re-creation)
+```
+
+Lease = attribute (`lease_expires_at` + `execution_node_id`), not a state.
+
+| From | To | Trigger | Actor |
+|------|-----|---------|-------|
+| CREATED | ASSIGNED | Node polls, backend assigns | Backend |
+| ASSIGNED | EXECUTING | Extension acknowledges | Extension |
+| EXECUTING | REPORTED | Extension sends result | Extension |
+| REPORTED | FINALIZED | Backend validates | Backend |
+| ASSIGNED/EXECUTING | EXPIRED | Lease timeout | Backend cron |
+| EXECUTING | FAILED | Error condition | Extension |
+
+---
+
+## API Contracts
+
+### GET /api/extension/policy
 ```json
-// Response
+{
+  "epg_mode": "required",
+  "daily_cap": 3,
+  "min_interval_seconds": 180,
+  "active_hours_start": "08:00",
+  "active_hours_end": "22:00",
+  "allowed_task_types": ["post_comment", "diagnostic_probe"],
+  "cqs_probe_max_per_hour": 1,
+  "health_probe_max_per_30min": 1,
+  "max_concurrent_tasks": 1,
+  "queue_overflow_limit": 20,
+  "poll_interval_seconds": 30
+}
+```
+
+### GET /api/extension/tasks
+```json
 {
   "tasks": [
     {
       "task_id": "uuid",
-      "idempotency_key": "unique-per-task-delivery",
-      "task_signature": "hmac-sha256-of-task-payload",
-      "task_type": "post_comment | cqs_check",
+      "idempotency_key": "unique-per-delivery",
+      "task_hash": "hmac-sha256",
+      "task_type": "post_comment",
+      "probe_type": null,
+      "priority": "content",
       "avatar_username": "Flaky_Finder_13",
-      "thread_url": "https://reddit.com/r/...",
-      "thread_title": "...",
+      "thread_url": "https://reddit.com/r/.../comments/...",
       "comment_text": "...",
-      "reply_to_comment_id": null,
       "scheduled_at": "2026-06-28T08:00:00Z",
-      "lease_expires_at": "2026-06-28T08:30:00Z",
-      "deadline": "2026-06-28T20:00:00Z",
-      "priority": "normal | high",
-      "action_class": "content | system",
-      "config": {
-        "daily_cap": 3,
-        "min_interval_seconds": 180,
-        "active_hours_start": "08:00",
-        "active_hours_end": "22:00"
-      }
+      "lease_expires_at": "2026-06-28T08:30:00Z"
     }
   ],
-  "commands": ["pause_all"] // or empty — system-level commands
+  "commands": []
 }
 ```
 
-**Integrity & Idempotency:**
-- `idempotency_key`: unique per task delivery attempt. Extension includes it in report. Backend rejects duplicate reports (200 OK, no re-processing).
-- `task_signature`: HMAC-SHA256 of task payload signed with backend secret. Extension verifies before execution — rejects tampered tasks.
-- `lease_expires_at`: if extension doesn't report result by this time, task is released for re-delivery (to email fallback or next poll cycle).
-- `action_class`: "system" (CQS, health) or "content" (comments). Extension applies different rate limits per class.
-
-#### POST /api/extension/report
-
+### POST /api/extension/report
 ```json
-// Request — task result
-{
-  "task_id": "uuid",
-  "idempotency_key": "same-key-from-task-delivery",
-  "result_type": "task_completed",
-  "status": "posted | blocked | error",
-  "permalink": "https://reddit.com/r/.../comment/...",
-  "comment_id": "abc123",
-  "posted_at": "2026-06-28T08:05:32Z",
-  "error_reason": null,  // "thread_locked" | "auth_expired" | "dom_error" | ...
-  "metadata": {}
-}
+{"task_id": "uuid", "idempotency_key": "key", "result_type": "task_completed",
+ "status": "posted", "permalink": "url", "comment_id": "id", "posted_at": "ts"}
 
-// Request — health signal (best-effort, NOT authoritative for state changes)
-{
-  "result_type": "health_signal",
-  "avatar_username": "Flaky_Finder_13",
-  "signal": "comment_removed | ban_notice | profile_restricted",
-  "details": { "karma": {"comment": 5, "link": 1} }
-}
+{"task_id": "uuid", "idempotency_key": "key", "result_type": "probe_result",
+ "probe_type": "reddit_cqs",
+ "raw_output": "Your current CQS is **LOW**.",
+ "execution_metadata": {"duration_ms": 45000, "reddit_variant": "shreddit"}}
 
-// Request — CQS result (factual — bot's response)
-{
-  "result_type": "cqs_result",
-  "avatar_username": "Flaky_Finder_13",
-  "cqs_level": "low",
-  "post_id": "1uge4ov",
-  "bot_reply_text": "Your current CQS is **LOW**."
-}
+{"result_type": "health_signal", "avatar_username": "user",
+ "signal_type": "comment_removed", "raw_value": {}, "timestamp": "ts"}
+
+{"task_id": "uuid", "idempotency_key": "key", "result_type": "task_failed",
+ "error_code": "account_switch_error", "error_details": "..."}
 ```
 
-#### POST /api/extension/heartbeat
+**Idempotency contract:** First valid report wins. Duplicates → 200 NOOP. Backend = final arbiter.
 
+### POST /api/extension/heartbeat
 ```json
-// Request
-{
-  "session_id": "uuid",
-  "active_reddit_username": "Flaky_Finder_13",
-  "extension_version": "1.0.0",
-  "mode": "auto",
-  "browser": "chrome/126",
-  "tasks_in_local_queue": 2
+{"execution_node_id": "uuid", "active_reddit_username": "user",
+ "extension_version": "1.0.0", "tasks_in_local_queue": 2}
+```
+
+---
+
+## Correctness Properties
+
+1. **No duplicate execution:** idempotency_key + lease_expires_at + backend dedup.
+2. **No unauthorized execution:** HMAC verification. Invalid hash → reject.
+3. **No state corruption:** Extension cannot change avatar state. Only backend.
+4. **No credential leak:** Chrome isolation + extension permission model.
+5. **Diagnostic independence:** Probes run regardless of frozen/health state.
+6. **Graceful degradation:** Extension offline → email fallback (30 min threshold).
+7. **Account binding:** username mismatch → hold/abort (never execute on wrong account).
+
+---
+
+## Error Handling
+
+| Error | Extension Action | Backend Action |
+|-------|-----------------|----------------|
+| `auth_expired` | Report, stop all tasks | Mark node offline, email fallback |
+| `dom_structure_changed` | Report with page context | Alert operator, pause auto for node |
+| `thread_locked` | Report blocked | Cancel task, update slot |
+| `account_switch_error` | Abort, report | Release lease, hold for correct account |
+| Network disconnect | Queue locally, retry | After 30 min → email fallback |
+| HMAC invalid | Reject task, report error | Investigate (possible tampering) |
+| Queue overflow (>20) | Reject new deliveries | Backend holds tasks until drained |
+| Lease expired | N/A (extension dead) | Re-create task or email fallback |
+
+---
+
+## Reddit DOM Strategy
+
+```javascript
+function detectRedditVariant() {
+  if (document.querySelector('shreddit-app')) return 'shreddit';
+  if (document.querySelector('#header-bottom-left')) return 'old';
+  return 'redesign';
 }
+
+const SELECTORS = {
+  shreddit: {
+    replyButton: '[slot="reply-button"]',
+    textArea: 'shreddit-composer textarea, div[contenteditable="true"]',
+    submitButton: 'button[type="submit"][slot="submit-button"]'
+  },
+  old: {
+    replyButton: '.reply-button',
+    textArea: '.usertext-edit textarea',
+    submitButton: '.save'
+  },
+  redesign: {
+    replyButton: '[data-testid="comment-reply-button"]',
+    textArea: '[data-testid="comment-composer"] div[contenteditable]',
+    submitButton: '[data-testid="comment-submit-button"]'
+  }
+};
 ```
 
-## Task Routing Logic
+---
 
-```python
-def route_task_to_executor(task: ExecutionTask, avatar: Avatar) -> str:
-    """Decide delivery channel: extension or email.
+## Testing Strategy
 
-    Priority:
-    1. Extension online + correct account active → extension
-    2. Extension online + wrong account → hold (notify switch account)
-    3. Extension offline < 30 min → hold (might come back)
-    4. Extension offline > 30 min → email fallback
-    5. No extension registered → email only
-    """
-    session = get_active_extension_session(avatar.executor_email)
+| Layer | What | How |
+|-------|------|-----|
+| Unit | HMAC verification, timer logic, queue management | Jest (extension) |
+| Unit | Task orchestrator, policy engine, signal validator | pytest (backend) |
+| Integration | Poll → receive → execute → report → validate cycle | Playwright + mock Reddit DOM |
+| Contract | API request/response shapes | Pydantic schema validation |
+| E2E | CQS self-healing: frozen avatar → probe → report → recovery candidate | Staging environment |
+| Fault | Lease expiry, network drop, account switch mid-task | Chaos injection |
 
-    if not session:
-        return "email"
-
-    if session.is_online and session.active_reddit_username == avatar.reddit_username:
-        return "extension"
-
-    if session.is_online and session.active_reddit_username != avatar.reddit_username:
-        return "extension_wrong_account"  # notify executor to switch
-
-    offline_duration = datetime.utcnow() - session.last_heartbeat
-    if offline_duration < timedelta(minutes=30):
-        return "hold"  # wait for reconnect
-
-    return "email"  # fallback
-```
-
-## CQS Self-Healing Flow (Extension-Enabled)
-
-```
-Day 0: Avatar frozen (shadowban detected)
-        ↓
-Day 0-7: generate_cqs_check_tasks() includes frozen avatars
-          Creates ExecutionTask(task_type="cqs_check", action_class="system")
-        ↓
-Next polling cycle (30s): Extension picks up CQS task
-        ↓
-Extension: Opens r/WhatIsMyCQS/submit in background tab (system action)
-           Posts "What is my CQS?"
-           Waits 30-60s for AutoModerator reply
-           Reads reply → parses CQS level
-        ↓
-Extension → RAMP: POST /api/extension/report
-           {result_type: "cqs_result", cqs_level: "low", idempotency_key: "..."}
-        ↓
-RAMP — Measurement layer:
-  Records avatar.cqs_level = "low" (factual)
-        ↓
-RAMP — State transition layer:
-  CQS improved from "lowest"? → YES
-  Creates recovery_candidate flag
-  Triggers independent PRAW submission_visibility_probe
-        ↓
-PRAW probe result:
-  If post visible in subreddit feed → DUAL CONFIRMATION → auto-unfreeze
-    + notify operator post-factum with evidence chain
-  If post still invisible → KEEP FROZEN
-    + notify operator: "CQS improved but shadowban persists"
-    + retry CQS in 7 days
-```
-
-**Key invariant:** Single extension signal NEVER triggers state transition alone.
-Auto-unfreeze requires dual confirmation (CQS improved + PRAW probe passes) OR manual operator action.
-
-## Comment Posting Flow (Extension)
-
-```
-1. EPG builds slot → draft approved → ExecutionTask created (with idempotency_key + lease)
-2. dispatch_due_email_tasks checks: extension online?
-3. YES → task.delivery_channel = "extension", status = "dispatched_to_extension"
-4. Extension polls → receives task (verifies task_signature HMAC before proceeding)
-5. Extension checks:
-   - Is task_signature valid? (reject if tampered)
-   - Is scheduled_at reached? (wait if not)
-   - Is within active hours? (content actions only)
-   - Is min_interval satisfied? (content actions only)
-   - Is daily cap not exceeded? (content actions only)
-6. Extension navigates to thread_url
-7. Extension checks: thread locked? removed? archived?
-8. If blocked → report {status: "blocked", reason: "...", idempotency_key: "..."}
-9. If OK → locate comment box → fill text → submit
-10. Extract permalink from newly posted comment
-11. Report {status: "posted", permalink: "...", comment_id: "...", idempotency_key: "..."}
-12. RAMP receives → verifies idempotency_key not already processed
-    → updates draft.status="posted", slot.status="posted"
-    No reconciliation needed — system knows immediately.
-13. If lease_expires_at reached without report → task released for re-delivery (email fallback)
-```
+---
 
 ## Security Model
 
-### What Extension CAN access:
-- Reddit DOM on reddit.com/* (content script)
-- RAMP API at gorampit.com/api/extension/* (service worker)
-- Local storage for task queue + settings
+| Element | Trust | Reason |
+|---------|:-----:|--------|
+| Task from backend (valid HMAC) | Trusted | Signed by backend secret |
+| Task with invalid HMAC | Rejected | Tampering/replay |
+| Extension report | Untrusted | Validated server-side |
+| Reddit DOM | Untrusted | May be manipulated |
+| Backend state | Authoritative | Single Authority Principle |
 
-### What Extension CANNOT access:
-- Reddit cookies/session tokens (isolated by Chrome security model)
-- Other tabs/sites content
-- File system
-- Other extensions
+**Extension cannot:** generate tasks, modify task content, replay old tasks, trigger state transitions, access Reddit credentials.
 
-### Authentication:
-- Executor receives unique JWT token during RAMP onboarding
-- Token stored in extension's chrome.storage.local (encrypted at rest by Chrome)
-- Token has limited scope: only /api/extension/* endpoints
-- Token refresh: RAMP issues new token on each heartbeat (rolling expiry)
-
-### Manifest V3 Permissions:
 ```json
 {
   "permissions": ["storage", "alarms", "notifications"],
@@ -350,80 +308,13 @@ Auto-unfreeze requires dual confirmation (CQS improved + PRAW probe passes) OR m
 }
 ```
 
-## Reddit DOM Interaction Strategy
-
-Reddit has multiple UI variants:
-- **New Reddit (Shreddit)** — Web Components (`<shreddit-comment-action-row>`)
-- **Old Reddit** — Classic HTML (`#comment_reply_form`)
-- **Redesign (React)** — React-rendered DOM
-
-Extension detects active variant and uses appropriate selectors:
-
-```javascript
-// Variant detection
-function detectRedditVariant() {
-  if (document.querySelector('shreddit-app')) return 'shreddit';
-  if (document.querySelector('#header-bottom-left')) return 'old';
-  return 'redesign';
-}
-
-// Comment posting — variant-specific
-const COMMENT_SELECTORS = {
-  shreddit: {
-    replyButton: '[slot="reply-button"]',
-    textArea: 'shreddit-composer textarea, div[contenteditable="true"]',
-    submitButton: 'button[type="submit"][slot="submit-button"]',
-  },
-  old: {
-    replyButton: '.reply-button',
-    textArea: '.usertext-edit textarea',
-    submitButton: '.save',
-  },
-  redesign: {
-    replyButton: '[data-testid="comment-reply-button"]',
-    textArea: '[data-testid="comment-composer"] div[contenteditable]',
-    submitButton: '[data-testid="comment-submit-button"]',
-  }
-};
-```
-
-## Fallback & Error Handling
-
-| Scenario | Extension Behavior | RAMP Behavior |
-|----------|-------------------|---------------|
-| Reddit session expired | Report auth_expired, stop tasks | Mark executor offline, fall back to email |
-| DOM selectors broken | Report dom_error with page HTML snippet | Alert operator, pause auto-mode for this executor |
-| Network disconnection | Queue results locally, retry on reconnect | After 30 min offline → email fallback |
-| Browser closed | Service worker terminated (MV3 limitation) | Heartbeat timeout → mark offline |
-| Reddit rate limit (UI) | Detect "you're doing this too much", wait | Extend min_interval for this avatar |
-| Wrong account logged in | Show warning in popup, hold tasks | Hold tasks until correct account active |
-| Kill switch received | Immediately stop all pending tasks | Confirmed via next heartbeat |
+---
 
 ## Phase Plan
 
-### Phase 1 — MVP (2-3 weeks)
-- Chrome extension with Service Worker + Content Script
-- Popup with task queue (manual mode only)
-- CQS auto-check (R2)
-- Health monitoring basic (karma + session detection)
-- Backend: 4 API endpoints + ExtensionSession model
-- Single-account support
-
-### Phase 2 — Auto-Posting (1-2 weeks)
-- Auto-mode for comment posting (R3)
-- Timer engine (scheduled_at respect)
-- Safety limits enforcement (cap, interval, active hours)
-- Thread liveness check before posting
-- Permalink extraction + immediate RAMP update
-
-### Phase 3 — Intelligence (1 week)
-- Shadowban probe (incognito visibility check)
-- Auto-unfreeze logic (R10)
-- Multi-account detection (R7)
-- Extension status in admin UI
-
-### Phase 4 — Polish (1 week)
-- Firefox port
-- Error recovery + retry logic
-- Onboarding wizard in extension
-- Chrome Web Store submission
+| Phase | Scope | Timeline |
+|-------|-------|----------|
+| 1 (MVP) | CQS probe + comment posting (REQUIRED_UI mode) + health probe + heartbeat + backend API | 2-3 weeks |
+| 2 | OPTIONAL/DISABLED modes (auto-execute) + timer engine + full rate limit enforcement | 1-2 weeks |
+| 3 | Dual-confirmation auto-unfreeze + signal aggregation + multi-node admin UI | 1 week |
+| 4 | Firefox port + Chrome Web Store + onboarding wizard + polish | 1 week |

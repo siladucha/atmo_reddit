@@ -38,22 +38,28 @@
 
     <!-- Action buttons -->
     <div style="display:flex;gap:var(--space-1);">
+        {% if hidden_actions is not defined or "approve_draft" not in hidden_actions %}
         <button class="btn btn-green"
                 hx-post="/clients/{{ client_id }}/drafts/{{ draft.id }}/approve"
                 hx-target="#draft-{{ draft.id }}"
                 hx-swap="outerHTML swap:150ms"
                 {% if draft.safety_block %}disabled{% endif %}>
-            ✓ Approve
+            ✓ Approve{% if approval_actions is defined and "approve_draft" in approval_actions %}<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(251,191,36,0.15);color:#fbbf24;margin-left:4px;">Requires Approval</span>{% endif %}
         </button>
+        {% endif %}
+        {% if hidden_actions is not defined or "edit_draft" not in hidden_actions %}
         <button class="btn btn-orange-outline"
                 onclick="startEdit('{{ draft.id }}')">
             ✎ Edit
         </button>
+        {% endif %}
+        {% if hidden_actions is not defined or "reject_draft" not in hidden_actions %}
         <button class="btn btn-ghost"
                 hx-post="/clients/{{ client_id }}/drafts/{{ draft.id }}/skip"
                 hx-target="#draft-{{ draft.id }}"
                 hx-swap="outerHTML swap:150ms">
             Skip
         </button>
+        {% endif %}
     </div>
 </div>

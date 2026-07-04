@@ -38,3 +38,11 @@ backups/
 # SSH deploy keys
 .ssh_deploy
 .ssh_deploy.pub
+
+# Node
+node_modules/
+ramp_extension/node_modules/
+ramp_extension/dist/
+
+# Hypothesis (test artifacts)
+.hypothesis/

@@ -69,10 +69,31 @@ _FALLBACK_EXCEPTIONS = (
 _LLM_HOURLY_LIMIT = 500   # ~8x normal peak (60 calls/30min window × 2 pipelines)
 _LLM_DAILY_LIMIT = 3000   # ~10x normal daily usage (~300 calls/day at 10 clients)
 
+# ---------------------------------------------------------------------------
+# Cost-Based Circuit Breaker (R-AI-007) — halts when spend rate is anomalous
+# ---------------------------------------------------------------------------
+# Rolling cost tracked per 10-minute window. If cost in any 10-min window
+# exceeds threshold, all subsequent calls are blocked until the window expires.
+_COST_WINDOW_SECONDS = 600          # 10-minute sliding window
+_COST_WINDOW_LIMIT_USD = 5.0       # $5 per 10-min window (normal max ~$0.60 at peak)
+_SINGLE_CALL_COST_LIMIT_USD = 1.0  # single call > $1 = block (should never happen)
+
+# Per-task call counter — prevents a single Celery task from making unbounded LLM calls
+_MAX_CALLS_PER_TASK = 50  # No single task invocation should need >50 LLM calls
+
 
 class LLMBudgetExceeded(Exception):
     """Raised when LLM call budget is exhausted for the current period."""
     pass
+
+
+class LLMRunawayDetected(LLMBudgetExceeded):
+    """Raised when anomalous spend rate is detected (R-AI-007 circuit breaker)."""
+    pass
+
+
+# Per-task call counter (ContextVar — reset at each Celery task start)
+_task_call_counter: ContextVar[int] = ContextVar("_task_call_counter", default=0)
 
 
 # Cached Redis connection for budget gate (avoid per-call overhead)
@@ -94,14 +115,34 @@ def _get_budget_redis():
 
 
 def _check_llm_budget_gate(model: str) -> None:
-    """Check Redis-based call counters. Raise LLMBudgetExceeded if limits hit.
+    """Check Redis-based call counters AND cost circuit breaker.
+
+    Three layers of protection (R-AI-007):
+      1. Call count: hourly (500) + daily (3000) hard caps
+      2. Cost window: $5 per 10-min rolling window (detects runaway loops early)
+      3. Per-task cap: max 50 LLM calls per single Celery task invocation
 
     Keys:
       ramp:llm:calls:hourly:{YYYYMMDDHH} — TTL 7200s (2h)
       ramp:llm:calls:daily:{YYYYMMDD}   — TTL 90000s (25h)
+      ramp:llm:cost:window:{YYYYMMDDHHMM_bucket} — TTL 900s (15 min, covers window + buffer)
 
     Fail-open: if Redis is unreachable, log warning and allow the call.
     """
+    # --- Layer 3: Per-task call counter (no Redis needed) ---
+    current_task_calls = _task_call_counter.get(0)
+    if current_task_calls >= _MAX_CALLS_PER_TASK:
+        logger.critical(
+            "LLM_RUNAWAY_PER_TASK | calls_in_task=%d | limit=%d | model=%s | "
+            "HALTING — single task exceeded max LLM calls",
+            current_task_calls, _MAX_CALLS_PER_TASK, model,
+        )
+        raise LLMRunawayDetected(
+            f"Single task exceeded max LLM calls: {current_task_calls}/{_MAX_CALLS_PER_TASK}. "
+            f"Possible infinite loop detected."
+        )
+    _task_call_counter.set(current_task_calls + 1)
+
     try:
         import datetime as _dt
 
@@ -113,7 +154,32 @@ def _check_llm_budget_gate(model: str) -> None:
         hourly_key = f"ramp:llm:calls:hourly:{now.strftime('%Y%m%d%H')}"
         daily_key = f"ramp:llm:calls:daily:{now.strftime('%Y%m%d')}"
 
-        # Atomic increment
+        # --- Layer 2: Cost circuit breaker (10-min window) ---
+        # Bucket = 10-min slot (e.g., "2026070214:3" = 14:30-14:39)
+        cost_bucket = f"{now.strftime('%Y%m%d%H')}:{now.minute // 10}"
+        cost_key = f"ramp:llm:cost:window:{cost_bucket}"
+
+        # Check current cost in window BEFORE making the call
+        try:
+            current_cost_raw = redis.get(cost_key)
+            if current_cost_raw:
+                current_cost = float(current_cost_raw)
+                if current_cost >= _COST_WINDOW_LIMIT_USD:
+                    logger.critical(
+                        "LLM_RUNAWAY_COST_WINDOW | cost_usd=%.4f | limit=%.2f | "
+                        "window=%s | model=%s | HALTING — spend rate too high",
+                        current_cost, _COST_WINDOW_LIMIT_USD, cost_bucket, model,
+                    )
+                    raise LLMRunawayDetected(
+                        f"LLM cost circuit breaker tripped: ${current_cost:.2f} in 10-min window "
+                        f"(limit: ${_COST_WINDOW_LIMIT_USD:.2f}). Possible runaway loop."
+                    )
+        except LLMRunawayDetected:
+            raise
+        except Exception:
+            pass  # fail-open on Redis error for cost check
+
+        # --- Layer 1: Call count caps ---
         pipe = redis.pipeline(transaction=False)
         pipe.incr(hourly_key)
         pipe.expire(hourly_key, 7200)
@@ -149,11 +215,42 @@ def _check_llm_budget_gate(model: str) -> None:
                 hourly_count, _LLM_HOURLY_LIMIT, daily_count, _LLM_DAILY_LIMIT, model,
             )
 
-    except LLMBudgetExceeded:
+    except (LLMBudgetExceeded, LLMRunawayDetected):
         raise
     except Exception as e:
         # Fail-open: Redis down or unexpected error — don't block LLM calls
         logger.warning("LLM budget gate error (fail-open): %s", str(e)[:100])
+
+
+def _record_cost_in_window(cost_usd: float) -> None:
+    """Record cost of a completed LLM call in the 10-min rolling window.
+
+    Called AFTER a successful call to track accumulated spend.
+    """
+    if cost_usd <= 0:
+        return
+    try:
+        import datetime as _dt
+        redis = _get_budget_redis()
+        if redis is None:
+            return
+        now = _dt.datetime.now(_dt.timezone.utc)
+        cost_bucket = f"{now.strftime('%Y%m%d%H')}:{now.minute // 10}"
+        cost_key = f"ramp:llm:cost:window:{cost_bucket}"
+        # INCRBYFLOAT atomically adds to the cost counter
+        redis.incrbyfloat(cost_key, cost_usd)
+        redis.expire(cost_key, 900)  # 15 min TTL (covers 10-min window + buffer)
+    except Exception as e:
+        logger.debug("Cost window recording error (non-critical): %s", str(e)[:80])
+
+
+def reset_task_call_counter() -> None:
+    """Reset the per-task LLM call counter.
+
+    Call this at the START of each Celery task to prevent counter
+    accumulation across tasks in the same thread/process.
+    """
+    _task_call_counter.set(0)
 
 
 
@@ -256,6 +353,27 @@ def call_llm(
 
     # Calculate cost
     cost_usd = _calculate_cost(model, input_tokens, output_tokens)
+
+    # --- Expensive call alert: flag single calls > $0.10 for ops visibility ---
+    if cost_usd > 0.10:
+        logger.warning(
+            "EXPENSIVE_LLM_CALL | model=%s | cost_usd=%.4f | "
+            "input_tokens=%d | output_tokens=%d | duration_ms=%d",
+            model, cost_usd, input_tokens, output_tokens, duration_ms,
+        )
+
+    # --- R-AI-007: Single-call cost hard limit ---
+    if cost_usd > _SINGLE_CALL_COST_LIMIT_USD:
+        logger.critical(
+            "LLM_SINGLE_CALL_COST_LIMIT | model=%s | cost_usd=%.4f | limit=%.2f | "
+            "input_tokens=%d | output_tokens=%d | "
+            "ALERT — single call exceeded cost limit (response already received)",
+            model, cost_usd, _SINGLE_CALL_COST_LIMIT_USD,
+            input_tokens, output_tokens,
+        )
+
+    # --- R-AI-007: Record cost in rolling window for circuit breaker ---
+    _record_cost_in_window(cost_usd)
 
     # Log the response
     logger.info(

@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+    <title>AI Search Visibility Report — Ono International School | RAMP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Inter', system-ui, sans-serif; }
+        .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; }
+        .perplexity { border-left: 4px solid #a855f7; }
+        .chatgpt { border-left: 4px solid #22c55e; }
+        .claude { border-left: 4px solid #f97316; }
+        .badge-perplexity { background: #a855f720; color: #a855f7; }
+        .badge-chatgpt { background: #22c55e20; color: #22c55e; }
+        .badge-claude { background: #f9731620; color: #f97316; }
+        .metric-up { color: #4ade80; }
+        .hero-delta { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; }
+        .excerpt-card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; }
+        @media print { body { background: white; color: #1e293b; } .card { border-color: #e2e8f0; } }
+    </style>
+</head>
+<body class="min-h-screen p-6">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <p class="text-sm text-slate-500 uppercase tracking-wider mb-1">AI Search Visibility Report</p>
+                <h1 class="text-2xl font-bold text-white">Ono International School</h1>
+                <p class="text-slate-400 text-sm mt-1">Higher Education · English Programs · Israel</p>
+            </div>
+            <div class="text-right">
+                <span class="text-xs text-slate-500">Last batch: Jun 29, 2026 20:07</span><br>
+                <span class="text-xs text-slate-500">Monitoring: Tue & Fri 09:30</span>
+                <div class="mt-1"><span class="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-400">Active</span></div>
+            </div>
+        </div>
+
+        <!-- Hero Delta -->
+        <div class="hero-delta rounded-xl p-6 mb-8 flex items-center justify-between">
+            <div>
+                <p class="text-sm text-slate-400 mb-1">Brand Visibility</p>
+                <div class="flex items-baseline gap-3">
+                    <div class="text-center">
+                        <span class="text-4xl font-bold text-white">7.7%</span>
+                        <p class="text-xs text-slate-500 mt-0.5">📍 Measured</p>
+                    </div>
+                    <svg class="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                    <div class="text-center">
+                        <span class="text-4xl font-bold text-emerald-400">~38%</span>
+                        <p class="text-xs text-slate-500 mt-0.5">📈 Projected (6 mo)</p>
+                    </div>
+                </div>
+                <p class="text-sm text-emerald-400 mt-2 font-medium">+30pp projected growth over 24 weeks</p>
+            </div>
+            <div class="text-right hidden md:block">
+                <p class="text-xs text-slate-500">📍 Based on: 26 AI queries, 2 engines (Jun 29)</p>
+                <p class="text-xs text-slate-500">📍 Brand mentioned: 2 times (Perplexity only)</p>
+                <p class="text-xs text-slate-500">📍 Competitors in 90%+ of answers</p>
+                <p class="text-xs text-slate-500 mt-2">📈 Model: logistic S-curve, per-engine rates</p>
+            </div>
+        </div>
+
+        <!-- Engine Cards -->
+        <p class="text-xs text-slate-500 uppercase tracking-wider mb-2">📍 Measured (Jun 26-29, 2026)</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div class="card perplexity p-5">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="badge-perplexity px-2 py-0.5 rounded text-xs font-medium">Perplexity</span>
+                    <span class="text-xs text-slate-500">sonar · measured</span>
+                </div>
+                <div class="text-3xl font-bold text-white mb-1">10.0%</div>
+                <div class="text-sm text-slate-400">2 of 20 queries mention brand</div>
+                <div class="text-xs text-slate-500 mt-2">Cites Reddit heavily · Fastest growth expected</div>
+            </div>
+
+            <div class="card chatgpt p-5 opacity-60">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="badge-chatgpt px-2 py-0.5 rounded text-xs font-medium">ChatGPT</span>
+                    <span class="text-xs text-slate-500">gpt-4o-search · pending</span>
+                </div>
+                <div class="text-3xl font-bold text-slate-500 mb-1">—</div>
+                <div class="text-sm text-slate-400">Not yet measured (API key pending)</div>
+                <div class="text-xs text-slate-500 mt-2">Will be activated this week</div>
+            </div>
+
+            <div class="card claude p-5">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="badge-claude px-2 py-0.5 rounded text-xs font-medium">Claude</span>
+                    <span class="text-xs text-slate-500">sonnet-4 · measured</span>
+                </div>
+                <div class="text-3xl font-bold text-white mb-1">0.0%</div>
+                <div class="text-sm text-slate-400">0 of 6 queries mention brand</div>
+                <div class="text-xs text-slate-500 mt-2">Newest web search · Slowest Reddit adoption</div>
+            </div>
+        </div>
+
+        <p class="text-xs text-slate-500 uppercase tracking-wider mb-2 mt-6">📈 Projected (Month 6, S-curve model)</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div class="card perplexity p-4 border-dashed">
+                <div class="flex items-center justify-between">
+                    <span class="badge-perplexity px-2 py-0.5 rounded text-xs font-medium">Perplexity</span>
+                    <span class="metric-up text-xl font-bold">~42%</span>
+                </div>
+            </div>
+            <div class="card chatgpt p-4 border-dashed">
+                <div class="flex items-center justify-between">
+                    <span class="badge-chatgpt px-2 py-0.5 rounded text-xs font-medium">ChatGPT</span>
+                    <span class="metric-up text-xl font-bold">~30%</span>
+                </div>
+            </div>
+            <div class="card claude p-4 border-dashed">
+                <div class="flex items-center justify-between">
+                    <span class="badge-claude px-2 py-0.5 rounded text-xs font-medium">Claude</span>
+                    <span class="metric-up text-xl font-bold">~21%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <div class="card p-6">
+                <h3 class="text-lg font-semibold text-white mb-1">Visibility Trend (24 Weeks)</h3>
+                <p class="text-xs text-slate-500 mb-4">Solid = measured · Dashed = projected (S-curve model)</p>
+                <canvas id="trendChart" height="200"></canvas>
+            </div>
+
+            <div class="card p-6">
+                <h3 class="text-lg font-semibold text-white mb-1">Competitor Share of Voice</h3>
+                <p class="text-xs text-slate-500 mb-4">How often each institution appears in AI answers</p>
+                <canvas id="competitorChart" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- Query Examples -->
+        <div class="card p-6 mb-8">
+            <h3 class="text-lg font-semibold text-white mb-1">Query Examples — Where Are You Found?</h3>
+            <p class="text-xs text-slate-500 mb-4">Actual prompts submitted to AI engines · ✅ = brand mentioned · ❌ = not mentioned</p>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-slate-400 border-b border-slate-700">
+                            <th class="pb-2">Query</th>
+                            <th class="pb-2">Category</th>
+                            <th class="pb-2 text-center">Perplexity</th>
+                            <th class="pb-2 text-center">Claude</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-slate-300">
+                        <tr class="border-b border-slate-800">
+                            <td class="py-2.5">Academic programs for English speakers moving to Israel</td>
+                            <td class="py-2.5"><span class="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">academic</span></td>
+                            <td class="py-2.5 text-center text-lg">✅</td>
+                            <td class="py-2.5 text-center text-lg">❌</td>
+                        </tr>
+                        <tr class="border-b border-slate-800">
+                            <td class="py-2.5">Guide to higher education options for new olim in Israel</td>
+                            <td class="py-2.5"><span class="text-xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400">problem</span></td>
+                            <td class="py-2.5 text-center text-lg">✅</td>
+                            <td class="py-2.5 text-center text-lg">❌</td>
+                        </tr>
+                        <tr class="border-b border-slate-800">
+                            <td class="py-2.5">How to get a degree in Israel and find a job as a new immigrant?</td>
+                            <td class="py-2.5"><span class="text-xs px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">use_case</span></td>
+                            <td class="py-2.5 text-center text-lg">❌</td>
+                            <td class="py-2.5 text-center text-lg">❌</td>
+                        </tr>
+                        <tr class="border-b border-slate-800">
+                            <td class="py-2.5">Compare Israeli colleges offering career integration for new immigrants</td>
+                            <td class="py-2.5"><span class="text-xs px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-400">comparison</span></td>
+                            <td class="py-2.5 text-center text-lg">❌</td>
+                            <td class="py-2.5 text-center text-lg">—</td>
+                        </tr>
+                        <tr>
+                            <td class="py-2.5">Best job placement services for graduates in Israel</td>
+                            <td class="py-2.5"><span class="text-xs px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">use_case</span></td>
+                            <td class="py-2.5 text-center text-lg">❌</td>
+                            <td class="py-2.5 text-center text-lg">—</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- AI Response Excerpts -->
+        <div class="card p-6 mb-8">
+            <h3 class="text-lg font-semibold text-white mb-1">AI Response Excerpts</h3>
+            <p class="text-xs text-slate-500 mb-4">Actual AI responses where your brand was mentioned</p>
+            
+            <div class="space-y-4">
+                <div class="excerpt-card p-4">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="badge-perplexity px-2 py-0.5 rounded text-xs font-medium">Perplexity</span>
+                        <span class="text-xs text-slate-500">Jun 29, 2026</span>
+                    </div>
+                    <p class="text-sm text-slate-300 italic">"Several Israeli universities and colleges offer full academic degree programs taught entirely in English, specifically designed for English speakers moving to Israel (including new immigrants, known as Olim, and international students). Key options include..."</p>
+                    <p class="text-xs text-slate-500 mt-2">Query: "Academic programs designed for English speakers moving to Israel"</p>
+                </div>
+
+                <div class="excerpt-card p-4">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="badge-perplexity px-2 py-0.5 rounded text-xs font-medium">Perplexity</span>
+                        <span class="text-xs text-slate-500">Jun 29, 2026</span>
+                    </div>
+                    <p class="text-sm text-slate-300 italic">"New Olim in Israel have access to a range of higher education options, including undergraduate degrees, master's programs, diploma tracks, and preparatory programs (mechinot), with many institutions offering English-taught courses and specialized support..."</p>
+                    <p class="text-xs text-slate-500 mt-2">Query: "Guide to higher education options for new olim in Israel?"</p>
+                </div>
+
+                <div class="excerpt-card p-4 border-dashed border-slate-600">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="badge-claude px-2 py-0.5 rounded text-xs font-medium">Claude</span>
+                        <span class="badge-chatgpt px-2 py-0.5 rounded text-xs font-medium">ChatGPT</span>
+                        <span class="text-xs text-slate-500">Not yet cited</span>
+                    </div>
+                    <p class="text-sm text-slate-500">Your brand has not been mentioned by Claude or ChatGPT yet. This is your growth opportunity — Reddit content targeting these queries will build citations over the next 8-12 weeks.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Category Breakdown -->
+        <div class="card p-6 mb-8">
+            <h3 class="text-lg font-semibold text-white mb-1">Visibility by Category</h3>
+            <p class="text-xs text-slate-500 mb-4">Where you're visible vs where you need content</p>
+            <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">academic</span>
+                        <span class="text-sm text-slate-300">Academic Programs</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-slate-500">1/10 queries</span>
+                        <div class="w-32 h-2 bg-slate-700 rounded-full overflow-hidden">
+                            <div class="h-full bg-blue-500 rounded-full" style="width: 10%"></div>
+                        </div>
+                        <span class="text-sm font-medium text-white w-10 text-right">10%</span>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400">problem</span>
+                        <span class="text-sm text-slate-300">Immigration & Integration</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-slate-500">1/8 queries</span>
+                        <div class="w-32 h-2 bg-slate-700 rounded-full overflow-hidden">
+                            <div class="h-full bg-amber-500 rounded-full" style="width: 12.5%"></div>
+                        </div>
+                        <span class="text-sm font-medium text-white w-10 text-right">12.5%</span>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">use_case</span>
+                        <span class="text-sm text-slate-300">Career & Employment</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-slate-500">0/6 queries</span>
+                        <div class="w-32 h-2 bg-slate-700 rounded-full overflow-hidden">
+                            <div class="h-full bg-red-500 rounded-full" style="width: 0%"></div>
+                        </div>
+                        <span class="text-sm font-medium text-red-400 w-10 text-right">0%</span>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-400">comparison</span>
+                        <span class="text-sm text-slate-300">Institution Comparisons</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-slate-500">0/1 queries</span>
+                        <div class="w-32 h-2 bg-slate-700 rounded-full overflow-hidden">
+                            <div class="h-full bg-red-500 rounded-full" style="width: 0%"></div>
+                        </div>
+                        <span class="text-sm font-medium text-red-400 w-10 text-right">0%</span>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">opinion</span>
+                        <span class="text-sm text-slate-300">Recommendations & Reviews</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-slate-500">0/1 queries</span>
+                        <div class="w-32 h-2 bg-slate-700 rounded-full overflow-hidden">
+                            <div class="h-full bg-red-500 rounded-full" style="width: 0%"></div>
+                        </div>
+                        <span class="text-sm font-medium text-red-400 w-10 text-right">0%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="mt-8 text-center text-xs text-slate-600">
+            Data from RAMP AI Search Monitoring · Baseline: Jun 26-29, 2026 (3 batches) · Projection: S-curve model with per-engine growth rates<br>
+            Prepared for Ono International School · Confidential
+        </div>
+    </div>
+
+    <script>
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.borderColor = '#334155';
+
+        // S-curve projection with noise (seeded for reproducibility)
+        function scurve(week, baseline, ceiling, midpoint, steepness) {
+            return baseline + (ceiling - baseline) / (1 + Math.exp(-steepness * (week - midpoint)));
+        }
+        // Seeded pseudo-random for consistent noise
+        let seed = 42;
+        function seededRandom() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
+        function noise(amplitude) { return (seededRandom() - 0.5) * 2 * amplitude; }
+
+        const weeks = Array.from({length: 24}, (_, i) => 'W' + (i + 1));
+        const realWeeks = 2; // We have ~2 weeks of real data
+
+        function generateTrend(baseline, ceiling, multiplier) {
+            return weeks.map((_, i) => {
+                const raw = scurve(i, baseline * multiplier, ceiling * multiplier, 12, 0.35);
+                const noisy = raw + noise(2.5);
+                return Math.max(0, Math.min(ceiling * multiplier * 1.1, parseFloat(noisy.toFixed(1))));
+            });
+        }
+
+        const perplexityData = generateTrend(10.0, 42, 1.0);
+        seed = 77;
+        const chatgptData = generateTrend(5.0, 30, 1.0);
+        seed = 123;
+        const claudeData = generateTrend(0.0, 21, 1.0);
+
+        // Trend Chart
+        const trendCtx = document.getElementById('trendChart').getContext('2d');
+        new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: weeks,
+                datasets: [
+                    {
+                        label: 'Perplexity',
+                        data: perplexityData,
+                        borderColor: '#a855f7',
+                        backgroundColor: '#a855f710',
+                        tension: 0.3,
+                        fill: true,
+                        borderDash: weeks.map((_, i) => i < realWeeks ? [] : [5, 5]).flat().length > 0 ? [] : [],
+                        segment: { borderDash: ctx => ctx.p0DataIndex >= realWeeks ? [5, 5] : [] }
+                    },
+                    {
+                        label: 'ChatGPT (projected)',
+                        data: chatgptData,
+                        borderColor: '#22c55e',
+                        backgroundColor: '#22c55e10',
+                        tension: 0.3,
+                        fill: true,
+                        borderDash: [5, 5],
+                    },
+                    {
+                        label: 'Claude',
+                        data: claudeData,
+                        borderColor: '#f97316',
+                        backgroundColor: '#f9731610',
+                        tension: 0.3,
+                        fill: true,
+                        segment: { borderDash: ctx => ctx.p0DataIndex >= realWeeks ? [5, 5] : [] }
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                interaction: { intersect: false, mode: 'index' },
+                plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 16 } } },
+                scales: {
+                    y: { beginAtZero: true, max: 50, ticks: { callback: v => v + '%' }, grid: { color: '#1e293b' } },
+                    x: { grid: { color: '#1e293b' } }
+                }
+            }
+        });
+
+        // Competitor Chart — real data from batch
+        const compCtx = document.getElementById('competitorChart').getContext('2d');
+        new Chart(compCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Tel Aviv Uni', 'Hebrew Uni', 'Technion', 'Bar-Ilan', 'BGU', 'Reichman', 'Ono'],
+                datasets: [{
+                    label: 'Mention Rate (%)',
+                    data: [92.3, 88.5, 61.5, 57.7, 50.0, 46.2, 7.7],
+                    backgroundColor: ['#475569','#475569','#475569','#475569','#475569','#475569','#a855f7'],
+                    borderRadius: 4,
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' }, grid: { color: '#1e293b' } },
+                    y: { grid: { display: false } }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

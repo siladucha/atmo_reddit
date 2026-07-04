@@ -23,11 +23,11 @@
         {% for kw in keywords.get('high', []) %}
         <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(255,107,53,0.15);color:var(--color-orange);border:1px solid rgba(255,107,53,0.3);border-radius:var(--radius-pill);padding:4px 12px;font-size:var(--text-small);cursor:default;" title="Monitored in: {% for sub in keyword_subreddit_map.get(kw, []) %}r/{{ sub }}{% if not loop.last %}, {% endif %}{% endfor %}{% if not keyword_subreddit_map.get(kw, []) %}No subreddits{% endif %}">
             {{ kw }}
-            {% if can_edit %}
+            {% if can_edit and (hidden_actions is not defined or "remove_keyword" not in hidden_actions) %}
             <form style="display:inline;margin:0;padding:0;" hx-post="/clients/{{ client_id }}/settings/keywords/remove" hx-target="#settings-keywords" hx-swap="innerHTML">
                 <input type="hidden" name="keyword" value="{{ kw }}">
                 <input type="hidden" name="priority" value="high">
-                <button type="submit" style="background:none;border:none;color:var(--color-orange);cursor:pointer;font-size:14px;padding:0 2px;line-height:1;" aria-label="Remove keyword {{ kw }}">&times;</button>
+                <button type="submit" style="background:none;border:none;color:var(--color-orange);cursor:pointer;font-size:14px;padding:0 2px;line-height:1;" aria-label="Remove keyword {{ kw }}">&times;{% if approval_actions is defined and "remove_keyword" in approval_actions %}<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#fbbf24;margin-left:2px;" title="Requires Approval"></span>{% endif %}</button>
             </form>
             {% endif %}
         </span>
@@ -44,11 +44,11 @@
         {% for kw in keywords.get('medium', []) %}
         <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(245,158,11,0.15);color:var(--color-amber);border:1px solid rgba(245,158,11,0.3);border-radius:var(--radius-pill);padding:4px 12px;font-size:var(--text-small);cursor:default;" title="Monitored in: {% for sub in keyword_subreddit_map.get(kw, []) %}r/{{ sub }}{% if not loop.last %}, {% endif %}{% endfor %}{% if not keyword_subreddit_map.get(kw, []) %}No subreddits{% endif %}">
             {{ kw }}
-            {% if can_edit %}
+            {% if can_edit and (hidden_actions is not defined or "remove_keyword" not in hidden_actions) %}
             <form style="display:inline;margin:0;padding:0;" hx-post="/clients/{{ client_id }}/settings/keywords/remove" hx-target="#settings-keywords" hx-swap="innerHTML">
                 <input type="hidden" name="keyword" value="{{ kw }}">
                 <input type="hidden" name="priority" value="medium">
-                <button type="submit" style="background:none;border:none;color:var(--color-amber);cursor:pointer;font-size:14px;padding:0 2px;line-height:1;" aria-label="Remove keyword {{ kw }}">&times;</button>
+                <button type="submit" style="background:none;border:none;color:var(--color-amber);cursor:pointer;font-size:14px;padding:0 2px;line-height:1;" aria-label="Remove keyword {{ kw }}">&times;{% if approval_actions is defined and "remove_keyword" in approval_actions %}<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#fbbf24;margin-left:2px;" title="Requires Approval"></span>{% endif %}</button>
             </form>
             {% endif %}
         </span>
@@ -65,11 +65,11 @@
         {% for kw in keywords.get('low', []) %}
         <span style="display:inline-flex;align-items:center;gap:4px;background:rgba(107,114,128,0.15);color:var(--color-muted);border:1px solid rgba(107,114,128,0.3);border-radius:var(--radius-pill);padding:4px 12px;font-size:var(--text-small);cursor:default;" title="Monitored in: {% for sub in keyword_subreddit_map.get(kw, []) %}r/{{ sub }}{% if not loop.last %}, {% endif %}{% endfor %}{% if not keyword_subreddit_map.get(kw, []) %}No subreddits{% endif %}">
             {{ kw }}
-            {% if can_edit %}
+            {% if can_edit and (hidden_actions is not defined or "remove_keyword" not in hidden_actions) %}
             <form style="display:inline;margin:0;padding:0;" hx-post="/clients/{{ client_id }}/settings/keywords/remove" hx-target="#settings-keywords" hx-swap="innerHTML">
                 <input type="hidden" name="keyword" value="{{ kw }}">
                 <input type="hidden" name="priority" value="low">
-                <button type="submit" style="background:none;border:none;color:var(--color-muted);cursor:pointer;font-size:14px;padding:0 2px;line-height:1;" aria-label="Remove keyword {{ kw }}">&times;</button>
+                <button type="submit" style="background:none;border:none;color:var(--color-muted);cursor:pointer;font-size:14px;padding:0 2px;line-height:1;" aria-label="Remove keyword {{ kw }}">&times;{% if approval_actions is defined and "remove_keyword" in approval_actions %}<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#fbbf24;margin-left:2px;" title="Requires Approval"></span>{% endif %}</button>
             </form>
             {% endif %}
         </span>
@@ -81,7 +81,7 @@
 {% endif %}
 
 <!-- Add keyword form -->
-{% if can_edit %}
+{% if can_edit and (hidden_actions is not defined or "add_keyword" not in hidden_actions) %}
 <form style="display:flex;gap:8px;align-items:center;margin-top:16px;" hx-post="/clients/{{ client_id }}/settings/keywords/add" hx-target="#settings-keywords" hx-swap="innerHTML">
     <input type="text" name="keyword" placeholder="Add keyword..." style="flex:1;min-width:120px;padding:8px 12px;background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius-input);color:var(--color-white);font-size:var(--text-body);" required>
     <select name="priority" style="padding:8px 12px;background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius-input);color:var(--color-white);font-size:var(--text-small);">
@@ -89,6 +89,6 @@
         <option value="medium" selected>Medium</option>
         <option value="low">Low</option>
     </select>
-    <button type="submit" class="btn btn-orange-outline" style="min-height:36px;padding:6px 16px;font-size:var(--text-small);">Add</button>
+    <button type="submit" class="btn btn-orange-outline" style="min-height:36px;padding:6px 16px;font-size:var(--text-small);">Add{% if approval_actions is defined and "add_keyword" in approval_actions %}<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(251,191,36,0.15);color:#fbbf24;margin-left:4px;">Requires Approval</span>{% endif %}</button>
 </form>
 {% endif %}

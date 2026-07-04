@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Check Your Email — RAMP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="bg-white text-gray-900 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
+        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <a href="/" class="flex items-center space-x-2">
+                    <span class="text-2xl font-bold text-indigo-600">RAMP</span>
+                </a>
+                <a href="/login" class="text-gray-700 hover:text-indigo-600 font-medium transition-colors">Sign In</a>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex items-center justify-center">
+        <div class="max-w-md w-full px-4">
+            <div class="text-center space-y-6">
+                <!-- Email icon -->
+                <div class="mx-auto w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center">
+                    <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+
+                <h1 class="text-2xl font-bold text-gray-900">Check your email</h1>
+
+                <p class="text-gray-600 leading-relaxed">
+                    We sent a verification link to<br>
+                    <strong class="text-gray-900">{{ email }}</strong>
+                </p>
+
+                <p class="text-sm text-gray-500">
+                    Click the link in the email to verify your account and start the onboarding wizard. The link expires in 48 hours.
+                </p>
+
+                {% if success %}
+                <div class="bg-green-50 text-green-700 p-3 rounded-lg text-sm border border-green-200">{{ success }}</div>
+                {% endif %}
+
+                {% if error %}
+                <div class="bg-red-50 text-red-700 p-3 rounded-lg text-sm border border-red-200">{{ error }}</div>
+                {% endif %}
+
+                <div class="pt-4 space-y-3">
+                    <form method="POST" action="/resend-verification">
+                        <input type="hidden" name="email" value="{{ email }}">
+                        <button type="submit" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium hover:underline">
+                            Didn't receive it? Resend verification email
+                        </button>
+                    </form>
+
+                    <p class="text-xs text-gray-400">
+                        Check your spam folder if you don't see it within a few minutes.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-50 border-t border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div class="flex items-center justify-between">
+                <span class="text-lg font-bold text-indigo-600">RAMP</span>
+                <span class="text-gray-500 text-sm">&copy; 2026 All rights reserved.</span>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

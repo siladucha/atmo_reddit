@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.logging_config import get_logger
 from app.services.reddit import get_reddit_client
-from app.services.ai import call_llm
+from app.services.ai import call_llm, log_ai_usage
 from app.services.transparency import record_activity_event
 
 logger = get_logger(__name__)
@@ -243,6 +243,7 @@ def _parse_llm_response(content: str) -> ExtractionResult:
 
 def extract_subreddit_rules(
     subreddit_name: str,
+    db: Session | None = None,
 ) -> "ExtractionResult | _ExtractionFailure | None":
     """Fetch sidebar/wiki via PRAW, send to Gemini Flash for structured extraction.
 
@@ -281,6 +282,21 @@ def extract_subreddit_rules(
             temperature=LLM_TEMPERATURE,
             max_tokens=2048,
         )
+
+        # Log AI cost if DB session available
+        if db:
+            try:
+                log_ai_usage(
+                    db=db,
+                    client_id=None,
+                    operation="subreddit_rule_extraction",
+                    result=result,
+                    subreddit_name=subreddit_name,
+                    triggered_by="scheduler",
+                )
+            except Exception:
+                pass  # Don't fail extraction on logging error
+
         extraction = _parse_llm_response(result["content"])
         logger.info(
             "RULE_EXTRACTOR | action=extract | subreddit=r/%s | status=success | rules_count=%d",
@@ -304,6 +320,21 @@ def extract_subreddit_rules(
                 temperature=LLM_TEMPERATURE,
                 max_tokens=2048,
             )
+
+            # Log AI cost if DB session available
+            if db:
+                try:
+                    log_ai_usage(
+                        db=db,
+                        client_id=None,
+                        operation="subreddit_rule_extraction",
+                        result=result,
+                        subreddit_name=subreddit_name,
+                        triggered_by="scheduler",
+                    )
+                except Exception:
+                    pass
+
             extraction = _parse_llm_response(result["content"])
             logger.info(
                 "RULE_EXTRACTOR | action=extract | subreddit=r/%s | "
@@ -405,7 +436,7 @@ def refresh_all_subreddit_rules(db: Session) -> dict:
                 db.flush()
 
             # Extract rules
-            extraction_result = extract_subreddit_rules(subreddit_name)
+            extraction_result = extract_subreddit_rules(subreddit_name, db=db)
 
             if extraction_result is None:
                 # No content accessible (Req 1.5)

@@ -1301,7 +1301,7 @@
       "fields": {
         "id": "UUID PK",
         "thread_id": "UUID FK>reddit_threads.id nullable",
-        "hobby_post_id": "UUID nullable (no FK)",
+        "hobby_post_id": "UUID FK>hobby_subreddits.id nullable (ondelete=SET NULL, relationship eager-loaded)",
         "client_id": "UUID FK>clients.id nullable",
         "avatar_id": "UUID FK>avatars.id NOT NULL",
         "type": "String(50) default=professional — professional|hobby",

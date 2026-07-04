@@ -1,0 +1,10 @@
+[Unit]
+Description=RAMP PostgreSQL Daily Backup
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/ramp/pg_backup.sh
+TimeoutSec=300
+StandardOutput=journal
+StandardError=journal

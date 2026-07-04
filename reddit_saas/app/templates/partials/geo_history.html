@@ -7,7 +7,8 @@
             <th class="px-3 py-2 text-xs font-medium text-gray-400 uppercase">Trigger</th>
             <th class="px-3 py-2 text-xs font-medium text-gray-400 uppercase">Status</th>
             <th class="px-3 py-2 text-xs font-medium text-gray-400 uppercase">Queries</th>
-            <th class="px-3 py-2 text-xs font-medium text-gray-400 uppercase">Success</th>
+            <th class="px-3 py-2 text-xs font-medium text-gray-400 uppercase">Providers</th>
+            <th class="px-3 py-2 text-xs font-medium text-gray-400 uppercase">Result</th>
             <th class="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Action</th>
         </tr>
     </thead>
@@ -35,11 +36,36 @@
                     {{ batch.status }}
                 </span>
             </td>
-            <td class="px-3 py-2 text-gray-300">{{ batch.total_queries }}</td>
+            <td class="px-3 py-2 text-gray-300" title="{{ batch.total_queries }} API calls (each prompt queried multiple times for reliability)">
+                {{ batch.total_queries }}
+            </td>
+            <td class="px-3 py-2">
+                {# Show provider count indicator based on total_queries vs prompts #}
+                {% if batch.total_queries > 0 %}
+                    {% set approx_providers = (batch.total_queries / (20 * 3))|round(0, 'ceil')|int %}
+                    {% if approx_providers >= 3 %}
+                    <span class="text-xs text-purple-400">P</span>
+                    <span class="text-xs text-green-400 ml-0.5">C</span>
+                    <span class="text-xs text-orange-400 ml-0.5">A</span>
+                    {% elif approx_providers >= 2 %}
+                    <span class="text-xs text-gray-400">2 engines</span>
+                    {% else %}
+                    <span class="text-xs text-gray-500">1 engine</span>
+                    {% endif %}
+                {% else %}—{% endif %}
+            </td>
             <td class="px-3 py-2 text-gray-300">
                 {% if batch.total_queries > 0 %}
-                {{ batch.successful_queries }}/{{ batch.total_queries }}
-                ({{ ((batch.successful_queries / batch.total_queries) * 100)|round|int }}%)
+                    {% if batch.status == 'completed' %}
+                        <span class="text-green-400">{{ batch.successful_queries }} checked ✓</span>
+                    {% elif batch.status == 'partial' %}
+                        <span class="text-amber-400">{{ batch.successful_queries }}/{{ batch.total_queries }} checked</span>
+                        <span class="text-xs text-gray-500 ml-1">(timed out)</span>
+                    {% elif batch.status == 'failed' %}
+                        <span class="text-red-400">failed</span>
+                    {% else %}
+                        <span class="text-blue-400">running…</span>
+                    {% endif %}
                 {% else %}—{% endif %}
             </td>
             <td class="px-3 py-2 text-right">

@@ -1,0 +1,113 @@
+{% extends "client_base.html" %}
+
+{% block title %}My Requests — {{ client_name }}{% endblock %}
+
+{% block content %}
+<div id="portal-content">
+    <!-- Page header -->
+    <div style="margin-bottom:var(--space-4);">
+        <h1 class="text-h1">My Requests</h1>
+        <p class="text-small" style="margin-top:4px;">Track the status of actions that require internal approval.</p>
+    </div>
+
+    {% if requests_list %}
+    <!-- Requests table -->
+    <div class="surface" style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:var(--text-body);">
+            <thead>
+                <tr style="border-bottom:1px solid var(--color-border);">
+                    <th style="padding:12px 16px;text-align:left;font-size:var(--text-small);font-weight:600;color:var(--color-muted);text-transform:uppercase;letter-spacing:0.03em;">Action</th>
+                    <th style="padding:12px 16px;text-align:left;font-size:var(--text-small);font-weight:600;color:var(--color-muted);text-transform:uppercase;letter-spacing:0.03em;">Status</th>
+                    <th style="padding:12px 16px;text-align:left;font-size:var(--text-small);font-weight:600;color:var(--color-muted);text-transform:uppercase;letter-spacing:0.03em;">Submitted</th>
+                    <th style="padding:12px 16px;text-align:left;font-size:var(--text-small);font-weight:600;color:var(--color-muted);text-transform:uppercase;letter-spacing:0.03em;">Resolved</th>
+                    <th style="padding:12px 16px;text-align:left;font-size:var(--text-small);font-weight:600;color:var(--color-muted);text-transform:uppercase;letter-spacing:0.03em;">Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for req in requests_list %}
+                <tr style="border-bottom:1px solid var(--color-border);{% if loop.last %}border-bottom:none;{% endif %}">
+                    <!-- Action type -->
+                    <td style="padding:12px 16px;color:var(--color-white);font-weight:500;">
+                        {{ req.action_label }}
+                        {% if req.payload %}
+                        <div style="font-size:var(--text-small);color:var(--color-muted);margin-top:2px;">
+                            {% if req.payload.subreddit_name %}
+                                r/{{ req.payload.subreddit_name }}
+                            {% elif req.payload.avatar_id %}
+                                Avatar: {{ req.payload.avatar_id[:8] }}...
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </td>
+
+                    <!-- Status badge -->
+                    <td style="padding:12px 16px;">
+                        {% if req.status == 'pending' %}
+                            <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:var(--radius-pill);font-size:var(--text-micro);font-weight:600;background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.3);">
+                                <span style="width:6px;height:6px;border-radius:50%;background:#fbbf24;"></span>
+                                Pending
+                            </span>
+                        {% elif req.status == 'approved' %}
+                            <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:var(--radius-pill);font-size:var(--text-micro);font-weight:600;background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.3);">
+                                <span style="width:6px;height:6px;border-radius:50%;background:#22c55e;"></span>
+                                Approved
+                            </span>
+                        {% elif req.status == 'rejected' %}
+                            <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:var(--radius-pill);font-size:var(--text-micro);font-weight:600;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);">
+                                <span style="width:6px;height:6px;border-radius:50%;background:#ef4444;"></span>
+                                Rejected
+                            </span>
+                        {% else %}
+                            <span style="padding:3px 10px;border-radius:var(--radius-pill);font-size:var(--text-micro);font-weight:600;background:rgba(100,116,139,0.15);color:#94a3b8;">
+                                {{ req.status }}
+                            </span>
+                        {% endif %}
+                    </td>
+
+                    <!-- Submitted date -->
+                    <td style="padding:12px 16px;font-size:var(--text-small);color:var(--color-muted);">
+                        {% if req.created_at %}
+                            {{ req.created_at.strftime('%b %d, %Y') }}
+                            <div style="font-size:var(--text-micro);color:var(--color-muted);margin-top:1px;">{{ req.created_at.strftime('%H:%M') }}</div>
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+
+                    <!-- Resolved date -->
+                    <td style="padding:12px 16px;font-size:var(--text-small);color:var(--color-muted);">
+                        {% if req.resolved_at %}
+                            {{ req.resolved_at.strftime('%b %d, %Y') }}
+                            <div style="font-size:var(--text-micro);color:var(--color-muted);margin-top:1px;">{{ req.resolved_at.strftime('%H:%M') }}</div>
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+
+                    <!-- Details / Rejection reason -->
+                    <td style="padding:12px 16px;font-size:var(--text-small);color:var(--color-muted);max-width:200px;">
+                        {% if req.status == 'rejected' and req.rejection_reason %}
+                            <span style="color:#ef4444;">{{ req.rejection_reason }}</span>
+                        {% elif req.status == 'pending' %}
+                            <span style="color:var(--color-muted);font-style:italic;">Awaiting review</span>
+                        {% elif req.status == 'approved' %}
+                            <span style="color:#22c55e;">Action executed</span>
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <!-- Empty state -->
+    <div class="surface" style="padding:var(--space-5);text-align:center;">
+        <div style="font-size:36px;margin-bottom:12px;">📋</div>
+        <h3 class="text-h3" style="margin-bottom:8px;">No requests yet</h3>
+        <p class="text-small">When you trigger actions that require approval (like adding subreddits), they'll appear here so you can track their status.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,145 @@
+<!-- Avatar Zone Routing Panel — Risk-Aware Activation -->
+{% if avatar.activation_route %}
+{% set route = avatar.activation_route %}
+{% set zone = route.get('current_zone', 'safe') %}
+
+<div class="bg-gray-800 rounded-lg p-4 mt-4">
+    <h3 class="text-sm font-semibold text-gray-300 mb-1 flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+        </svg>
+        Activation Zone Routing
+        {% set tooltip_text = "Risk-aware subreddit routing for Phase 0-1 avatars. Instead of random hobby subs, the system routes through Safe (low risk, karma building) → Bridge (moderate risk, niche footprint) → Target (client's actual subs). Graduation is checked daily at 06:00 based on karma, survival rate, and account age. Zone ≠ Phase: zone controls WHERE to post, phase controls WHAT content type." %}{% include "partials/block_tooltip.html" %}
+    </h3>
+    <p class="text-xs text-gray-500 mb-3">
+        {% if zone == 'safe' %}
+        Avatar is warming in low-risk communities. When karma ≥ 10, survival ≥ 90%, and ≥ 3 posted with 0 deletions — auto-graduates to Bridge zone.
+        {% elif zone == 'bridge' %}
+        Avatar is building niche presence in medium-risk subs related to client's targets. When karma ≥ 15 in 2+ bridge subs and survival ≥ 85% — graduates to Target.
+        {% elif zone == 'target' %}
+        Avatar is active in client's target subreddits. Phase 2 evaluation may follow.
+        {% endif %}
+    </p>
+
+    <!-- Zone Badge -->
+    <div class="flex items-center gap-3 mb-3">
+        <span class="text-xs font-medium text-gray-400">Current Zone:</span>
+        {% if zone == 'safe' %}
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-900/50 text-green-300 border border-green-700">
+            🟢 Safe
+        </span>
+        {% elif zone == 'bridge' %}
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-900/50 text-yellow-300 border border-yellow-700">
+            🟡 Bridge
+        </span>
+        {% elif zone == 'target' %}
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-900/50 text-blue-300 border border-blue-700">
+            🔵 Target
+        </span>
+        {% endif %}
+
+        {% if route.get('zone_entered_at') %}
+        <span class="text-xs text-gray-500">since {{ route['zone_entered_at'][:10] }}</span>
+        {% endif %}
+    </div>
+
+    <!-- Zone Progress Bar -->
+    <div class="flex items-center gap-1 mb-4">
+        <div class="flex-1 h-2 rounded-full {{ 'bg-green-600' if zone in ['safe','bridge','target'] else 'bg-gray-700' }}"></div>
+        <div class="w-1"></div>
+        <div class="flex-1 h-2 rounded-full {{ 'bg-yellow-600' if zone in ['bridge','target'] else 'bg-gray-700' }}"></div>
+        <div class="w-1"></div>
+        <div class="flex-1 h-2 rounded-full {{ 'bg-blue-600' if zone == 'target' else 'bg-gray-700' }}"></div>
+    </div>
+
+    <!-- Zone Subreddits -->
+    <div class="grid grid-cols-1 gap-2 text-xs">
+        {% if route.get('safe_subs') %}
+        <div>
+            <span class="text-green-400 font-medium">Safe ({{ route['safe_subs']|length }}):</span>
+            <span class="text-gray-400">{{ route['safe_subs'][:5]|join(', ') }}{% if route['safe_subs']|length > 5 %}...{% endif %}</span>
+        </div>
+        {% endif %}
+        {% if route.get('bridge_subs') %}
+        <div>
+            <span class="text-yellow-400 font-medium">Bridge ({{ route['bridge_subs']|length }}):</span>
+            <span class="text-gray-400">{{ route['bridge_subs'][:5]|join(', ') }}{% if route['bridge_subs']|length > 5 %}...{% endif %}</span>
+        </div>
+        {% endif %}
+        {% if route.get('target_subs') %}
+        <div>
+            <span class="text-blue-400 font-medium">Target ({{ route['target_subs']|length }}):</span>
+            <span class="text-gray-400">{{ route['target_subs'][:5]|join(', ') }}{% if route['target_subs']|length > 5 %}...{% endif %}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Graduation Requirements -->
+    {% if zone == 'safe' %}
+    <div class="mt-3 pt-3 border-t border-gray-700">
+        <span class="text-xs text-gray-400 font-medium">Next: Safe → Bridge</span>
+        <ul class="mt-1 text-xs text-gray-500 space-y-0.5">
+            <li>{{ '✓' if (avatar.karma_comment or 0) + (avatar.reddit_karma_comment or 0) >= 10 else '○' }} Karma ≥ 10</li>
+            <li>{{ '✓' if avatar.cqs_level != 'lowest' else '○' }} CQS ≠ lowest</li>
+            <li>{{ '✓' if avatar.reddit_account_created and ((now - avatar.reddit_account_created).days >= 7 if now else False) else '○' }} Account age ≥ 7d</li>
+            <li>○ ≥ 3 posted, 0 deleted (zone)</li>
+            <li>○ Survival rate ≥ 90%</li>
+        </ul>
+    </div>
+    {% elif zone == 'bridge' %}
+    <div class="mt-3 pt-3 border-t border-gray-700">
+        <span class="text-xs text-gray-400 font-medium">Next: Bridge → Target</span>
+        <ul class="mt-1 text-xs text-gray-500 space-y-0.5">
+            <li>○ Karma ≥ 15 in 2+ bridge subs</li>
+            <li>{{ '✓' if (avatar.karma_comment or 0) + (avatar.reddit_karma_comment or 0) >= 50 else '○' }} Total karma ≥ 50</li>
+            <li>○ Survival rate ≥ 85% (bridge)</li>
+            <li>○ Compatibility ≥ 60 (target subs)</li>
+        </ul>
+    </div>
+    {% endif %}
+
+    <!-- Graduation History -->
+    {% if route.get('graduation_history') %}
+    <div class="mt-3 pt-3 border-t border-gray-700">
+        <span class="text-xs text-gray-400 font-medium">History:</span>
+        <div class="mt-1 space-y-1">
+            {% for entry in route['graduation_history'][-3:] %}
+            <div class="text-xs text-gray-500">
+                {{ entry.get('at', '')[:10] }}: {{ entry.get('from', '?') }} → {{ entry.get('to', '?') }}
+                {% if 'demotion' in entry.get('reason', '') %}
+                <span class="text-red-400">({{ entry['reason'] }})</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Instructions -->
+    <div class="mt-3 pt-3 border-t border-gray-700">
+        <details class="text-xs text-gray-500">
+            <summary class="cursor-pointer text-gray-400 hover:text-gray-300 font-medium">How zone routing works</summary>
+            <div class="mt-2 space-y-1.5 pl-2 border-l border-gray-700">
+                <p><strong class="text-gray-400">Safe zone</strong> — Universal low-risk subs (AskReddit, CasualConversation, etc.). Zero removal risk. Goal: build initial karma and CQS.</p>
+                <p><strong class="text-gray-400">Bridge zone</strong> — Moderate-risk subs thematically related to client's targets. Discovered automatically based on risk_score 26-50 and avatar compatibility. Goal: establish niche footprint.</p>
+                <p><strong class="text-gray-400">Target zone</strong> — Client's actual assigned subreddits (risk 51-80). Unlocked after proving survival in bridge. Triggers Phase 2 eligibility check.</p>
+                <p class="mt-2 text-gray-600"><em>Dangerous hours (from SubredditRiskProfile) are automatically avoided. Zone demotion triggers on survival &lt; 70%. Route auto-refreshes when client subs change.</em></p>
+            </div>
+        </details>
+    </div>
+</div>
+
+{% else %}
+<!-- No activation route — show placeholder -->
+<div class="bg-gray-800/50 rounded-lg p-3 mt-4 border border-dashed border-gray-700">
+    <p class="text-xs text-gray-500 italic">
+        Zone routing not active.
+        {% if avatar.warming_phase <= 1 %}
+        Enable <code class="text-gray-400">activation_routing_enabled</code> in settings to activate.
+        {% else %}
+        Available for Phase 0-1 avatars.
+        {% endif %}
+    </p>
+</div>
+{% endif %}

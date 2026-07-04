@@ -112,6 +112,26 @@ class ExecutionTask(Base):
     billed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     billing_event_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
+    # --- Extension task lifecycle ---
+    execution_node_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("execution_nodes.id", ondelete="SET NULL"), nullable=True
+    )
+    task_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)  # HMAC-SHA256
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(255), nullable=True)  # unique
+    task_lifecycle_status: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # CREATED/ASSIGNED/EXECUTING/REPORTED/FINALIZED/FAILED/EXPIRED
+    probe_type: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # reddit_cqs/submission_visibility/profile_check
+    priority: Mapped[str] = mapped_column(String(20), default="content")  # diagnostic/content
+
+    # --- A/B Test: posting strategy override ---
+    posting_strategy: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # old_reddit | manual_email | new_reddit_debugger (set by A/B test router)
+
     # --- Future fields (present, nullable, unused in MVP) ---
     provider_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     cost_per_task: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -122,6 +142,7 @@ class ExecutionTask(Base):
     epg_slot = relationship("EPGSlot", lazy="joined")
     draft = relationship("CommentDraft", lazy="joined")
     avatar = relationship("Avatar", lazy="joined")
+    execution_node = relationship("ExecutionNode", lazy="joined")
     delivery_attempts = relationship("DeliveryAttempt", back_populates="task", lazy="dynamic")
 
     __table_args__ = (
@@ -142,6 +163,15 @@ class ExecutionTask(Base):
             unique=True,
             postgresql_where=text("epg_slot_id IS NOT NULL"),
         ),
+        # Extension task lifecycle indexes
+        Index(
+            "ix_execution_tasks_idempotency_key",
+            "idempotency_key",
+            unique=True,
+            postgresql_where=text("idempotency_key IS NOT NULL"),
+        ),
+        Index("ix_execution_tasks_lifecycle_status", "task_lifecycle_status"),
+        Index("ix_execution_tasks_node_id", "execution_node_id"),
     )
 
 

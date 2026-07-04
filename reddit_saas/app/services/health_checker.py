@@ -382,7 +382,7 @@ def check_comment_visibility(
     username: str,
     max_comments: int,
     lookback_days: int,
-) -> tuple[int, int]:
+) -> tuple[int, int, int]:
     """Fetch avatar's recent comments and check visibility.
 
     Uses an unauthenticated Reddit client to see which comments
@@ -395,10 +395,13 @@ def check_comment_visibility(
         lookback_days: Only consider comments from the last N days.
 
     Returns:
-        A tuple of (total_sampled, visible_count):
+        A tuple of (total_sampled, visible_count, total_from_api):
         - total_sampled: Number of comments within the lookback period
         - visible_count: Number of those comments that are visible
           (exist and have a body that isn't "[removed]" or "[deleted]")
+        - total_from_api: Total comments returned by Reddit API (before date filter).
+          If >0 but total_sampled==0, avatar is alive but inactive recently.
+          If ==0 and avatar has history, likely shadowbanned (content hidden).
 
     Raises:
         HealthCheckError: On network errors, timeouts, or unexpected failures.
@@ -423,8 +426,11 @@ def check_comment_visibility(
 
         total_sampled = 0
         visible_count = 0
+        total_from_api = 0
 
         for comment in comments:
+            total_from_api += 1
+
             # Filter to only comments within the lookback period
             comment_time = datetime.fromtimestamp(
                 comment.created_utc, tz=timezone.utc
@@ -443,10 +449,10 @@ def check_comment_visibility(
         duration_ms = int((time.time() - start_time) * 1000)
         logger.info(
             "REDDIT_API_RESULT | action=check_comment_visibility | username=%s | "
-            "total_sampled=%d | visible_count=%d | duration_ms=%d",
-            username, total_sampled, visible_count, duration_ms,
+            "total_from_api=%d | total_sampled=%d | visible_count=%d | duration_ms=%d",
+            username, total_from_api, total_sampled, visible_count, duration_ms,
         )
-        return (total_sampled, visible_count)
+        return (total_sampled, visible_count, total_from_api)
 
     except NotFound as e:
         duration_ms = int((time.time() - start_time) * 1000)
@@ -561,6 +567,29 @@ def check_submission_visibility(username: str) -> tuple[bool | None, dict]:
         target_submission = submissions[0]
         target_id = target_submission.id
         target_subreddit = str(target_submission.subreddit)
+
+        # Age check: if the submission is older than 24 hours, it won't be
+        # in top-100 new posts of any active subreddit. This is NOT evidence
+        # of shadowban — just a stale post. Return inconclusive.
+        try:
+            submission_age_hours = (time.time() - target_submission.created_utc) / 3600
+            if submission_age_hours > 24:
+                duration_ms = int((time.time() - start_time) * 1000)
+                logger.info(
+                    "SUBMISSION_PROBE | username=%s | result=too_old | "
+                    "subreddit=%s | post_id=%s | age_hours=%.1f | duration_ms=%d",
+                    username, target_subreddit, target_id, submission_age_hours, duration_ms,
+                )
+                return None, {
+                    "method": "submission_visibility",
+                    "result": "inconclusive_post_too_old",
+                    "subreddit": target_subreddit,
+                    "post_id": target_id,
+                    "age_hours": round(submission_age_hours, 1),
+                    "duration_ms": duration_ms,
+                }
+        except (AttributeError, TypeError):
+            pass  # If created_utc unavailable, proceed with check
 
         # Check if this submission appears in the subreddit's new feed
         # Fetch enough posts to have a reasonable chance of finding it
@@ -686,62 +715,77 @@ def check_avatar_health(db: Session, avatar: Avatar) -> HealthCheckResult:
                 detection_method = profile_method
             else:
                 # 4. Profile accessible → visibility check
-                total_sampled, visible_count = check_comment_visibility(
+                total_sampled, visible_count, total_from_api = check_comment_visibility(
                     username, max_comments_to_sample, comment_lookback_days
                 )
                 comments_sampled = total_sampled
                 comments_visible = visible_count
 
                 if total_sampled < min_comments:
-                    # 5. Insufficient comments — try submission visibility probe
-                    # This catches global shadowbans where comments.new() returns 0
-                    try:
-                        sb_result, sb_details = check_submission_visibility(username)
-                        if sb_result is True:
-                            # Global shadowban confirmed via submission probe
-                            new_status = HealthStatus.SHADOWBANNED.value
-                            detection_method = "submission_visibility_probe"
-                            logger.warning(
-                                "GLOBAL_SHADOWBAN_DETECTED | username=%s | "
-                                "method=submission_probe | details=%s",
-                                username, sb_details,
-                            )
-                        elif sb_result is None and total_sampled == 0:
-                            # Both probes returned ZERO content.
-                            # If avatar has posted drafts in our DB, Reddit is
-                            # hiding everything → definitive shadowban.
-                            posted_count = (
-                                db.query(CommentDraft)
-                                .filter(
-                                    CommentDraft.avatar_id == avatar.id,
-                                    CommentDraft.status == "posted",
-                                )
-                                .count()
-                            )
-                            if posted_count > 0:
+                    # 5. Insufficient comments in lookback window.
+                    # CRITICAL DISTINCTION:
+                    # - total_from_api > 0 means Reddit returned comments (just old) → avatar ALIVE, just inactive
+                    # - total_from_api == 0 means Reddit returned NOTHING → possible shadowban
+                    if total_from_api > 0 and total_sampled == 0:
+                        # API returned comments but all are older than lookback_days.
+                        # Avatar is alive but inactive recently. NOT shadowbanned.
+                        new_status = previous_status if previous_status != HealthStatus.SHADOWBANNED.value else HealthStatus.ACTIVE.value
+                        detection_method = "visibility_check_inactive"
+                        logger.info(
+                            "HEALTH_CHECK | username=%s | result=inactive_not_shadowban | "
+                            "total_from_api=%d | all_older_than=%d_days",
+                            username, total_from_api, comment_lookback_days,
+                        )
+                    else:
+                        # Truly insufficient data — try submission visibility probe
+                        # This catches global shadowbans where comments.new() returns 0
+                        try:
+                            sb_result, sb_details = check_submission_visibility(username)
+                            if sb_result is True:
+                                # Global shadowban confirmed via submission probe
                                 new_status = HealthStatus.SHADOWBANNED.value
-                                detection_method = "zero_content_with_history"
+                                detection_method = "submission_visibility_probe"
                                 logger.warning(
                                     "GLOBAL_SHADOWBAN_DETECTED | username=%s | "
-                                    "method=zero_content_with_history | "
-                                    "posted_drafts_in_db=%d | "
-                                    "api_comments=0 | api_submissions=0",
-                                    username, posted_count,
+                                    "method=submission_probe | details=%s",
+                                    username, sb_details,
                                 )
+                            elif sb_result is None and total_from_api == 0:
+                                # Both probes returned ZERO content.
+                                # If avatar has posted drafts in our DB, Reddit is
+                                # hiding everything → definitive shadowban.
+                                posted_count = (
+                                    db.query(CommentDraft)
+                                    .filter(
+                                        CommentDraft.avatar_id == avatar.id,
+                                        CommentDraft.status == "posted",
+                                    )
+                                    .count()
+                                )
+                                if posted_count > 0:
+                                    new_status = HealthStatus.SHADOWBANNED.value
+                                    detection_method = "zero_content_with_history"
+                                    logger.warning(
+                                        "GLOBAL_SHADOWBAN_DETECTED | username=%s | "
+                                        "method=zero_content_with_history | "
+                                        "posted_drafts_in_db=%d | "
+                                        "api_comments=0 | api_submissions=0",
+                                        username, posted_count,
+                                    )
+                                else:
+                                    new_status = previous_status
+                                    detection_method = "visibility_check"
                             else:
+                                # Not conclusive or not shadowbanned — retain previous
                                 new_status = previous_status
                                 detection_method = "visibility_check"
-                        else:
-                            # Not conclusive or not shadowbanned — retain previous
+                        except Exception as e_probe:
+                            logger.warning(
+                                "Submission probe failed for %s: %s",
+                                username, str(e_probe)[:100],
+                            )
                             new_status = previous_status
                             detection_method = "visibility_check"
-                    except Exception as e_probe:
-                        logger.warning(
-                            "Submission probe failed for %s: %s",
-                            username, str(e_probe)[:100],
-                        )
-                        new_status = previous_status
-                        detection_method = "visibility_check"
                 else:
                     # 6. Classify based on visibility ratio
                     visibility_ratio = visible_count / total_sampled

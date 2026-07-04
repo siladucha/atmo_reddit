@@ -176,19 +176,71 @@ async def step1_scrape(
     scraped = scrape_company_website_sync(url.strip())
 
     if scraped.get("error") and not scraped.get("pages"):
-        return HTMLResponse(
-            f'<p class="text-amber-400 text-sm">Could not auto-detect your profile: {scraped["error"]}. '
-            f'Please fill in the fields manually below.</p>'
-        )
+        # Scraper failed — show manual fields with domain-derived company name
+        fallback_name = scraped.get("company_name_fallback", "")
+        domain = scraped.get("domain", url.strip().replace("https://", "").replace("http://", "").split("/")[0])
+        html = f'''
+    <div class="surface" style="padding:var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-card);">
+        <p style="color:var(--color-muted);font-size:var(--text-small);margin-bottom:12px;">We couldn't auto-detect your profile from {domain}. Please fill in the details below.</p>
+        <div style="display:grid;gap:12px;">
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);">Company Name</label>
+                <input type="text" name="client_name" value="{fallback_name}"
+                       class="field-input" style="width:100%;" placeholder="Your company name">
+            </div>
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);">Product Description</label>
+                <textarea name="company_profile" rows="3" class="field-input" style="width:100%;" placeholder="What does your product/service do?"></textarea>
+            </div>
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);">Value Proposition</label>
+                <textarea name="value_proposition" rows="2" class="field-input" style="width:100%;" placeholder="What makes you different from alternatives?"></textarea>
+            </div>
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);">Industry</label>
+                <input type="text" name="industry" value=""
+                       class="field-input" style="width:100%;" placeholder="e.g. Cybersecurity, EdTech, SaaS">
+            </div>
+        </div>
+    </div>'''
+        return HTMLResponse(html)
 
     # AI synthesize profile
     from app.services.onboarding.ai_prompts import synthesize_profile
     profile = synthesize_profile(scraped, db=db, client_id=str(client.id))
 
     if profile.get("error"):
-        return HTMLResponse(
-            '<p class="text-amber-400 text-sm">AI analysis failed. Please fill in the fields manually.</p>'
-        )
+        # AI failed but scrape succeeded — show fields with what we know
+        from app.services.onboarding.website_scraper import _derive_company_name
+        domain = scraped.get("domain", "")
+        fallback_name = _derive_company_name(domain) if domain else ""
+        title = scraped.get("title", "")
+        meta = scraped.get("meta_description", "")
+        html = f'''
+    <div class="surface" style="padding:var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-card);">
+        <p style="color:var(--color-muted);font-size:var(--text-small);margin-bottom:12px;">AI analysis couldn't process the site. We detected the domain — please fill in the details.</p>
+        <div style="display:grid;gap:12px;">
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);">Company Name</label>
+                <input type="text" name="client_name" value="{fallback_name}"
+                       class="field-input" style="width:100%;">
+            </div>
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);">Product Description</label>
+                <textarea name="company_profile" rows="3" class="field-input" style="width:100%;" placeholder="What does your product/service do?">{meta}</textarea>
+            </div>
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);">Value Proposition</label>
+                <textarea name="value_proposition" rows="2" class="field-input" style="width:100%;" placeholder="What makes you different from alternatives?"></textarea>
+            </div>
+            <div>
+                <label class="text-micro" style="color:var(--color-muted);">Industry</label>
+                <input type="text" name="industry" value=""
+                       class="field-input" style="width:100%;" placeholder="e.g. Cybersecurity, EdTech, SaaS">
+            </div>
+        </div>
+    </div>'''
+        return HTMLResponse(html)
 
     # Save domain + pre-fill step 2 fields from AI analysis
     client.brand_domain = scraped.get("domain", "")
@@ -203,6 +255,9 @@ async def step1_scrape(
     db.commit()
 
     # Return editable profile card as HTML partial
+    # For company_name: prefer AI-detected, then domain-derived, never email-based
+    from app.services.onboarding.website_scraper import _derive_company_name
+    detected_name = profile.get('company_name', '') or _derive_company_name(scraped.get("domain", ""))
     html = f'''
     <div class="surface" style="padding:var(--space-3);border:1px solid var(--color-green);border-radius:var(--radius-card);">
         <p style="color:var(--color-green);font-size:var(--text-small);margin-bottom:12px;">Profile auto-detected from {scraped.get("domain", url)}</p>
@@ -210,7 +265,7 @@ async def step1_scrape(
         <div style="display:grid;gap:12px;">
             <div>
                 <label class="text-micro" style="color:var(--color-muted);">Company Name</label>
-                <input type="text" name="client_name" value="{profile.get('company_name', client.client_name or '')}"
+                <input type="text" name="client_name" value="{detected_name}"
                        class="field-input" style="width:100%;">
             </div>
             <div>
@@ -428,9 +483,37 @@ def step2_suggest(
     )
 
     if result.get("error"):
-        return HTMLResponse(
-            '<p class="text-small" style="color:var(--color-red);">AI suggestion failed. Please fill in manually.</p>'
-        )
+        # AI failed — show empty editable fields with helpful placeholders + retry button
+        industry = (client.industry or "").lower()
+        plc = _INDUSTRY_PLACEHOLDERS.get(industry, _DEFAULT_PLACEHOLDERS)
+
+        html = f"""<div style="padding:8px 12px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:8px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
+    <span class="text-small" style="color:#fbbf24;">AI suggestion didn't work this time. Fill in manually or try again.</span>
+    <button type="button"
+            hx-post="/onboard/step/2/suggest"
+            hx-target="#step2-fields"
+            hx-swap="innerHTML"
+            hx-indicator="#step2-loading"
+            class="btn-ghost" style="padding:4px 12px;font-size:var(--text-small);min-height:auto;">
+        ↻ Try again
+    </button>
+</div>
+<div class="surface" style="padding:var(--space-3);">
+    <label style="color:var(--color-white);font-weight:500;font-size:var(--text-body);display:block;margin-bottom:8px;">What does your best customer say their life was like before using you?</label>
+    <p class="text-micro" style="color:var(--color-muted);margin-bottom:8px;">Think: their frustrations, time wasted, risks they faced</p>
+    <textarea name="before_product" rows="3" class="field-input" style="width:100%;" placeholder="{plc['before_product']}"></textarea>
+</div>
+<div class="surface" style="padding:var(--space-3);">
+    <label style="color:var(--color-white);font-weight:500;font-size:var(--text-body);display:block;margin-bottom:8px;">What does your product do that your top 2-3 competitors cannot?</label>
+    <p class="text-micro" style="color:var(--color-muted);margin-bottom:8px;">Be specific. What's your unfair advantage?</p>
+    <textarea name="unique_value" rows="3" class="field-input" style="width:100%;" placeholder="{plc['unique_value']}"></textarea>
+</div>
+<div class="surface" style="padding:var(--space-3);">
+    <label style="color:var(--color-white);font-weight:500;font-size:var(--text-body);display:block;margin-bottom:8px;">Name your 2-3 main competitors</label>
+    <p class="text-micro" style="color:var(--color-muted);margin-bottom:8px;">Who do prospects compare you to?</p>
+    <textarea name="competitors" rows="2" class="field-input" style="width:100%;" placeholder="{plc['competitors']}"></textarea>
+</div>"""
+        return HTMLResponse(html)
 
     # Save to DB immediately (one-time operation)
     if result.get("customer_pain"):
@@ -1226,9 +1309,9 @@ BLOCKED_EMAIL_DOMAINS = {
 
 
 def _is_work_email(email: str) -> bool:
-    """Check if email is a work email (not a personal/free provider)."""
+    """Check if email has valid format (domain restriction disabled for now)."""
     domain = email.lower().split("@")[-1] if "@" in email else ""
-    return domain not in BLOCKED_EMAIL_DOMAINS and "." in domain
+    return "." in domain
 
 
 @router.get("/trial", response_class=HTMLResponse)
@@ -1260,12 +1343,12 @@ def trial_signup(
     from app.services.auth import get_user_by_email, create_user, create_access_token
     from app.services.cookies import set_auth_cookie
 
-    # Validate work email
+    # Validate email format
     if not _is_work_email(email):
         from jinja2 import Environment, FileSystemLoader
         _env = Environment(loader=FileSystemLoader("app/templates"))
         _tmpl = _env.get_template("onboarding/trial_signup.html")
-        return HTMLResponse(content=_tmpl.render(request=request, error="Please use your work email. Personal emails (Gmail, Hotmail, etc.) are not accepted."))
+        return HTMLResponse(content=_tmpl.render(request=request, error="Please enter a valid email address."))
 
     # Check if email already exists
     existing = get_user_by_email(db, email)
@@ -1295,21 +1378,18 @@ def trial_signup(
     user.client_id = trial_client.id
     db.commit()
 
-    # Log in immediately
-    token = create_access_token(data={
-        "sub": str(user.id),
-        "email": user.email,
-        "full_name": user.full_name or "",
-        "role": user.user_role.value,
-        "is_superuser": False,
-    })
+    # Send verification email (user must verify before accessing the wizard)
+    from app.services.email_verification import create_verification_token, send_verification_email
+    token = create_verification_token(db, user)
+    send_verification_email(user, token)
 
-    response = RedirectResponse(url="/onboard", status_code=303)
-    set_auth_cookie(response, token)
+    logger.info("Trial signup: email=%s client=%s (verification email sent)", email, trial_client.id)
 
-    logger.info("Trial signup: email=%s client=%s", email, trial_client.id)
-
-    return response
+    # Show "check your email" page instead of logging in
+    from jinja2 import Environment, FileSystemLoader
+    _env = Environment(loader=FileSystemLoader("app/templates"))
+    _tmpl = _env.get_template("auth/verify_pending.html")
+    return HTMLResponse(content=_tmpl.render(request=request, email=email, error=None, success=None))
 
 
 # --- Tone Calibration (Step 4 Enhancement) ---

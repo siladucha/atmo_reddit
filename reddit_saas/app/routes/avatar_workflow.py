@@ -81,10 +81,12 @@ def _get_today_drafts(db: Session, avatar: Avatar):
         thread = draft.thread
         # For hobby drafts, resolve subreddit info from HobbySubreddit
         if thread is None and draft.hobby_post_id:
-            hobby_post = db.query(HobbySubreddit).filter(HobbySubreddit.id == draft.hobby_post_id).first()
+            hobby_post = draft.hobby_post  # use relationship (eager-loaded or lazy)
+            if not hobby_post:
+                hobby_post = db.query(HobbySubreddit).filter(HobbySubreddit.id == draft.hobby_post_id).first()
             if hobby_post:
-                # Create a thread-like object for the template
-                thread = _HobbyThreadProxy(hobby_post)
+                from app.services.hobby_proxy import HobbyThreadProxy
+                thread = HobbyThreadProxy(hobby_post)
         item = {"draft": draft, "thread": thread}
         if draft.status == "pending":
             pending.append(item)
@@ -94,21 +96,6 @@ def _get_today_drafts(db: Session, avatar: Avatar):
             posted.append(item)
 
     return pending, approved, posted
-
-
-class _HobbyThreadProxy:
-    """Lightweight proxy that makes a HobbySubreddit look like a RedditThread for templates."""
-
-    def __init__(self, hobby_post: HobbySubreddit):
-        self.subreddit = hobby_post.subreddit or ""
-        self.post_title = hobby_post.post_title or ""
-        # Build a proper Reddit URL from permalink or url
-        if hobby_post.permalink:
-            self.url = f"https://www.reddit.com{hobby_post.permalink}" if not hobby_post.permalink.startswith("http") else hobby_post.permalink
-        elif hobby_post.url:
-            self.url = hobby_post.url
-        else:
-            self.url = f"https://www.reddit.com/r/{hobby_post.subreddit}/" if hobby_post.subreddit else ""
 
 
 def _has_approved_strategy(db: Session, avatar: Avatar) -> bool:
@@ -642,9 +629,12 @@ def workflow_approve(
     thread = draft.thread
     # Resolve hobby post info if no thread
     if thread is None and draft.hobby_post_id:
-        hobby_post = db.query(HobbySubreddit).filter(HobbySubreddit.id == draft.hobby_post_id).first()
+        hobby_post = draft.hobby_post
+        if not hobby_post:
+            hobby_post = db.query(HobbySubreddit).filter(HobbySubreddit.id == draft.hobby_post_id).first()
         if hobby_post:
-            thread = _HobbyThreadProxy(hobby_post)
+            from app.services.hobby_proxy import HobbyThreadProxy
+            thread = HobbyThreadProxy(hobby_post)
     thread_url = thread.url if thread else ""
     thread_subreddit = thread.subreddit if thread else "?"
     thread_title = (thread.post_title[:60] if thread else "")

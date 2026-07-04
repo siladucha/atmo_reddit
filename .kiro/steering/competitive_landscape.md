@@ -68,7 +68,7 @@ Reddit marketing tools split into 4 categories:
 
 4. **Phase System + Safety Gates** — Technically enforced (not suggestions). Clients cannot skip phases or approve brand mentions before avatar earns the right. Protects avatar, brand, and platform.
 
-5. **AEO/GEO First-Mover** — Only platform building full execution layer for AI search authority: subreddit tone calibration, structured content, citability scoring, entity linking. 12–18 month window before mainstream.
+5. **AEO/GEO First-Mover** — Only platform building full execution layer for AI search authority: subreddit tone calibration, structured content, citability scoring, entity linking. **Multi-engine monitoring live** (Perplexity + Claude + ChatGPT) — nobody else offers cross-engine visibility comparison. 12–18 month window before mainstream.
 
 ## RAMP Weaknesses (Known)
 

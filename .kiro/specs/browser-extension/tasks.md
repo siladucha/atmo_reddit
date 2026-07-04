@@ -1,186 +1,118 @@
-# Browser Extension — Implementation Tasks
+# Implementation Plan
 
-## Phase 1: MVP — CQS + Health Monitoring + Backend API
+## Overview
 
-### Task 1: Backend — ExtensionSession Model + Migration
-- [ ] Create `app/models/extension_session.py` with fields: id, executor_id, avatar_id, device_fingerprint, extension_version, last_heartbeat, is_online, active_reddit_username, mode, created_at, updated_at
-- [ ] Create Alembic migration `ext01`
-- [ ] Add relationship to User model
+Browser Extension MVP (Phase 1): Backend API + Extension scaffold + CQS probe + comment posting (REQUIRED_UI mode) + health probe + heartbeat. Closes CQS deadlock (MIT-001). 
 
-### Task 2: Backend — Extension API Routes
-- [ ] Create `app/routes/extension_api.py`
-- [ ] `POST /api/extension/register` — validate executor token, create ExtensionSession
-- [ ] `GET /api/extension/tasks` — return pending tasks for active Reddit account
-- [ ] `POST /api/extension/report` — handle task results, CQS results, health signals
-- [ ] `POST /api/extension/heartbeat` — update last_heartbeat, is_online, active_reddit_username
-- [ ] `GET /api/extension/config` — return limits (daily_cap, min_interval, active_hours)
-- [ ] JWT auth middleware for extension endpoints (executor token scope)
-- [ ] Register routes in main.py
+## Tasks
 
-### Task 3: Backend — Extension Task Dispatcher
-- [ ] Create `app/services/extension_dispatcher.py`
-- [ ] `route_task_to_executor()` — decide extension vs email delivery
-- [ ] `get_active_extension_session(executor_email)` — find online session
-- [ ] Modify `dispatch_due_email_tasks` to check extension availability first
-- [ ] Add `delivery_channel` field to ExecutionTask ("email" | "extension")
-- [ ] Add `dispatched_to_extension_at` timestamp field
-- [ ] Fallback logic: offline > 30 min → email
+- [x] 1. Backend — ExecutionNode Model + Migration
+  - [x] 1.1. Create `app/models/execution_node.py`: id (UUID PK), executor_id (FK users.id), device_fingerprint, extension_version, last_heartbeat, is_online, active_reddit_username, tasks_in_queue, created_at, updated_at
+  - [x] 1.2. Create Alembic migration `ext01` for execution_nodes table
+  - [x] 1.3. Add `epg_mode` field to Avatar model (default "required")
+  - [x] 1.4. Add task lifecycle fields to ExecutionTask: execution_node_id, task_hash, lease_expires_at, idempotency_key, task_lifecycle_status, probe_type, priority
 
-### Task 4: Backend — CQS Generator Unblock
-- [ ] Remove `is_frozen` skip from `generate_cqs_check_tasks()` (allow frozen avatars)
-- [ ] Remove `health_status in (shadowbanned, suspended)` skip from generator
-- [ ] Add `delivery_channel_preference` logic — if extension available, prefer extension
-- [ ] Add CQS check for Phase 1 avatars (remove `warming_phase >= 2` from `run_cqs_check_batch`)
-- [ ] Test: frozen avatar gets CQS task generated
+- [x] 2. Backend — Extension API Routes
+  - [x] 2.1. Create `app/routes/extension_api.py` with JWT auth middleware for extension endpoints
+  - [x] 2.2. `GET /api/extension/policy` — per-avatar immutable config (epg_mode, limits, allowed types)
+  - [x] 2.3. `GET /api/extension/tasks` — pending tasks filtered by active_reddit_username from last heartbeat, HMAC-signed payloads
+  - [x] 2.4. `POST /api/extension/report` — untrusted results, validate idempotency_key (first wins, dupes → 200 NOOP)
+  - [x] 2.5. `POST /api/extension/heartbeat` — update node status + active account
+  - [x] 2.6. `POST /api/extension/register` — validate executor JWT, create ExecutionNode, return node_id
+  - [x] 2.7. Register routes in main.py
 
-### Task 5: Backend — Health Signal Ingestion
-- [ ] Create `app/services/extension_health.py`
-- [ ] `process_health_signal()` — handle signals from extension
-- [ ] `handle_cqs_result()` — update avatar.cqs_level + cqs_checked_at directly
-- [ ] `handle_shadowban_cleared()` — auto-unfreeze logic with operator notification
-- [ ] `handle_karma_report()` — update SubredditKarma from extension data
-- [ ] Emit activity events for all health state changes
-- [ ] Create notification for operator on recovery events
+- [x] 3. Backend — Task Orchestrator
+  - [x] 3.1. Create `app/services/extension_dispatcher.py` with `create_extension_task()` — signs payload with HMAC, sets lease_expires_at, generates idempotency_key
+  - [x] 3.2. `assign_task_to_node()` — CREATED → ASSIGNED transition
+  - [x] 3.3. `validate_report()` — REPORTED → FINALIZED (check HMAC, idempotency, dedup)
+  - [x] 3.4. `expire_stale_leases()` — cron logic: ASSIGNED/EXECUTING past lease → EXPIRED
+  - [x] 3.5. `route_task()` — extension online + correct account → assign; else hold/email fallback
+  - [x] 3.6. Modify `dispatch_due_email_tasks` to check extension availability first
+  - [x] 3.7. Priority ordering: diagnostic tasks before content tasks
 
-### Task 6: Backend — Admin UI Extension Status
-- [ ] Add "Extension" column to admin avatars list (online/offline/not_installed badge)
-- [ ] Add extension session details to avatar detail page
-- [ ] Show extension heartbeat status in operator dashboard
+- [ ] 4. Backend — CQS Generator Unblock
+  - [x] 4.1. Add `delivery_channel_preference` field — if extension available, prefer extension
+  - [x] 4.2. Create tasks as `diagnostic_probe` type with `probe_type=reddit_cqs`
 
-### Task 7: Extension — Project Scaffold
-- [ ] Create `ramp_extension/` directory in project root
-- [ ] `manifest.json` (Manifest V3, permissions: storage, alarms, notifications, host_permissions)
-- [ ] Project structure: background/, content/, popup/, shared/, assets/
-- [ ] Build tooling (webpack or vite for bundling)
-- [ ] `package.json` with dev dependencies
+- [ ] 5. Backend — Signal Validator
+  - [x] 5.1. Create `app/services/signal_validator.py` with `normalize_probe_result()` — extract CQS level from raw bot text, classify confidence
+  - [x] 5.2. `process_health_signal()` — assign trust_weight, calculate decay, aggregate
+  - [x] 5.3. `handle_cqs_improvement()` — create recovery_candidate + trigger PRAW probe
+  - [ ] 5.4. `handle_karma_report()` — update SubredditKarma
+  - [ ] 5.5. Emit activity events for all state-affecting signals
+  - [ ] 5.6. Operator notification on recovery candidates
 
-### Task 8: Extension — Service Worker (background.js)
-- [ ] Auth module — store/retrieve executor JWT token from chrome.storage.local
-- [ ] Poller module — GET /api/extension/tasks every 30s (chrome.alarms API)
-- [ ] Heartbeat module — POST /api/extension/heartbeat every 60s
-- [ ] Task queue — local queue management (chrome.storage.local)
-- [ ] Timer engine — fire tasks at scheduled_at (chrome.alarms)
-- [ ] Kill switch handler — pause_all command processing
-- [ ] Message passing to content script (chrome.runtime.sendMessage)
-- [ ] Network error handling + retry with backoff
+- [ ] 6. Backend — Backpressure + Lease Expiry
+  - [ ] 6.1. Add Celery task `expire_extension_leases` (every 5 min): find ASSIGNED/EXECUTING past lease_expires_at → mark EXPIRED
+  - [ ] 6.2. Re-creation logic: EXPIRED diagnostic tasks → re-create; EXPIRED content tasks → email fallback
+  - [ ] 6.3. Queue overflow detection: if node reports tasks_in_queue > limit → hold new assignments
 
-### Task 9: Extension — Content Script (reddit_actions.js)
-- [ ] Reddit variant detection (shreddit / old / redesign)
-- [ ] `getCurrentUsername()` — detect logged-in Reddit account
-- [ ] `postComment(threadUrl, text, replyTo)` — navigate, fill, submit, return permalink
-- [ ] `postCQSCheck()` — create post in r/WhatIsMyCQS, wait for bot reply, parse level
-- [ ] `readKarma()` — parse karma values from profile page
-- [ ] `detectBanIndicators()` — scan page for removal notices, ban alerts
-- [ ] `checkThreadStatus(url)` — detect locked/removed/archived
-- [ ] DOM selector fallback chain (primary → data-testid → ARIA → XPath)
-- [ ] Error wrapping + reporting to service worker
+- [x] 7. Extension — Project Scaffold
+  - [x] 7.1. Create `ramp_extension/` directory with structure: background/, content/, popup/, shared/, assets/
+  - [x] 7.2. Create `manifest.json` (MV3, permissions: storage, alarms, notifications, host_permissions for reddit.com + gorampit.com)
+  - [x] 7.3. Create build tooling (vite config) and `package.json`
 
-### Task 10: Extension — Popup UI
-- [ ] `popup.html` — layout with task queue, settings, history tabs
-- [ ] `popup.js` — fetch queue from service worker, render tasks
-- [ ] Task cards: subreddit badge, thread title, comment preview, scheduled time
-- [ ] Approve/Reject buttons per task
-- [ ] Auto/Manual mode toggle
-- [ ] Pause button (stops posting, keeps monitoring)
-- [ ] Connection status indicator (green/yellow/red)
-- [ ] History tab — last 20 completed tasks
-- [ ] Settings: RAMP URL input, token input, active hours config
-- [ ] Badge count on extension icon (pending tasks)
+- [ ] 8. Extension — Service Worker
+  - [x] 8.1. Auth module: store/retrieve JWT from chrome.storage.local
+  - [x] 8.2. Poller: GET /tasks every N seconds (from policy.poll_interval_seconds)
+  - [x] 8.3. HMAC verifier: validate task_hash before accepting task into local queue
+  - [x] 8.4. Queue: chrome.storage.local, max 20 items, priority-ordered (diagnostic first)
+  - [x] 8.5. Timer: hold tasks until scheduled_at, dispatch to content script
+  - [x] 8.6. Heartbeat: POST /heartbeat every 60s (node_id, active_username, queue_depth)
+  - [ ] 8.7. Kill switch: on `pause_all` command → clear queue, stop timer
+  - [ ] 8.8. Account monitor: detect active_reddit_username change → abort executing task → report account_switch_error
+  - [ ] 8.9. Network retry: exponential backoff on failures, queue results locally
 
-### Task 11: Extension — Onboarding Flow
-- [ ] First-run detection (no token in storage)
-- [ ] Setup screen: enter RAMP URL + executor token
-- [ ] Validation: POST /api/extension/register
-- [ ] Success state: show "Connected" + detected Reddit username
-- [ ] Error handling: invalid token, network error, wrong URL
+- [ ] 9. Extension — Content Script
+  - [x] 9.1. Reddit variant detection (shreddit / old / redesign) with selector fallback chains per variant
+  - [x] 9.2. `getCurrentUsername()` — detect logged-in account
+  - [x] 9.3. `postComment(threadUrl, text, replyTo)` — navigate, fill, submit, return permalink
+  - [x] 9.4. `postCQSCheck()` — submit in r/WhatIsMyCQS, wait 60s, read bot reply, return raw text
+  - [x] 9.5. `checkSubmissionVisibility(postUrl, subreddit)` — check /new feed, return present/absent
+  - [ ] 9.6. `readKarma()` — parse profile for karma values
+  - [ ] 9.7. `detectBanIndicators()` — scan for removal notices
+  - [ ] 9.8. Error wrapping: all failures → structured error with code + details; report `dom_structure_changed` if all selectors fail
 
-### Task 12: Integration Test — CQS Self-Healing
-- [ ] Test scenario: frozen avatar + extension online → CQS task created → extension posts → RAMP reads → CQS updates
-- [ ] Test scenario: extension offline → fallback to email delivery
-- [ ] Test scenario: wrong Reddit account → task held + warning
-- [ ] Test scenario: kill switch → all tasks paused immediately
+- [ ] 10. Extension — Popup UI (REQUIRED_UI mode for MVP)
+  - [x] 10.1. `popup.html` layout: task queue, connection status, pause button
+  - [x] 10.2. `popup.js`: fetch queue from service worker, render task cards with subreddit badge, thread title, comment preview, time
+  - [x] 10.3. Approve/Reject buttons per task
+  - [ ] 10.4. Connection indicator (green/yellow/red) + Pause button (stops content, keeps diagnostics)
+  - [ ] 10.5. Badge count on icon. No business logic in UI (no phase, no strategy)
 
----
+- [ ] 11. Extension — Onboarding Flow
+  - [x] 11.1. First-run detection (no token in storage) + setup screen: enter RAMP URL + executor token
+  - [ ] 11.2. POST /register → receive execution_node_id
+  - [ ] 11.3. GET /policy → confirm connection + show config
+  - [ ] 11.4. Success: "Connected as [username]" + mode display
 
-## Phase 2: Auto-Posting
+- [ ] 12. Integration Test — Full Cycle
+  - [ ] 12.1. CQS probe: task created → assigned → extension posts → reports raw → backend extracts level → recovery candidate
+  - [ ] 12.2. Comment post: task signed → assigned → HMAC verified → posted → permalink reported → FINALIZED
+  - [ ] 12.3. Lease expiry: task assigned → extension offline → lease expires → email fallback
+  - [ ] 12.4. Account mismatch: wrong account active → task held + warning
+  - [ ] 12.5. Kill switch: pause_all → all tasks stopped
+  - [ ] 12.6. Queue overflow: >20 tasks → new deliveries rejected
 
-### Task 13: Extension — Auto-Mode Comment Posting
-- [ ] Auto-mode toggle in service worker state
-- [ ] Timer engine: hold task until scheduled_at, then dispatch to content script
-- [ ] Safety checks before posting: daily cap, min interval, active hours
-- [ ] Thread liveness check (extension navigates, checks for lock indicators)
-- [ ] Post → extract permalink → report to RAMP
-- [ ] Rate limiting: hard minimum 3 minutes between posts
+## Task Dependency Graph
 
-### Task 14: Backend — Extension-Posted Draft Handling
-- [ ] On receiving `task_completed` with `status=posted`: update draft.status, slot.status, avatar.last_posted_at
-- [ ] Store reddit_comment_url from extension report
-- [ ] Emit `comment_posted_via_extension` activity event
-- [ ] No reconciliation needed — immediate confirmation
+```
+1 --> 2
+1 --> 3
+2 --> 4
+2 --> 5
+2 --> 6
+3 --> 6
+7 --> 8
+7 --> 9
+7 --> 10
+7 --> 11
+8 --> 9
+1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 --> 12
+```
 
-### Task 15: Extension — Thread Safety Checks
-- [ ] Detect locked thread (lock icon, "comments locked" banner)
-- [ ] Detect removed/deleted thread (404, "[removed]" body)
-- [ ] Detect archived thread ("archived" banner)
-- [ ] Report blocked status to RAMP with specific reason
-- [ ] RAMP cancels task + updates EPG slot status
+## Notes
 
----
-
-## Phase 3: Intelligence
-
-### Task 16: Extension — Shadowban Probe
-- [ ] Open incognito/private window with avatar's profile URL
-- [ ] Check if recent comments are visible (compare logged-in vs incognito)
-- [ ] Report visibility ratio to RAMP
-- [ ] Frequency: once per health check cycle (every 12h when browser open)
-
-### Task 17: Backend — Auto-Unfreeze Logic
-- [ ] If CQS improved from "lowest" to anything better → candidate for unfreeze
-- [ ] If CQS improved + shadowban probe shows visible → auto-unfreeze
-- [ ] Create `app/services/avatar_recovery.py`
-- [ ] `evaluate_recovery(avatar)` — check all signals, decide unfreeze
-- [ ] Emit `avatar_auto_recovered` activity event
-- [ ] Send operator notification with recovery details
-- [ ] Log in audit trail
-
-### Task 18: Extension — Multi-Account Detection
-- [ ] Detect current Reddit username from page DOM
-- [ ] Compare with expected avatar for pending tasks
-- [ ] If mismatch: show popup warning "Switch to u/X to complete tasks"
-- [ ] Filter task queue to only show tasks for current account
-- [ ] Report active account to RAMP heartbeat
-
-### Task 19: Admin UI — Extension Dashboard
-- [ ] New section in admin: "Extension Fleet"
-- [ ] Per-executor: online status, last_seen, version, active account, mode
-- [ ] Per-avatar: extension coverage (has extension? online?)
-- [ ] Alerts: extension offline for executor with pending tasks
-- [ ] Manual "push task to extension" button on task detail page
-
----
-
-## Phase 4: Polish & Distribution
-
-### Task 20: Firefox Port
-- [ ] Adapt manifest.json for Firefox (Manifest V2/V3 hybrid)
-- [ ] Test content script selectors on Firefox
-- [ ] Firefox Add-ons submission
-
-### Task 21: Chrome Web Store Submission
-- [ ] Privacy policy page (hosted on gorampit.com/privacy-extension)
-- [ ] Store listing: description, screenshots, category
-- [ ] Review compliance (no credential exfiltration, minimal permissions)
-- [ ] Submit for review
-
-### Task 22: Executor Onboarding Update
-- [ ] Generate extension token in admin UI (per executor)
-- [ ] Email template with install instructions + token
-- [ ] Onboarding guide page in portal
-- [ ] Token rotation mechanism (invalidate old tokens)
-
-### Task 23: Error Recovery & Resilience
-- [ ] Retry logic for failed posts (1 retry after 60s)
-- [ ] DOM selector auto-update mechanism (report broken selectors, receive updates from RAMP)
-- [ ] Offline queue persistence (survive browser restart)
-- [ ] Graceful degradation when RAMP backend unreachable
+- Task 4 sub-tasks 4.1 and 4.2 only — the `is_frozen` filter removals (originally 4.1-4.3) were already deployed June 27 and are marked DONE in the original spec.
+- Phase 2-4 tasks (13-21) are NOT included in this implementation plan — they are future scope.
+- Extension tasks (7-11) can be worked in parallel with backend tasks (1-6) once Task 7 scaffold is complete.

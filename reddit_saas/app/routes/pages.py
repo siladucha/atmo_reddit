@@ -431,6 +431,16 @@ def login_submit(request: Request, email: str = Form(...), password: str = Form(
     user = authenticate_user(db, email, password)
     if not user:
         return _render(request, "login.html", {"error": "Invalid credentials"})
+
+    # Block unverified users — redirect to verification pending page
+    if not user.email_verified:
+        from app.services.email_verification import resend_verification
+        resend_verification(db, user)
+        return _render(request, "auth/verify_pending.html", {
+            "email": user.email,
+            "success": "Please verify your email first. We've resent the verification link.",
+        })
+
     token = create_access_token(data={
         "sub": str(user.id),
         "email": user.email,
@@ -483,6 +493,132 @@ def logout():
     response = RedirectResponse(url="/login", status_code=303)
     delete_auth_cookie(response)
     return response
+
+
+# --- Email Verification & Password Reset ---
+
+@router.get("/verify-email", response_class=HTMLResponse)
+def verify_email_page(request: Request, token: str = "", db: Session = Depends(get_db)):
+    """Handle email verification link click."""
+    from app.services.email_verification import verify_email_token
+    from app.services.cookies import set_auth_cookie
+
+    if not token:
+        return _render(request, "auth/verify_error.html", {"error": "No verification token provided."})
+
+    user = verify_email_token(db, token)
+    if not user:
+        return _render(request, "auth/verify_error.html", {"error": "This verification link is invalid or has expired. Please sign up again or request a new link."})
+
+    # Auto-login on successful verification
+    token_jwt = create_access_token(data={
+        "sub": str(user.id),
+        "email": user.email,
+        "full_name": user.full_name or "",
+        "role": user.user_role.value,
+        "is_superuser": user.is_superuser,
+    })
+    response = RedirectResponse(url="/onboard", status_code=303)
+    set_auth_cookie(response, token_jwt)
+    return response
+
+
+@router.post("/resend-verification", response_class=HTMLResponse)
+def resend_verification(request: Request, email: str = Form(...), db: Session = Depends(get_db)):
+    """Resend verification email."""
+    from app.services.email_verification import resend_verification as _resend
+
+    user = get_user_by_email(db, email)
+    if user and not user.email_verified:
+        _resend(db, user)
+
+    # Always show success (don't leak whether email exists)
+    return _render(request, "auth/verify_pending.html", {
+        "email": email,
+        "success": "Verification email resent. Please check your inbox.",
+    })
+
+
+@router.get("/forgot-password", response_class=HTMLResponse)
+def forgot_password_page(request: Request):
+    """Show forgot password form."""
+    return _render(request, "auth/forgot_password.html")
+
+
+@router.post("/forgot-password", response_class=HTMLResponse)
+def forgot_password_submit(request: Request, email: str = Form(...), db: Session = Depends(get_db)):
+    """Process forgot password request — send reset link."""
+    from app.services.email_verification import create_password_reset_token, send_password_reset_email
+
+    user = get_user_by_email(db, email)
+    if user and user.is_active:
+        token = create_password_reset_token(db, user)
+        send_password_reset_email(user, token)
+
+    # Always show success (don't leak whether email exists)
+    return _render(request, "auth/forgot_password.html", {
+        "success": "If an account exists with that email, we've sent a password reset link. Check your inbox.",
+    })
+
+
+@router.get("/reset-password", response_class=HTMLResponse)
+def reset_password_page(request: Request, token: str = "", db: Session = Depends(get_db)):
+    """Show password reset form (if token is valid)."""
+    from app.services.email_verification import validate_reset_token
+
+    if not token:
+        return _render(request, "auth/forgot_password.html", {"error": "Invalid or missing reset link."})
+
+    user = validate_reset_token(db, token)
+    if not user:
+        return _render(request, "auth/forgot_password.html", {"error": "This reset link is invalid or has expired. Please request a new one."})
+
+    return _render(request, "auth/reset_password.html", {"token": token})
+
+
+@router.post("/reset-password", response_class=HTMLResponse)
+def reset_password_submit(
+    request: Request,
+    token: str = Form(...),
+    password: str = Form(...),
+    password_confirm: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Process password reset — set new password."""
+    from app.services.email_verification import reset_password as _reset_password
+
+    if password != password_confirm:
+        return _render(request, "auth/reset_password.html", {"token": token, "error": "Passwords do not match."})
+
+    if len(password) < 8:
+        return _render(request, "auth/reset_password.html", {"token": token, "error": "Password must be at least 8 characters."})
+
+    user = _reset_password(db, token, password)
+    if not user:
+        return _render(request, "auth/forgot_password.html", {"error": "This reset link is invalid or has expired. Please request a new one."})
+
+    return _render(request, "auth/reset_success.html")
+
+
+# --- Executor Email Verification ---
+
+@router.get("/verify-executor-email", response_class=HTMLResponse)
+def verify_executor_email_page(request: Request, token: str = "", db: Session = Depends(get_db)):
+    """Handle executor email verification link click (public, no auth required)."""
+    from app.services.executor_email_verification import verify_executor_email_token
+
+    if not token:
+        return _render(request, "auth/verify_error.html", {"error": "No verification token provided."})
+
+    avatar = verify_executor_email_token(db, token)
+    if not avatar:
+        return _render(request, "auth/verify_error.html", {
+            "error": "This verification link is invalid or has expired. Please ask the admin to resend verification.",
+        })
+
+    return _render(request, "auth/verify_executor_success.html", {
+        "message": f"Email verified! You'll now receive posting tasks for {avatar.display_name or avatar.reddit_username}.",
+    })
 
 
 # --- Root entry ---
@@ -936,6 +1072,14 @@ def approve_comment(comment_id: UUID, request: Request, db: Session = Depends(ge
             raise HTTPException(status_code=403, detail="Insufficient permissions")
     elif not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    # Hard gate: plan enforcement — block if monthly limit reached
+    if draft.client_id:
+        from app.services.plan_enforcement import check_approval_allowed_for_client
+        is_allowed, limit_msg = check_approval_allowed_for_client(db, draft.client_id)
+        if not is_allowed:
+            raise HTTPException(status_code=422, detail=limit_msg)
+
     draft.status = "approved"
     db.commit()
 

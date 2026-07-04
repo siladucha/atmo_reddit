@@ -11,13 +11,13 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID
 
-import litellm
 from sqlalchemy.orm import Session
 from zoneinfo import ZoneInfo
 
 from app.models.client import Client
 from app.models.trial_score import TrialScore
 from app.models.trial_signal import TrialSignal
+from app.services.ai import call_llm, log_ai_usage
 from app.services.trial_events import IntelligenceEventLogger
 
 logger = logging.getLogger(__name__)
@@ -79,7 +79,7 @@ class OutreachGenerator:
 
         Raises:
             ValueError: If score_id not found
-            litellm.Timeout: If LLM call exceeds 20s timeout
+            Exception: If LLM call fails after fallback chain
         """
         # Load TrialScore
         score = db.query(TrialScore).filter(TrialScore.id == score_id).first()
@@ -120,8 +120,8 @@ class OutreachGenerator:
             days_remaining=days_remaining,
         )
 
-        # Call Claude Sonnet via LiteLLM with 20s timeout
-        response_text = self._call_llm(system_prompt, user_prompt)
+        # Call Claude Sonnet via centralized LLM wrapper with cost logging
+        response_text = self._call_llm(db, client_id, system_prompt, user_prompt)
 
         # Parse LLM response into drafts
         drafts = self._parse_response(response_text, tone, score_id)
@@ -240,27 +240,33 @@ class OutreachGenerator:
             f"4. DISCOVERY CALL NOTES (talking points + questions, max {CHAR_LIMIT_CALL_NOTES} chars)"
         )
 
-    def _call_llm(self, system_prompt: str, user_prompt: str) -> str:
-        """Call Claude Sonnet via LiteLLM with 20s timeout.
+    def _call_llm(self, db: Session, client_id: UUID, system_prompt: str, user_prompt: str) -> str:
+        """Call Claude Sonnet via centralized call_llm with cost logging.
 
         Raises:
-            litellm.Timeout: If call exceeds 20s
-            Exception: On other LLM errors
+            Exception: On LLM errors (after fallback chain exhausted)
         """
         try:
-            response = litellm.completion(
-                model=LLM_MODEL,
+            result = call_llm(
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                timeout=LLM_TIMEOUT,
+                model=LLM_MODEL,
                 max_tokens=4000,
+                timeout=LLM_TIMEOUT,
             )
-            return response.choices[0].message.content
-        except litellm.Timeout:
-            logger.error("LLM call timed out after %ds", LLM_TIMEOUT)
-            raise
+
+            # Log AI usage for cost tracking
+            log_ai_usage(
+                db=db,
+                client_id=str(client_id),
+                operation="trial_outreach",
+                result=result,
+                triggered_by="manual",
+            )
+
+            return result["content"]
         except Exception:
             logger.exception("LLM call failed for outreach generation")
             raise

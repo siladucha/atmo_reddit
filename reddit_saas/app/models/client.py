@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Integer, String, Text, DateTime, func
+from sqlalchemy import Boolean, Integer, String, Text, DateTime, func, text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -64,6 +64,13 @@ class Client(Base):
     strategy_generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     strategy_source_session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     strategy_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+
+    # Permission matrix — per-client portal action tier overrides
+    permission_matrix: Mapped[dict] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("'{}'::jsonb"),
+    )
 
     # Relationships
     subreddits = relationship("ClientSubreddit", back_populates="client")  # legacy, kept for migration

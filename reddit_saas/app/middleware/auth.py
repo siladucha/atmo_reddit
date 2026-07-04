@@ -33,6 +33,11 @@ PUBLIC_ROUTES = {
     "/register",
     "/logout",
     "/health",
+    "/verify-email",
+    "/verify-executor-email",
+    "/resend-verification",
+    "/forgot-password",
+    "/reset-password",
 }
 
 # Routes protected by HTTP Basic Auth (API docs)
@@ -57,7 +62,9 @@ PUBLIC_PREFIXES = (
     "/auth/",
     "/static/",
     "/api/oauth/",
+    "/api/extension/",
     "/tasks/",
+    "/demo/",
 )
 
 

@@ -1,0 +1,235 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Action Requests — Admin{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-white">Action Requests</h1>
+            <p class="text-sm text-gray-400 mt-1">Pending and resolved approval-tier requests from client users</p>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-slate-800 border border-slate-700 rounded-lg p-4">
+        <form method="get" action="/admin/action-requests" class="flex flex-wrap items-end gap-4">
+            <!-- Client filter -->
+            <div class="flex flex-col gap-1">
+                <label class="text-xs text-gray-400 font-medium">Client</label>
+                <select name="client_id" class="bg-slate-700 border border-slate-600 text-gray-200 text-sm rounded-lg px-3 py-2 min-w-[180px]">
+                    <option value="">All Clients</option>
+                    {% for client in clients %}
+                    <option value="{{ client.id }}" {% if filter_client_id == client.id|string %}selected{% endif %}>
+                        {{ client.client_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Status filter -->
+            <div class="flex flex-col gap-1">
+                <label class="text-xs text-gray-400 font-medium">Status</label>
+                <select name="status" class="bg-slate-700 border border-slate-600 text-gray-200 text-sm rounded-lg px-3 py-2 min-w-[140px]">
+                    <option value="">All Statuses</option>
+                    <option value="pending" {% if filter_status == 'pending' %}selected{% endif %}>Pending</option>
+                    <option value="approved" {% if filter_status == 'approved' %}selected{% endif %}>Approved</option>
+                    <option value="rejected" {% if filter_status == 'rejected' %}selected{% endif %}>Rejected</option>
+                </select>
+            </div>
+
+            <!-- Action type filter -->
+            <div class="flex flex-col gap-1">
+                <label class="text-xs text-gray-400 font-medium">Action Type</label>
+                <select name="action_type" class="bg-slate-700 border border-slate-600 text-gray-200 text-sm rounded-lg px-3 py-2 min-w-[180px]">
+                    <option value="">All Types</option>
+                    {% for at in action_types %}
+                    <option value="{{ at }}" {% if filter_action_type == at %}selected{% endif %}>
+                        {{ at | replace("_", " ") | title }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors">
+                Filter
+            </button>
+            <a href="/admin/action-requests" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-gray-300 text-sm font-medium rounded-lg transition-colors">
+                Clear
+            </a>
+        </form>
+    </div>
+
+    <!-- Results table -->
+    <div class="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+        {% if requests %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+                <thead class="text-xs text-gray-400 uppercase bg-slate-900/50 border-b border-slate-700">
+                    <tr>
+                        <th class="px-4 py-3">Client</th>
+                        <th class="px-4 py-3">User</th>
+                        <th class="px-4 py-3">Action</th>
+                        <th class="px-4 py-3">Payload</th>
+                        <th class="px-4 py-3">Status</th>
+                        <th class="px-4 py-3">Created</th>
+                        <th class="px-4 py-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-700">
+                    {% for ar in requests %}
+                    <tr class="hover:bg-slate-750" id="ar-row-{{ ar.id }}">
+                        <td class="px-4 py-3 text-gray-300">
+                            {{ ar.client.client_name if ar.client else '—' }}
+                        </td>
+                        <td class="px-4 py-3 text-gray-300">
+                            {{ ar.user.email if ar.user else '—' }}
+                        </td>
+                        <td class="px-4 py-3">
+                            <span class="text-gray-200 font-medium">{{ ar.action_type | replace("_", " ") | title }}</span>
+                        </td>
+                        <td class="px-4 py-3 text-gray-400 text-xs max-w-[200px] truncate" title="{{ ar.payload | tojson if ar.payload else '' }}">
+                            {% if ar.payload %}
+                                {% for key, val in ar.payload.items() %}
+                                    <span class="text-gray-500">{{ key }}:</span> {{ val }}{% if not loop.last %}, {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3" id="ar-status-{{ ar.id }}">
+                            {% if ar.status == 'pending' %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-900/50 text-yellow-300">
+                                    ⏳ Pending
+                                </span>
+                            {% elif ar.status == 'approved' %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-900/50 text-green-300">
+                                    ✓ Approved
+                                </span>
+                            {% elif ar.status == 'rejected' %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-300">
+                                    ✗ Rejected
+                                </span>
+                                {% if ar.rejection_reason %}
+                                <p class="text-xs text-gray-500 mt-1">{{ ar.rejection_reason }}</p>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
+                            {{ ar.created_at.strftime('%b %d, %H:%M') if ar.created_at else '—' }}
+                        </td>
+                        <td class="px-4 py-3" id="ar-actions-{{ ar.id }}">
+                            {% if ar.status == 'pending' %}
+                            <div class="flex items-center gap-2">
+                                <button
+                                    hx-post="/admin/action-requests/{{ ar.id }}/approve"
+                                    hx-target="#ar-status-{{ ar.id }}"
+                                    hx-swap="innerHTML"
+                                    hx-on::after-request="document.getElementById('ar-actions-{{ ar.id }}').innerHTML = ''"
+                                    class="px-3 py-1 bg-green-700 hover:bg-green-600 text-white text-xs font-medium rounded transition-colors">
+                                    Approve
+                                </button>
+                                <button
+                                    onclick="showRejectModal('{{ ar.id }}')"
+                                    class="px-3 py-1 bg-red-700 hover:bg-red-600 text-white text-xs font-medium rounded transition-colors">
+                                    Reject
+                                </button>
+                            </div>
+                            {% elif ar.resolved_by %}
+                                <span class="text-xs text-gray-500">
+                                    by {{ ar.resolver.email if ar.resolver else '—' }}
+                                </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="px-6 py-12 text-center">
+            <svg class="w-12 h-12 mx-auto text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <p class="text-gray-400">No action requests found</p>
+            <p class="text-gray-500 text-sm mt-1">Requests will appear here when client users trigger approval-tier actions</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Rejection Reason Modal -->
+<div id="reject-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div class="bg-slate-800 border border-slate-600 rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+        <h3 class="text-lg font-semibold text-white mb-4">Reject Request</h3>
+        <form id="reject-form" method="post">
+            <div class="mb-4">
+                <label for="reject-reason" class="block text-sm text-gray-300 mb-2">Reason (optional)</label>
+                <textarea
+                    id="reject-reason"
+                    name="reason"
+                    rows="3"
+                    placeholder="Explain why this request was rejected..."
+                    class="w-full bg-slate-700 border border-slate-600 text-gray-200 text-sm rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                ></textarea>
+            </div>
+            <div class="flex items-center justify-end gap-3">
+                <button type="button" onclick="hideRejectModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-gray-300 text-sm font-medium rounded-lg transition-colors">
+                    Cancel
+                </button>
+                <button type="submit" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors">
+                    Reject
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    let currentRejectId = null;
+
+    function showRejectModal(requestId) {
+        currentRejectId = requestId;
+        const modal = document.getElementById('reject-modal');
+        const form = document.getElementById('reject-form');
+        form.setAttribute('hx-post', '/admin/action-requests/' + requestId + '/reject');
+        form.setAttribute('hx-target', '#ar-status-' + requestId);
+        form.setAttribute('hx-swap', 'innerHTML');
+        htmx.process(form);
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.getElementById('reject-reason').value = '';
+        document.getElementById('reject-reason').focus();
+    }
+
+    function hideRejectModal() {
+        const modal = document.getElementById('reject-modal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        currentRejectId = null;
+    }
+
+    // Close modal on successful HTMX swap
+    document.body.addEventListener('htmx:afterRequest', function(evt) {
+        if (evt.detail.elt && evt.detail.elt.id === 'reject-form' && evt.detail.successful) {
+            hideRejectModal();
+            // Hide the actions column for this request
+            if (currentRejectId) {
+                const actionsEl = document.getElementById('ar-actions-' + currentRejectId);
+                if (actionsEl) actionsEl.innerHTML = '';
+            }
+        }
+    });
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') hideRejectModal();
+    });
+
+    // Close modal on backdrop click
+    document.getElementById('reject-modal').addEventListener('click', function(e) {
+        if (e.target === this) hideRejectModal();
+    });
+</script>
+{% endblock %}

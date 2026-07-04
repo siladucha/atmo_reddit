@@ -15,7 +15,7 @@
         <div class="flex items-center gap-4">
             <div>
                 <h1 class="text-2xl font-bold text-white">GEO/AEO Prompt Monitoring</h1>
-                <p class="text-gray-400 text-sm mt-1">{{ client.brand_name }} — Brand visibility in AI responses</p>
+        <p class="text-gray-400 text-sm mt-1">{{ client.brand_name }} — Brand visibility in AI responses</p>
             </div>
             <button onclick="document.getElementById('geo-manual').classList.toggle('hidden')"
                     class="text-xs text-gray-400 hover:text-white border border-slate-600 rounded-lg px-2.5 py-1.5 transition-colors self-start mt-1">
@@ -31,6 +31,12 @@
                     {% if client.geo_monitoring_enabled %}● Monitoring Active{% else %}○ Monitoring Off{% endif %}
                 </button>
             </form>
+            <!-- Schedule indicator -->
+            {% if client.geo_monitoring_enabled %}
+            <span class="text-xs text-gray-500" title="Automated batches run every Tuesday and Friday at 09:30">
+                🕘 Auto: Tue & Fri 09:30
+            </span>
+            {% endif %}
             <!-- Run Now -->
             <button hx-post="/admin/clients/{{ client.id }}/geo/run-now"
                     hx-target="#history-section"
@@ -57,8 +63,11 @@
                 <h4 class="text-white font-medium mb-1.5">What is this?</h4>
                 <p class="text-gray-400 leading-relaxed">
                     This tool measures how often <strong class="text-gray-200">{{ client.brand_name }}</strong> appears
-                    in AI search engine responses (Perplexity, Google AI Overviews, ChatGPT).
-                    It sends buyer-intent queries to AI providers and checks whether the brand is mentioned,
+                    in AI search engine responses across <strong class="text-gray-200">multiple providers</strong>:
+                    <span class="text-purple-400">Perplexity</span>,
+                    <span class="text-green-400">ChatGPT</span>, and
+                    <span class="text-orange-400">Claude</span>.
+                    It sends buyer-intent queries to each AI provider and checks whether the brand is mentioned,
                     which competitors appear, and what Reddit threads are cited.
                 </p>
             </div>
@@ -103,25 +112,38 @@
 
             <!-- Prerequisites -->
             <div class="md:col-span-2">
-                <h4 class="text-white font-medium mb-1.5">Prerequisites</h4>
+                <h4 class="text-white font-medium mb-1.5">Prerequisites & Providers</h4>
                 <div class="flex flex-wrap gap-4 text-gray-400">
                     <span class="flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-                        Perplexity API key must be set in <a href="/admin/settings" class="text-indigo-400 hover:text-indigo-300 underline">System Settings</a>
+                        <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+                        <span class="text-purple-300">Perplexity</span>: API key in <a href="/admin/settings" class="text-indigo-400 hover:text-indigo-300 underline">Settings</a>
                         (<code class="text-xs bg-slate-700 px-1 py-0.5 rounded">geo_perplexity_api_key</code>)
                     </span>
                     <span class="flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-                        Client's <code class="text-xs bg-slate-700 px-1 py-0.5 rounded">brand_name</code> must be filled in
+                        <span class="w-2 h-2 rounded-full bg-green-400"></span>
+                        <span class="text-green-300">ChatGPT</span>: enable <code class="text-xs bg-slate-700 px-1 py-0.5 rounded">geo_provider_openai_enabled</code> = true + OPENAI_API_KEY env
                     </span>
                     <span class="flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-                        At least 1 active prompt required
+                        <span class="w-2 h-2 rounded-full bg-orange-400"></span>
+                        <span class="text-orange-300">Claude</span>: enable <code class="text-xs bg-slate-700 px-1 py-0.5 rounded">geo_provider_anthropic_enabled</code> = true + ANTHROPIC_API_KEY env
                     </span>
                 </div>
+                <p class="text-xs text-gray-500 mt-2">Each enabled provider runs the same prompts independently. Results shown per-provider for cross-engine comparison.</p>
+            </div>
+
+            <!-- Schedule info -->
+            <div class="md:col-span-2 mt-2">
+                <h4 class="text-white font-medium mb-1.5">Automated schedule</h4>
+                <p class="text-gray-400 leading-relaxed">
+                    When monitoring is enabled, batches run automatically <strong class="text-gray-200">every Tuesday and Friday at 09:30</strong> (Israel time).
+                    Each prompt is queried 3 times for statistical reliability. You can also trigger manual runs anytime with "▶ Run Now".
+                </p>
             </div>
         </div>
     </div>
+
+    <!-- AI Visibility Report Dashboard -->
+    {% include "partials/geo_visibility_report.html" %}
 
     <!-- Two-column layout -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -167,7 +189,17 @@
         <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-lg font-semibold text-white">Competitors</h2>
-                <span class="text-xs text-gray-400">{{ competitors|selectattr('is_active')|list|length }}/30 active</span>
+                <div class="flex items-center gap-2">
+                    <button hx-post="/admin/clients/{{ client.id }}/geo/suggest-competitors"
+                            hx-target="#competitors-list"
+                            hx-swap="innerHTML"
+                            hx-indicator="#comp-gen-spinner"
+                            class="px-3 py-1.5 bg-purple-600/20 text-purple-300 border border-purple-600/40 rounded-lg hover:bg-purple-600/30 transition-colors text-xs font-medium">
+                        ✨ Suggest with AI
+                    </button>
+                    <span id="comp-gen-spinner" class="htmx-indicator text-purple-300 text-xs">Finding...</span>
+                    <span class="text-xs text-gray-400">{{ competitors|selectattr('is_active')|list|length }}/30 active</span>
+                </div>
             </div>
 
             <!-- Add competitor form -->
@@ -205,5 +237,11 @@
 
     <!-- Batch Detail (populated via HTMX) -->
     <div id="batch-detail" class="mt-6"></div>
+
+    <!-- How it works -->
+    <div class="mt-6 bg-slate-800/50 rounded-lg border border-slate-700 p-5">
+        <h3 class="text-sm font-semibold text-white uppercase tracking-wide mb-2">How it works</h3>
+        <p class="text-sm text-gray-400 italic">Documentation pending — Manual content for this screen is being prepared.</p>
+    </div>
 </div>
 {% endblock %}

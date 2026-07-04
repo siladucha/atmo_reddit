@@ -178,6 +178,26 @@
 
         <div style="margin:8px var(--space-3);border-top:1px solid var(--color-border);"></div>
 
+        <!-- My Requests -->
+        <a href="/clients/{{ client_id }}/requests"
+           class="sidebar-nav-item {% if active_page == 'requests' %}active{% endif %}"
+           style="display:flex;align-items:center;gap:12px;padding:10px var(--space-3);margin:2px 0;text-decoration:none;color:var(--color-muted);transition:all var(--transition-fast);position:relative;
+                  {% if active_page == 'requests' %}border-left:3px solid var(--color-orange);background:var(--color-surface-alt);color:var(--color-white);{% else %}border-left:3px solid transparent;{% endif %}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+            </svg>
+            <span style="font-size:var(--text-body);font-weight:500;">My Requests</span>
+            {% if pending_requests_count is defined and pending_requests_count > 0 %}
+            <span style="margin-left:auto;padding:2px 8px;border-radius:var(--radius-pill);font-size:var(--text-micro);font-weight:600;color:#fff;background:rgba(251,191,36,0.9);">
+                {{ pending_requests_count }}
+            </span>
+            {% endif %}
+        </a>
+
         <!-- Settings -->
         <a href="/clients/{{ client_id }}/settings"
            class="sidebar-nav-item {% if active_page == 'settings' %}active{% endif %}"

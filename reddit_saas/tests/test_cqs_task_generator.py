@@ -136,10 +136,11 @@ class TestGenerateCqsCheckTasks:
         assert result["created"] == 1
         assert result["errors"] == 0
 
-        # Verify task in DB
+        # Verify task in DB — new tasks use diagnostic_probe type
         task = db.query(ExecutionTask).filter(
             ExecutionTask.avatar_id == avatar.id,
-            ExecutionTask.task_type == "cqs_check",
+            ExecutionTask.task_type == "diagnostic_probe",
+            ExecutionTask.probe_type == "reddit_cqs",
         ).first()
         assert task is not None
         assert task.subreddit == CQS_SUBREDDIT
@@ -149,6 +150,13 @@ class TestGenerateCqsCheckTasks:
         assert task.draft_id is None
         assert task.thread_id is None
         assert task.status == "generated"
+        # Task 4.1: delivery_channel prefers extension
+        assert task.delivery_channel == "extension"
+        # Task 4.2: diagnostic_probe fields
+        assert task.task_type == "diagnostic_probe"
+        assert task.probe_type == "reddit_cqs"
+        assert task.priority == "diagnostic"
+        assert task.task_lifecycle_status == "CREATED"
 
     def test_includes_frozen_avatar(self, db):
         """Frozen avatars ARE included (June 27, 2026 fix — CQS deadlock).
@@ -162,7 +170,8 @@ class TestGenerateCqsCheckTasks:
         # Frozen avatar SHOULD get a CQS task now
         task = db.query(ExecutionTask).filter(
             ExecutionTask.avatar_id == avatar.id,
-            ExecutionTask.task_type == "cqs_check",
+            ExecutionTask.task_type == "diagnostic_probe",
+            ExecutionTask.probe_type == "reddit_cqs",
         ).first()
         assert task is not None
         assert result["skipped_frozen"] == 0
@@ -173,7 +182,8 @@ class TestGenerateCqsCheckTasks:
         result = generate_cqs_check_tasks(db)
         task = db.query(ExecutionTask).filter(
             ExecutionTask.avatar_id == avatar.id,
-            ExecutionTask.task_type == "cqs_check",
+            ExecutionTask.task_type == "diagnostic_probe",
+            ExecutionTask.probe_type == "reddit_cqs",
         ).first()
         assert task is not None
         assert result["skipped_health"] == 0
@@ -184,7 +194,8 @@ class TestGenerateCqsCheckTasks:
         result = generate_cqs_check_tasks(db)
         task = db.query(ExecutionTask).filter(
             ExecutionTask.avatar_id == avatar.id,
-            ExecutionTask.task_type == "cqs_check",
+            ExecutionTask.task_type == "diagnostic_probe",
+            ExecutionTask.probe_type == "reddit_cqs",
         ).first()
         assert task is not None
         assert result["skipped_health"] == 0
@@ -197,7 +208,8 @@ class TestGenerateCqsCheckTasks:
         assert result["skipped_no_email"] >= 1
         task = db.query(ExecutionTask).filter(
             ExecutionTask.avatar_id == avatar.id,
-            ExecutionTask.task_type == "cqs_check",
+            ExecutionTask.task_type == "diagnostic_probe",
+            ExecutionTask.probe_type == "reddit_cqs",
         ).first()
         assert task is None
 
@@ -209,7 +221,8 @@ class TestGenerateCqsCheckTasks:
         assert result["skipped_no_email"] >= 1
         task = db.query(ExecutionTask).filter(
             ExecutionTask.avatar_id == avatar.id,
-            ExecutionTask.task_type == "cqs_check",
+            ExecutionTask.task_type == "diagnostic_probe",
+            ExecutionTask.probe_type == "reddit_cqs",
         ).first()
         assert task is None
 
@@ -312,7 +325,8 @@ class TestGenerateCqsCheckTasks:
 
         task = db.query(ExecutionTask).filter(
             ExecutionTask.avatar_id == avatar.id,
-            ExecutionTask.task_type == "cqs_check",
+            ExecutionTask.task_type == "diagnostic_probe",
+            ExecutionTask.probe_type == "reddit_cqs",
         ).first()
         assert task is not None
         # Deadline should be approximately scheduled_at + 48h
@@ -326,7 +340,8 @@ class TestGenerateCqsCheckTasks:
         # Inactive avatar should never get a CQS task (filtered at query level)
         task = db.query(ExecutionTask).filter(
             ExecutionTask.avatar_id == avatar.id,
-            ExecutionTask.task_type == "cqs_check",
+            ExecutionTask.task_type == "diagnostic_probe",
+            ExecutionTask.probe_type == "reddit_cqs",
         ).first()
         assert task is None
 
@@ -418,7 +433,8 @@ class TestGenerateCqsCheckTasks:
         # Failed task is terminal — should allow new task creation (interval also passed)
         new_task = db.query(ExecutionTask).filter(
             ExecutionTask.avatar_id == avatar.id,
-            ExecutionTask.task_type == "cqs_check",
+            ExecutionTask.task_type == "diagnostic_probe",
+            ExecutionTask.probe_type == "reddit_cqs",
             ExecutionTask.status == "generated",
         ).first()
         assert new_task is not None
@@ -451,7 +467,8 @@ class TestGenerateCqsCheckTasks:
         # Cancelled is terminal — new task should be created (interval also passed)
         new_task = db.query(ExecutionTask).filter(
             ExecutionTask.avatar_id == avatar.id,
-            ExecutionTask.task_type == "cqs_check",
+            ExecutionTask.task_type == "diagnostic_probe",
+            ExecutionTask.probe_type == "reddit_cqs",
             ExecutionTask.status == "generated",
         ).first()
         assert new_task is not None
@@ -489,7 +506,8 @@ class TestGenerateCqsCheckTasks:
         # 20 days < 30-day interval → skip
         new_task = db.query(ExecutionTask).filter(
             ExecutionTask.avatar_id == avatar.id,
-            ExecutionTask.task_type == "cqs_check",
+            ExecutionTask.task_type == "diagnostic_probe",
+            ExecutionTask.probe_type == "reddit_cqs",
             ExecutionTask.status == "generated",
         ).first()
         assert new_task is None
@@ -527,7 +545,8 @@ class TestGenerateCqsCheckTasks:
         # 31 days >= 30-day interval → new task created
         new_task = db.query(ExecutionTask).filter(
             ExecutionTask.avatar_id == avatar.id,
-            ExecutionTask.task_type == "cqs_check",
+            ExecutionTask.task_type == "diagnostic_probe",
+            ExecutionTask.probe_type == "reddit_cqs",
             ExecutionTask.status == "generated",
         ).first()
         assert new_task is not None

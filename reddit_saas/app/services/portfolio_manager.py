@@ -79,6 +79,13 @@ class AttentionBudget:
         Returns:
             AttentionBudget with phase-appropriate limits.
         """
+        # Mentor pool — should never reach EPG, but safety check
+        if avatar.pool == "mentor":
+            return cls(
+                max_comments=0, max_posts=0, max_total_actions=0,
+                acceptable_risk_level=0,
+            )
+
         phase = avatar.warming_phase
         # Clamp unknown phases to nearest known boundary
         if phase < 0:
@@ -87,7 +94,7 @@ class AttentionBudget:
             phase = 3
 
         defaults = {
-            0: (3, 0, 40),
+            0: (1, 0, 40),   # Phase 0 (Incubation): 1 comment/day, no posts
             1: (3, 0, 75),   # Phase 1: hobby only, higher risk tolerance needed
             2: (7, 2, 60),
             3: (12, 3, 75),
@@ -1049,12 +1056,80 @@ def build_portfolio(
 
     try:
         # ---------------------------------------------------------------
-        # Step 1: Compute AttentionBudget
+        # Step 0: A/B Test Budget Override
+        # If avatar is in an active experiment, override budget to the
+        # experiment's daily_volume. Only check when ab_test_enabled=true
+        # (performance optimization — no extra DB queries otherwise).
         # ---------------------------------------------------------------
-        budget = AttentionBudget.from_avatar(avatar, client)
+        _ab_experiment_active = False
 
-        # Apply monthly cap if client has one configured
-        if client and getattr(client, "max_comments_per_month", None):
+        from app.services.settings import get_setting
+        _ab_test_enabled = get_setting(db, "ab_test_enabled") == "true"
+
+        if _ab_test_enabled:
+            from app.services.ab_test.control_enforcer import get_experiment_budget
+
+            _experiment_daily_volume = get_experiment_budget(db, avatar.id)
+            if _experiment_daily_volume is not None:
+                _ab_experiment_active = True
+                # Count how many slots already exist today for this avatar
+                # (generated/approved/posted count as consumed budget)
+                from app.models.epg_slot import EPGSlot as _EPGSlotAB
+                from sqlalchemy import func as _sa_func_ab
+
+                _ab_used_today = (
+                    db.query(_sa_func_ab.count(_EPGSlotAB.id))
+                    .filter(
+                        _EPGSlotAB.avatar_id == avatar.id,
+                        _EPGSlotAB.plan_date == plan_date,
+                        _EPGSlotAB.status.in_(["generated", "approved", "posted"]),
+                    )
+                    .scalar() or 0
+                )
+                _ab_remaining = max(0, _experiment_daily_volume - _ab_used_today)
+
+                if _ab_remaining <= 0:
+                    result.status = "experiment_budget_exhausted"
+                    result.message = (
+                        f"A/B experiment budget exhausted: "
+                        f"{_ab_used_today}/{_experiment_daily_volume} slots used today"
+                    )
+                    result.daily_budget = _experiment_daily_volume
+                    result.remaining = 0
+                    logger.info(
+                        "build_portfolio A/B budget exhausted: avatar=%s "
+                        "daily_volume=%d used=%d",
+                        avatar.reddit_username,
+                        _experiment_daily_volume,
+                        _ab_used_today,
+                    )
+                    return result
+
+                # Override budget with experiment constraints
+                budget = AttentionBudget(
+                    max_comments=_ab_remaining,
+                    max_posts=0,
+                    max_total_actions=_ab_remaining,
+                    acceptable_risk_level=40,  # Conservative risk for experiments
+                )
+                result.daily_budget = _ab_remaining
+                logger.info(
+                    "build_portfolio A/B budget override: avatar=%s "
+                    "daily_volume=%d used=%d remaining=%d",
+                    avatar.reddit_username,
+                    _experiment_daily_volume,
+                    _ab_used_today,
+                    _ab_remaining,
+                )
+
+        # ---------------------------------------------------------------
+        # Step 1: Compute AttentionBudget (skipped if A/B override active)
+        # ---------------------------------------------------------------
+        if not _ab_experiment_active:
+            budget = AttentionBudget.from_avatar(avatar, client)
+
+        # Apply monthly cap if client has one configured (skip for A/B experiment avatars)
+        if not _ab_experiment_active and client and getattr(client, "max_comments_per_month", None):
             from app.services.epg_executor import get_budget_used_today
             # Estimate remaining monthly actions and days
             now = datetime.now(timezone.utc)

@@ -1,0 +1,239 @@
+{# AI Visibility Report — Admin version (dark theme, admin_base.html context) #}
+{% if report.has_data %}
+<div class="mb-8">
+    <!-- Hero Delta -->
+    <div class="bg-gradient-to-r from-slate-800 to-slate-900 rounded-xl border border-slate-700 p-6 mb-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-xs text-slate-400 mb-1 uppercase tracking-wider">Brand Visibility in AI Search</p>
+                <div class="flex items-baseline gap-4">
+                    <div class="text-center">
+                        <span class="text-4xl font-bold text-white">{{ report.summary.latest_brand_rate }}%</span>
+                        <p class="text-xs text-slate-500 mt-0.5">📍 Measured</p>
+                    </div>
+                    <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                    <div class="text-center">
+                        {% set proj_avg = report.projected.values()|list %}
+                        {% if proj_avg %}
+                        <span class="text-4xl font-bold text-emerald-400">~{{ (proj_avg|sum / proj_avg|length)|round(0)|int }}%</span>
+                        {% else %}
+                        <span class="text-4xl font-bold text-slate-500">—</span>
+                        {% endif %}
+                        <p class="text-xs text-slate-500 mt-0.5">📈 Projected (6 mo)</p>
+                    </div>
+                </div>
+                {% if report.summary.brand_rate_delta != 0 %}
+                <p class="text-sm mt-2 font-medium {% if report.summary.brand_rate_delta > 0 %}text-emerald-400{% else %}text-red-400{% endif %}">
+                    {% if report.summary.brand_rate_delta > 0 %}+{% endif %}{{ report.summary.brand_rate_delta }}pp since baseline
+                </p>
+                {% endif %}
+            </div>
+            <div class="text-right text-xs text-slate-500 hidden md:block">
+                <p>📍 Based on: {{ report.summary.total_queries_latest }} queries ({{ report.summary.latest_batch_date }})</p>
+                <p>📍 Engines: {{ report.engines|length }} active</p>
+                <p>📍 Total batches: {{ report.summary.total_batches }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Engine Cards — Measured -->
+    <p class="text-xs text-slate-500 uppercase tracking-wider mb-2">📍 Per-Engine Visibility (Latest Batch)</p>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        {% set engine_colors = {"perplexity": {"border": "border-l-purple-500", "badge_bg": "bg-purple-500/20", "badge_text": "text-purple-400", "label": "Perplexity"},
+                                "openai": {"border": "border-l-green-500", "badge_bg": "bg-green-500/20", "badge_text": "text-green-400", "label": "ChatGPT"},
+                                "anthropic": {"border": "border-l-orange-500", "badge_bg": "bg-orange-500/20", "badge_text": "text-orange-400", "label": "Claude"}} %}
+        {% for eng_name in ["perplexity", "openai", "anthropic"] %}
+        {% set colors = engine_colors[eng_name] %}
+        {% set eng = report.engines.get(eng_name, {}) %}
+        <div class="bg-dark-steel rounded-lg border border-slate-700 {{ colors.border }} border-l-4 p-4 {% if not eng or eng.get('status') == 'pending' %}opacity-50{% endif %}">
+            <div class="flex items-center justify-between mb-2">
+                <span class="px-2 py-0.5 rounded text-xs font-medium {{ colors.badge_bg }} {{ colors.badge_text }}">{{ colors.label }}</span>
+                <span class="text-xs text-slate-500">{% if eng and eng.get('status') == 'active' %}active{% else %}pending{% endif %}</span>
+            </div>
+            {% if eng and eng.get('status') == 'active' %}
+            <div class="text-3xl font-bold text-white mb-1">{{ eng.rate }}%</div>
+            <div class="text-sm text-slate-400">{{ eng.brand_mentions }} of {{ eng.queries_checked }} queries</div>
+            {% else %}
+            <div class="text-3xl font-bold text-slate-500 mb-1">—</div>
+            <div class="text-sm text-slate-400">Not yet measured</div>
+            {% endif %}
+            {% if report.projected.get(eng_name) %}
+            <div class="text-xs text-emerald-400 mt-2">→ ~{{ report.projected[eng_name] }}% projected (6 mo)</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Charts Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- Trend Chart -->
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-5">
+            <h3 class="text-base font-semibold text-white mb-1">Visibility Trend (24 Weeks)</h3>
+            <p class="text-xs text-slate-500 mb-3">Solid = measured · Dashed = projected (S-curve)</p>
+            <canvas id="geo-trend-chart" height="180"></canvas>
+        </div>
+
+        <!-- Competitor Chart -->
+        <div class="bg-dark-steel rounded-lg border border-slate-700 p-5">
+            <h3 class="text-base font-semibold text-white mb-1">Competitor Share of Voice</h3>
+            <p class="text-xs text-slate-500 mb-3">Brand mention rate in AI responses (latest batch)</p>
+            <canvas id="geo-competitor-chart" height="180"></canvas>
+        </div>
+    </div>
+
+    <!-- Query Hit/Miss Table -->
+    {% if report.queries %}
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-6">
+        <h3 class="text-base font-semibold text-white mb-1">Query-Level Results</h3>
+        <p class="text-xs text-slate-500 mb-3">✅ = brand mentioned · ❌ = not mentioned · — = not measured</p>
+        <div class="overflow-x-auto max-h-80 overflow-y-auto">
+            <table class="w-full text-sm">
+                <thead class="sticky top-0 bg-dark-steel">
+                    <tr class="text-left text-slate-400 border-b border-slate-700">
+                        <th class="pb-2 pr-4">Query</th>
+                        <th class="pb-2 px-2">Category</th>
+                        {% for eng_name in ["perplexity", "openai", "anthropic"] %}
+                        {% set colors = engine_colors[eng_name] %}
+                        <th class="pb-2 px-2 text-center"><span class="{{ colors.badge_text }}">{{ colors.label[:4] }}</span></th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody class="text-slate-300">
+                    {% for q in report.queries[:20] %}
+                    <tr class="border-b border-slate-800">
+                        <td class="py-2 pr-4 text-xs max-w-xs truncate" title="{{ q.prompt_text }}">{{ q.prompt_text[:80] }}{% if q.prompt_text|length > 80 %}...{% endif %}</td>
+                        <td class="py-2 px-2"><span class="text-xs px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">{{ q.category }}</span></td>
+                        {% for eng_name in ["perplexity", "openai", "anthropic"] %}
+                        <td class="py-2 px-2 text-center text-base">{% if eng_name in q.engines %}{% if q.engines[eng_name] %}✅{% else %}❌{% endif %}{% else %}—{% endif %}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Category Breakdown -->
+    {% if report.categories %}
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-6">
+        <h3 class="text-base font-semibold text-white mb-1">Visibility by Category</h3>
+        <p class="text-xs text-slate-500 mb-3">Where you're visible vs where you need content</p>
+        <div class="space-y-3">
+            {% set cat_colors = {"academic": "bg-blue-500", "problem": "bg-amber-500", "use_case": "bg-emerald-500", "comparison": "bg-pink-500", "opinion": "bg-purple-500", "category": "bg-cyan-500", "general": "bg-slate-500"} %}
+            {% for cat in report.categories %}
+            <div class="flex items-center justify-between gap-4">
+                <div class="flex items-center gap-2 min-w-0">
+                    <span class="text-xs px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 whitespace-nowrap">{{ cat.category }}</span>
+                </div>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <span class="text-xs text-slate-500 whitespace-nowrap">{{ cat.brand_hits }}/{{ cat.total_queries }}</span>
+                    <div class="w-28 h-2 bg-slate-700 rounded-full overflow-hidden">
+                        <div class="h-full rounded-full {{ cat_colors.get(cat.category, 'bg-slate-500') }}" style="width: {{ cat.rate }}%"></div>
+                    </div>
+                    <span class="text-sm font-medium w-12 text-right {% if cat.rate > 0 %}text-white{% else %}text-red-400{% endif %}">{{ cat.rate }}%</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Excerpts -->
+    {% if report.excerpts %}
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-6">
+        <h3 class="text-base font-semibold text-white mb-1">AI Response Excerpts</h3>
+        <p class="text-xs text-slate-500 mb-3">Actual AI responses where your brand was mentioned</p>
+        <div class="space-y-3">
+            {% for ex in report.excerpts %}
+            <div class="bg-slate-900 border border-slate-700 rounded-lg p-3">
+                <div class="flex items-center gap-2 mb-2">
+                    {% set ex_colors = {"perplexity": "bg-purple-500/20 text-purple-400", "openai": "bg-green-500/20 text-green-400", "anthropic": "bg-orange-500/20 text-orange-400"} %}
+                    <span class="px-2 py-0.5 rounded text-xs font-medium {{ ex_colors.get(ex.provider, 'bg-slate-700 text-slate-300') }}">{{ engine_colors.get(ex.provider, {}).get('label', ex.provider) }}</span>
+                    <span class="text-xs text-slate-500">{{ ex.date }}</span>
+                </div>
+                <p class="text-sm text-slate-300 italic leading-relaxed">{{ ex.text[:250] }}{% if ex.text|length > 250 %}...{% endif %}</p>
+                <p class="text-xs text-slate-500 mt-1">Query: "{{ ex.query[:100] }}"</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Chart.js Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+    Chart.defaults.color = '#94a3b8';
+    Chart.defaults.borderColor = '#334155';
+
+    // Trend chart
+    const trendData = {{ report.trend_chart | tojson }};
+    const trendCtx = document.getElementById('geo-trend-chart');
+    if (trendCtx && trendData.weeks && trendData.weeks.length > 0) {
+        const engineColors = {perplexity: '#a855f7', openai: '#22c55e', anthropic: '#f97316'};
+        const engineLabels = {perplexity: 'Perplexity', openai: 'ChatGPT', anthropic: 'Claude'};
+        const datasets = [];
+        for (const [eng, vals] of Object.entries(trendData.engines)) {
+            datasets.push({
+                label: engineLabels[eng] || eng,
+                data: vals.data,
+                borderColor: engineColors[eng] || '#64748b',
+                backgroundColor: (engineColors[eng] || '#64748b') + '10',
+                tension: 0.3,
+                fill: true,
+                segment: {borderDash: ctx => ctx.p0DataIndex >= vals.measured_weeks ? [5, 5] : []}
+            });
+        }
+        new Chart(trendCtx, {
+            type: 'line',
+            data: {labels: trendData.weeks, datasets},
+            options: {
+                responsive: true,
+                interaction: {intersect: false, mode: 'index'},
+                plugins: {legend: {position: 'bottom', labels: {boxWidth: 12, padding: 12}}},
+                scales: {
+                    y: {beginAtZero: true, max: 60, ticks: {callback: v => v + '%'}, grid: {color: '#1e293b'}},
+                    x: {grid: {color: '#1e293b'}}
+                }
+            }
+        });
+    }
+
+    // Competitor chart
+    const compData = {{ report.competitors | tojson }};
+    const compCtx = document.getElementById('geo-competitor-chart');
+    if (compCtx && compData.length > 0) {
+        // Add brand rate as last item
+        const brandRate = {{ report.summary.latest_brand_rate }};
+        const labels = compData.map(c => c.name).concat(['{{ client.brand_name }}']);
+        const data = compData.map(c => c.appearance_rate).concat([brandRate]);
+        const colors = data.map((_, i) => i === data.length - 1 ? '#a855f7' : '#475569');
+
+        new Chart(compCtx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{label: 'Mention Rate (%)', data, backgroundColor: colors, borderRadius: 4}]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                plugins: {legend: {display: false}},
+                scales: {
+                    x: {beginAtZero: true, max: 100, ticks: {callback: v => v + '%'}, grid: {color: '#1e293b'}},
+                    y: {grid: {display: false}}
+                }
+            }
+        });
+    }
+})();
+</script>
+{% else %}
+<div class="bg-dark-steel rounded-lg border border-slate-700 p-8 text-center mb-6">
+    <p class="text-2xl mb-2">📊</p>
+    <p class="text-white font-medium mb-1">No visibility data yet</p>
+    <p class="text-sm text-slate-400">Run a GEO batch to see your brand's AI search visibility report here.</p>
+</div>
+{% endif %}

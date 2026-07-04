@@ -24,14 +24,18 @@ This manual covers:
 
 ### Requirements
 
-- **Work email only** — personal emails (Gmail, Hotmail, Yahoo, Protonmail, etc.) are blocked
+- **Any valid email** — personal emails (Gmail, Hotmail, etc.) are accepted (domain restriction removed July 2026)
 - Password (any length)
 - Full name (optional)
 - Company name (optional — defaults to email prefix if empty)
 
+### Anti-Spam Protection
+
+- Honeypot hidden field — bots that fill it are silently rejected (fake redirect)
+
 ### What Happens on Signup
 
-1. System validates the email is a work domain (not in blocked list)
+1. System validates email format (must contain @ and valid domain)
 2. Checks email isn't already registered
 3. Creates a **Client** record:
    - `plan_type = "trial"`

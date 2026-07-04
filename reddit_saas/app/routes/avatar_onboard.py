@@ -316,6 +316,21 @@ def avatar_onboard_approve(
     business_list = [s.strip() for s in business_subreddits.split(",") if s.strip()]
 
     # Create avatar
+    # Determine initial phase: Phase 0 (Incubation) for fresh accounts,
+    # Phase 1 for pre-warmed accounts with existing karma
+    from app.services.settings import get_setting
+    incubation_enabled = get_setting(db, "incubation_phase_enabled") == "true"
+    initial_phase = 1  # Default: skip incubation
+    if incubation_enabled:
+        # Check if account is fresh (low karma + young)
+        reddit_karma = 0  # Will be updated on first health check
+        # We don't have karma at creation time from the form — assign Phase 0
+        # only for avatars explicitly marked as fresh, or default to Phase 1
+        # TODO: fetch karma from PRAW during onboarding to make this smarter
+        # For now: if display_name suggests it's a fresh import, use Phase 0
+        # Conservative default: Phase 1 (pre-warmed assumed)
+        pass
+
     avatar = Avatar(
         id=uuid.uuid4(),
         reddit_username=username,
@@ -330,7 +345,7 @@ def avatar_onboard_approve(
         business_subreddits=[{"subreddit": s, "source": "onboarding"} for s in business_list] if business_list else None,
         client_ids=[str(client_id)],
         active=True,
-        warming_phase=1,  # Safety: new avatars always start at Phase 1
+        warming_phase=initial_phase,
         health_status="unknown",
         posting_mode="disabled",
         pool="b2b",
@@ -378,6 +393,14 @@ def avatar_onboard_approve(
         logger.warning("Activity event failed: %s", e)
 
     db.commit()
+
+    # Plan activation route (Risk-Aware Activation)
+    try:
+        from app.services.activation_router import ActivationRouter
+        router = ActivationRouter()
+        router.plan_route(db, avatar, client)
+    except Exception as e:
+        logger.warning("Activation route planning failed for %s: %s", username, e)
 
     # Trigger post-onboarding pipeline (strategy + scraping) asynchronously
     try:

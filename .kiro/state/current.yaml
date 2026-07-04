@@ -1,7 +1,7 @@
 # Canonical State Snapshot (CSS)
-# Generated: 2026-06-27T22:00:00+03:00
-# Method: manual (initial bootstrap)
-# Next: auto-generate via _generate_css.py
+# Generated: 2026-07-02T12:00:00+03:00
+# Method: manual reconciliation (steering audit + code review + ops logs)
+# Reconciliation inputs: steering files (July 2), code (July 1 deploy), ops logs (July 1)
 #
 # This file is DERIVED. It is NOT a source of truth.
 # Priority: ops > system > steering > CSS
@@ -9,9 +9,21 @@
 
 meta:
   version: "0.3.0"
-  last_reconciled: "2026-06-27T22:00:00+03:00"
-  reconciled_by: "manual"
+  last_reconciled: "2026-07-02T12:00:00+03:00"
+  reconciled_by: "manual + steering audit + code review"
   staleness_threshold_hours: 48
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SYSTEM HEALTH
+# ═══════════════════════════════════════════════════════════════════════════
+
+system_health:
+  status: OK
+  posting_disabled: false
+  worker_alive: true
+  pipeline_alive: true
+  last_health_endpoint: '{"version":"0.3.0","env":"production","status":"ok","worker_alive":true}'
+  last_verified: "2026-06-28T22:00:00+03:00"
 
 infrastructure:
   environment: production
@@ -19,20 +31,19 @@ infrastructure:
   server: 161.35.27.165
   region: fra1
   provider: digitalocean
-  os: ubuntu-24.04
-  containers:
+  containers_running:
     - app
     - celery
     - celery-fast
     - celery-beat
     - nginx
-    - db (pgvector/pg16)
-    - redis (7-alpine)
+    - db
+    - redis
     - marketing
   timezone: Asia/Jerusalem
+  last_deploy: "2026-07-01T22:00:00+03:00"  # email verification + password reset
 
 application:
-  posting_disabled: true  # env-level kill switch
   kill_switches:
     pipeline_enabled: true
     generation_enabled: true
@@ -42,140 +53,274 @@ application:
     fitness_gate_enabled: true
     cqs_check_tasks_enabled: true
     epg2_enabled: true
+  posting_disabled: false  # env-level (previously true, changed)
 
-pipelines:
-  professional:
-    status: active
-    phases: [2, 3]
-    schedule: "08:00, 14:00"
-  hobby:
-    status: active
-    phases: [1, 2, 3]
-    schedule: "07:45, 13:45"
+# ═══════════════════════════════════════════════════════════════════════════
+# AVATAR FLEET — Live Status (verified via Reddit API June 28, 21:00 IST)
+# ═══════════════════════════════════════════════════════════════════════════
 
 avatars:
-  total_in_db: 25
-  active: 17
-  frozen: 3
-  suspended: 5
-  with_executor_email: 3
-  frozen_list:
-    - name: Flaky_Finder_13
-      reason: shadowbanned
-      since: "2026-06-25"
-      cqs: low  # improved from lowest on June 26
-      shadowban: active
-      recovery_signal: cqs_improved
-    - name: connor_lloyd
-      reason: shadowbanned
-      since: "2026-06-26"
-      detection: submission_visibility_probe
-  suspended_list:
-    - ThorneMarcus92
-    - RoutineAnywhere2705
-    - leon_grant10
-    - JJVillanM
-    - naomi_rush
+  total_active_in_db: 24
+  healthy_unfrozen: 19
+  frozen: 4  # all are truly suspended (Reddit 404)
+  shadowbanned_confirmed: 1  # NotSoDelgado88
+
+  # --- PHASE 2 (Professional content eligible) ---
+  phase2_active:
+    - username: d-wreck-w12
+      pool: b2b
+      health: active
+      cqs: null
+      note: "Unfrozen June 28 (false positive fix). karma=47, comments visible."
+    - username: StopAutomatic717
+      pool: warm
+      health: active
+      cqs: low
+
+  # --- PHASE 1 (Hobby only) — Verified alive via Reddit ---
+  phase1_confirmed_alive:
+    - username: connor_lloyd
+      pool: b2b
+      health: active
+      cqs: null
+      note: "Unfrozen June 28. Shadowban LIFTED. karma=86, r/sysadmin score=11."
+    - username: Flaky_Finder_13
+      pool: b2b
+      health: active
+      cqs: low
+      note: "Unfrozen June 28. Shadowban LIFTED. Comment visible in r/worldcup, score=3."
+    - username: Hot-Thought2408
+      pool: b2b
+      health: active
+      cqs: high
+      note: "Has executor email. Fully operational."
+    - username: Lena_Gupta19
+      pool: b2b
+      health: active
+      cqs: null
+    - username: lucas_parker2
+      pool: b2b
+      health: active
+      cqs: null
+    - username: RunPriyaRun
+      pool: warm
+      health: active
+      cqs: null
+      note: "karma=3, comments visible. Confirmed alive June 28."
+    - username: TXMan97
+      pool: warm
+      health: active
+      cqs: null
+      note: "karma=3, comments visible. Confirmed alive June 28."
+    - username: ChiGurlTanya312
+      pool: warm
+      health: active
+      cqs: null
+      note: "karma=1, comment visible. Confirmed alive June 28."
+    - username: Icy_Version4101
+      pool: warm
+      health: active  # was unknown, Reddit returned 2 comments visible
+      cqs: null
+    - username: epdfathbo
+      pool: b2b
+      health: unknown
+      cqs: null
+      note: "Fresh account (June 21), no comments yet. Cannot probe."
+
+  # --- PHASE 1 — No Reddit activity (fresh/warm, never posted) ---
+  phase1_no_activity:
+    - username: ChillDalgo
+      pool: warm
+      health: unknown
+      note: "Created June 5. karma=0, 0 comments. Never activated."
+    - username: debbiedebdebra14
+      pool: warm
+      health: unknown
+      note: "Created June 12. Never activated."
+    - username: Jenny4rmthedocks
+      pool: [b2b, warm]  # appears twice in DB
+      health: unknown
+      note: "Duplicate entries. karma=0, 0 comments."
+    - username: PriyaLikes2Read
+      pool: warm
+      health: unknown
+      note: "Created June 12. Never activated."
+    - username: SBJazzStreet
+      pool: warm
+      health: unknown
+      note: "Created June 12. Never activated."
+    - username: TheBoringJHill
+      pool: warm
+      health: unknown
+      note: "Created June 12. Never activated."
+
+  # --- SHADOWBANNED (confirmed via comment-in-thread probe) ---
+  shadowbanned:
+    - username: NotSoDelgado88
+      pool: warm
+      health: shadowbanned
+      note: "Comment in r/whatisit HIDDEN in thread. Fresh account. karma=0."
+
+  # --- FROZEN/SUSPENDED (Reddit 404 — accounts dead) ---
+  frozen_suspended:
+    - username: JJVillanM
+      reason: suspended
+      note: "Reddit 404. Confirmed dead June 24."
+    - username: leon_grant10
+      reason: suspended
+      note: "Reddit 404. Confirmed dead June 24."
+    - username: naomi_rush
+      reason: suspended
+      note: "Reddit 404. Confirmed dead June 24."
+    - username: RoutineAnywhere2705
+      reason: suspended
+      note: "Reddit 404. Confirmed dead June 24."
+
+  # --- EXECUTOR EMAIL (for email task delivery) ---
   executor_email_configured:
     - Hot-Thought2408
     - Flaky_Finder_13
     - StopAutomatic717
 
+# ═══════════════════════════════════════════════════════════════════════════
+# CLIENTS
+# ═══════════════════════════════════════════════════════════════════════════
+
 clients:
-  total: ~5
-  paying: 1  # ATMO/NeuroYoga
-  trial: ~3
-  plan_distribution:
-    trial: 3
-    seed: 0
-    starter: 1
-    growth: 0
-    scale: 0
+  total: 5
+  paying: 1
+  trial: 3
+  demo: 1
+  xm_cyber:
+    plan: starter
+    avatars: [connor_lloyd, d-wreck-w12, lucas_parker2, Lena_Gupta19, epdfathbo, Flaky_Finder_13]
+    phase2_avatars: [d-wreck-w12]  # connor_lloyd demoted to P1 after shadowban, now recovered
+    status: "Pipeline active. Professional generation for P2 avatars."
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PIPELINES
+# ═══════════════════════════════════════════════════════════════════════════
+
+pipelines:
+  professional:
+    status: ACTIVE
+    phases: [2, 3]
+    schedule: "08:00, 14:00 IST"
+    active_avatars: [d-wreck-w12, StopAutomatic717]
+  hobby:
+    status: ACTIVE
+    phases: [1, 2, 3]
+    schedule: "07:45, 13:45 IST (scrape) → 08:15, 14:15 IST (EPG)"
+    active_avatars: "All unfrozen Phase 1+ with hobby_subreddits configured"
+  health_checks:
+    status: ACTIVE
+    schedule: "07:30, 13:30 IST"
+    note: "Fixed June 28 — no longer false-positives on inactive avatars"
+  email_tasks:
+    status: ACTIVE
+    schedule: "Every 5 min (dispatch) + 07:00 (CQS tasks)"
+    executor_count: 3
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FEATURES DEPLOYED (June 29-30)
+# ═══════════════════════════════════════════════════════════════════════════
 
 features:
   deployed:
-    - core_pipeline
-    - epg_2_portfolio_manager
-    - comment_outcome_tracking
-    - discovery_engine
-    - geo_aeo_monitoring
-    - client_portal
-    - decision_center
-    - posting_dashboard
-    - smart_scoring
-    - risk_prediction
-    - security_hardening
-    - subreddit_risk_profiles
-    - epg_email_task_delivery
-    - draft_reconciliation
-    - self_service_onboarding
-    - avatar_onboarding
-    - real_time_notifications
-    - daily_ops_review_phase1
-    - trial_conversion_intelligence
-    - subreddit_emotional_profiles
+    - browser_extension_mvp  # June 29: first post confirmed, backend API live
+    - geo_multi_provider     # June 30: Perplexity + Claude + OpenAI (pending key)
+    - email_verification     # July 1: trial signup email gate + password reset
+    - pipeline_end_to_end_doc  # July 2: steering doc created
   in_progress:
-    - client_strategy_generation  # tasks 1-6 of 12
-  not_started:
-    - browser_extension  # spec ready
-    - phase_0_incubation_refactor  # spec ready
-    - ai_native_expert_warming  # spec ready
-    - mobile_posting_app  # spec ready
+    - browser_extension_v2   # chrome.debugger approach for reliable DOM interaction
+    - client_strategy_generation  # Tasks 7-11 pending
+    - ramp_operations_agent  # spec complete, 0% implemented (Phase 1A = external watchdog)
 
-open_incidents:
-  - id: flaky_finder_shadowban
-    avatar: Flaky_Finder_13
-    type: global_shadowban
-    status: frozen_with_recovery_signal
-    detail: "CQS improved LOWEST→LOW (June 26). Shadowban still active. Batch filter fix deployed June 27."
-    action_needed: "Monitor. Auto-recovery via health check when shadowban lifts."
+# ═══════════════════════════════════════════════════════════════════════════
+# EXECUTION NODES (Browser Extension)
+# ═══════════════════════════════════════════════════════════════════════════
 
-  - id: connor_lloyd_shadowban
-    avatar: connor_lloyd
-    type: global_shadowban
-    status: frozen
-    detail: "Auto-detected June 26 via submission_visibility_probe."
+execution_nodes:
+  total: 1
+  active:
+    - executor: Hot-Thought2408
+      status: active
+      mode: REQUIRED_UI  # executor must click Approve before posting
+      extension_location: local  # Load Unpacked (not Chrome Web Store)
+      first_post: "2026-06-29"
+      heartbeat_interval_s: 60
+      poll_interval_s: 30
+  pending:
+    - executor: Flaky_Finder_13  # has executor_email, extension not yet configured
+    - executor: StopAutomatic717  # has executor_email, extension not yet configured
 
-  - id: suspended_fleet
-    avatars: [ThorneMarcus92, RoutineAnywhere2705, leon_grant10, JJVillanM, naomi_rush]
-    type: reddit_suspension
-    status: awaiting_business_decision
-    detail: "Confirmed dead via Reddit API. Need deactivation decision."
+# ═══════════════════════════════════════════════════════════════════════════
+# PIPELINE STATUS (End-to-End — see .kiro/steering/pipeline_end_to_end.md)
+# ═══════════════════════════════════════════════════════════════════════════
 
-  - id: strategy_generation_json_bug
-    component: discovery/strategy_generator
-    status: debugging
-    detail: "Gemini Flash JSON parse issue on strategy generation output."
+pipeline_e2e:
+  core_loop: "SCRAPE → SCORE → GENERATE → REVIEW → EXECUTE → MEASURE → LEARN"
+  status: ACTIVE
+  last_known_output: "2026-07-02"  # verify via prod DB scrape_log
+  execution_channel_primary: browser_extension  # MVP, v2 in progress
+  execution_channel_fallback: email_tasks
+  execution_channel_deferred: automated_api_posting  # no proxies
+  known_gaps:
+    - T-2026-06-28-004: "No external watchdog (in-band monitoring dies with system)"
+    - T-2026-06-28-006: "No pipeline-alive backpressure signal (zero output = silent)"
+    - T-2026-06-28-007: "Celery death = total system death (no component isolation)"
 
-architecture_debt:
-  blocking: []
-  tracked:
-    - id: reddit_api_duplication
-      impact: performance
-      severity: low
-      when_fix: "optimization round"
-    - id: no_demotion_cooldown
-      impact: avatar_stability
-      severity: medium
-      when_fix: "before 10 clients"
-    - id: no_idempotency_keys
-      impact: duplicate_execution
-      severity: medium
-      when_fix: "before 10 clients"
-    - id: no_pagination
-      impact: scaling
-      severity: medium
-      when_fix: "before 10 clients"
-    - id: prompts_hardcoded
-      impact: no_versioning_no_ab
-      severity: medium
-      when_fix: "before 10 clients"
+# ═══════════════════════════════════════════════════════════════════════════
+# FIXES DEPLOYED (July 1-2, 2026)
+# ═══════════════════════════════════════════════════════════════════════════
 
-last_deploys:
-  production: "2026-06-28"  # approximate — check ssh ramp for exact
-  staging: "2026-06-28"
+deployed_july_01:
+  - fix: "Email verification on trial signup"
+    impact: "New trial users must verify email before wizard access"
+    files: [app/services/email_verification.py, app/routes/pages.py, app/routes/onboarding.py]
+  - fix: "Password reset flow"
+    impact: "Forgot password → email link → set new password"
+    files: [app/services/email_verification.py, app/routes/pages.py]
+  - fix: "Admin manual email verification toggle"
+    impact: "Owner/Partner can toggle email_verified from /admin/users"
+    files: [app/routes/admin.py]
+
+deployed_july_02:
+  - doc: "Pipeline end-to-end steering file"
+    purpose: "Architectural reference for full pipeline flow"
+    file: .kiro/steering/pipeline_end_to_end.md
+  - doc: "RAMP Operations Agent steering file"
+    purpose: "Tracking 0% implemented spec for autonomous operations"
+    file: .kiro/steering/ramp_operations_agent.md
+  - doc: "CSS regenerated (was >48h stale)"
+    file: .kiro/state/current.yaml
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FIXES DEPLOYED (June 28-30, 2026)
+# ═══════════════════════════════════════════════════════════════════════════
+
+deployed_june_28:
+  - fix: "Health checker false positive (zero_content_with_history)"
+    impact: "3 avatars incorrectly frozen, now unfrozen"
+    file: app/services/health_checker.py
+  - fix: "Hobby drafts 'Unknown thread' in admin review queue"
+    impact: "Partner (Tzvi) can now see subreddit/title/link for hobby drafts"
+    files: [app/services/hobby_proxy.py, app/models/comment_draft.py, app/routes/admin.py, app/routes/avatar_workflow.py, app/routes/portal.py]
+  - fix: "Onboarding dynamic placeholders + tone calibration"
+    files: [app/routes/onboarding.py, templates/onboarding/step2.html, templates/onboarding/step4.html]
+  - fix: "Settings page dedup (keywords/subreddits removed)"
+    file: app/templates/client/settings.html
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PENDING DECISIONS (for Tzvi/Max)
+# ═══════════════════════════════════════════════════════════════════════════
 
 decisions_pending:
-  - "Deactivate 5 suspended avatars (business decision for Tzvi)"
-  - "Proxy purchase decision (deferred — browser extension preferred)"
-  - "Brevo domain verification for email delivery"
+  - "Deactivate 4 suspended avatars (JJVillanM, leon_grant10, naomi_rush, RoutineAnywhere2705) — business decision"
+  - "Promote connor_lloyd back to Phase 2 (shadowban lifted, karma=86)"
+  - "Activate warm pool avatars (7 with health=unknown, never used)"
+  - "Configure GEO prompts for XM Cyber (AI visibility section empty)"
+  - "NotSoDelgado88 — deactivate or wait for shadowban recovery?"
+  - "Ops Agent Phase 1A — create Telegram bot token + configure UptimeRobot"
+  - "Ops Agent Phase 1A — implement external watchdog (systemd, outside Docker)"
+  - "Extension v2 — ship chrome.debugger approach (reliable DOM interaction)"

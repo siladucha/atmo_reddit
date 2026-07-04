@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Visibility Report — Ono International School</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <style>
+        body { background: #0f172a; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+        .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; }
+        .glow-green { box-shadow: 0 0 20px rgba(34, 197, 94, 0.1); }
+        .glow-purple { box-shadow: 0 0 20px rgba(168, 85, 247, 0.1); }
+    </style>
+</head>
+<body class="text-white min-h-screen p-6">
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-8">
+            <div>
+                <h1 class="text-3xl font-bold text-white">AI Search Visibility</h1>
+                <p class="text-gray-400 mt-1">Ono International School — Monthly Report (Projected Month 3)</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="text-xs text-gray-500">Powered by</span>
+                <span class="text-sm font-semibold text-indigo-400">RAMP</span>
+            </div>
+        </div>
+
+        <!-- Share of Voice — Main KPI Cards -->
+        <div class="grid grid-cols-3 gap-4 mb-6">
+            <!-- Perplexity -->
+            <div class="card p-5 glow-purple">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="w-3 h-3 rounded-full bg-purple-500"></div>
+                    <span class="text-sm font-medium text-purple-300">Perplexity</span>
+                </div>
+                <p class="text-4xl font-bold text-purple-400">23%</p>
+                <p class="text-xs text-gray-500 mt-1">Brand mentioned in 23% of AI responses</p>
+                <div class="flex items-center gap-1 mt-2">
+                    <span class="text-green-400 text-sm font-medium">+23%</span>
+                    <span class="text-xs text-gray-500">from baseline (0%)</span>
+                </div>
+            </div>
+            <!-- ChatGPT -->
+            <div class="card p-5 glow-green">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                    <span class="text-sm font-medium text-green-300">ChatGPT</span>
+                </div>
+                <p class="text-4xl font-bold text-green-400">12%</p>
+                <p class="text-xs text-gray-500 mt-1">Brand mentioned in 12% of AI responses</p>
+                <div class="flex items-center gap-1 mt-2">
+                    <span class="text-green-400 text-sm font-medium">+12%</span>
+                    <span class="text-xs text-gray-500">from baseline (0%)</span>
+                </div>
+            </div>
+            <!-- Claude -->
+            <div class="card p-5">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="w-3 h-3 rounded-full bg-orange-500"></div>
+                    <span class="text-sm font-medium text-orange-300">Claude</span>
+                </div>
+                <p class="text-4xl font-bold text-orange-400">8%</p>
+                <p class="text-xs text-gray-500 mt-1">Brand mentioned in 8% of AI responses</p>
+                <div class="flex items-center gap-1 mt-2">
+                    <span class="text-green-400 text-sm font-medium">+8%</span>
+                    <span class="text-xs text-gray-500">from baseline (0%)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trend Chart -->
+        <div class="card p-6 mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold">Visibility Trend — All Engines</h2>
+                <div class="flex items-center gap-4 text-xs">
+                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span>Perplexity</span>
+                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>ChatGPT</span>
+                    <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-orange-500"></span>Claude</span>
+                </div>
+            </div>
+            <canvas id="trendChart" height="100"></canvas>
+        </div>
+
+        <!-- Competitor Benchmark -->
+        <div class="card p-6 mb-6">
+            <h2 class="text-lg font-semibold mb-4">Competitor Benchmark — Share of AI Voice</h2>
+            <p class="text-xs text-gray-500 mb-4">Averaged across all 3 AI engines • 60 buyer-intent queries</p>
+            <div class="space-y-3">
+                <!-- Tel Aviv University -->
+                <div class="flex items-center gap-3">
+                    <span class="w-40 text-sm text-gray-300 truncate">Tel Aviv University</span>
+                    <div class="flex-1 h-6 bg-slate-800 rounded-full overflow-hidden">
+                        <div class="h-full bg-red-500/70 rounded-full flex items-center pl-2" style="width: 42%">
+                            <span class="text-xs font-medium text-white">42%</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- Hebrew University -->
+                <div class="flex items-center gap-3">
+                    <span class="w-40 text-sm text-gray-300 truncate">Hebrew University</span>
+                    <div class="flex-1 h-6 bg-slate-800 rounded-full overflow-hidden">
+                        <div class="h-full bg-red-500/60 rounded-full flex items-center pl-2" style="width: 35%">
+                            <span class="text-xs font-medium text-white">35%</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- Technion -->
+                <div class="flex items-center gap-3">
+                    <span class="w-40 text-sm text-gray-300 truncate">Technion</span>
+                    <div class="flex-1 h-6 bg-slate-800 rounded-full overflow-hidden">
+                        <div class="h-full bg-red-500/50 rounded-full flex items-center pl-2" style="width: 28%">
+                            <span class="text-xs font-medium text-white">28%</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- Reichman -->
+                <div class="flex items-center gap-3">
+                    <span class="w-40 text-sm text-gray-300 truncate">Reichman University</span>
+                    <div class="flex-1 h-6 bg-slate-800 rounded-full overflow-hidden">
+                        <div class="h-full bg-red-500/40 rounded-full flex items-center pl-2" style="width: 18%">
+                            <span class="text-xs font-medium text-white">18%</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- Ono (Client) -->
+                <div class="flex items-center gap-3">
+                    <span class="w-40 text-sm font-medium text-green-400 truncate">Ono International ★</span>
+                    <div class="flex-1 h-6 bg-slate-800 rounded-full overflow-hidden">
+                        <div class="h-full bg-green-500/70 rounded-full flex items-center pl-2" style="width: 14%">
+                            <span class="text-xs font-medium text-white">14%</span>
+                        </div>
+                    </div>
+                    <span class="text-xs text-green-400 font-medium">← Month 3 (projected)</span>
+                </div>
+                <!-- Bar-Ilan -->
+                <div class="flex items-center gap-3">
+                    <span class="w-40 text-sm text-gray-300 truncate">Bar-Ilan University</span>
+                    <div class="flex-1 h-6 bg-slate-800 rounded-full overflow-hidden">
+                        <div class="h-full bg-red-500/30 rounded-full flex items-center pl-2" style="width: 12%">
+                            <span class="text-xs font-medium text-white">12%</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- BGU -->
+                <div class="flex items-center gap-3">
+                    <span class="w-40 text-sm text-gray-300 truncate">Ben Gurion University</span>
+                    <div class="flex-1 h-6 bg-slate-800 rounded-full overflow-hidden">
+                        <div class="h-full bg-red-500/20 rounded-full flex items-center pl-2" style="width: 8%">
+                            <span class="text-xs font-medium text-white/80">8%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Per-Engine Breakdown -->
+        <div class="grid grid-cols-3 gap-4 mb-6">
+            <div class="card p-4">
+                <h3 class="text-sm font-medium text-purple-300 mb-3">Perplexity Breakdown</h3>
+                <canvas id="perplexityChart" height="140"></canvas>
+            </div>
+            <div class="card p-4">
+                <h3 class="text-sm font-medium text-green-300 mb-3">ChatGPT Breakdown</h3>
+                <canvas id="chatgptChart" height="140"></canvas>
+            </div>
+            <div class="card p-4">
+                <h3 class="text-sm font-medium text-orange-300 mb-3">Claude Breakdown</h3>
+                <canvas id="claudeChart" height="140"></canvas>
+            </div>
+        </div>
+
+        <!-- Query Categories -->
+        <div class="card p-6 mb-6">
+            <h2 class="text-lg font-semibold mb-4">Visibility by Query Category</h2>
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-slate-700">
+                        <th class="text-left py-2 text-xs text-gray-400 uppercase">Category</th>
+                        <th class="text-center py-2 text-xs text-purple-400 uppercase">Perplexity</th>
+                        <th class="text-center py-2 text-xs text-green-400 uppercase">ChatGPT</th>
+                        <th class="text-center py-2 text-xs text-orange-400 uppercase">Claude</th>
+                        <th class="text-center py-2 text-xs text-gray-400 uppercase">Avg</th>
+                    </tr>
+                </thead>
+                <tbody class="text-gray-300">
+                    <tr class="border-b border-slate-700/50">
+                        <td class="py-2.5">Academic programs & degrees</td>
+                        <td class="text-center"><span class="text-purple-400 font-medium">30%</span></td>
+                        <td class="text-center"><span class="text-green-400 font-medium">15%</span></td>
+                        <td class="text-center"><span class="text-orange-400 font-medium">10%</span></td>
+                        <td class="text-center font-medium">18%</td>
+                    </tr>
+                    <tr class="border-b border-slate-700/50">
+                        <td class="py-2.5">Career placement & employment</td>
+                        <td class="text-center"><span class="text-purple-400 font-medium">25%</span></td>
+                        <td class="text-center"><span class="text-green-400 font-medium">12%</span></td>
+                        <td class="text-center"><span class="text-orange-400 font-medium">8%</span></td>
+                        <td class="text-center font-medium">15%</td>
+                    </tr>
+                    <tr class="border-b border-slate-700/50">
+                        <td class="py-2.5">Immigration & student visa</td>
+                        <td class="text-center"><span class="text-purple-400 font-medium">20%</span></td>
+                        <td class="text-center"><span class="text-green-400 font-medium">10%</span></td>
+                        <td class="text-center"><span class="text-orange-400 font-medium">5%</span></td>
+                        <td class="text-center font-medium">12%</td>
+                    </tr>
+                    <tr class="border-b border-slate-700/50">
+                        <td class="py-2.5">University comparisons</td>
+                        <td class="text-center"><span class="text-purple-400 font-medium">18%</span></td>
+                        <td class="text-center"><span class="text-green-400 font-medium">8%</span></td>
+                        <td class="text-center"><span class="text-orange-400 font-medium">6%</span></td>
+                        <td class="text-center font-medium">11%</td>
+                    </tr>
+                    <tr>
+                        <td class="py-2.5">Cost & scholarships</td>
+                        <td class="text-center"><span class="text-purple-400 font-medium">22%</span></td>
+                        <td class="text-center"><span class="text-green-400 font-medium">14%</span></td>
+                        <td class="text-center"><span class="text-orange-400 font-medium">12%</span></td>
+                        <td class="text-center font-medium">16%</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Summary / CTA -->
+        <div class="card p-6 border-indigo-500/30">
+            <div class="flex items-start gap-4">
+                <div class="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
+                    <span class="text-xl">📈</span>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-white mb-1">Month 3 Projection</h3>
+                    <p class="text-sm text-gray-400 leading-relaxed">
+                        With strategic Reddit seeding across 8 subreddits and 3 trained personas,
+                        Ono International School is projected to reach <strong class="text-white">14% average visibility</strong> across AI engines
+                        by month 3 — surpassing Bar-Ilan and BGU in share of AI voice for buyer-intent queries.
+                        Perplexity (live web index) shows fastest signal; ChatGPT and Claude follow with 2-4 month training data lag.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="mt-6 text-center text-xs text-gray-600">
+            RAMP — AI Search Visibility Platform • Confidential • June 2026
+        </div>
+    </div>
+
+    <script>
+    // Trend Chart
+    const trendCtx = document.getElementById('trendChart').getContext('2d');
+    new Chart(trendCtx, {
+        type: 'line',
+        data: {
+            labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6', 'Week 7', 'Week 8', 'Week 9', 'Week 10', 'Week 11', 'Week 12'],
+            datasets: [
+                {
+                    label: 'Perplexity',
+                    data: [0, 0, 2, 5, 8, 10, 12, 14, 16, 18, 20, 23],
+                    borderColor: '#a855f7',
+                    backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 2,
+                    pointRadius: 3,
+                },
+                {
+                    label: 'ChatGPT',
+                    data: [0, 0, 0, 0, 2, 3, 5, 6, 7, 8, 10, 12],
+                    borderColor: '#22c55e',
+                    backgroundColor: 'rgba(34, 197, 94, 0.05)',
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 2,
+                    pointRadius: 3,
+                },
+                {
+                    label: 'Claude',
+                    data: [0, 0, 0, 0, 0, 2, 3, 4, 5, 6, 7, 8],
+                    borderColor: '#f97316',
+                    backgroundColor: 'rgba(249, 115, 22, 0.05)',
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 2,
+                    pointRadius: 3,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}%`
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(51, 65, 85, 0.3)' },
+                    ticks: { color: '#94a3b8', font: { size: 10 } }
+                },
+                y: {
+                    grid: { color: 'rgba(51, 65, 85, 0.3)' },
+                    ticks: { color: '#94a3b8', callback: (v) => v + '%' },
+                    min: 0,
+                    max: 30
+                }
+            }
+        }
+    });
+
+    // Donut charts for per-engine breakdown
+    function createDonut(id, brandRate, color, bgColor) {
+        const ctx = document.getElementById(id).getContext('2d');
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Brand Mentioned', 'Not Mentioned'],
+                datasets: [{
+                    data: [brandRate, 100 - brandRate],
+                    backgroundColor: [color, bgColor],
+                    borderWidth: 0,
+                }]
+            },
+            options: {
+                cutout: '70%',
+                responsive: true,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: true }
+                }
+            },
+            plugins: [{
+                id: 'centerText',
+                afterDraw(chart) {
+                    const { width, height, ctx } = chart;
+                    ctx.restore();
+                    ctx.font = 'bold 24px Inter, sans-serif';
+                    ctx.textBaseline = 'middle';
+                    ctx.textAlign = 'center';
+                    ctx.fillStyle = '#fff';
+                    ctx.fillText(brandRate + '%', width / 2, height / 2);
+                    ctx.save();
+                }
+            }]
+        });
+    }
+
+    createDonut('perplexityChart', 23, '#a855f7', '#1e1b4b');
+    createDonut('chatgptChart', 12, '#22c55e', '#052e16');
+    createDonut('claudeChart', 8, '#f97316', '#431407');
+    </script>
+</body>
+</html>

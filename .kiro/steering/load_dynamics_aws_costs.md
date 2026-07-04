@@ -183,6 +183,7 @@ total_llm_cost/day = scoring_cost + generation_cost + persona_cost + editing_cos
 | Comment Generation | Claude Sonnet | 15 | $0.039 | $0.59 |
 | Comment Editor | Claude Sonnet | 15 | $0.018 | $0.27 |
 | Hobby Comments | Gemini Flash | 15 | $0.0003 | $0.005 |
+| GEO/AEO Monitoring | Perplexity Sonar + Claude Sonnet (web search) + OpenAI Search | 60/batch × N providers (40-120 queries) | $0.006-0.08/query | $0.15-0.50/batch, ~2 batches/week |
 | **Total per client** | | | | **$1.17/day** |
 
 **Monthly LLM cost scaling:**

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RAMP</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+<div class="popup">
+  <!-- Header: minimal — just status -->
+  <header class="popup__header">
+    <div class="popup__brand">
+      <span class="popup__logo">RAMP</span>
+      <span class="popup__account" id="account-name">u/...</span>
+    </div>
+    <div class="popup__status">
+      <span class="popup__status-dot popup__status-dot--connected" id="status-dot"></span>
+      <span class="popup__status-text" id="status-text">Connected</span>
+    </div>
+  </header>
+
+  <main class="popup__main">
+    <!-- Health Warning (only when broken) -->
+    <div class="alert alert--error" id="health-warning" style="display: none;">
+      ⚠️ Reddit changed something — auto-posting paused. Tasks will go via email.
+    </div>
+
+    <!-- Section 1: ACTION REQUIRED — tasks to approve -->
+    <section class="section" id="action-section">
+      <div class="section-header">
+        <h3>🔔 Needs Approval <span class="badge" id="pending-count">0</span></h3>
+        <button class="btn-primary" id="btn-approve-all" style="display: none;">Approve All</button>
+      </div>
+      <div id="pending-list" class="task-list">
+        <p class="empty-text">Nothing to approve — you're all set 👍</p>
+      </div>
+    </section>
+
+    <!-- Section 2: TODAY'S STATUS — what happened / what's coming -->
+    <section class="section" id="status-section">
+      <div class="section-header">
+        <h3>📊 Today</h3>
+      </div>
+      <div class="today-stats">
+        <div class="today-stat">
+          <span class="today-stat__value" id="stat-posted">0</span>
+          <span class="today-stat__label">Posted</span>
+        </div>
+        <div class="today-stat">
+          <span class="today-stat__value" id="stat-queued">0</span>
+          <span class="today-stat__label">Queued</span>
+        </div>
+        <div class="today-stat">
+          <span class="today-stat__value today-stat__value--warn" id="stat-failed">0</span>
+          <span class="today-stat__label">Failed</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: DONE — completed tasks (collapsed if 0) -->
+    <section class="section" id="done-section" style="display: none;">
+      <div class="section-header">
+        <h3>✅ Done</h3>
+      </div>
+      <div id="done-list" class="task-list"></div>
+    </section>
+
+    <!-- Section 4: FAILED — only if there are failures -->
+    <section class="section" id="failed-section" style="display: none;">
+      <div class="section-header">
+        <h3>⚠️ Failed</h3>
+      </div>
+      <div id="failed-list" class="task-list"></div>
+    </section>
+  </main>
+
+  <!-- Footer: minimal -->
+  <footer class="popup__footer">
+    <span class="footer-updated" id="last-updated">—</span>
+  </footer>
+</div>
+<script src="popup.js" type="module"></script>
+</body>
+</html>

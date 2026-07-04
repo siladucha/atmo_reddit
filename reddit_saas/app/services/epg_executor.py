@@ -172,15 +172,29 @@ Upvotes: {hobby_post.post_ups or 0}"""
 
         # Autopilot: auto-approve if client has autopilot_enabled
         if _should_auto_approve(db, slot.client_id, slot.avatar_id):
-            slot.status = "approved"
-            draft.status = "approved"
-            logger.info(
-                "EPG hobby slot AUTO-APPROVED (autopilot): avatar=%s sub=r/%s slot=%s",
-                avatar.reddit_username, hobby_post.subreddit, slot.id,
-            )
-            # Commit draft+slot so create_execution_task can find them via DB query
-            db.commit()
-            _dispatch_email_task_if_enabled(db, slot)
+            # Hard gate: plan enforcement check before auto-approving
+            _plan_ok = True
+            if slot.client_id:
+                from app.services.plan_enforcement import check_approval_allowed_for_client
+                _plan_ok, _ = check_approval_allowed_for_client(db, slot.client_id)
+            if _plan_ok:
+                slot.status = "approved"
+                draft.status = "approved"
+                logger.info(
+                    "EPG hobby slot AUTO-APPROVED (autopilot): avatar=%s sub=r/%s slot=%s",
+                    avatar.reddit_username, hobby_post.subreddit, slot.id,
+                )
+                # Commit draft+slot so create_execution_task can find them via DB query
+                db.commit()
+                _dispatch_email_task_if_enabled(db, slot)
+            else:
+                # Plan limit exceeded — leave as generated (needs manual review or next month)
+                slot.status = "generated"
+                logger.info(
+                    "EPG hobby auto-approve BLOCKED by plan limit: avatar=%s client=%s",
+                    avatar.reddit_username, slot.client_id,
+                )
+                db.commit()
         else:
             slot.status = "generated"
             db.commit()
@@ -309,15 +323,29 @@ def _generate_professional_slot(db: Session, slot: EPGSlot, avatar: Avatar) -> C
 
         # Autopilot: auto-approve if client has autopilot_enabled
         if _should_auto_approve(db, slot.client_id, slot.avatar_id):
-            slot.status = "approved"
-            draft.status = "approved"
-            logger.info(
-                "EPG pro slot AUTO-APPROVED (autopilot): avatar=%s sub=r/%s slot=%s",
-                avatar.reddit_username, thread.subreddit, slot.id,
-            )
-            # Commit so create_execution_task can find the draft via DB query
-            db.commit()
-            _dispatch_email_task_if_enabled(db, slot)
+            # Hard gate: plan enforcement check before auto-approving
+            _plan_ok = True
+            if slot.client_id:
+                from app.services.plan_enforcement import check_approval_allowed_for_client
+                _plan_ok, _ = check_approval_allowed_for_client(db, slot.client_id)
+            if _plan_ok:
+                slot.status = "approved"
+                draft.status = "approved"
+                logger.info(
+                    "EPG pro slot AUTO-APPROVED (autopilot): avatar=%s sub=r/%s slot=%s",
+                    avatar.reddit_username, thread.subreddit, slot.id,
+                )
+                # Commit so create_execution_task can find the draft via DB query
+                db.commit()
+                _dispatch_email_task_if_enabled(db, slot)
+            else:
+                # Plan limit exceeded — leave as generated
+                slot.status = "generated"
+                logger.info(
+                    "EPG pro auto-approve BLOCKED by plan limit: avatar=%s client=%s",
+                    avatar.reddit_username, slot.client_id,
+                )
+                db.commit()
         else:
             slot.status = "generated"
             db.commit()

@@ -101,6 +101,7 @@ def dispatch_due_email_tasks():
     from datetime import datetime, timedelta, timezone
 
     import pytz
+    from sqlalchemy import func as sa_func
 
     from app.models.avatar import Avatar
     from app.models.execution_task import ExecutionTask
@@ -149,12 +150,93 @@ def dispatch_due_email_tasks():
         dispatched = 0
         cancelled_locked = 0
         cancelled_health = 0
+        skipped_extension = 0
+
+        # --- Extension-first routing ---
+        # If a browser extension node is online for this avatar's Reddit account,
+        # skip email delivery — the extension will pick up the task via polling.
+        # This implements the "extension-first, email-fallback" routing strategy.
+        _extension_available_cache: dict[str, bool] = {}
+        try:
+            from app.models.execution_node import ExecutionNode as _ExtNode
+            _extension_check_enabled = True
+        except Exception:
+            # Extension feature not yet deployed — fall through to email gracefully
+            _extension_check_enabled = False
 
         # Cache avatar health (avoid repeated queries for same avatar)
         _avatar_health_cache: dict[str, bool] = {}
 
         for task in due_tasks:
             try:
+                # --- Extension availability check ---
+                # If extension is handling this task (already ASSIGNED/EXECUTING), skip email
+                if _extension_check_enabled:
+                    if task.task_lifecycle_status in ("ASSIGNED", "EXECUTING"):
+                        skipped_extension += 1
+                        logger.debug(
+                            "Skipping email for task %s: extension already handling (status=%s)",
+                            task.task_code, task.task_lifecycle_status,
+                        )
+                        continue
+
+                    # Check if an online extension node exists for this avatar's account
+                    username = task.avatar_username
+                    if username and username not in _extension_available_cache:
+                        try:
+                            heartbeat_threshold = now - timedelta(minutes=30)
+                            online_node = (
+                                db.query(_ExtNode)
+                                .filter(
+                                    _ExtNode.is_online.is_(True),
+                                    _ExtNode.last_heartbeat >= heartbeat_threshold,
+                                    sa_func.lower(_ExtNode.active_reddit_username)
+                                    == username.lower(),
+                                )
+                                .first()
+                            )
+                            _extension_available_cache[username] = online_node is not None
+                        except Exception as ext_err:
+                            logger.debug(
+                                "Extension availability check failed for %s: %s",
+                                username, str(ext_err)[:80],
+                            )
+                            _extension_available_cache[username] = False
+
+                    if _extension_available_cache.get(username, False):
+                        # Convert task to extension delivery
+                        task.delivery_channel = "extension"
+                        task.task_lifecycle_status = "CREATED"
+                        task.priority = "content"
+                        # Generate HMAC + idempotency if not set
+                        if not task.idempotency_key:
+                            import uuid as _uuid
+                            task.idempotency_key = str(_uuid.uuid4())
+                        if not task.task_hash:
+                            try:
+                                from app.services.extension_dispatcher import compute_task_hash
+                                from app.config import get_config
+                                hmac_secret = get_config("extension_hmac_secret")
+                                if hmac_secret:
+                                    task.task_hash = compute_task_hash(
+                                        secret=hmac_secret,
+                                        idempotency_key=task.idempotency_key,
+                                        task_type="post_comment",
+                                        avatar_username=task.avatar_username,
+                                        target=task.thread_url or "",
+                                    )
+                            except Exception:
+                                pass
+                        if not task.lease_expires_at:
+                            task.lease_expires_at = now + timedelta(minutes=30)
+                        db.commit()
+                        skipped_extension += 1
+                        logger.info(
+                            "Task %s converted to extension delivery for %s",
+                            task.task_code, username,
+                        )
+                        continue
+
                 # --- Pre-dispatch avatar health check ---
                 avatar_id_str = str(task.avatar_id) if task.avatar_id else None
                 if avatar_id_str:
@@ -209,13 +291,14 @@ def dispatch_due_email_tasks():
 
         logger.info(
             "dispatch_due_email_tasks: dispatched=%d, cancelled_locked=%d, "
-            "cancelled_health=%d, total_due=%d",
-            dispatched, cancelled_locked, cancelled_health, len(due_tasks),
+            "cancelled_health=%d, skipped_extension=%d, total_due=%d",
+            dispatched, cancelled_locked, cancelled_health, skipped_extension, len(due_tasks),
         )
         return {
             "dispatched": dispatched,
             "cancelled_locked": cancelled_locked,
             "cancelled_health": cancelled_health,
+            "skipped_extension": skipped_extension,
             "total_due": len(due_tasks),
         }
 

@@ -58,7 +58,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func
+from sqlalchemy import func, or_, and_
 from sqlalchemy.orm import Session
 
 from app.logging_config import get_logger
@@ -114,12 +114,22 @@ def _get_cqs_check_interval(avatar: Avatar) -> int:
 
 
 def _get_last_cqs_task_date(db: Session, avatar_id: uuid.UUID) -> datetime | None:
-    """Get the creation date of the most recent CQS check task for an avatar."""
+    """Get the creation date of the most recent CQS check task for an avatar.
+
+    Matches both legacy task_type="cqs_check" and new task_type="diagnostic_probe"
+    with probe_type="reddit_cqs" for backward compatibility.
+    """
     result = (
         db.query(func.max(ExecutionTask.created_at))
         .filter(
             ExecutionTask.avatar_id == avatar_id,
-            ExecutionTask.task_type == "cqs_check",
+            or_(
+                ExecutionTask.task_type == "cqs_check",
+                and_(
+                    ExecutionTask.task_type == "diagnostic_probe",
+                    ExecutionTask.probe_type == "reddit_cqs",
+                ),
+            ),
         )
         .scalar()
     )
@@ -127,7 +137,11 @@ def _get_last_cqs_task_date(db: Session, avatar_id: uuid.UUID) -> datetime | Non
 
 
 def _has_pending_cqs_task(db: Session, avatar_id: uuid.UUID) -> bool:
-    """Check if a pending (non-terminal) CQS check task exists for this avatar."""
+    """Check if a pending (non-terminal) CQS check task exists for this avatar.
+
+    Matches both legacy task_type="cqs_check" and new task_type="diagnostic_probe"
+    with probe_type="reddit_cqs" for backward compatibility.
+    """
     # All non-terminal statuses: a task is "pending" until it reaches
     # verified, failed, expired, or cancelled.
     pending_statuses = ("generated", "emailed", "accepted", "submitted", "url_verified", "content_verified")
@@ -135,7 +149,13 @@ def _has_pending_cqs_task(db: Session, avatar_id: uuid.UUID) -> bool:
         db.query(ExecutionTask.id)
         .filter(
             ExecutionTask.avatar_id == avatar_id,
-            ExecutionTask.task_type == "cqs_check",
+            or_(
+                ExecutionTask.task_type == "cqs_check",
+                and_(
+                    ExecutionTask.task_type == "diagnostic_probe",
+                    ExecutionTask.probe_type == "reddit_cqs",
+                ),
+            ),
             ExecutionTask.status.in_(pending_statuses),
         )
         .first()
@@ -184,8 +204,13 @@ def _create_cqs_execution_task(db: Session, avatar: Avatar) -> ExecutionTask | N
         thread_id=None,
         executor_contact=avatar.executor_email,
         executor_type="avatar_owner",
-        delivery_channel="email",
-        task_type="cqs_check",
+        # Task 4.1: Prefer extension delivery; dispatcher falls back to email if offline
+        delivery_channel="extension",
+        # Task 4.2: Standardize as diagnostic_probe with probe_type=reddit_cqs
+        task_type="diagnostic_probe",
+        probe_type="reddit_cqs",
+        priority="diagnostic",  # Processed before content tasks
+        task_lifecycle_status="CREATED",  # Extension lifecycle starts at CREATED
         subreddit=CQS_SUBREDDIT,
         thread_url=CQS_THREAD_URL,
         thread_title="CQS Health Check",

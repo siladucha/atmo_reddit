@@ -22,9 +22,9 @@ flow_position:
 screen_context:
   before: "Marketing site or referral link"
   after: "Onboarding wizard step 1"
-  description: "Create your free trial account. Work email required. 14-day trial with full platform access."
+  description: "Create your free trial account. Any email accepted. 14-day trial with full platform access."
 
-screen_purpose: "Start your free trial. Enter your work email and company details to begin the AI-guided setup."
+screen_purpose: "Start your free trial. Enter your email and company details to begin the AI-guided setup."
 
 available_actions:
   all:

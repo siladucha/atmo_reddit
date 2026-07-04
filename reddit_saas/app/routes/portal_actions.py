@@ -20,11 +20,15 @@ from app.dependencies.permissions import (
     get_current_user,
     verify_client_access_from_path,
 )
+from app.dependencies.permission_guard import (
+    require_permission,
+    PermissionRequiresApproval,
+)
 from app.models.avatar import Avatar
 from app.models.client import Client
 from app.models.comment_draft import CommentDraft
 from app.models.user import User
-from app.models.user_role import UserRole
+from app.services.action_request import create_action_request
 from app.services.client_action_limiter import (
     check_rate_limit,
     get_action_status,
@@ -56,20 +60,6 @@ router = APIRouter(
     tags=["client-portal-actions"],
 )
 
-# Roles allowed to trigger actions
-TRIGGER_ROLES = (
-    UserRole.owner,
-    UserRole.partner,
-    UserRole.client_admin,
-    UserRole.client_manager,
-)
-
-
-def _require_trigger_role(user: User) -> None:
-    """Raise 403 if user cannot trigger pipeline actions."""
-    if user.user_role not in TRIGGER_ROLES:
-        raise HTTPException(status_code=403, detail="Insufficient permissions to trigger actions")
-
 
 # --- Status endpoint ---
 
@@ -81,7 +71,8 @@ def portal_action_status(
     db: Session = Depends(get_db),
 ):
     """Get rate limit status for all action types (for UI display)."""
-    _require_trigger_role(user)
+    # Status view: accessible to anyone who can access the client portal
+    # (router-level verify_client_access_from_path covers this)
 
     statuses = {
         "pipeline": get_action_status(db, client_id, "pipeline"),
@@ -112,14 +103,13 @@ def portal_action_status(
 def portal_trigger_pipeline(
     request: Request,
     client_id: UUID,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("trigger_pipeline")),
     db: Session = Depends(get_db),
 ):
     """Trigger full pipeline (scrape -> score -> generate) for this client.
 
     Rate limited: 2 per day per client.
     """
-    _require_trigger_role(user)
 
     # Rate limit check
     limit = check_rate_limit(db, client_id, "pipeline")
@@ -223,14 +213,13 @@ def portal_trigger_pipeline(
 def portal_trigger_epg_rebuild(
     request: Request,
     client_id: UUID,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("trigger_epg_rebuild")),
     db: Session = Depends(get_db),
 ):
     """Rebuild EPG (daily publishing program) for this client's avatars.
 
     Rate limited: 1 per day per client.
     """
-    _require_trigger_role(user)
 
     # Rate limit check
     limit = check_rate_limit(db, client_id, "epg_rebuild")
@@ -334,14 +323,13 @@ def portal_trigger_strategy(
     request: Request,
     client_id: UUID,
     avatar_id: UUID,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("trigger_strategy")),
     db: Session = Depends(get_db),
 ):
     """Generate a new strategy document for a specific avatar.
 
     Rate limited: 1 per week per avatar.
     """
-    _require_trigger_role(user)
 
     # Verify avatar belongs to client
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
@@ -405,7 +393,7 @@ async def portal_regenerate_draft(
     request: Request,
     client_id: UUID,
     draft_id: UUID,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("regenerate_draft")),
     db: Session = Depends(get_db),
     note: str = Form(""),
 ):
@@ -413,7 +401,6 @@ async def portal_regenerate_draft(
 
     No rate limit (single call ~$0.04). Old draft marked as 'regenerated'.
     """
-    _require_trigger_role(user)
 
     # Load draft
     draft = db.query(CommentDraft).filter(CommentDraft.id == draft_id).first()
@@ -495,5 +482,291 @@ async def portal_regenerate_draft(
         content='<span class="text-green-400 text-sm">Regenerated</span>',
         headers={
             "HX-Trigger": '{"showToast": {"type": "success", "message": "New draft generated. Refresh to see it."}, "refreshDrafts": true}'
+        },
+    )
+
+
+# --- Keyword Management (Self-Service) ---
+
+
+@router.post("/clients/{client_id}/actions/keywords/add")
+async def portal_add_keyword(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(require_permission("add_keyword")),
+    db: Session = Depends(get_db),
+    keyword: str = Form(...),
+    priority: str = Form("medium"),
+):
+    """Add a keyword to the client's keyword list (self-service).
+
+    Permission guard handles role/tier checks. Self-service tier executes immediately.
+    """
+    from sqlalchemy.orm.attributes import flag_modified
+
+    client_obj = db.query(Client).filter(Client.id == client_id).first()
+    if not client_obj:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    keyword = keyword.strip()
+    if not keyword:
+        return HTMLResponse(
+            '<span class="text-red-400 text-sm">Keyword cannot be empty</span>',
+            status_code=422,
+        )
+    if priority not in ("high", "medium", "low"):
+        return HTMLResponse(
+            '<span class="text-red-400 text-sm">Invalid priority</span>',
+            status_code=422,
+        )
+
+    # Duplicate check
+    keywords = client_obj.keywords or {}
+    all_existing = []
+    for p in ("high", "medium", "low"):
+        all_existing.extend([k.lower() for k in keywords.get(p, [])])
+    if keyword.lower() in all_existing:
+        return HTMLResponse(
+            '<span class="text-yellow-400 text-sm">Keyword already exists</span>',
+            status_code=409,
+        )
+
+    # Add keyword
+    if priority not in keywords:
+        keywords[priority] = []
+    keywords[priority].append(keyword)
+    client_obj.keywords = keywords
+    flag_modified(client_obj, "keywords")
+    db.commit()
+
+    logger.info("Portal: keyword added | client=%s | keyword=%s | user=%s", client_id, keyword, user.email)
+
+    return HTMLResponse(
+        content='<span class="text-green-400 text-sm">Keyword added</span>',
+        headers={
+            "HX-Trigger": '{"showToast": {"type": "success", "message": "Keyword added"}}'
+        },
+    )
+
+
+@router.post("/clients/{client_id}/actions/keywords/remove")
+async def portal_remove_keyword(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(require_permission("remove_keyword")),
+    db: Session = Depends(get_db),
+    keyword: str = Form(...),
+    priority: str = Form(...),
+):
+    """Remove a keyword from the client's keyword list (self-service).
+
+    Permission guard handles role/tier checks. Self-service tier executes immediately.
+    """
+    from sqlalchemy.orm.attributes import flag_modified
+
+    client_obj = db.query(Client).filter(Client.id == client_id).first()
+    if not client_obj:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    keywords = client_obj.keywords or {}
+    if priority in keywords and keyword in keywords[priority]:
+        keywords[priority].remove(keyword)
+        client_obj.keywords = keywords
+        flag_modified(client_obj, "keywords")
+        db.commit()
+
+    logger.info("Portal: keyword removed | client=%s | keyword=%s | user=%s", client_id, keyword, user.email)
+
+    return HTMLResponse(
+        content='<span class="text-green-400 text-sm">Keyword removed</span>',
+        headers={
+            "HX-Trigger": '{"showToast": {"type": "success", "message": "Keyword removed"}}'
+        },
+    )
+
+
+# --- Subreddit Management (Approval-Tier) ---
+
+
+@router.post("/clients/{client_id}/actions/subreddits/add")
+async def portal_add_subreddit(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    subreddit_name: str = Form(...),
+):
+    """Add a subreddit to the client's list.
+
+    Default tier: approval_required — creates an ActionRequest.
+    If overridden to self_service, executes immediately.
+    """
+    subreddit_name = subreddit_name.strip()
+    if subreddit_name.startswith("r/"):
+        subreddit_name = subreddit_name[2:]
+    subreddit_name = subreddit_name.strip()
+
+    if not subreddit_name:
+        return HTMLResponse(
+            '<span class="text-red-400 text-sm">Subreddit name cannot be empty</span>',
+            status_code=422,
+        )
+
+    # Manual permission check (approval-tier needs to create request)
+    try:
+        guard = require_permission("add_subreddit")
+        await guard(request=request, user=user, db=db)
+    except PermissionRequiresApproval as e:
+        ar = create_action_request(
+            db=db,
+            client_id=e.client_id,
+            user_id=e.user.id,
+            action_type=e.action_id,
+            payload={"subreddit_name": subreddit_name},
+        )
+        if ar is None:
+            return HTMLResponse(
+                '<span class="text-yellow-400 text-sm">Request already pending</span>',
+                status_code=409,
+            )
+        db.commit()
+        return HTMLResponse(
+            '<span class="text-yellow-400 text-sm">Request submitted for approval</span>',
+            headers={
+                "HX-Trigger": '{"showToast": {"type": "info", "message": "Subreddit request submitted for approval"}}'
+            },
+        )
+
+    # Self-service: execute immediately (create subreddit assignment)
+    from app.models.subreddit import Subreddit, ClientSubredditAssignment
+
+    # Find or create subreddit
+    subreddit = db.query(Subreddit).filter(
+        Subreddit.subreddit_name.ilike(subreddit_name)
+    ).first()
+    if not subreddit:
+        subreddit = Subreddit(subreddit_name=subreddit_name, is_active=True)
+        db.add(subreddit)
+        db.flush()
+
+    # Check if assignment already exists
+    existing = db.query(ClientSubredditAssignment).filter(
+        ClientSubredditAssignment.client_id == client_id,
+        ClientSubredditAssignment.subreddit_id == subreddit.id,
+    ).first()
+    if existing:
+        if not existing.is_active:
+            existing.is_active = True
+            db.commit()
+            return HTMLResponse(
+                '<span class="text-green-400 text-sm">Subreddit re-activated</span>',
+                headers={
+                    "HX-Trigger": '{"showToast": {"type": "success", "message": "Subreddit added"}}'
+                },
+            )
+        return HTMLResponse(
+            '<span class="text-yellow-400 text-sm">Subreddit already assigned</span>',
+            status_code=409,
+        )
+
+    assignment = ClientSubredditAssignment(
+        client_id=client_id,
+        subreddit_id=subreddit.id,
+        is_active=True,
+    )
+    db.add(assignment)
+    db.commit()
+
+    logger.info("Portal: subreddit added | client=%s | sub=%s | user=%s", client_id, subreddit_name, user.email)
+
+    return HTMLResponse(
+        content='<span class="text-green-400 text-sm">Subreddit added</span>',
+        headers={
+            "HX-Trigger": '{"showToast": {"type": "success", "message": "Subreddit added"}}'
+        },
+    )
+
+
+@router.post("/clients/{client_id}/actions/subreddits/remove")
+async def portal_remove_subreddit(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    subreddit_name: str = Form(...),
+):
+    """Remove a subreddit from the client's list.
+
+    Default tier: approval_required — creates an ActionRequest.
+    If overridden to self_service, executes immediately.
+    """
+    subreddit_name = subreddit_name.strip()
+    if subreddit_name.startswith("r/"):
+        subreddit_name = subreddit_name[2:]
+    subreddit_name = subreddit_name.strip()
+
+    if not subreddit_name:
+        return HTMLResponse(
+            '<span class="text-red-400 text-sm">Subreddit name cannot be empty</span>',
+            status_code=422,
+        )
+
+    # Manual permission check (approval-tier needs to create request)
+    try:
+        guard = require_permission("remove_subreddit")
+        await guard(request=request, user=user, db=db)
+    except PermissionRequiresApproval as e:
+        ar = create_action_request(
+            db=db,
+            client_id=e.client_id,
+            user_id=e.user.id,
+            action_type=e.action_id,
+            payload={"subreddit_name": subreddit_name},
+        )
+        if ar is None:
+            return HTMLResponse(
+                '<span class="text-yellow-400 text-sm">Request already pending</span>',
+                status_code=409,
+            )
+        db.commit()
+        return HTMLResponse(
+            '<span class="text-yellow-400 text-sm">Request submitted for approval</span>',
+            headers={
+                "HX-Trigger": '{"showToast": {"type": "info", "message": "Subreddit removal request submitted for approval"}}'
+            },
+        )
+
+    # Self-service: execute immediately (deactivate assignment)
+    from app.models.subreddit import Subreddit, ClientSubredditAssignment
+
+    subreddit = db.query(Subreddit).filter(
+        Subreddit.subreddit_name.ilike(subreddit_name)
+    ).first()
+    if not subreddit:
+        return HTMLResponse(
+            '<span class="text-red-400 text-sm">Subreddit not found</span>',
+            status_code=404,
+        )
+
+    assignment = db.query(ClientSubredditAssignment).filter(
+        ClientSubredditAssignment.client_id == client_id,
+        ClientSubredditAssignment.subreddit_id == subreddit.id,
+        ClientSubredditAssignment.is_active.is_(True),
+    ).first()
+    if not assignment:
+        return HTMLResponse(
+            '<span class="text-yellow-400 text-sm">Subreddit not assigned to this client</span>',
+            status_code=404,
+        )
+
+    assignment.is_active = False
+    db.commit()
+
+    logger.info("Portal: subreddit removed | client=%s | sub=%s | user=%s", client_id, subreddit_name, user.email)
+
+    return HTMLResponse(
+        content='<span class="text-green-400 text-sm">Subreddit removed</span>',
+        headers={
+            "HX-Trigger": '{"showToast": {"type": "success", "message": "Subreddit removed"}}'
         },
     )

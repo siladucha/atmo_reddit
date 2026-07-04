@@ -490,6 +490,12 @@ def get_operation_costs(db: Session, start: datetime, end: datetime) -> list[dic
         "post_brief": "📋 Post Briefs",
         "post_generation": "📝 Post Generation",
         "strategy_generation": "🧠 Strategy",
+        "trial_sales_summary": "📊 Trial Sales Summary",
+        "trial_reactivation_intel": "🔄 Trial Reactivation",
+        "trial_outreach": "✉️ Trial Outreach",
+        "subreddit_rule_extraction": "📏 Rule Extraction",
+        "emotional_profile": "🎭 Emotional Profile",
+        "emotional_compatibility": "🤝 Compatibility Scoring",
     }
 
     total_cost = sum(float(r.cost) for r in rows) or 1.0

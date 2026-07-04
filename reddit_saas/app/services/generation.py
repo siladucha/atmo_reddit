@@ -628,10 +628,28 @@ def generate_comment(
         {"role": "user", "content": thread_content},
     ]
 
+    # Determine LLM model to use
+    gen_model = get_config("llm_generation_model")
+
+    # A/B Test: force generation model if avatar in experiment
+    try:
+        from app.services.settings import get_setting
+        if get_setting(db, "ab_test_enabled") == "true":
+            from app.services.ab_test.control_enforcer import get_forced_generation_model
+            forced_model = get_forced_generation_model(db, avatar.id)
+            if forced_model:
+                logger.info(
+                    "A/B test: overriding generation model to '%s' for avatar %s",
+                    forced_model, avatar.reddit_username,
+                )
+                gen_model = forced_model
+    except Exception:
+        logger.warning("A/B test model override check failed — using default model")
+
     try:
         result = call_llm_json(
             messages=messages,
-            model=get_config("llm_generation_model"),
+            model=gen_model,
             temperature=0.7,
             max_tokens=512,
             schema=CommentOutput,

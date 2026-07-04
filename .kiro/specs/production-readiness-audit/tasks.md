@@ -135,11 +135,11 @@ Implement an automated audit engine with 8 modular audit blocks, a PostgreSQL-ba
     - **Property 17: State transition observability**
     - **Validates: Requirements 4.1, 4.2, 4.3, 4.6, 4.9, 4.11**
 
-- [~] 9. Checkpoint — Ensure all tests pass
+- [ ] 9. Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 10. Audit Block 5 — FlowCompletenessScanner
-  - [-] 10.1 Implement FlowCompletenessScanner in `app/services/audit/flow_completeness.py`
+  - [ ] 10.1 Implement FlowCompletenessScanner in `app/services/audit/flow_completeness.py`
     - Inventory user flows by scanning route handlers for multi-step patterns
     - Check templates for success indicators (confirmation messages, redirects)
     - Check for error recovery paths (try/except with user-facing responses)
@@ -154,7 +154,7 @@ Implement an automated audit engine with 8 modular audit blocks, a PostgreSQL-ba
     - **Validates: Requirements 5.5, 5.6, 5.7**
 
 - [ ] 11. Audit Block 6 — SpecCoverageTracker
-  - [-] 11.1 Implement SpecCoverageTracker in `app/services/audit/spec_coverage.py`
+  - [ ] 11.1 Implement SpecCoverageTracker in `app/services/audit/spec_coverage.py`
     - List all directories under `.kiro/specs/` with `requirements.md`
     - Extract acceptance criteria from Markdown numbered lists
     - Search `app/services/`, `app/routes/`, `app/tasks/` for references matching spec feature name
@@ -169,7 +169,7 @@ Implement an automated audit engine with 8 modular audit blocks, a PostgreSQL-ba
     - **Validates: Requirements 6.1, 6.2**
 
 - [ ] 12. Audit Block 7 — DebtRadar
-  - [-] 12.1 Implement DebtRadar in `app/services/audit/debt_radar.py`
+  - [ ] 12.1 Implement DebtRadar in `app/services/audit/debt_radar.py`
     - Scan for reliability debt: missing retry, missing idempotency, missing ActivityEvent, missing alert thresholds
     - Scan for performance debt: missing indexes, N+1 patterns, unbounded queries, queue backpressure
     - Scan for security debt: missing auth guards, permission leakage, secrets in source, missing validation
@@ -199,11 +199,11 @@ Implement an automated audit engine with 8 modular audit blocks, a PostgreSQL-ba
     - **Property 26: Bypass without exemption is RED**
     - **Validates: Requirements 8.5, 8.9**
 
-- [~] 14. Checkpoint — Ensure all tests pass
+- [ ] 14. Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 15. Observability rules enforcement
-  - [~] 15.1 Implement observability rules in `app/services/audit/observability_rules.py`
+  - [ ] 15.1 Implement observability rules in `app/services/audit/observability_rules.py`
     - Verify Celery tasks emit at least one observability signal (ActivityEvent, log, metric)
     - Verify API request handlers emit at least one observability signal
     - Verify terminal outcome records within 300s timeout
@@ -219,7 +219,7 @@ Implement an automated audit engine with 8 modular audit blocks, a PostgreSQL-ba
     - **Validates: Requirements 11.1, 11.2, 8.4, 11.5**
 
 - [ ] 16. Report generator
-  - [~] 16.1 Implement ReportGenerator in `app/services/audit/report_generator.py`
+  - [ ] 16.1 Implement ReportGenerator in `app/services/audit/report_generator.py`
     - Generate Markdown report with sections:
     - Executive Summary (GO/NO-GO + rationale)
     - Production Blockers (RED findings)
@@ -242,7 +242,7 @@ Implement an automated audit engine with 8 modular audit blocks, a PostgreSQL-ba
     - _Requirements: 10.1, 10.2, 10.12_
 
 - [ ] 17. Admin routes and dashboard
-  - [~] 17.1 Create admin routes in `app/routes/admin_audit.py`
+  - [ ] 17.1 Create admin routes in `app/routes/admin_audit.py`
     - `GET /admin/production-readiness` — main dashboard page
     - `POST /admin/production-readiness/run` — trigger full audit
     - `POST /admin/production-readiness/run/{block_name}` — trigger single block
@@ -260,7 +260,7 @@ Implement an automated audit engine with 8 modular audit blocks, a PostgreSQL-ba
     - **Validates: Requirements 9.10**
 
 - [ ] 18. Dashboard templates
-  - [~] 18.1 Create dashboard templates
+  - [ ] 18.1 Create dashboard templates
     - Create `app/templates/admin_production_readiness.html` (extends `admin_base.html`)
     - Layout: summary header (GO/NO-GO, incident probability, severity counts), filter buttons, block sections with findings
     - Dark theme with traffic-light colors (RED: bg-red-900/30, YELLOW: bg-yellow-900/30, GREEN: bg-green-900/30)
@@ -273,7 +273,7 @@ Implement an automated audit engine with 8 modular audit blocks, a PostgreSQL-ba
     - _Requirements: 9.1, 9.2, 9.5, 9.6, 9.7, 9.8, 9.9_
 
 - [ ] 19. Celery task integration
-  - [~] 19.1 Create Celery audit task in `app/tasks/audit.py`
+  - [ ] 19.1 Create Celery audit task in `app/tasks/audit.py`
     - `run_audit_task`: Celery task with bind=True, max_retries=1, countdown=60
     - Accepts optional `block_name` parameter for single-block runs
     - Instantiates all 8 block runners and AuditEngine
@@ -282,11 +282,11 @@ Implement an automated audit engine with 8 modular audit blocks, a PostgreSQL-ba
     - Register task in Celery worker configuration
     - _Requirements: 10.1_
 
-- [~] 20. Checkpoint — Ensure all tests pass
+- [ ] 20. Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 21. Integration wiring and test setup
-  - [~] 21.1 Wire all components together and create test infrastructure
+  - [ ] 21.1 Wire all components together and create test infrastructure
     - Create `tests/test_audit/__init__.py`
     - Create `tests/test_audit/test_engine.py` — orchestrator integration tests (concurrent lock, block failure isolation, full audit run)
     - Create `tests/test_audit/test_properties.py` — all 33 property-based tests using Hypothesis
@@ -309,7 +309,7 @@ Implement an automated audit engine with 8 modular audit blocks, a PostgreSQL-ba
     - Create `tests/test_audit/test_dashboard.py`
     - _Requirements: 1.1–11.6_
 
-- [~] 22. Final checkpoint — Ensure all tests pass
+- [ ] 22. Final checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

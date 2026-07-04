@@ -114,6 +114,98 @@ Global script in `admin_base.html` protects against accidental navigation away f
 
 ---
 
+## Authentication Flow (July 2026)
+
+### Trial Signup → Email Verification
+
+```
+/onboard/trial/signup (POST)
+    → Create User (email_verified=false) + Client (trial)
+    → Generate verification token (32-byte URL-safe)
+    → Store SHA-256 hash in user.verification_token_hash (48h expiry)
+    → Send email via Brevo with link: /verify-email?token=...
+    → Render "Check your email" page
+
+/verify-email?token=... (GET)
+    → Validate token hash matches DB + not expired
+    → Set email_verified=true, clear token
+    → Auto-login (JWT cookie) → redirect /onboard
+```
+
+### Login Gate for Unverified Users
+
+```
+/login (POST)
+    → authenticate_user() succeeds
+    → IF email_verified=false:
+        → Resend verification email
+        → Render "Check your email" page (NOT login)
+    → ELSE: normal login flow
+```
+
+### Password Reset
+
+```
+/forgot-password (GET) → render form
+/forgot-password (POST)
+    → Find user by email
+    → IF exists + is_active:
+        → Generate reset token (1h expiry)
+        → Store SHA-256 hash, overwrite previous
+        → Send email via Brevo
+    → Always render "check your inbox" (no email leak)
+
+/reset-password?token=... (GET)
+    → Validate token → render "Set new password" form
+/reset-password (POST)
+    → Validate token + passwords match + min 8 chars
+    → hash_password(new) → clear token → render success
+```
+
+### Public Routes (no auth required)
+
+Auth middleware whitelist: `/verify-email`, `/resend-verification`, `/forgot-password`, `/reset-password`, `/login`, `/register`, `/logout`, `/onboard/trial`, `/onboard/trial/signup`, `/health`
+
+### Admin Manual Verification (July 2, 2026)
+
+Owner/Partner can manually toggle `email_verified` for any user from `/admin/users`:
+- Column "Verified" with clickable badge (✉️ ✓ green / ✉️ ✗ orange)
+- `POST /admin/users/{user_id}/toggle-verified` — toggles `email_verified`, sets/clears `email_verified_at`, clears pending token
+- Restricted to owner/partner only (client_admin cannot toggle — platform-level action)
+- Audit logged: `email_verified_toggled` with target email
+- Use case: manually onboarded users (e.g., `max@client.reddit`) who don't need email flow
+
+### Nginx Routes Added (July 2026)
+
+Both HTTPS (443) and HTTP (80) server blocks: `= /forgot-password`, `= /reset-password`, `= /verify-email`, `= /verify-executor-email`, `= /resend-verification` → proxy to `app:8000`.
+
+### Executor Email Verification (July 4, 2026)
+
+```
+Admin saves executor_email on Avatar
+    → executor_email_verified = false (immediate)
+    → Generate token (32-byte URL-safe), store SHA-256 hash on Avatar
+    → Send email to executor via Brevo: /verify-executor-email?token=...
+    → All task creation blocked (EPG tasks, CQS tasks) until verified
+
+/verify-executor-email?token=... (GET, public)
+    → Validate token hash matches Avatar + not expired (72h)
+    → Set executor_email_verified=true, clear token
+    → Render success page ("You'll receive posting tasks for [avatar]")
+```
+
+**Admin overrides:**
+- "Mark as Verified" — admin can bypass email verification
+- "Resend Verification" — resends email to executor
+- "Revoke Verification" — resets to unverified (blocks tasks again)
+
+**Blocking points (3 gates):**
+- `create_execution_task()` — won't create task without verified email (unless extension-only)
+- `cqs_task_generator.py` — skips avatar without verified email
+- `extension_tasks.py` — won't fallback to email without verified email
+
+---
+
 ## Deployment Notes
 
 **Code lives inside Docker image** (Dockerfile: `COPY . .`). No volume mount for app code.

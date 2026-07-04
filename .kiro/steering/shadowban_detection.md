@@ -1,5 +1,18 @@
 # Shadowban Detection Architecture
 
+## Key Platform Fact (Confirmed June 28, 2026)
+
+**Global shadowban = profile 404.** Reddit treats shadowbanned accounts identically to non-existent accounts at the API level (PRAW docs: "Shadowbanned accounts are treated the same as non-existent accounts, meaning that they will not have any attributes"). This means:
+
+- `redditor.comments.new()` returns data → profile is publicly visible → **NOT shadowbanned** (guaranteed)
+- `redditor.comments.new()` returns 0 OR throws 404 → **possible shadowban** (needs further probe)
+
+**Invariant for detection code:** If Reddit API returns ANY user content (comments, submissions, karma) — regardless of age or lookback window — the account is definitively not globally shadowbanned. The date filter on comments is irrelevant to shadowban determination.
+
+Source: PRAW 7.6+ docs, multiple Reddit marketing tool docs (prmotion.me, leadmore.ai, soar.sh), confirmed empirically with d-wreck-w12 (API returned 5 old comments → not shadowbanned → confirmed via in-thread visibility).
+
+---
+
 ## Two-Layer Detection System
 
 The system detects shadowbans at two levels:
@@ -92,7 +105,7 @@ When avatar is shadowbanned:
 
 ---
 
-## Detection Fixes (June 26-27, 2026)
+## Detection Fixes (June 26-28, 2026)
 
 1. **zero_content_with_history** — When API returns 0 comments + submission probe inconclusive, but avatar has posted_drafts in DB → classify as shadowbanned (not unknown)
 2. **Young account accelerated checks** — Accounts <90 days get health checked every 4h instead of 12h
@@ -101,6 +114,7 @@ When avatar is shadowbanned:
 5. **Avatar health gate at dispatch** — cancel execution task if avatar frozen/banned between creation and dispatch
 6. **CQS=lowest → budget=0** — full stop on EPG generation (was budget=1)
 7. **CQS self-healing tasks** — periodic "post in r/WhatIsMyCQS" email tasks independent of EPG
+8. **CRITICAL FIX (June 28): `zero_content_with_history` false positive** — `check_comment_visibility()` now returns `total_from_api` (comments API returned before date filter). If `total_from_api > 0` but `total_sampled == 0` → avatar is inactive (all comments older than lookback), NOT shadowbanned. The `zero_content_with_history` path now only triggers when `total_from_api == 0` (Reddit truly returned nothing). Previously, an avatar that hadn't commented in 7 days would be incorrectly classified as shadowbanned if it had any `posted` drafts in DB. **Caused false freezes for: d-wreck-w12, connor_lloyd, Flaky_Finder_13.**
 
 ---
 
@@ -140,3 +154,7 @@ Until the extension is built, the batch filter removal ensures RAMP can at least
 | 2026-06-26 | Flaky_Finder_13 | Global | Live PRAW probe (confirmed) | Account age 48d, karma=0, CQS=lowest. health_check failed to detect (submission too old for limit=100 feed). Fixed: zero_content_with_history detection. 23 tasks cancelled, account frozen. |
 | 2026-06-26 | connor_lloyd | Global | submission_visibility_probe | Post in r/badtattoos not in feed. Auto-detected by system. |
 | 2026-06-27 | Flaky_Finder_13 | Recovery signal | Manual investigation + CQS fix | CQS improved LOWEST→LOW (June 26 post). Shadowban still active. Batch filter fix deployed — RAMP can now detect this. |
+| 2026-06-28 | d-wreck-w12 | **FALSE POSITIVE** | zero_content_with_history | Comments all >7d old → total_sampled=0, but API returned 5 comments. Submission too old (>24h). System incorrectly concluded shadowban. Unfrozen manually. **FIX DEPLOYED:** total_from_api distinction. |
+| 2026-06-28 | Flaky_Finder_13 | **Recovery confirmed** | Manual PRAW probe | Shadowban LIFTED! Comment in r/worldcup visible, score=3. Unfrozen. |
+| 2026-06-28 | connor_lloyd | **Recovery confirmed** | Manual PRAW probe | Shadowban LIFTED! karma=86, comments in r/sysadmin visible (score=11). Unfrozen. |
+| 2026-06-28 | NotSoDelgado88 | Global | Manual comment-in-thread probe | Comment in r/whatisit HIDDEN. karma=0, fresh account. Confirmed shadowbanned. |

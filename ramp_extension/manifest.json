@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "RAMP Extension",
+  "version": "2.0.0",
+  "description": "RAMP Execution Node v2 — automated comment posting via chrome.debugger",
+  "permissions": [
+    "storage",
+    "alarms",
+    "notifications",
+    "tabs",
+    "scripting",
+    "debugger"
+  ],
+  "host_permissions": [
+    "https://www.reddit.com/*",
+    "https://old.reddit.com/*",
+    "https://gorampit.com/api/extension/*",
+    "http://localhost:8000/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.reddit.com/*", "https://old.reddit.com/*"],
+      "js": ["content/bundle.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "assets/icon-16.png",
+      "48": "assets/icon-48.png",
+      "128": "assets/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "assets/icon-16.png",
+    "48": "assets/icon-48.png",
+    "128": "assets/icon-128.png"
+  }
+}

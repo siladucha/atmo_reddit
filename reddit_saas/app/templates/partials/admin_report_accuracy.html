@@ -1,0 +1,93 @@
+<!-- Admin Report Accuracy Dashboard — Forecast hit/miss rates over time -->
+<div class="bg-gray-900/50 rounded-lg border border-gray-700 p-3 mt-2">
+    <h4 class="text-xs font-semibold text-gray-300 mb-3 flex items-center gap-2">
+        <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+        </svg>
+        Forecast Accuracy Dashboard
+    </h4>
+
+    {% if accuracy.total_predictions == 0 %}
+    <p class="text-xs text-gray-500 italic">No predictions recorded yet. Accuracy tracking starts after the first report with forecast data.</p>
+    {% else %}
+
+    <!-- Summary stats -->
+    <div class="grid grid-cols-4 gap-2 mb-4">
+        <div class="bg-gray-800 rounded p-2 text-center">
+            <div class="text-xs text-gray-500">Total Predictions</div>
+            <div class="text-lg font-semibold text-gray-200">{{ accuracy.total_predictions }}</div>
+        </div>
+        <div class="bg-gray-800 rounded p-2 text-center">
+            <div class="text-xs text-gray-500">Measured</div>
+            <div class="text-lg font-semibold text-gray-200">{{ accuracy.measured_count }}</div>
+        </div>
+        <div class="bg-gray-800 rounded p-2 text-center">
+            <div class="text-xs text-gray-500">Within Bounds</div>
+            {% if accuracy.within_bounds_rate is not none %}
+            <div class="text-lg font-semibold {{ 'text-green-400' if accuracy.within_bounds_rate >= 0.7 else 'text-yellow-400' if accuracy.within_bounds_rate >= 0.5 else 'text-red-400' }}">
+                {{ (accuracy.within_bounds_rate * 100)|round(1) }}%
+            </div>
+            {% else %}
+            <div class="text-lg font-semibold text-gray-500">—</div>
+            {% endif %}
+        </div>
+        <div class="bg-gray-800 rounded p-2 text-center">
+            <div class="text-xs text-gray-500">Avg Error</div>
+            {% if accuracy.avg_error_pp is not none %}
+            <div class="text-lg font-semibold text-gray-200">{{ accuracy.avg_error_pp }}pp</div>
+            {% else %}
+            <div class="text-lg font-semibold text-gray-500">—</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Hit/miss rate interpretation -->
+    {% if accuracy.measured_count > 0 %}
+    <div class="space-y-2 text-xs">
+        <!-- Progress bar showing within_bounds rate -->
+        {% if accuracy.within_bounds_rate is not none %}
+        <div>
+            <div class="flex justify-between text-gray-400 mb-1">
+                <span>Predictions within bounds (conservative–optimistic range)</span>
+                <span class="font-medium {{ 'text-green-400' if accuracy.within_bounds_rate >= 0.7 else 'text-yellow-400' if accuracy.within_bounds_rate >= 0.5 else 'text-red-400' }}">
+                    {{ (accuracy.within_bounds_rate * 100)|round(1) }}%
+                </span>
+            </div>
+            <div class="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div class="h-full rounded-full transition-all {{ 'bg-green-500' if accuracy.within_bounds_rate >= 0.7 else 'bg-yellow-500' if accuracy.within_bounds_rate >= 0.5 else 'bg-red-500' }}"
+                     style="width: {{ (accuracy.within_bounds_rate * 100)|round(0) }}%"></div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Interpretation -->
+        <div class="bg-gray-800 rounded p-2 mt-2">
+            {% if accuracy.within_bounds_rate is not none and accuracy.within_bounds_rate >= 0.7 %}
+            <p class="text-green-400">✓ Good calibration — model predictions are generally accurate. Confidence intervals are well-sized.</p>
+            {% elif accuracy.within_bounds_rate is not none and accuracy.within_bounds_rate >= 0.5 %}
+            <p class="text-yellow-400">⚡ Moderate calibration — some predictions miss bounds. Consider widening confidence intervals.</p>
+            {% elif accuracy.within_bounds_rate is not none %}
+            <p class="text-red-400">⚠ Poor calibration — majority of predictions fall outside bounds. Model parameters may need adjustment.</p>
+            {% endif %}
+        </div>
+
+        <!-- Worst miss detail -->
+        {% if accuracy.worst_miss %}
+        <div class="bg-red-900/20 border border-red-800/50 rounded p-2 mt-2">
+            <span class="text-red-400 font-medium">Worst miss:</span>
+            <span class="text-gray-300">{{ accuracy.worst_miss.metric_id }}</span>
+            <div class="mt-1 text-gray-400">
+                Predicted {{ accuracy.worst_miss.predicted }}% → Actual {{ accuracy.worst_miss.actual }}% 
+                <span class="text-red-400">({{ accuracy.worst_miss.error_pp }}pp error)</span>
+                · Target date: {{ accuracy.worst_miss.target_date }}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <p class="text-xs text-gray-500">{{ accuracy.total_predictions }} predictions recorded. Waiting for GEO batches to measure actuals (typically after next Tue/Fri batch).</p>
+    {% endif %}
+
+    {% endif %}
+</div>

@@ -934,6 +934,10 @@ def add_subreddit(
         details={"subreddit_name": name, "type": type},
     )
     db.refresh(assignment)
+
+    # 6. Refresh activation routes for affected avatars
+    _refresh_client_avatar_routes(db, client_id)
+
     return assignment
 
 
@@ -975,6 +979,48 @@ def remove_subreddit(
         client_id=assignment.client_id,
         details={"subreddit_name": assignment.subreddit.subreddit_name},
     )
+
+    # Refresh activation routes for affected avatars
+    _refresh_client_avatar_routes(db, assignment.client_id)
+
+
+def _refresh_client_avatar_routes(db: Session, client_id: uuid.UUID) -> None:
+    """Refresh activation routes for all Phase 0-1 avatars of a client.
+
+    Called when client subreddits change (add/remove). Non-blocking — errors logged.
+    """
+    try:
+        from app.services.settings import get_setting
+
+        enabled = get_setting(db, "activation_routing_enabled")
+        if enabled not in ("true", "True", "1"):
+            return
+
+        from app.services.activation_router import ActivationRouter
+
+        avatars = (
+            db.query(Avatar)
+            .filter(
+                Avatar.client_ids.contains([str(client_id)]),
+                Avatar.active.is_(True),
+                Avatar.warming_phase <= 1,
+                Avatar.activation_route.isnot(None),
+            )
+            .all()
+        )
+
+        if not avatars:
+            return
+
+        client = db.query(Client).filter(Client.id == client_id).first()
+        router = ActivationRouter()
+        for avatar in avatars:
+            try:
+                router.refresh_route(db, avatar, client)
+            except Exception as e:
+                logger.warning("Route refresh failed for %s: %s", avatar.reddit_username, e)
+    except Exception as e:
+        logger.warning("_refresh_client_avatar_routes failed: %s", e)
 
 
 def list_client_subreddits(
@@ -1662,6 +1708,12 @@ def get_ai_costs_by_operation(db: Session, days: int | None = None) -> list[dict
         "post_generation": "Posts",
         "discovery": "Discovery",
         "geo_query": "GEO/AEO",
+        "trial_sales_summary": "Trial Intelligence",
+        "trial_reactivation_intel": "Trial Intelligence",
+        "trial_outreach": "Trial Intelligence",
+        "subreddit_rule_extraction": "Subreddit Intel",
+        "emotional_profile": "Subreddit Intel",
+        "emotional_compatibility": "Subreddit Intel",
     }
 
     total_cost = sum(float(r.cost) for r in rows) or 1.0

@@ -1,0 +1,265 @@
+{% extends "admin_base.html" %}
+{% block title %}Risk Registry{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> / <span class="text-white">Risk Registry</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-white">Risk Registry</h1>
+            <p class="text-gray-400 text-sm mt-1">v{{ meta.get('version', '?') }} · Last updated: {{ meta.get('last_updated', '?') }} · {{ total_risks }} risks across {{ risk_groups|length }} groups</p>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+        <div class="bg-red-900/20 border border-red-700/40 rounded-lg p-3 text-center">
+            <p class="text-2xl font-bold text-red-400">{{ escalation_counts.get('CRITICAL', 0) }}</p>
+            <p class="text-xs text-red-300/70 uppercase tracking-wide">Critical</p>
+        </div>
+        <div class="bg-orange-900/20 border border-orange-700/40 rounded-lg p-3 text-center">
+            <p class="text-2xl font-bold text-orange-400">{{ escalation_counts.get('HIGH', 0) }}</p>
+            <p class="text-xs text-orange-300/70 uppercase tracking-wide">High</p>
+        </div>
+        <div class="bg-yellow-900/20 border border-yellow-700/40 rounded-lg p-3 text-center">
+            <p class="text-2xl font-bold text-yellow-400">{{ escalation_counts.get('MEDIUM', 0) }}</p>
+            <p class="text-xs text-yellow-300/70 uppercase tracking-wide">Medium</p>
+        </div>
+        <div class="bg-green-900/20 border border-green-700/40 rounded-lg p-3 text-center">
+            <p class="text-2xl font-bold text-green-400">{{ escalation_counts.get('LOW', 0) }}</p>
+            <p class="text-xs text-green-300/70 uppercase tracking-wide">Low</p>
+        </div>
+        <div class="bg-blue-900/20 border border-blue-700/40 rounded-lg p-3 text-center">
+            <p class="text-2xl font-bold text-blue-400">{{ escalation_counts.get('INFORMATIONAL', 0) }}</p>
+            <p class="text-xs text-blue-300/70 uppercase tracking-wide">Info</p>
+        </div>
+    </div>
+
+    <!-- Status Summary -->
+    <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-4 mb-6">
+        <div class="flex flex-wrap gap-3">
+            {% for st, count in status_counts.items() %}
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium
+                {% if st == 'fixed' %}bg-green-500/15 text-green-400 border border-green-500/30
+                {% elif st == 'open' %}bg-red-500/15 text-red-400 border border-red-500/30
+                {% elif st == 'active_incident' %}bg-red-500/20 text-red-300 border border-red-500/40
+                {% elif st == 'mitigated' %}bg-blue-500/15 text-blue-400 border border-blue-500/30
+                {% elif st == 'accepted' or st == 'accepted_not_implemented' %}bg-gray-500/15 text-gray-400 border border-gray-500/30
+                {% elif st == 'by_design' %}bg-slate-500/15 text-slate-400 border border-slate-500/30
+                {% elif st == 'deferred' %}bg-amber-500/15 text-amber-400 border border-amber-500/30
+                {% elif st == 'permanent_constraint' %}bg-purple-500/15 text-purple-400 border border-purple-500/30
+                {% else %}bg-slate-500/15 text-slate-400 border border-slate-500/30{% endif %}">
+                {{ count }}× {{ st|replace('_', ' ') }}
+            </span>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Filter by Severity -->
+    <div class="flex flex-wrap gap-2 mb-4">
+        <button type="button" onclick="filterSeverity('all')" id="sev-all"
+                class="sev-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-indigo-500 text-white bg-indigo-600/20 transition-colors">
+            All
+        </button>
+        <button type="button" onclick="filterSeverity('CRITICAL')" id="sev-CRITICAL"
+                class="sev-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-red-700/40 text-red-400 bg-red-900/10 hover:bg-red-900/30 transition-colors">
+            🔴 Critical
+        </button>
+        <button type="button" onclick="filterSeverity('HIGH')" id="sev-HIGH"
+                class="sev-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-orange-700/40 text-orange-400 bg-orange-900/10 hover:bg-orange-900/30 transition-colors">
+            🟠 High
+        </button>
+        <button type="button" onclick="filterSeverity('MEDIUM')" id="sev-MEDIUM"
+                class="sev-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-yellow-700/40 text-yellow-400 bg-yellow-900/10 hover:bg-yellow-900/30 transition-colors">
+            🟡 Medium
+        </button>
+        <button type="button" onclick="filterSeverity('LOW')" id="sev-LOW"
+                class="sev-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-green-700/40 text-green-400 bg-green-900/10 hover:bg-green-900/30 transition-colors">
+            🟢 Low
+        </button>
+        <button type="button" onclick="filterSeverity('INFORMATIONAL')" id="sev-INFORMATIONAL"
+                class="sev-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-700/40 text-blue-400 bg-blue-900/10 hover:bg-blue-900/30 transition-colors">
+            🔵 Info
+        </button>
+    </div>
+
+    <!-- Filter tabs (by group) -->
+    <div class="border-b border-slate-700 mb-6">
+        <nav class="flex gap-1 overflow-x-auto pb-px" id="risk-tabs">
+            <button type="button" onclick="filterGroup('all')" id="tab-all"
+                    class="risk-tab px-3 py-2 text-sm font-medium rounded-t-lg border-b-2 border-indigo-500 text-white bg-slate-800 whitespace-nowrap">
+                All ({{ total_risks }})
+            </button>
+            {% for group in risk_groups %}
+            {% set count = grouped_risks.get(group.id, [])|length %}
+            {% if count > 0 %}
+            <button type="button" onclick="filterGroup('{{ group.id }}')" id="tab-{{ group.id }}"
+                    class="risk-tab px-3 py-2 text-sm font-medium rounded-t-lg border-b-2 border-transparent text-gray-400 hover:text-gray-200 whitespace-nowrap">
+                {{ group.title|replace(' Risks', '')|replace('Pipeline ', '') }} ({{ count }})
+            </button>
+            {% endif %}
+            {% endfor %}
+        </nav>
+    </div>
+
+    <!-- Risk Cards -->
+    {% for group in risk_groups %}
+    {% set risks_in_group = grouped_risks.get(group.id, []) %}
+    {% if risks_in_group %}
+    <div class="risk-group mb-8" data-group="{{ group.id }}">
+        <h2 class="text-lg font-semibold text-white mb-1">{{ group.title }}</h2>
+        <p class="text-xs text-gray-500 mb-3">{{ group.description }}</p>
+
+        <div class="space-y-3">
+            {% for risk in risks_in_group %}
+            <div class="bg-slate-800/60 border rounded-lg p-4 cursor-pointer transition-colors hover:bg-slate-800
+                {% if risk.escalation == 'CRITICAL' %}border-red-600/50
+                {% elif risk.escalation == 'HIGH' %}border-orange-600/40
+                {% elif risk.escalation == 'MEDIUM' %}border-yellow-600/30
+                {% elif risk.escalation == 'LOW' %}border-green-600/30
+                {% else %}border-slate-600{% endif %}"
+                 data-escalation="{{ risk.escalation }}"
+                 onclick="this.querySelector('.risk-details').classList.toggle('hidden')">
+
+                <!-- Risk Header -->
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                            <code class="text-xs text-gray-500 font-mono">{{ risk.id }}</code>
+                            <!-- Escalation badge -->
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase
+                                {% if risk.escalation == 'CRITICAL' %}bg-red-500/20 text-red-400
+                                {% elif risk.escalation == 'HIGH' %}bg-orange-500/20 text-orange-400
+                                {% elif risk.escalation == 'MEDIUM' %}bg-yellow-500/20 text-yellow-400
+                                {% elif risk.escalation == 'LOW' %}bg-green-500/20 text-green-400
+                                {% else %}bg-blue-500/20 text-blue-400{% endif %}">
+                                {{ risk.escalation }}
+                            </span>
+                            <!-- Status badge -->
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-medium
+                                {% if risk.status == 'fixed' %}bg-green-500/15 text-green-400
+                                {% elif risk.status == 'open' %}bg-red-500/15 text-red-400
+                                {% elif risk.status == 'active_incident' %}bg-red-500/25 text-red-300
+                                {% elif risk.status == 'permanent_constraint' %}bg-purple-500/15 text-purple-400
+                                {% elif risk.status == 'deferred' %}bg-amber-500/15 text-amber-400
+                                {% else %}bg-slate-500/15 text-slate-400{% endif %}">
+                                {{ risk.status|replace('_', ' ') }}
+                            </span>
+                        </div>
+                        <p class="text-sm font-medium text-white">{{ risk.title }}</p>
+                    </div>
+                    <span class="text-xs text-gray-500 whitespace-nowrap">{{ risk.get('detected_date', '') }}</span>
+                </div>
+
+                <!-- Risk Details (collapsed) -->
+                <div class="risk-details hidden mt-3 pt-3 border-t border-slate-700 space-y-2 text-sm">
+                    <div>
+                        <span class="text-gray-500">Description:</span>
+                        <p class="text-gray-300 mt-0.5">{{ risk.description }}</p>
+                    </div>
+                    <div>
+                        <span class="text-gray-500">Impact:</span>
+                        <p class="text-gray-300 mt-0.5">{{ risk.impact }}</p>
+                    </div>
+                    <div>
+                        <span class="text-gray-500">Likelihood:</span>
+                        <span class="text-gray-300">{{ risk.get('likelihood', '—') }}</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-500">Mitigation:</span>
+                        <p class="text-gray-300 mt-0.5">{{ risk.get('mitigation', '—') }}</p>
+                    </div>
+                    {% if risk.get('fix_applied') %}
+                    <div>
+                        <span class="text-green-500">Fix applied:</span>
+                        <p class="text-green-300/80 mt-0.5">{{ risk.fix_applied }}</p>
+                    </div>
+                    {% endif %}
+                    {% if risk.get('related_risks') %}
+                    <div>
+                        <span class="text-gray-500">Related:</span>
+                        <span class="text-indigo-400">{{ risk.related_risks|join(', ') }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+</div>
+
+<script>
+let activeSeverity = 'all';
+let activeGroup = 'all';
+
+function filterGroup(groupId) {
+    activeGroup = groupId;
+
+    // Update tabs
+    document.querySelectorAll('.risk-tab').forEach(t => {
+        t.classList.remove('border-indigo-500', 'text-white', 'bg-slate-800');
+        t.classList.add('border-transparent', 'text-gray-400');
+    });
+    const activeTab = document.getElementById('tab-' + groupId);
+    if (activeTab) {
+        activeTab.classList.add('border-indigo-500', 'text-white', 'bg-slate-800');
+        activeTab.classList.remove('border-transparent', 'text-gray-400');
+    }
+
+    applyFilters();
+}
+
+function filterSeverity(level) {
+    activeSeverity = level;
+
+    // Update severity buttons
+    document.querySelectorAll('.sev-btn').forEach(b => {
+        b.classList.remove('border-indigo-500', 'text-white', 'bg-indigo-600/20');
+        // Reset to default muted style
+        if (!b.classList.contains('hover:bg-red-900/30')) {
+            b.classList.add('border-slate-600', 'text-gray-400');
+        }
+    });
+    const activeBtn = document.getElementById('sev-' + level);
+    if (activeBtn) {
+        activeBtn.classList.add('border-indigo-500', 'text-white', 'bg-indigo-600/20');
+        activeBtn.classList.remove('border-slate-600', 'text-gray-400');
+    }
+
+    applyFilters();
+}
+
+function applyFilters() {
+    // Filter groups
+    document.querySelectorAll('.risk-group').forEach(g => {
+        if (activeGroup === 'all') {
+            g.style.display = '';
+        } else {
+            g.style.display = g.dataset.group === activeGroup ? '' : 'none';
+        }
+    });
+
+    // Filter individual risk cards by severity
+    document.querySelectorAll('[data-escalation]').forEach(card => {
+        const matchesSeverity = activeSeverity === 'all' || card.dataset.escalation === activeSeverity;
+        const groupVisible = activeGroup === 'all' || card.closest('.risk-group').dataset.group === activeGroup;
+        card.style.display = (matchesSeverity && groupVisible) ? '' : 'none';
+    });
+
+    // Hide group headers if all cards inside are hidden
+    document.querySelectorAll('.risk-group').forEach(g => {
+        if (g.style.display === 'none') return;
+        const visibleCards = g.querySelectorAll('[data-escalation]:not([style*="display: none"])');
+        if (visibleCards.length === 0 && activeSeverity !== 'all') {
+            g.style.display = 'none';
+        }
+    });
+}
+</script>
+{% endblock %}

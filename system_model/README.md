@@ -48,6 +48,7 @@ The system finds relevant discussions, generates persona-calibrated responses vi
 | `06_infrastructure.json` | Deployment, containers, economics, 12 known gaps, 4 accepted improvements | Ops, scaling decisions |
 | `07_hidden_architecture.json` | Ownership map (who decides what), implicit contracts, missing layers, scale limits | Architecture decisions |
 | `08_agent_instructions.json` | Instructions for AI agents: terminology, answer rules, common LLM errors | Load FIRST when working with LLM |
+| `09_risks.json` | **Risk registry** (93 risks across 13 groups: Platform, Infrastructure, Architecture, Business, Security, Posting, Scaling, Data, Ops, AI, Documentation, Ban Detection, Forecast). Priority matrix + spec coverage + mitigation plan. | Risk management, architecture review |
 | `diagrams_state_machines.md` | 5 Mermaid state machine diagrams (draft, slot, task, phase, health) | Visualization, Tzvi |
 | `diagrams_pipeline.md` | Mermaid: full pipeline sequence diagram + dual pipeline + component architecture | Visualization, analyst |
 | `diagrams_safety_ai.md` | Mermaid: safety gates + AI model routing + learning loop + deployment | Visualization, security |
@@ -137,4 +138,4 @@ Where behavior diverges from documentation — code takes priority.
 
 ---
 
-*Maintained by: Max (tech lead) | Last updated: June 25, 2026*
+*Maintained by: Max (tech lead) | Last updated: July 2, 2026*

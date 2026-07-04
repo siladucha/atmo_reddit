@@ -63,7 +63,7 @@ def build_and_generate_epg_all_avatars():
             .filter(
                 Avatar.active.is_(True),
                 Avatar.is_frozen.is_(False),
-                Avatar.warming_phase > 0,  # Exclude mentors
+                Avatar.pool != "mentor",  # Mentors excluded (pool-based)
             )
             .all()
         )
@@ -103,6 +103,7 @@ def build_and_generate_epg_all_avatars():
                 # Acquire per-avatar distributed lock to prevent race conditions
                 # between morning (08:15) and afternoon (14:15) EPG runs
                 from app.services.distributed_lock import DistributedLock
+                from app.services.ai import reset_task_call_counter
                 epg_lock = DistributedLock(
                     key=f"epg_build_lock:{avatar.id}",
                     ttl=600,  # 10 min TTL — generous for LLM generation
@@ -116,6 +117,9 @@ def build_and_generate_epg_all_avatars():
                     continue
 
                 try:
+                    # R-AI-007: reset per-task call counter per avatar to prevent
+                    # accumulation across avatars in this orchestrator task
+                    reset_task_call_counter()
                     # Resolve client
                     client = None
                     if avatar.client_ids:
