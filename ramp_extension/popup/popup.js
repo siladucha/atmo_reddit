@@ -64,12 +64,25 @@ async function detectAccount() {
 
 async function checkHealth() {
   const banner = document.getElementById('health-warning');
+  const maintenanceBanner = document.getElementById('maintenance-warning');
   try {
-    const result = await chrome.storage.local.get('ramp_health');
+    const result = await chrome.storage.local.get(['ramp_health', 'ramp_server_status']);
     const health = result?.ramp_health;
+    const serverStatus = result?.ramp_server_status;
+
     banner.style.display = health?.dom_health === 'broken' ? 'block' : 'none';
+    maintenanceBanner.style.display = serverStatus === 'maintenance' ? 'block' : 'none';
+
+    // Update connection status dot
+    const dot = document.getElementById('status-dot');
+    const stText = document.getElementById('status-text');
+    if (serverStatus === 'maintenance') {
+      dot.className = 'popup__status-dot popup__status-dot--warning';
+      stText.textContent = 'Updating...';
+    }
   } catch {
     banner.style.display = 'none';
+    maintenanceBanner.style.display = 'none';
   }
 }
 

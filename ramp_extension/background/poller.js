@@ -95,9 +95,18 @@ export async function pollOnce() {
     });
 
     if (!response.ok) {
+      // Server unavailable during deploy — store status for popup banner
+      if (response.status >= 500 || response.status === 0) {
+        await chrome.storage.local.set({ ramp_server_status: 'maintenance' });
+      } else if (response.status === 401 || response.status === 403) {
+        await chrome.storage.local.set({ ramp_server_status: 'auth_error' });
+      }
       console.warn(`[RAMP Poller] Poll failed with status ${response.status}`);
       return;
     }
+
+    // Server is back — clear maintenance flag
+    await chrome.storage.local.set({ ramp_server_status: 'ok' });
 
     const data = await response.json();
     const tasks = data.tasks || [];
@@ -111,7 +120,8 @@ export async function pollOnce() {
       _handleCommands(data.commands);
     }
   } catch (error) {
-    // Network error — log but don't crash. Will retry on next alarm.
+    // Network error (server down, DNS, timeout) — mark as maintenance
+    await chrome.storage.local.set({ ramp_server_status: 'maintenance' });
     console.warn('[RAMP Poller] Poll error (will retry):', error.message);
   }
 }
