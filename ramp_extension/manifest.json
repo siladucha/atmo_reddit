@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "RAMP Extension",
-  "version": "2.0.0",
-  "description": "RAMP Execution Node v2 — automated comment posting via chrome.debugger",
+  "version": "3.0.0",
+  "description": "RAMP Execution Node v3 — automated comment posting via old.reddit.com",
   "permissions": [
     "storage",
     "alarms",
@@ -23,8 +23,13 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.reddit.com/*", "https://old.reddit.com/*"],
+      "matches": ["https://www.reddit.com/*"],
       "js": ["content/bundle.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://old.reddit.com/*"],
+      "js": ["content/old-reddit-actions.js"],
       "run_at": "document_idle"
     }
   ],

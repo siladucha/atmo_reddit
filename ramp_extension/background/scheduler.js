@@ -375,16 +375,19 @@ export function generateJitterOffset() {
  * @returns {Promise<chrome.tabs.Tab|null>}
  */
 async function findOrCreateRedditTab() {
-  // Try to find existing Reddit tab
-  const tabs = await chrome.tabs.query({ url: ['*://*.reddit.com/*'] });
+  // Try to find existing Reddit tab (prefer old.reddit.com)
+  const tabs = await chrome.tabs.query({ url: ['*://old.reddit.com/*', '*://*.reddit.com/*'] });
   if (tabs.length > 0) {
+    // Prefer old.reddit.com tabs over www.reddit.com
+    const oldRedditTab = tabs.find(t => t.url && t.url.includes('old.reddit.com'));
+    if (oldRedditTab) return oldRedditTab;
     // Return the most recently accessed one
     return tabs.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];
   }
 
-  // Create a new tab (inactive/background)
+  // Create a new tab (inactive/background) on old.reddit.com
   const newTab = await chrome.tabs.create({
-    url: 'https://www.reddit.com',
+    url: 'https://old.reddit.com',
     active: false,
   });
 
