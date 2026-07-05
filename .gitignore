@@ -46,3 +46,6 @@ ramp_extension/dist/
 
 # Hypothesis (test artifacts)
 .hypothesis/
+
+# Saved web pages (contain embedded API keys from Gmail/Google)
+onboardin_issues/
