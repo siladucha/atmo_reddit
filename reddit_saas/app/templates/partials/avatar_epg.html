@@ -6,6 +6,9 @@
             <span class="text-xs font-normal text-gray-400">(Publishing Program)</span>
         </h3>
         <div class="flex items-center gap-2">
+            {% if epg.built_at %}
+            <span class="text-xs text-gray-500" title="EPG last built at">🕐 {{ epg.built_at }}</span>
+            {% endif %}
             {% if epg.total_slots > 0 and epg.status == "budget_exhausted" %}
             <span class="px-2 py-0.5 rounded text-xs font-medium bg-emerald-900/50 text-emerald-400">
                 {{ epg.total_slots }} slots
@@ -62,12 +65,15 @@
             <div class="w-2 h-2 rounded-full bg-green-400 shrink-0" title="Hobby"></div>
             <div class="flex-1 min-w-0">
                 <div class="text-xs text-gray-300 truncate">{{ slot.title }}</div>
-                <div class="text-xs text-gray-500">r/{{ slot.subreddit }} · {{ slot.ups }}↑</div>
+                <div class="text-xs text-gray-500">r/{{ slot.subreddit }} · {{ slot.ups }}↑{% if slot.created_at %} · built {{ slot.created_at[11:16] }}{% endif %}</div>
             </div>
             <span class="text-xs px-1.5 py-0.5 rounded
                 {% if slot.status == 'skipped' %}bg-red-900/30 text-red-400{% elif slot.status == 'posted' %}bg-purple-900/30 text-purple-400{% elif slot.status == 'approved' %}bg-emerald-900/30 text-emerald-400{% else %}bg-green-900/30 text-green-400{% endif %}">
                 {% if slot.status == 'skipped' %}skipped{% elif slot.status == 'posted' %}posted{% elif slot.status == 'approved' %}approved{% else %}hobby{% endif %}
             </span>
+            {% if slot.status == 'skipped' and slot.skip_reason %}
+            <span class="text-xs text-red-500 truncate max-w-[150px]" title="{{ slot.skip_reason }}">{{ slot.skip_reason[:30] }}</span>
+            {% endif %}
         </div>
         {% endfor %}
 

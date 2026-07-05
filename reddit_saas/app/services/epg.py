@@ -398,6 +398,7 @@ class EPGResult:
         self.business_slots: list[dict] = []
         self.status = "ok"
         self.message = ""
+        self.built_at: str | None = None  # When the EPG was last built (latest slot created_at)
 
     @property
     def total_slots(self) -> int:
@@ -500,8 +501,10 @@ def build_daily_epg(
                 "title": slot.thread_title,
                 "ups": slot.thread_ups or 0,
                 "scheduled_at": slot.scheduled_at.isoformat() if slot.scheduled_at else None,
+                "created_at": slot.created_at.isoformat() if slot.created_at else None,
                 "status": slot.status,
                 "draft_id": str(slot.draft_id) if slot.draft_id else None,
+                "skip_reason": slot.skip_reason,
             }
             if slot.slot_type == "hobby":
                 slot_dict["hobby_post_id"] = str(slot.hobby_post_id) if slot.hobby_post_id else None
@@ -512,6 +515,14 @@ def build_daily_epg(
                 slot_dict["thread_id"] = str(slot.thread_id) if slot.thread_id else None
                 slot_dict["comment_type"] = "professional"
                 result.business_slots.append(slot_dict)
+
+    # Set built_at from latest slot created_at
+    if existing_slots:
+        latest_created = max(
+            (s.created_at for s in existing_slots if s.created_at), default=None
+        )
+        if latest_created:
+            result.built_at = latest_created.strftime("%H:%M")
 
     # --- Delete old "planned" slots (rebuild replaces them) ---
     (
