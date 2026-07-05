@@ -16,7 +16,7 @@
 const CQS_POST_TITLE = 'What is my CQS?';
 const CQS_POST_BODY = 'What is my CQS?';
 const CQS_SUBREDDIT = 'WhatIsMyCQS';
-const CQS_SUBMIT_URL = `https://www.reddit.com/r/${CQS_SUBREDDIT}/submit`;
+const CQS_SUBMIT_URL = `https://old.reddit.com/r/${CQS_SUBREDDIT}/submit`;
 
 const BOT_REPLY_TIMEOUT_MS = 90_000; // 90 seconds max wait for AutoModerator
 const BOT_REPLY_POLL_INTERVAL_MS = 3_000; // Check every 3 seconds

@@ -235,7 +235,7 @@ export async function checkSubmissionVisibility(postUrl, subreddit) {
     }
 
     // Step 1: Navigate to the subreddit's /new feed
-    const newFeedUrl = `https://www.reddit.com/r/${subreddit}/new/`;
+    const newFeedUrl = `https://old.reddit.com/r/${subreddit}/new/`;
     const currentUrl = window.location.href;
 
     if (!currentUrl.includes(`/r/${subreddit}/new`) &&
