@@ -102,15 +102,27 @@ ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod
 
 ### Versioning & Environment Controls (June 2026)
 - **VERSION file**: `reddit_saas/VERSION` — single source of truth (currently `0.3.0`)
+- **Extension version**: `ramp_extension/manifest.json` → `"version"` — MUST match RAMP version
 - **`app/version.py`**: reads VERSION file, exposes `__version__`
 - **Health endpoint**: `/health` returns `{"version": "0.3.0", "env": "...", "posting_disabled": true/false, ...}`
 - **UI footer**: version + env + posting status shown in both `base.html` and `admin_base.html` (sidebar) for all roles
+- **Version sync rule**: RAMP backend and Extension ALWAYS share the same version number
+- **Bump policy** (semver):
+  - `0.x.y` — pre-release (current). No paying clients, API not stable.
+  - `1.0.0` — first paying client live 30+ days + Stripe billing active
+  - Major (x.0.0) — breaking API/schema changes
+  - Minor (0.x.0) — new features deployed
+  - Patch (0.0.x) — bug fixes only
+- **Bump workflow**: operator says "bump" → update `reddit_saas/VERSION` + `ramp_extension/manifest.json` → commit → deploy
 - **`POSTING_DISABLED` env var**: env-level kill switch for automated posting. Cannot be toggled from admin UI.
   - Server `.env`: `POSTING_DISABLED=true` (posting blocked until business decision)
   - Local `.env`: not set (defaults to `false`, posting works for local avatar testing)
   - Checked as gate #0 in `posting_safety.py` — before all other checks
 - **`pyproject.toml` version**: kept in sync with VERSION file
-- **Bump workflow**: update `reddit_saas/VERSION` → pyproject.toml auto-reads it at build time
+- **Current planned milestones**:
+  - `0.4.0` — first successful post via extension (test) + EPG pipeline stable
+  - `0.5.0` — A/B test running with real data
+  - `1.0.0` — first paying client (XM Cyber or other) live + Stripe
 
 ### Migration Status (Celery → SQS)
 - Migration spec exists (`.kiro/specs/sqs-valkey-migration/`) but NOT yet implemented
