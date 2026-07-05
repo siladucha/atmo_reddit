@@ -109,6 +109,15 @@ async function fetchQueueAndRender() {
     ? 'today-stat__value today-stat__value--warn'
     : 'today-stat__value';
 
+  // Scheduled list (approved tasks — user's day view)
+  const scheduledList = document.getElementById('scheduled-list');
+  if (approved.length === 0) {
+    scheduledList.innerHTML = '<p class="empty-text">No tasks scheduled yet</p>';
+  } else {
+    scheduledList.innerHTML = approved.map(t => renderScheduledCard(t)).join('');
+    bindScheduledActions(scheduledList);
+  }
+
   // Pending section
   const pendingList = document.getElementById('pending-list');
   const pendingCount = document.getElementById('pending-count');
@@ -209,6 +218,28 @@ function renderPendingCard(task) {
           <button class="btn-sm btn-sm--approve" data-action="save-edit" data-id="${task.task_id}">Save & Approve</button>
         </div>
       </div>
+    </div>
+  `;
+}
+
+function renderScheduledCard(task) {
+  const time = formatTime(task.scheduled_at);
+  const sub = task.subreddit || '';
+  const text = truncate(task.comment_text || '', 80);
+  const status = task.status === 'executing' ? '⏳' : '🕐';
+
+  return `
+    <div class="task-card task-card--scheduled" data-id="${task.task_id}">
+      <div class="task-card__row">
+        <div class="task-card__meta">
+          <span class="task-card__time">${status} ${time}</span>
+          <span class="task-card__sub">r/${esc(sub)}</span>
+        </div>
+        <div class="task-card__actions">
+          <button class="btn-sm btn-sm--skip" data-action="cancel-scheduled" data-id="${task.task_id}" title="Cancel this task">✗</button>
+        </div>
+      </div>
+      <div class="task-card__text">"${esc(text)}"</div>
     </div>
   `;
 }
@@ -331,6 +362,22 @@ function bindFailedActions(container) {
       await chrome.runtime.sendMessage({ type: 'RETRY_TASK', taskId: id });
       await fetchQueueAndRender();
     } else if (action === 'dismiss') {
+      await chrome.runtime.sendMessage({ type: 'SKIP_TASK', taskId: id });
+      await fetchQueueAndRender();
+    }
+  });
+}
+
+function bindScheduledActions(container) {
+  container.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+
+    const action = btn.dataset.action;
+    const id = btn.dataset.id;
+
+    if (action === 'cancel-scheduled') {
+      if (!confirm('Cancel this scheduled task?')) return;
       await chrome.runtime.sendMessage({ type: 'SKIP_TASK', taskId: id });
       await fetchQueueAndRender();
     }

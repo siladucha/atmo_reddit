@@ -109,6 +109,15 @@ body {
   border: 1px solid rgba(234, 179, 8, 0.2);
 }
 
+.task-card--scheduled {
+  border-left: 3px solid var(--accent);
+  opacity: 0.9;
+}
+
+.task-card--scheduled .task-card__time {
+  color: var(--accent);
+}
+
 .popup__status-dot--warning {
   background: var(--yellow);
 }

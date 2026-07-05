@@ -42,10 +42,10 @@
       </div>
     </section>
 
-    <!-- Section 2: TODAY'S STATUS — what happened / what's coming -->
+    <!-- Section 2: TODAY'S SCHEDULE — what's planned -->
     <section class="section" id="status-section">
       <div class="section-header">
-        <h3>📊 Today</h3>
+        <h3>📅 Today's Schedule</h3>
       </div>
       <div class="today-stats">
         <div class="today-stat">
@@ -54,12 +54,15 @@
         </div>
         <div class="today-stat">
           <span class="today-stat__value" id="stat-queued">0</span>
-          <span class="today-stat__label">Queued</span>
+          <span class="today-stat__label">Scheduled</span>
         </div>
         <div class="today-stat">
           <span class="today-stat__value today-stat__value--warn" id="stat-failed">0</span>
           <span class="today-stat__label">Failed</span>
         </div>
+      </div>
+      <div id="scheduled-list" class="task-list">
+        <p class="empty-text">No tasks scheduled yet</p>
       </div>
     </section>
 
