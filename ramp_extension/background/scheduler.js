@@ -147,13 +147,38 @@ async function _doTick() {
 
   // 5. Get queue and find due approved tasks
   const queue = await getQueue();
-  const approvedTasks = queue.filter(t => t.status === 'approved');
+  const now = Date.now();
+  const MAX_TASK_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+  // Filter approved tasks, auto-expire ones older than 24h
+  const approvedTasks = [];
+  let expiredCount = 0;
+
+  for (const task of queue) {
+    if (task.status !== 'approved') continue;
+
+    // Auto-expire tasks older than 24h
+    const createdAt = task.created_at ? new Date(task.created_at).getTime() : 0;
+    if (createdAt > 0 && (now - createdAt) > MAX_TASK_AGE_MS) {
+      task.status = 'failed';
+      task.error_code = 'EXPIRED';
+      task.error_details = 'Task expired (older than 24h)';
+      task.failed_at = new Date().toISOString();
+      expiredCount++;
+      continue;
+    }
+
+    approvedTasks.push(task);
+  }
+
+  if (expiredCount > 0) {
+    await saveQueue(queue);
+    console.log(`[RAMP Scheduler] Auto-expired ${expiredCount} stale task(s) older than 24h`);
+  }
 
   if (approvedTasks.length === 0) {
     return;
   }
-
-  const now = Date.now();
   let dueTask = null;
 
   for (const task of approvedTasks) {
