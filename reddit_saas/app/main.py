@@ -100,6 +100,22 @@ async def custom_http_exception_handler(request: FastAPIRequest, exc: HTTPExcept
     )
 
 
+# Handle PermissionRequiresApproval raised from dependencies (returns 422 JSON, not 500)
+from app.dependencies.permission_guard import PermissionRequiresApproval
+
+@app.exception_handler(PermissionRequiresApproval)
+async def permission_requires_approval_handler(request: FastAPIRequest, exc: PermissionRequiresApproval):
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=422,
+        content={
+            "message": f"This action requires internal approval. Request submitted.",
+            "code": "approval_required",
+            "action": exc.action_id,
+        },
+    )
+
+
 # --- End exception handlers ---
 app.add_middleware(
     RateLimitMiddleware,

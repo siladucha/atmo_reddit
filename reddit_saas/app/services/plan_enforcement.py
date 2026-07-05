@@ -76,7 +76,7 @@ def check_monthly_comment_limit(db: Session, client_id: UUID) -> tuple[bool, str
         .filter(
             CommentDraft.avatar_id.in_(avatar_id_list),
             CommentDraft.status.in_(["approved", "posted"]),
-            CommentDraft.updated_at >= month_start,
+            CommentDraft.created_at >= month_start,
         )
         .scalar() or 0
     )

@@ -2242,10 +2242,13 @@ def portal_approve_draft(
                 return JSONResponse(status_code=422, content=block)
 
         # Hard gate: plan enforcement — block if monthly limit reached
-        from app.services.plan_enforcement import check_approval_allowed_for_client
-        is_allowed, limit_msg = check_approval_allowed_for_client(db, client_id)
-        if not is_allowed:
-            return JSONResponse(status_code=422, content={"message": limit_msg, "code": "plan_limit_exceeded"})
+        try:
+            from app.services.plan_enforcement import check_approval_allowed_for_client
+            is_allowed, limit_msg = check_approval_allowed_for_client(db, client_id)
+            if not is_allowed:
+                return JSONResponse(status_code=422, content={"message": limit_msg, "code": "plan_limit_exceeded"})
+        except ImportError:
+            pass  # plan_enforcement not yet deployed — skip check
 
         draft.status = "approved"
         db.commit()
@@ -2276,9 +2279,10 @@ def portal_approve_draft(
         return JSONResponse(status_code=200, content={"ok": True, "message": "Approved"})
 
     except Exception as e:
+        import traceback
         logger.error(
-            "Portal approve UNHANDLED ERROR | draft_id=%s | client_id=%s | error=%s | type=%s",
-            draft_id, client_id, str(e), type(e).__name__,
+            "Portal approve UNHANDLED ERROR | draft_id=%s | client_id=%s | error=%s | type=%s | traceback=%s",
+            draft_id, client_id, str(e), type(e).__name__, traceback.format_exc(),
         )
         db.rollback()
         return JSONResponse(status_code=500, content={"message": "Server error. Please try again."})

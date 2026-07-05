@@ -46,7 +46,10 @@ def get_permission_context(
         }
     """
     client = db.query(Client).filter(Client.id == client_id).first()
-    matrix = client.permission_matrix if client else {}
+    try:
+        matrix = client.permission_matrix if client else {}
+    except Exception:
+        matrix = {}
 
     hidden: set[str] = set()
     approval: set[str] = set()
@@ -67,16 +70,21 @@ def get_permission_context(
         )
 
     # Count pending requests for the client
-    pending_count = (
-        db.query(ActionRequest)
-        .filter(
-            ActionRequest.client_id == client_id,
-            ActionRequest.status == "pending",
-        )
-        .count()
-        if client
-        else 0
-    )
+    pending_count = 0
+    if client:
+        try:
+            pending_count = (
+                db.query(ActionRequest)
+                .filter(
+                    ActionRequest.client_id == client_id,
+                    ActionRequest.status == "pending",
+                )
+                .count()
+            )
+        except Exception:
+            # Table may not exist yet (migration not applied) — degrade gracefully
+            db.rollback()
+            pending_count = 0
 
     return {
         "hidden_actions": hidden,

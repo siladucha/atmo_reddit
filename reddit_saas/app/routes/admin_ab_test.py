@@ -8,6 +8,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -29,6 +30,9 @@ from app.services.ab_test.statistical_reporter import generate_final_report
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/admin/ab-tests", tags=["admin-ab-tests"])
+templates = Jinja2Templates(directory="app/templates")
+# Disable Jinja2 bytecode cache to avoid "unhashable type: dict" errors
+templates.env.cache = {}
 
 
 # ---------------------------------------------------------------------------
@@ -71,8 +75,6 @@ async def list_experiments(
             "avatar_count": avatar_count,
         })
 
-    from fastapi.templating import Jinja2Templates
-    templates = Jinja2Templates(directory="app/templates")
     return templates.TemplateResponse(
         "admin_ab_tests.html",
         {"request": request, "experiments": enriched},
@@ -90,8 +92,6 @@ async def new_experiment_form(
     _user=Depends(require_owner),
 ):
     """Render the create experiment form."""
-    from fastapi.templating import Jinja2Templates
-    templates = Jinja2Templates(directory="app/templates")
     return templates.TemplateResponse(
         "admin_ab_test_new.html",
         {"request": request},
@@ -135,8 +135,6 @@ async def create_experiment(
             status_code=303,
         )
     except ValueError as e:
-        from fastapi.templating import Jinja2Templates
-        templates = Jinja2Templates(directory="app/templates")
         return templates.TemplateResponse(
             "admin_ab_test_new.html",
             {"request": request, "error": str(e)},
@@ -212,8 +210,6 @@ async def experiment_detail(
         .all()
     )
 
-    from fastapi.templating import Jinja2Templates
-    templates = Jinja2Templates(directory="app/templates")
     return templates.TemplateResponse(
         "admin_ab_test_detail.html",
         {
@@ -422,8 +418,6 @@ async def get_weekly_report(
         .first()
     )
 
-    from fastapi.templating import Jinja2Templates
-    templates = Jinja2Templates(directory="app/templates")
     return templates.TemplateResponse(
         "partials/ab_test_report.html",
         {"request": request, "report": report, "week_number": week_number},
@@ -469,8 +463,6 @@ async def get_metrics_dashboard(
         .all()
     )
 
-    from fastapi.templating import Jinja2Templates
-    templates = Jinja2Templates(directory="app/templates")
     return templates.TemplateResponse(
         "partials/ab_test_metrics.html",
         {

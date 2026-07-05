@@ -31,15 +31,23 @@
     <div id="info-pending" style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-3);">
         <p style="font-size:var(--text-small);color:#a5b4fc;line-height:1.5;">
             {% if can_review %}
-            AI-generated comment drafts for relevant threads. <strong>Approve</strong> to move to posting queue, <strong>Edit &amp; Approve</strong> to fix the text (your edits train the AI), or <strong>Skip</strong> to reject.
+            AI-generated comment drafts for relevant Reddit threads. Here's what you can do:
+            </p>
+            <ul style="font-size:var(--text-small);color:#a5b4fc;line-height:1.8;margin:6px 0 0 16px;list-style:disc;">
+                <li><strong style="color:#fff;">Approve</strong> — publish as-is. The comment goes to posting queue.</li>
+                <li><strong style="color:#fff;">Click the text to edit</strong> — modify the comment, then "Save & Approve". Your edits train the AI to write better next time.</li>
+                <li><strong style="color:#fff;">Regenerate</strong> — unhappy with the draft? AI writes a completely new version. You can add a note explaining what you'd prefer.</li>
+                <li><strong style="color:#fff;">Skip</strong> — reject this draft entirely. It won't be posted.</li>
+            </ul>
             {% else %}
+            <p style="font-size:var(--text-small);color:#a5b4fc;line-height:1.5;">
             These are AI-generated comment drafts waiting for review. Your team's managers approve or edit them before they're posted. You have view-only access.
             {% endif %}
         </p>
     </div>
     <div id="info-approved" style="display:none;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-3);">
         <p style="font-size:var(--text-small);color:#86efac;line-height:1.5;">
-            Approved comments ready to be posted on Reddit. Copy the text, post it manually, then click <strong>Mark as Posted</strong>.
+            Approved comments waiting to be posted on Reddit. Use <strong>Copy</strong> to grab the text, post it in the thread, then click <strong>Mark as Posted</strong> to track it.
         </p>
     </div>
     <div id="info-posted" style="display:none;background:rgba(99,102,241,0.05);border:1px solid rgba(99,102,241,0.15);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-3);">

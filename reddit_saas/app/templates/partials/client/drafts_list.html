@@ -58,6 +58,7 @@
              style="color:var(--color-white);font-size:var(--text-body);line-height:1.6;outline:none;min-height:60px;"
              onfocus="this.parentElement.style.borderColor='var(--color-orange)';document.getElementById('edit-btn-{{ draft.id }}').style.display='inline-flex'"
              onblur="this.parentElement.style.borderColor='var(--color-border)'">{{ draft.comment_text }}</div>
+        <span style="position:absolute;top:8px;right:10px;font-size:10px;color:var(--color-muted);opacity:0.6;pointer-events:none;">click to edit ✎</span>
         {% else %}
         <!-- Read-only for approved/posted -->
         <p id="copytext-{{ draft.id }}" style="color:var(--color-white);font-size:var(--text-body);line-height:1.6;white-space:pre-wrap;">{{ draft.comment_text }}</p>
@@ -79,9 +80,10 @@
 
     <!-- === PENDING ACTIONS === -->
     {% if status == 'pending' and can_review and not draft.safety_block %}
-    <div style="display:flex;align-items:center;gap:8px;">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         {% if hidden_actions is not defined or "approve_draft" not in hidden_actions %}
         <button onclick="approveDraft('{{ client_id }}', '{{ draft.id }}')"
+                title="Approve this comment as-is. It moves to the posting queue and will be published."
                 style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius-input);background:var(--color-green);color:#fff;font-size:var(--text-small);font-weight:600;border:none;cursor:pointer;min-height:36px;">
             ✓ Approve{% if approval_actions is defined and "approve_draft" in approval_actions %}<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(251,191,36,0.15);color:#fbbf24;margin-left:4px;">Requires Approval</span>{% endif %}
         </button>
@@ -89,12 +91,14 @@
         {% if hidden_actions is not defined or "edit_draft" not in hidden_actions %}
         <button id="edit-btn-{{ draft.id }}"
                 onclick="editAndApprove('{{ client_id }}', '{{ draft.id }}')"
+                title="Save your edits and approve. Your changes train the AI to write better next time."
                 style="display:none;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius-input);background:transparent;color:var(--color-orange);font-size:var(--text-small);font-weight:600;border:2px solid var(--color-orange);cursor:pointer;min-height:36px;">
             ✎ Save &amp; Approve
         </button>
         {% endif %}
         {% if hidden_actions is not defined or "reject_draft" not in hidden_actions %}
         <button onclick="skipDraft('{{ client_id }}', '{{ draft.id }}')"
+                title="Reject this draft. It won't be posted. Use when the thread isn't relevant or the comment doesn't fit."
                 style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius-input);background:transparent;color:var(--color-muted);font-size:var(--text-small);font-weight:500;border:1px solid var(--color-border);cursor:pointer;min-height:36px;">
             Skip
         </button>
@@ -102,7 +106,7 @@
         {% if hidden_actions is not defined or "regenerate_draft" not in hidden_actions %}
         <button onclick="regenerateDraft('{{ client_id }}', '{{ draft.id }}')"
                 style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius-input);background:transparent;color:#a78bfa;font-size:var(--text-small);font-weight:500;border:1px solid #a78bfa;cursor:pointer;min-height:36px;"
-                title="Generate a new AI version of this comment">
+                title="Ask the AI to write a completely new version. You can add a note explaining what you'd like changed.">
             ↻ Regenerate{% if approval_actions is defined and "regenerate_draft" in approval_actions %}<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(251,191,36,0.15);color:#fbbf24;margin-left:4px;">Requires Approval</span>{% endif %}
         </button>
         {% endif %}
