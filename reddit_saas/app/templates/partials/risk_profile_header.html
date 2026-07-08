@@ -14,10 +14,13 @@
         </div>
     </div>
 
-    {% if profile and profile.confidence_level != 'insufficient_data' %}
+    {% if profile %}
     <div class="mt-3 flex items-center gap-4 text-xs text-gray-500">
+        {% if profile.last_rule_extraction_at %}
+        <span>Rules: {{ profile.last_rule_extraction_at.strftime('%Y-%m-%d') }}</span>
+        {% endif %}
         {% if profile.last_profile_computed_at %}
-        <span>Last computed: {{ profile.last_profile_computed_at.strftime('%Y-%m-%d %H:%M') }} UTC</span>
+        <span>Moderation: {{ profile.last_profile_computed_at.strftime('%Y-%m-%d') }}</span>
         {% endif %}
         {% if profile.confidence_level %}
         <span class="px-2 py-0.5 rounded bg-slate-700 text-gray-400">Confidence: {{ profile.confidence_level }}</span>

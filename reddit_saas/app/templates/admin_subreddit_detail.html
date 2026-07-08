@@ -38,10 +38,19 @@
                 {% endif %}
             </p>
         </div>
-        <a href="https://reddit.com/r/{{ subreddit_name }}" target="_blank"
-           class="px-3 py-2 rounded-lg text-sm font-medium bg-slate-700 text-gray-300 hover:bg-slate-600 border border-slate-600 transition-colors">
-            Open on Reddit ↗
-        </a>
+        <div class="flex items-center gap-2">
+            {% if risk_profile %}
+            <a href="/admin/subreddits/{{ overview.subreddit.id }}/risk-profile"
+               class="px-3 py-2 rounded-lg text-sm font-medium bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 border border-indigo-700/50 transition-colors">
+                Risk Profile
+                <span class="ml-1 font-mono {% if risk_profile.risk_score <= 30 %}text-green-400{% elif risk_profile.risk_score <= 60 %}text-yellow-400{% elif risk_profile.risk_score <= 80 %}text-orange-400{% else %}text-red-400{% endif %}">{{ risk_profile.risk_score }}</span>
+            </a>
+            {% endif %}
+            <a href="https://reddit.com/r/{{ subreddit_name }}" target="_blank"
+               class="px-3 py-2 rounded-lg text-sm font-medium bg-slate-700 text-gray-300 hover:bg-slate-600 border border-slate-600 transition-colors">
+                Open on Reddit ↗
+            </a>
+        </div>
     </div>
 
     <div class="sticky top-0 z-10 -mx-1 bg-slate-night/95 py-2 backdrop-blur">
@@ -128,9 +137,66 @@
     </div>
     {% endif %}
 
+    <!-- Extracted Rules (from Risk Profile) -->
+    {% if risk_profile and risk_profile.extracted_rules %}
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider">Extracted Rules</h3>
+            {% if risk_profile.last_rule_extraction_at %}
+            <span class="text-xs text-gray-500">{{ risk_profile.last_rule_extraction_at.strftime('%Y-%m-%d') }}</span>
+            {% endif %}
+        </div>
+        <div class="flex flex-wrap gap-2">
+            {% for rule in risk_profile.extracted_rules %}
+            <div class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs bg-slate-700/50 border border-slate-600">
+                <span>
+                    {% if rule.category == 'min_karma' %}🔒
+                    {% elif rule.category == 'min_account_age' %}🔒
+                    {% elif rule.category == 'no_self_promo' %}⚠️
+                    {% elif rule.category == 'posting_frequency_limit' %}⏱️
+                    {% elif rule.category == 'content_restriction' %}🚫
+                    {% else %}📋{% endif %}
+                </span>
+                <span class="text-white font-medium">{{ rule.category | replace('_', ' ') | title }}</span>
+                {% if rule.threshold_value %}
+                <span class="text-indigo-300 font-mono">{{ rule.threshold_value }}</span>
+                {% endif %}
+                {% if rule.description and rule.description | length < 60 %}
+                <span class="text-gray-400">— {{ rule.description }}</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
     </div>
+    {% endif %}
 
-    <!-- Emotional Profile (lazy-loaded via HTMX) -->
+    <!-- Moderation Summary (from Risk Profile) -->
+    {% if risk_profile and risk_profile.moderation_profile %}
+    {% set mod = risk_profile.moderation_profile %}
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
+        <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider mb-3">Moderation Profile</h3>
+        <div class="flex flex-wrap gap-4 text-sm">
+            <div>
+                <span class="text-gray-500">Aggressiveness:</span>
+                <span class="ml-1 font-medium {% if mod.aggressiveness == 'extreme' %}text-red-400{% elif mod.aggressiveness == 'high' %}text-orange-400{% elif mod.aggressiveness == 'medium' %}text-yellow-400{% else %}text-green-400{% endif %}">{{ (mod.aggressiveness or 'unknown') | upper }}</span>
+            </div>
+            {% if mod.removal_rate is defined and mod.removal_rate is not none %}
+            <div>
+                <span class="text-gray-500">Removal rate:</span>
+                <span class="ml-1 font-medium text-white">{{ (mod.removal_rate * 100) | round(0) | int }}%</span>
+            </div>
+            {% endif %}
+            {% if risk_profile.dangerous_hours %}
+            <div>
+                <span class="text-gray-500">Dangerous hours:</span>
+                <span class="ml-1 font-medium text-orange-400">{{ risk_profile.dangerous_hours | join(', ') }}</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    </div>
     <div hx-get="/admin/subreddits/detail/{{ subreddit_name }}/emotional-profile"
          hx-trigger="load"
          hx-swap="innerHTML"

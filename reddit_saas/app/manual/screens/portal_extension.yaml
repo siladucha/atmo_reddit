@@ -1,0 +1,40 @@
+title: "Browser Extension"
+lifecycle_stage: "execution"
+
+flow_position:
+  flow_name: "Content Execution"
+  current_step: 3
+  total_steps: 4
+  steps:
+    - name: "Draft Generation"
+      active: false
+    - name: "Review & Approve"
+      active: false
+    - name: "Extension Setup"
+      active: true
+    - name: "Auto-Post"
+      active: false
+
+screen_context:
+  before: "Drafts approved in Review Queue"
+  after: "Extension auto-posts approved content at scheduled times"
+  description: "Install and configure the RAMP browser extension. It automatically posts approved content from your executor's browser session — no proxies or API tokens needed."
+
+screen_purpose: "Set up the posting execution channel. The extension handles the last mile: navigating to Reddit, inserting your approved comment, and submitting it at the right time."
+
+available_actions:
+  all:
+    - name: "Download Extension"
+      description: "Get the Chrome extension package for your executor to install"
+      destructive: false
+    - name: "View Extension Status"
+      description: "See if the extension is connected, last heartbeat, and execution stats"
+      destructive: false
+
+role_behavior:
+  summary: "Client admins can configure extension settings. Viewers can see status only."
+  differences:
+    - role: "Client Admin"
+      access: "Download, configure, view status"
+    - role: "Client Viewer"
+      access: "View connection status only"

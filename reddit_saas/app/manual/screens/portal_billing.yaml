@@ -1,0 +1,29 @@
+title: "Billing & Plan"
+lifecycle_stage: "account"
+
+screen_context:
+  before: "Settings or sidebar navigation"
+  after: "Plan changes take effect on next billing cycle"
+  description: "View your current plan, usage limits, and billing information. Upgrade to increase avatar count, comment volume, or add managed services."
+
+screen_purpose: "Understand your plan limits and current usage. See when you're approaching caps and what upgrade options are available."
+
+available_actions:
+  all:
+    - name: "View Current Plan"
+      description: "See your plan tier, monthly limits, and renewal date"
+      destructive: false
+    - name: "View Usage"
+      description: "See how many actions (comments, posts) were used this month vs your limit"
+      destructive: false
+    - name: "Request Upgrade"
+      description: "Contact your account manager to upgrade plan or add services"
+      destructive: false
+
+role_behavior:
+  summary: "Client admins see full billing details. Viewers see plan name and usage only."
+  differences:
+    - role: "Client Admin"
+      access: "Full billing details, can request changes"
+    - role: "Client Viewer"
+      access: "Plan name and usage percentage only"

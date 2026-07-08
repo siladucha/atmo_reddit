@@ -1,0 +1,42 @@
+title: "Activity Log"
+lifecycle_stage: "monitoring"
+
+flow_position:
+  flow_name: "Daily Operations"
+  current_step: 5
+  total_steps: 5
+  steps:
+    - name: "Dashboard"
+      active: false
+    - name: "Review Queue"
+      active: false
+    - name: "Schedule"
+      active: false
+    - name: "Avatars"
+      active: false
+    - name: "Activity"
+      active: true
+
+screen_context:
+  before: "Any page — activity log is a reference"
+  after: "Use insights to understand what the system did and why"
+  description: "Chronological feed of everything the system does for your account — scraping, scoring, generation, posting, health checks, and errors."
+
+screen_purpose: "Full transparency into system operations. Every action is logged so you can verify the pipeline is running and catch issues early."
+
+available_actions:
+  all:
+    - name: "Filter by Type"
+      description: "Focus on specific event types (generation, posting, health, scraping)"
+      destructive: false
+    - name: "Search Events"
+      description: "Find specific events by keyword or avatar name"
+      destructive: false
+
+role_behavior:
+  summary: "All client roles see the same activity feed. Events are scoped to your account only."
+  differences:
+    - role: "Client Admin"
+      access: "Full activity log"
+    - role: "Client Viewer"
+      access: "Full activity log (read-only)"

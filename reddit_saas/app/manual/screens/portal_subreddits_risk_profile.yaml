@@ -1,0 +1,46 @@
+title: "Subreddit Risk Profile"
+lifecycle_stage: "monitoring"
+
+flow_position:
+  flow_name: "Content Safety"
+  current_step: 2
+  total_steps: 4
+  steps:
+    - name: "Subreddits List"
+      active: false
+    - name: "Risk Profile"
+      active: true
+    - name: "Avatar Fitness"
+      active: false
+    - name: "Content Generation"
+      active: false
+
+screen_context:
+  before: "Subreddits list (click subreddit name)"
+  after: "System uses this data to decide where and when your avatars post"
+  description: "Detailed intelligence about a specific subreddit — its rules, moderation intensity, dangerous hours, and how well your avatars fit this community."
+
+screen_purpose: "Understand the risk landscape of a community before and during engagement. The system uses this profile to protect your avatars from removals and bans."
+
+available_actions:
+  all:
+    - name: "View Risk Score"
+      description: "Composite score (0–100) showing moderation aggressiveness. Lower = safer for your avatars."
+      destructive: false
+    - name: "Review Extracted Rules"
+      description: "AI-extracted rules from subreddit sidebar/wiki. Your avatars automatically respect these (karma minimums, posting limits, banned topics)."
+      destructive: false
+    - name: "Check Moderation Insights"
+      description: "How often comments get removed here, and at what hours. Avatars avoid 'dangerous hours' automatically."
+      destructive: false
+    - name: "Check Avatar Fitness"
+      description: "See which of your avatars are a good fit for this community based on karma, account age, and tone."
+      destructive: false
+
+role_behavior:
+  summary: "All client roles see the same risk profile data. No actions to take — this is intelligence for awareness."
+  differences:
+    - role: "Client Admin"
+      access: "Full read access to all sections"
+    - role: "Client Viewer"
+      access: "Full read access (same as admin — read-only page)"

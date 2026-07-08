@@ -118,13 +118,13 @@
 
             {# Client filter #}
             <span class="text-xs uppercase tracking-wider text-gray-500 font-medium">Client:</span>
-            <a href="/admin/subreddits{% if filter_type %}?type={{ filter_type }}{% endif %}{% if filter_status %}{{ '&' if filter_type else '?' }}status={{ filter_status }}{% endif %}"
+            <a href="/admin/subreddits{% if filter_type %}?type={{ filter_type }}{% endif %}{% if filter_status %}{{ '&' if filter_type else '?' }}status={{ filter_status }}{% endif %}{% if filter_q %}{{ '&' if (filter_type or filter_status) else '?' }}q={{ filter_q }}{% endif %}"
                class="px-2.5 py-1 rounded text-xs font-medium transition-colors
                       {% if not filter_client_id %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}">
                 All
             </a>
             {% for c in clients %}
-            <a href="/admin/subreddits?client_id={{ c.id }}{% if filter_type %}&type={{ filter_type }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}"
+            <a href="/admin/subreddits?client_id={{ c.id }}{% if filter_type %}&type={{ filter_type }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}{% if filter_q %}&q={{ filter_q }}{% endif %}"
                class="px-2.5 py-1 rounded text-xs font-medium transition-colors
                       {% if filter_client_id == (c.id|string) %}bg-indigo-600 text-white{% else %}bg-slate-700 text-gray-300 hover:bg-slate-600{% endif %}
                       {% if not c.is_active %}opacity-50 line-through{% endif %}"
@@ -388,20 +388,17 @@
     const visibleCount = document.getElementById('visible-count');
     let debounceTimer = null;
 
-    function filterRows() {
-        const query = searchInput.value.trim().toLowerCase();
+    function filterRowsLocal() {
+        // Stale-only is still client-side (works on current page)
         const staleOnly = staleCheckbox.checked;
         const rows = tbody.querySelectorAll('.subreddit-row');
         let shown = 0;
 
         rows.forEach(row => {
-            const name = row.dataset.name;
             const isStale = row.dataset.stale === 'true';
-
-            const matchesSearch = !query || name.includes(query);
             const matchesStale = !staleOnly || isStale;
 
-            if (matchesSearch && matchesStale) {
+            if (matchesStale) {
                 row.style.display = '';
                 shown++;
             } else {
@@ -414,16 +411,36 @@
             : '';
     }
 
+    function navigateWithSearch() {
+        const query = searchInput.value.trim();
+        const url = new URL(window.location.href);
+        if (query) {
+            url.searchParams.set('q', query);
+        } else {
+            url.searchParams.delete('q');
+        }
+        url.searchParams.set('page', '1');
+        window.location.href = url.toString();
+    }
+
     searchInput.addEventListener('input', function() {
         clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(filterRows, 150);
+        debounceTimer = setTimeout(navigateWithSearch, 500);
     });
 
-    staleCheckbox.addEventListener('change', filterRows);
+    searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            clearTimeout(debounceTimer);
+            navigateWithSearch();
+        }
+    });
 
-    // If there's a server-side search query, also apply client-side filter on load
-    if (searchInput.value.trim()) {
-        filterRows();
+    staleCheckbox.addEventListener('change', filterRowsLocal);
+
+    // Apply stale filter on load if checked
+    if (staleCheckbox.checked) {
+        filterRowsLocal();
     }
 })();
 </script>

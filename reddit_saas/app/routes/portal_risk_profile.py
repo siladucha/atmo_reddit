@@ -189,50 +189,167 @@ def portal_subreddit_risk_profile(
     # Risk score history for sparkline (up to 12 weeks)
     risk_score_history = profile.risk_score_history if profile else []
 
-    # Next computation date (next Sunday 05:30)
+    # Next computation date — use adaptive next_check_at if set, otherwise next Sunday
     now = datetime.now(timezone.utc)
-    days_until_sunday = (6 - now.weekday()) % 7
-    if days_until_sunday == 0 and now.hour >= 5:
-        days_until_sunday = 7
-    next_computation = (now + timedelta(days=days_until_sunday)).strftime("%Y-%m-%d")
+    if profile and profile.next_check_at:
+        nc = profile.next_check_at
+        if nc <= now:
+            next_computation = "within 24 hours (due)"
+        else:
+            nc_days = (nc - now).total_seconds() / 86400
+            if nc_days < 1:
+                next_computation = f"in ~{int(nc_days * 24)} hours"
+            else:
+                next_computation = f"{nc.strftime('%Y-%m-%d')} (in {int(nc_days)} days)"
+    else:
+        days_until_sunday = (6 - now.weekday()) % 7
+        if days_until_sunday == 0 and now.hour >= 5:
+            days_until_sunday = 7
+        next_computation = (now + timedelta(days=days_until_sunday)).strftime("%Y-%m-%d")
 
-    # Sidebar context for portal layout
-    from app.models.client import Client
-
+    # Resolve effective client_id for sidebar
     effective_client_id = client_id or current_user.client_id
-    client_obj = None
-    if effective_client_id:
-        client_obj = db.query(Client).filter(Client.id == effective_client_id).first()
+    # For owner/partner without client_id — resolve from subreddit assignment
+    if not effective_client_id:
+        assignment = (
+            db.query(ClientSubredditAssignment)
+            .filter(
+                ClientSubredditAssignment.subreddit_id == subreddit_id,
+                ClientSubredditAssignment.is_active.is_(True),
+            )
+            .first()
+        )
+        if assignment:
+            effective_client_id = assignment.client_id
+
+    # Emotional profile (community tone) — from AvatarSubredditCompatibility or dedicated table
+    emotional_profile = None
+    try:
+        from sqlalchemy import text as sa_text
+        # Try dedicated emotional profiles table first
+        ep_row = db.execute(
+            sa_text("SELECT emotional_profile FROM subreddit_emotional_profiles WHERE subreddit_name = :name LIMIT 1"),
+            {"name": subreddit.subreddit_name},
+        ).fetchone()
+        if ep_row and ep_row[0]:
+            import json
+            ep_data = ep_row[0] if isinstance(ep_row[0], dict) else json.loads(ep_row[0])
+            emotional_profile = ep_data
+    except Exception:
+        db.rollback()
+
+    # Community stats — basic subreddit info from scraped data
+    community_stats = None
+    try:
+        from app.models.scrape_log import ScrapeLog
+        from sqlalchemy import func as sa_func
+
+        # Get average posts/day from last 30 days of scrape logs
+        thirty_days_ago = now - timedelta(days=30)
+        scrape_agg = db.execute(
+            sa_text("""
+                SELECT
+                    COUNT(*) as total_scrapes,
+                    COALESCE(SUM(posts_new), 0) as total_new_posts,
+                    COALESCE(AVG(posts_found), 0) as avg_found
+                FROM scrape_log
+                WHERE subreddit_name = :name AND scraped_at >= :since
+            """),
+            {"name": subreddit.subreddit_name, "since": thirty_days_ago},
+        ).fetchone()
+
+        if scrape_agg and scrape_agg[0] > 0:
+            total_scrapes = scrape_agg[0]
+            total_new = int(scrape_agg[1])
+            # Estimate posts/day: total new posts / 30 days
+            posts_per_day = round(total_new / 30, 1) if total_new > 0 else 0
+
+            community_stats = {
+                "posts_per_day": posts_per_day,
+                "avg_comments": None,  # Would need thread data
+                "subscribers": None,
+                "subscribers_display": None,
+                "active_users": None,
+                "active_users_display": None,
+            }
+
+            # Try to get subscriber count from subreddit model
+            if hasattr(subreddit, 'subscribers') and subreddit.subscribers:
+                subs_count = subreddit.subscribers
+                community_stats["subscribers"] = subs_count
+                if subs_count >= 1_000_000:
+                    community_stats["subscribers_display"] = f"{subs_count / 1_000_000:.1f}M"
+                elif subs_count >= 1_000:
+                    community_stats["subscribers_display"] = f"{subs_count / 1_000:.0f}K"
+                else:
+                    community_stats["subscribers_display"] = str(subs_count)
+    except Exception:
+        db.rollback()
+
+    # Build full sidebar context (same as _portal_render in portal.py)
+    from app.routes.portal import _get_sidebar_context
+    sidebar_ctx = _get_sidebar_context(effective_client_id, db) if effective_client_id else {
+        "client_id": "",
+        "client_name": "",
+        "pending_count": 0,
+        "has_shadowbanned": False,
+        "is_trial": False,
+        "trial_days_remaining": None,
+    }
+
+    # User info from request state (set by auth middleware)
+    user_name = getattr(request.state, "user_full_name", "") or ""
+    user_email = getattr(request.state, "user_email", "") or ""
+    user_role = getattr(request.state, "user_role", "") or ""
+
+    # App env
+    from app.config import get_settings as _get_settings
+    app_env = _get_settings().app_env
+
+    ctx = {
+        "request": request,
+        "user": current_user,
+        "subreddit": subreddit,
+        "subreddit_id": str(subreddit_id),
+        "profile": profile,
+        "no_profile": no_profile,
+        "insufficient_data": insufficient_data,
+        "moderation_not_computed": moderation_not_computed,
+        "risk_score": risk_score,
+        "risk_color": risk_color,
+        "extracted_rules": extracted_rules,
+        "extraction_date": extraction_date,
+        "moderation_profile": moderation_profile,
+        "dangerous_hours": dangerous_hours,
+        "dominant_timezone": dominant_timezone,
+        "recommendations": recommendations,
+        "avatar_fitness": avatar_fitness,
+        "risk_score_history": risk_score_history,
+        "next_computation": next_computation,
+        "emotional_profile": emotional_profile,
+        "community_stats": community_stats,
+        "active_page": "subreddits",
+        # Sidebar context
+        "user_name": user_name,
+        "user_email": user_email,
+        "user_role": user_role,
+        "app_env": app_env,
+        # Budget/usage defaults (not critical for risk profile page)
+        "budget_warning": False,
+        "budget_exhausted": False,
+        "usage_pct": 0,
+        "month_generated": 0,
+        "action_limit": 999,
+        "hidden_actions": set(),
+        "approval_actions": set(),
+        "pending_requests_count": 0,
+    }
+    ctx.update(sidebar_ctx)
 
     return templates.TemplateResponse(
         request,
         "client/subreddit_risk_profile.html",
-        {
-            "request": request,
-            "user": current_user,
-            "subreddit": subreddit,
-            "subreddit_id": str(subreddit_id),
-            "profile": profile,
-            "no_profile": no_profile,
-            "insufficient_data": insufficient_data,
-            "moderation_not_computed": moderation_not_computed,
-            "risk_score": risk_score,
-            "risk_color": risk_color,
-            "extracted_rules": extracted_rules,
-            "extraction_date": extraction_date,
-            "moderation_profile": moderation_profile,
-            "dangerous_hours": dangerous_hours,
-            "dominant_timezone": dominant_timezone,
-            "recommendations": recommendations,
-            "avatar_fitness": avatar_fitness,
-            "risk_score_history": risk_score_history,
-            "next_computation": next_computation,
-            "active_page": "subreddits",
-            # Portal sidebar context
-            "client_id": str(effective_client_id) if effective_client_id else "",
-            "client_name": client_obj.client_name if client_obj else "",
-            "is_trial": client_obj.plan_type == "trial" if client_obj else False,
-        },
+        ctx,
     )
 
 
@@ -271,7 +388,7 @@ def portal_risk_profile_daily_history(
     else:
         # Client-scoped: compute daily stats from comment drafts for client's avatars only
         thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
-        from sqlalchemy import cast, Date as SQLDate, func
+        from sqlalchemy import cast, case, Date as SQLDate, func
 
         # Get daily stats from CommentDraft for client's avatars in this subreddit
         from app.models.thread import RedditThread
@@ -281,7 +398,7 @@ def portal_risk_profile_daily_history(
                 cast(CommentDraft.posted_at, SQLDate).label("date"),
                 func.count(CommentDraft.id).label("comments_posted"),
                 func.sum(
-                    func.case(
+                    case(
                         (CommentDraft.is_deleted == False, 1),  # noqa: E712
                         else_=0,
                     )

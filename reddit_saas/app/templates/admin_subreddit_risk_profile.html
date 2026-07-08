@@ -12,21 +12,13 @@
     {% include "partials/risk_profile_header.html" %}
 
     {% if insufficient_data %}
-    <!-- Informational message: insufficient data -->
-    <div class="mb-6 p-4 bg-slate-800 border border-slate-600 rounded-lg">
-        <div class="flex items-start gap-3">
-            <span class="text-2xl">📊</span>
-            <div>
-                <h3 class="text-white font-medium">Risk Data Not Yet Available</h3>
-                <p class="text-gray-400 text-sm mt-1">
-                    This subreddit does not have enough posting data to compute a reliable risk profile.
-                    At least 5 posted comments are required before moderation patterns can be analyzed.
-                </p>
-                <p class="text-gray-500 text-xs mt-2">
-                    Next scheduled computation: <span class="text-indigo-300">{{ next_computation }}</span> (Sunday 05:30 UTC)
-                </p>
-            </div>
-        </div>
+    <!-- Informational note: limited posting data -->
+    <div class="mb-4 px-4 py-2.5 bg-indigo-500/5 border border-indigo-500/20 rounded-lg flex items-center gap-2.5">
+        <span class="text-sm">ℹ️</span>
+        <p class="text-gray-400 text-sm m-0">
+            Risk score estimated (default 50) — fewer than 5 posted comments tracked. Score refines as data accumulates.
+            Next analysis: <span class="text-indigo-300">{{ next_computation }}</span>
+        </p>
     </div>
     {% endif %}
 

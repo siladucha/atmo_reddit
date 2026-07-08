@@ -28,6 +28,14 @@ _ROUTE_ALIASES: dict[str, str] = {
     "clients_keywords": "portal_keywords",
     "clients_settings": "portal_settings",
     "clients_notifications": "portal_notifications",
+    "clients_visibility": "portal_visibility",
+    "clients_activity": "portal_activity",
+    "clients_extension": "portal_extension",
+    "clients_landscape": "portal_landscape",
+    "clients_help": "portal_help",
+    "clients_tasks": "portal_tasks",
+    "clients_team": "portal_team",
+    "clients_billing": "portal_billing",
 }
 
 

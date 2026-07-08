@@ -1,0 +1,44 @@
+title: "AI Visibility"
+lifecycle_stage: "monitoring"
+
+flow_position:
+  flow_name: "Brand Intelligence"
+  current_step: 1
+  total_steps: 3
+  steps:
+    - name: "AI Visibility"
+      active: true
+    - name: "Strategy"
+      active: false
+    - name: "Report"
+      active: false
+
+screen_context:
+  before: "Dashboard or sidebar navigation"
+  after: "Insights feed into content strategy adjustments"
+  description: "Monitor how often AI search engines (ChatGPT, Perplexity, Claude) mention your brand when users ask relevant questions."
+
+screen_purpose: "See where you stand in AI-powered search results compared to competitors. Understand which categories you're visible in and where the gaps are."
+
+available_actions:
+  all:
+    - name: "View Current Visibility"
+      description: "Brand mention rate across AI engines — measured every Tuesday and Friday"
+      destructive: false
+    - name: "Compare with Competitors"
+      description: "See share-of-voice chart showing your position vs top competitors"
+      destructive: false
+    - name: "Identify Category Gaps"
+      description: "See which question categories mention your brand (and which don't yet)"
+      destructive: false
+    - name: "Read AI Excerpts"
+      description: "Actual quotes from AI answers that mention your brand — proof of visibility"
+      destructive: false
+
+role_behavior:
+  summary: "All client roles see the same visibility data. This is a read-only intelligence page."
+  differences:
+    - role: "Client Admin"
+      access: "Full read access"
+    - role: "Client Viewer"
+      access: "Full read access (same data)"

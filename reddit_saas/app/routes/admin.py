@@ -2208,6 +2208,17 @@ def admin_subreddit_detail(
     if not overview:
         return RedirectResponse(url="/admin/subreddits", status_code=303)
 
+    # Load risk profile for this subreddit
+    sub = overview["subreddit"]
+    risk_profile = None
+    if sub:
+        from app.models.subreddit_risk_profile import SubredditRiskProfile
+        risk_profile = (
+            db.query(SubredditRiskProfile)
+            .filter(SubredditRiskProfile.subreddit_id == sub.id)
+            .first()
+        )
+
     scrape_history = subreddit_intel.get_scrape_history(db, subreddit_name, limit=15)
     avatar_performance = subreddit_intel.get_avatar_performance(db, subreddit_name)
     community_leaders = subreddit_intel.get_top_community_users(db, subreddit_name, limit=15)
@@ -2230,6 +2241,7 @@ def admin_subreddit_detail(
             "active_nav": "subreddits",
             "subreddit_name": subreddit_name,
             "overview": overview,
+            "risk_profile": risk_profile,
             "scrape_history": scrape_history,
             "avatar_performance": avatar_performance,
             "community_leaders": community_leaders,
@@ -4902,11 +4914,30 @@ def admin_ai_costs(
     client_id: str | None = None,
     period: str | None = None,
     sort: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
 ):
-    # Period filter: 7d, 30d, 90d, or all
-    period_map = {"7d": 7, "30d": 30, "90d": 90}
-    days = period_map.get(period) if period else None
-    active_period = period or "all"
+    # Date range takes priority over period buttons
+    days = None
+    active_period = "all"
+
+    if date_from:
+        # Custom date range
+        try:
+            from datetime import date as date_type
+            d_from = datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            d_to = datetime.strptime(date_to, "%Y-%m-%d").replace(tzinfo=timezone.utc) if date_to else datetime.now(timezone.utc)
+            # Calculate days from d_from to now for the service calls
+            days_delta = (datetime.now(timezone.utc) - d_from).days
+            days = max(1, days_delta)
+            active_period = "custom"
+        except (ValueError, TypeError):
+            date_from = None
+            date_to = None
+    elif period:
+        period_map = {"7d": 7, "30d": 30, "90d": 90}
+        days = period_map.get(period)
+        active_period = period or "all"
 
     summary = admin_service.get_ai_cost_summary(db, days=days)
     by_client = admin_service.get_ai_costs_by_client(db, days=days)
@@ -4914,7 +4945,7 @@ def admin_ai_costs(
     by_stage = admin_service.get_ai_costs_by_stage(db, days=days)
     by_model = admin_service.get_ai_costs_by_model(db, days=days)
     by_avatar = admin_service.get_ai_costs_by_avatar(db, days=days)
-    timeline = admin_service.get_ai_costs_daily_timeline(db, days=14)
+    timeline = admin_service.get_ai_costs_daily_timeline(db, days=days or 14)
     recent_calls = admin_service.get_ai_costs_recent_calls(db, limit=30, client_id=client_id)
     efficiency = admin_service.get_ai_cost_efficiency(db, days=days)
 
@@ -4955,6 +4986,8 @@ def admin_ai_costs(
             "clients": clients,
             "filter_client_id": client_id or "",
             "active_period": active_period,
+            "date_from": date_from or "",
+            "date_to": date_to or "",
         },
         request=request,
     )
@@ -5561,6 +5594,72 @@ async def onboard_step4_avatars(
     return RedirectResponse(
         url=f"/admin/clients/{client.id}/onboard/step/5",
         status_code=303,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Agent Roadmap (read-only view of data/10_roadmap.json)
+# ---------------------------------------------------------------------------
+
+@router.get("/roadmap", response_class=HTMLResponse)
+def admin_roadmap(
+    request: Request,
+    current_user: User = Depends(require_superuser),
+):
+    """Display agent roadmap from data/10_roadmap.json. Owner + Partner access."""
+    import json
+    from pathlib import Path
+
+    roadmap_file = Path(__file__).resolve().parent.parent.parent / "data" / "10_roadmap.json"
+
+    roadmap_data = {}
+    if roadmap_file.exists():
+        with open(roadmap_file, "r") as f:
+            roadmap_data = json.load(f)
+
+    meta = roadmap_data.get("meta", {})
+    phases = roadmap_data.get("phases", [])
+    items = roadmap_data.get("items", [])
+
+    # Group items by phase
+    phase_items: dict[str, list] = {}
+    for item in items:
+        phase_items.setdefault(item.get("phase", "P3"), []).append(item)
+
+    # Count by phase
+    phase_counts: dict[str, int] = {}
+    for item in items:
+        p = item.get("phase", "P3")
+        phase_counts[p] = phase_counts.get(p, 0) + 1
+
+    # Count by status
+    status_counts: dict[str, int] = {}
+    for item in items:
+        st = item.get("status", "unknown")
+        status_counts[st] = status_counts.get(st, 0) + 1
+
+    # Count by type
+    type_counts: dict[str, int] = {}
+    for item in items:
+        tp = item.get("type", "other")
+        type_counts[tp] = type_counts.get(tp, 0) + 1
+    type_list = sorted(type_counts.keys())
+
+    return templates.TemplateResponse(
+        name="admin_roadmap.html",
+        context={
+            "request": request,
+            "active_nav": "roadmap",
+            "meta": meta,
+            "phases": phases,
+            "phase_items": phase_items,
+            "phase_counts": phase_counts,
+            "status_counts": status_counts,
+            "type_counts": type_counts,
+            "type_list": type_list,
+            "total_items": len(items),
+        },
+        request=request,
     )
 
 
@@ -6515,7 +6614,7 @@ def admin_review(
     from app.models.thread_score import ThreadScore
     from sqlalchemy.orm import joinedload
 
-    if status not in ("pending", "approved", "posted", "rejected"):
+    if status not in ("pending", "approved", "posted", "rejected", "expired"):
         status = "pending"
     if content_type not in ("comments", "posts", "all"):
         content_type = "comments"
@@ -8418,10 +8517,11 @@ def admin_avatar_delivery_channel(
     request: Request,
     avatar_id: uuid.UUID,
     channel: str = Form(...),
-    current_user: User = Depends(require_owner),
+    current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
-    """Set avatar delivery channel: email, extension, or both."""
+    """Set avatar delivery channel: email, extension, or both.
+    Available to owner and partner."""
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
         raise HTTPException(status_code=404, detail="Avatar not found")
@@ -9667,15 +9767,35 @@ def admin_analyze_emotional_profile(
     db: Session = Depends(get_db),
 ):
     """Trigger on-demand emotional profile analysis for a subreddit."""
+    from sqlalchemy import func as sa_func
+    from app.models.subreddit import Subreddit
     from app.tasks.emotional_profile import analyze_subreddit_emotional_profile
+
+    # Pre-check: subreddit must exist in DB
+    subreddit = (
+        db.query(Subreddit)
+        .filter(sa_func.lower(Subreddit.subreddit_name) == subreddit_name.lower())
+        .first()
+    )
+    if not subreddit:
+        return HTMLResponse(
+            '<span class="text-red-400 text-sm">'
+            f'❌ Subreddit &quot;{subreddit_name}&quot; not found in registry. Add it first.'
+            '</span>'
+        )
+
+    # Clear previous error before dispatching
+    subreddit.emotional_profile_error = None
+    db.commit()
 
     # Dispatch Celery task
     analyze_subreddit_emotional_profile.delay(subreddit_name)
 
     return HTMLResponse(
-        '<span class="text-amber-400 text-sm">'
-        '⏳ Analysis started... Refresh page in 30s to see results.'
-        '</span>'
+        '<div class="text-amber-400 text-sm">'
+        '⏳ Analysis started... Refresh page in 30-60s to see results.'
+        '<br><span class="text-gray-500 text-xs">Task dispatched to worker queue.</span>'
+        '</div>'
     )
 
 
@@ -9697,11 +9817,18 @@ def admin_get_emotional_profile_partial(
     )
 
     if not subreddit or not subreddit.emotional_profile:
-        # No profile yet — show empty state with trigger button
+        # No profile yet — show empty state with trigger button + error if any
+        error_html = ""
+        if subreddit and subreddit.emotional_profile_error:
+            error_html = (
+                f'<p class="text-red-400 text-xs mb-2">⚠️ Last attempt failed: '
+                f'{subreddit.emotional_profile_error}</p>'
+            )
         return HTMLResponse(
             '<div class="bg-gray-800 rounded-lg p-4">'
             '<h3 class="text-sm font-medium text-gray-400 uppercase mb-2">Emotional Profile</h3>'
             '<p class="text-gray-500 text-sm mb-3">Not yet analyzed</p>'
+            f'{error_html}'
             f'<button hx-post="/admin/subreddits/detail/{subreddit_name}/analyze-profile" '
             'hx-swap="outerHTML" '
             'class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded">'
@@ -10202,3 +10329,111 @@ def admin_reset_all_permissions(
         url=f"/admin/clients/{client_id}/permissions",
         status_code=303,
     )
+
+
+# ---------------------------------------------------------------------------
+# Ops Notifications (admin bell)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/ops-notifications", response_class=JSONResponse)
+def get_ops_notifications(
+    current_user: User = Depends(require_superuser),
+):
+    """Get recent ops notifications for admin bell."""
+    from app.services.ops_notifications import get_recent_ops_notifications, get_unread_ops_count
+
+    notifications = get_recent_ops_notifications(limit=20)
+    count = get_unread_ops_count()
+    return JSONResponse({"notifications": notifications, "unread_count": count})
+
+
+@router.post("/api/ops-notifications/clear", response_class=JSONResponse)
+def clear_ops_notifications_route(
+    current_user: User = Depends(require_superuser),
+):
+    """Clear all ops notifications (mark as read)."""
+    from app.services.ops_notifications import clear_ops_notifications
+
+    clear_ops_notifications()
+    return JSONResponse({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# User Profile (owner/partner)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/profile", response_class=HTMLResponse)
+def admin_profile(
+    request: Request,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """User profile page — notification settings, Telegram connection."""
+    return templates.TemplateResponse(
+        "admin_profile.html",
+        context={
+            "request": request,
+            "user": current_user,
+            "active_nav": "profile",
+            "flash_message": request.query_params.get("msg"),
+            "flash_type": request.query_params.get("type", "success"),
+        },
+        request=request,
+    )
+
+
+@router.post("/profile/telegram/connect", response_class=RedirectResponse)
+def admin_profile_telegram_connect(
+    chat_id: str = Form(...),
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Connect Telegram by saving chat_id."""
+    from datetime import datetime, timezone
+
+    chat_id = chat_id.strip()
+    if not chat_id or not chat_id.lstrip("-").isdigit():
+        return RedirectResponse(
+            url="/admin/profile?msg=Invalid+Chat+ID.+Must+be+a+number.&type=error",
+            status_code=303,
+        )
+
+    current_user.telegram_chat_id = chat_id
+    current_user.telegram_connected_at = datetime.now(timezone.utc)
+    if not current_user.telegram_notifications_level:
+        current_user.telegram_notifications_level = "critical"
+    db.commit()
+
+    return RedirectResponse(url="/admin/profile?msg=Telegram+connected!", status_code=303)
+
+
+@router.post("/profile/telegram/disconnect", response_class=RedirectResponse)
+def admin_profile_telegram_disconnect(
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Disconnect Telegram."""
+    current_user.telegram_chat_id = None
+    current_user.telegram_connected_at = None
+    db.commit()
+
+    return RedirectResponse(url="/admin/profile?msg=Telegram+disconnected.&type=success", status_code=303)
+
+
+@router.post("/profile/telegram/level", response_class=RedirectResponse)
+def admin_profile_telegram_level(
+    level: str = Form(...),
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Update notification level."""
+    valid_levels = {"all", "warning", "critical", "off"}
+    if level not in valid_levels:
+        level = "critical"
+
+    current_user.telegram_notifications_level = level
+    db.commit()
+
+    return RedirectResponse(url="/admin/profile?msg=Notification+level+updated.&type=success", status_code=303)

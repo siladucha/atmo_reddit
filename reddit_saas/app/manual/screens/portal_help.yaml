@@ -1,0 +1,22 @@
+title: "Help & Documentation"
+lifecycle_stage: "support"
+
+screen_context:
+  before: "Any page — help is always accessible from sidebar"
+  after: "Return to any page with better understanding"
+  description: "Central help hub with guides, FAQ, and contact information for support."
+
+screen_purpose: "Find answers to common questions about how RAMP works, how to manage your campaign, and how to get support when needed."
+
+available_actions:
+  all:
+    - name: "Browse Guides"
+      description: "Step-by-step guides for common tasks (reviewing drafts, managing avatars, reading reports)"
+      destructive: false
+    - name: "Contact Support"
+      description: "Reach out to your account manager for help"
+      destructive: false
+
+role_behavior:
+  summary: "All roles see the same help content."
+  differences: []

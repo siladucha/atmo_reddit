@@ -1,0 +1,38 @@
+title: "Landscape Report"
+lifecycle_stage: "strategy"
+
+flow_position:
+  flow_name: "Market Intelligence"
+  current_step: 1
+  total_steps: 3
+  steps:
+    - name: "Landscape"
+      active: true
+    - name: "Strategy"
+      active: false
+    - name: "Execution"
+      active: false
+
+screen_context:
+  before: "Generated during onboarding or triggered by discovery engine"
+  after: "Findings inform your content strategy and subreddit selection"
+  description: "AI-generated competitive landscape analysis of your market on Reddit — who's active, what communities discuss, and where the opportunities are."
+
+screen_purpose: "Understand the Reddit landscape for your niche before committing resources. See which competitors are present, which communities are most relevant, and where gaps exist."
+
+available_actions:
+  all:
+    - name: "View Landscape Report"
+      description: "Read the full AI-generated analysis of your market's Reddit presence"
+      destructive: false
+    - name: "View Entities & Hypotheses"
+      description: "See extracted entities (competitors, communities, topics) and validated hypotheses"
+      destructive: false
+
+role_behavior:
+  summary: "All client roles see the same landscape report."
+  differences:
+    - role: "Client Admin"
+      access: "Full report + can request refresh (rate-limited)"
+    - role: "Client Viewer"
+      access: "Full report (read-only)"

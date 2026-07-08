@@ -1,14 +1,13 @@
 {% extends "client_base.html" %}
-
 {% block title %}Risk Profile — r/{{ subreddit.subreddit_name }}{% endblock %}
 
 {% block content %}
 <div id="portal-content">
     <div style="margin-bottom:var(--space-4);">
         <nav style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:var(--space-2);">
-            <a href="/clients/{{ client_id }}/subreddits" style="color:var(--color-muted);text-decoration:none;">Subreddits</a>
+            <a href="/clients/{{ client_id }}/subreddits" style="color:var(--color-muted);text-decoration:none;">← Subreddits</a>
             <span style="margin:0 6px;">/</span>
-            <span style="color:var(--color-white);">r/{{ subreddit.subreddit_name }} — Risk Profile</span>
+            <span style="color:var(--color-white);">r/{{ subreddit.subreddit_name }}</span>
         </nav>
     </div>
 
@@ -17,7 +16,13 @@
         <div style="display:flex;align-items:center;justify-content:space-between;">
             <div>
                 <h1 class="text-h1">r/{{ subreddit.subreddit_name }}</h1>
-                <p class="text-small" style="margin-top:4px;">Subreddit Risk Profile</p>
+                <p class="text-small" style="margin-top:4px;">
+                    Subreddit Risk Profile
+                    <span class="tooltip-macro-wrapper">
+                        <span class="tooltip-macro-trigger" tabindex="0">ℹ️</span>
+                        <span class="tooltip-macro-popup">A composite score (0–100) measuring how aggressively this subreddit moderates new accounts. Lower = safer for your avatars. Updated weekly.</span>
+                    </span>
+                </p>
             </div>
             <div style="display:flex;align-items:center;gap:12px;">
                 <!-- Risk Score Badge -->
@@ -28,61 +33,68 @@
             </div>
         </div>
 
-        {% if profile and profile.confidence_level != 'insufficient_data' %}
-        <div style="margin-top:12px;display:flex;align-items:center;gap:16px;font-size:var(--text-micro);color:var(--color-muted);">
-            {% if profile.last_profile_computed_at %}
-            <span>Last computed: {{ profile.last_profile_computed_at.strftime('%Y-%m-%d %H:%M') }} UTC</span>
+        <!-- Timestamps row -->
+        {% if profile %}
+        <div style="margin-top:12px;display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;font-size:var(--text-small);color:var(--color-muted);">
+            {% if profile.last_rule_extraction_at %}
+            <span>📋 Rules extracted: <strong style="color:var(--color-white);">{{ profile.last_rule_extraction_at.strftime('%b %d, %Y') }}</strong></span>
             {% endif %}
+            {% if profile.last_profile_computed_at %}
+            <span>📊 Moderation analyzed: <strong style="color:var(--color-white);">{{ profile.last_profile_computed_at.strftime('%b %d, %Y') }}</strong></span>
+            {% endif %}
+            <span>🔄 Next analysis: <strong style="color:#a5b4fc;">{{ next_computation }}</strong></span>
             {% if profile.confidence_level %}
-            <span style="padding:2px 8px;border-radius:var(--radius-pill);background:var(--color-surface-alt);color:var(--color-muted);">Confidence: {{ profile.confidence_level }}</span>
+            <span style="padding:2px 8px;border-radius:var(--radius-pill);background:var(--color-surface-alt);">Confidence: {{ profile.confidence_level }}</span>
             {% endif %}
             {% if subreddit.is_high_risk %}
-            <span style="padding:2px 8px;border-radius:var(--radius-pill);background:rgba(239,68,68,0.15);color:var(--color-red);">HIGH RISK</span>
+            <span style="padding:2px 8px;border-radius:var(--radius-pill);background:rgba(239,68,68,0.15);color:var(--color-red);">⚠️ HIGH RISK</span>
             {% endif %}
         </div>
         {% endif %}
     </div>
 
     {% if insufficient_data %}
-    <!-- Informational message: insufficient data -->
-    <div class="surface" style="margin-bottom:var(--space-4);padding:var(--space-3);">
-        <div style="display:flex;align-items:flex-start;gap:12px;">
-            <span style="font-size:24px;">📊</span>
-            <div>
-                <h3 style="color:var(--color-white);font-weight:500;">Risk Data Not Yet Available</h3>
-                <p class="text-small" style="margin-top:6px;">
-                    This subreddit does not have enough posting data to compute a reliable risk profile.
-                    At least 5 posted comments are required before moderation patterns can be analyzed.
-                </p>
-                <p style="font-size:var(--text-micro);color:var(--color-muted);margin-top:8px;">
-                    Next scheduled computation: <span style="color:#a5b4fc;">{{ next_computation }}</span> (Sunday 05:30 UTC)
-                </p>
-            </div>
-        </div>
+    <div style="margin-bottom:var(--space-4);padding:10px 16px;border-radius:var(--radius-card);background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);display:flex;align-items:center;gap:10px;">
+        <span style="font-size:16px;">ℹ️</span>
+        <p style="font-size:var(--text-small);color:var(--color-muted);margin:0;">
+            Risk score is estimated (default 50) — fewer than 5 posted comments tracked here yet.
+            The score will become more accurate as your avatars post and we observe moderation patterns.
+        </p>
     </div>
     {% endif %}
 
-    <!-- Trend Chart (HTMX lazy-loaded) -->
+    <!-- Trend Chart -->
     <div class="surface" style="margin-bottom:var(--space-4);padding:var(--space-3);">
-        <h2 class="text-h3" style="margin-bottom:12px;">Risk Score Trend (12 weeks)</h2>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <h2 class="text-h3" style="margin:0;">Risk Score Trend</h2>
+            <span class="tooltip-macro-wrapper">
+                <span class="tooltip-macro-trigger" tabindex="0">ℹ️</span>
+                <span class="tooltip-macro-popup">Weekly risk score history (up to 12 weeks). Shows how moderation intensity changes over time. A rising trend means the sub is getting stricter.</span>
+            </span>
+        </div>
         <div
             hx-get="/portal/subreddits/{{ subreddit_id }}/risk-profile/trend-chart"
             hx-trigger="load"
             hx-swap="innerHTML"
         >
-            <!-- Loading skeleton -->
             <div style="height:96px;background:var(--color-surface-alt);border-radius:var(--radius-card);animation:pulse 2s infinite;"></div>
         </div>
     </div>
 
     <!-- Extracted Rules -->
     <div class="surface" style="margin-bottom:var(--space-4);padding:var(--space-3);">
-        <h2 class="text-h3" style="margin-bottom:12px;">Extracted Rules</h2>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <h2 class="text-h3" style="margin:0;">Subreddit Rules</h2>
+            <span class="tooltip-macro-wrapper">
+                <span class="tooltip-macro-trigger" tabindex="0">ℹ️</span>
+                <span class="tooltip-macro-popup">Rules extracted automatically from this subreddit's sidebar and wiki using AI. Your avatars respect these rules when generating content — e.g. minimum karma requirements or banned topics.</span>
+            </span>
+        </div>
         {% if extracted_rules %}
         <div style="display:flex;flex-direction:column;gap:8px;">
             {% for rule in extracted_rules %}
             <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 12px;background:var(--color-surface-alt);border-radius:var(--radius-card);">
-                <span style="font-size:14px;">
+                <span style="font-size:14px;flex-shrink:0;">
                     {% if rule.category == 'min_karma' %}🔒
                     {% elif rule.category == 'min_account_age' %}🔒
                     {% elif rule.category == 'no_self_promo' %}⚠️
@@ -91,11 +103,13 @@
                     {% elif rule.category == 'content_restriction' %}🚫
                     {% else %}📋{% endif %}
                 </span>
-                <div>
+                <div style="min-width:0;">
                     <span style="color:var(--color-white);font-size:var(--text-small);font-weight:500;">{{ rule.category | replace('_', ' ') | title }}</span>
-                    <span style="color:var(--color-muted);font-size:var(--text-small);margin-left:8px;">{{ rule.description }}</span>
                     {% if rule.threshold_value %}
-                    <span style="margin-left:8px;padding:1px 6px;border-radius:var(--radius-pill);background:rgba(99,102,241,0.15);color:#a5b4fc;font-size:var(--text-micro);">{{ rule.threshold_value }}</span>
+                    <span style="margin-left:6px;padding:1px 6px;border-radius:var(--radius-pill);background:rgba(99,102,241,0.15);color:#a5b4fc;font-size:var(--text-micro);">{{ rule.threshold_value }}</span>
+                    {% endif %}
+                    {% if rule.description %}
+                    <p style="margin:4px 0 0;color:var(--color-muted);font-size:var(--text-small);line-height:1.4;">{{ rule.description }}</p>
                     {% endif %}
                 </div>
             </div>
@@ -103,20 +117,25 @@
         </div>
         {% if extraction_date %}
         <p style="margin-top:12px;font-size:var(--text-micro);color:var(--color-muted);">
-            Last extracted: {{ extraction_date.strftime('%Y-%m-%d') }}
+            Last extracted: {{ extraction_date.strftime('%b %d, %Y') }}
         </p>
         {% endif %}
         {% else %}
-        <p class="text-small">No rules extracted yet. Rules are refreshed weekly from the subreddit sidebar.</p>
+        <p class="text-small" style="color:var(--color-muted);">No rules extracted yet. Analysis runs every Sunday — rules will appear after the next cycle.</p>
         {% endif %}
     </div>
 
     <!-- Moderation Insights -->
-    {% if not moderation_not_computed %}
     <div class="surface" style="margin-bottom:var(--space-4);padding:var(--space-3);">
-        <h2 class="text-h3" style="margin-bottom:12px;">Moderation Insights</h2>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <h2 class="text-h3" style="margin:0;">Moderation Insights</h2>
+            <span class="tooltip-macro-wrapper">
+                <span class="tooltip-macro-trigger" tabindex="0">ℹ️</span>
+                <span class="tooltip-macro-popup">Based on how often comments are removed and at what times. "Dangerous hours" are times when removals spike — your avatars avoid posting during these windows.</span>
+            </span>
+        </div>
+        {% if not moderation_not_computed %}
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;">
-            <!-- Aggressiveness -->
             <div style="padding:12px;background:var(--color-surface-alt);border-radius:var(--radius-card);">
                 <div style="font-size:var(--text-micro);color:var(--color-muted);margin-bottom:4px;">Aggressiveness</div>
                 <div style="font-weight:600;color:{% if moderation_profile.aggressiveness == 'extreme' %}var(--color-red){% elif moderation_profile.aggressiveness == 'high' %}#f97316{% elif moderation_profile.aggressiveness == 'medium' %}#eab308{% else %}var(--color-green){% endif %};">
@@ -128,8 +147,6 @@
                 </div>
                 {% endif %}
             </div>
-
-            <!-- Dangerous Hours -->
             {% if dangerous_hours %}
             <div style="padding:12px;background:var(--color-surface-alt);border-radius:var(--radius-card);">
                 <div style="font-size:var(--text-micro);color:var(--color-muted);margin-bottom:4px;">Dangerous Hours ({{ dominant_timezone }})</div>
@@ -138,8 +155,6 @@
                 </div>
             </div>
             {% endif %}
-
-            <!-- Patterns -->
             {% if moderation_profile.patterns %}
             <div style="padding:12px;background:var(--color-surface-alt);border-radius:var(--radius-card);">
                 <div style="font-size:var(--text-micro);color:var(--color-muted);margin-bottom:4px;">Top Pattern</div>
@@ -152,21 +167,12 @@
             </div>
             {% endif %}
         </div>
+        {% else %}
+        <p class="text-small" style="color:var(--color-muted);">
+            Moderation patterns require at least 5 posted comments to analyze. Data will appear as your avatars post here.
+        </p>
+        {% endif %}
     </div>
-    {% else %}
-    <div class="surface" style="margin-bottom:var(--space-4);padding:var(--space-3);">
-        <div style="display:flex;align-items:flex-start;gap:12px;">
-            <span style="font-size:20px;">⏳</span>
-            <div>
-                <h3 style="color:var(--color-white);font-weight:500;font-size:var(--text-small);">Moderation Insights Not Available</h3>
-                <p style="font-size:var(--text-micro);color:var(--color-muted);margin-top:4px;">
-                    Moderation patterns require at least 5 posted comments before insights are available.
-                    Data will appear after the weekly computation runs.
-                </p>
-            </div>
-        </div>
-    </div>
-    {% endif %}
 
     <!-- Recommendations -->
     {% if not moderation_not_computed and recommendations %}
@@ -183,9 +189,15 @@
     </div>
     {% endif %}
 
-    <!-- Avatar Fitness Table (client-scoped) -->
+    <!-- Avatar Fitness -->
     <div class="surface" style="margin-bottom:var(--space-4);padding:var(--space-3);">
-        <h2 class="text-h3" style="margin-bottom:12px;">Avatar Fitness</h2>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <h2 class="text-h3" style="margin:0;">Avatar Fitness</h2>
+            <span class="tooltip-macro-wrapper">
+                <span class="tooltip-macro-trigger" tabindex="0">ℹ️</span>
+                <span class="tooltip-macro-popup">How well each of your avatars fits this community. Score based on karma, account age, tone match, and posting history. Low score = avatar may get removed more often here.</span>
+            </span>
+        </div>
         {% if avatar_fitness %}
         <div style="overflow-x:auto;">
             <table style="width:100%;border-collapse:collapse;font-size:var(--text-small);">
@@ -206,14 +218,13 @@
                                 {% elif av.fitness_score >= 40 %}background:rgba(234,179,8,0.1);color:#eab308;
                                 {% else %}background:rgba(239,68,68,0.1);color:var(--color-red);{% endif %}">
                                 {{ av.fitness_score }}
-                                {% if av.fitness_score >= 70 %}OK{% elif av.fitness_score >= 40 %}WARN{% else %}BAD{% endif %}
                             </span>
                         </td>
                         <td style="padding:8px 12px;font-size:var(--text-micro);color:var(--color-muted);">
                             {% if av.mismatch_reasons %}
                             {{ av.mismatch_reasons | join(', ') }}
                             {% else %}
-                            <span style="color:var(--color-muted);">&mdash;</span>
+                            <span style="color:var(--color-green);">No issues</span>
                             {% endif %}
                         </td>
                     </tr>
@@ -222,26 +233,113 @@
             </table>
         </div>
         {% else %}
-        <p class="text-small">No avatar fitness scores computed yet for this subreddit.</p>
+        <p class="text-small" style="color:var(--color-muted);">Avatar fitness scores will appear once compatibility analysis runs (weekly cycle).</p>
         {% endif %}
     </div>
 
-    <!-- Daily History (HTMX lazy-loaded, client-scoped) -->
+    <!-- Daily History -->
     <div class="surface" style="margin-bottom:var(--space-4);padding:var(--space-3);">
-        <h2 class="text-h3" style="margin-bottom:12px;">Daily History (30 days)</h2>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <h2 class="text-h3" style="margin:0;">Daily History (30 days)</h2>
+            <span class="tooltip-macro-wrapper">
+                <span class="tooltip-macro-trigger" tabindex="0">ℹ️</span>
+                <span class="tooltip-macro-popup">Day-by-day breakdown of comments posted vs removed in this subreddit. Helps identify patterns — e.g. if removals spike on weekends or after rule changes.</span>
+            </span>
+        </div>
         <div
             hx-get="/portal/subreddits/{{ subreddit_id }}/risk-profile/daily-history"
             hx-trigger="load"
             hx-swap="innerHTML"
         >
-            <!-- Loading skeleton -->
             <div style="display:flex;flex-direction:column;gap:8px;">
                 <div style="height:32px;background:var(--color-surface-alt);border-radius:var(--radius-card);animation:pulse 2s infinite;"></div>
                 <div style="height:24px;background:var(--color-surface-alt);border-radius:var(--radius-card);opacity:0.7;animation:pulse 2s infinite;"></div>
                 <div style="height:24px;background:var(--color-surface-alt);border-radius:var(--radius-card);opacity:0.5;animation:pulse 2s infinite;"></div>
-                <div style="height:24px;background:var(--color-surface-alt);border-radius:var(--radius-card);opacity:0.3;animation:pulse 2s infinite;"></div>
             </div>
         </div>
+    </div>
+
+    <!-- Community Tone -->
+    <div class="surface" style="margin-bottom:var(--space-4);padding:var(--space-3);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <h2 class="text-h3" style="margin:0;">Community Tone</h2>
+            <span class="tooltip-macro-wrapper">
+                <span class="tooltip-macro-trigger" tabindex="0">ℹ️</span>
+                <span class="tooltip-macro-popup">AI analysis of how people communicate here — formality level, humor, expertise expectations. Your avatars adapt their voice to match this community's natural tone.</span>
+            </span>
+        </div>
+        {% if emotional_profile %}
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px;">
+            {% if emotional_profile.formality is defined %}
+            <div style="padding:12px;background:var(--color-surface-alt);border-radius:var(--radius-card);">
+                <div style="font-size:var(--text-micro);color:var(--color-muted);margin-bottom:4px;">Formality</div>
+                <div style="font-weight:600;color:var(--color-white);">{{ emotional_profile.formality | title }}</div>
+            </div>
+            {% endif %}
+            {% if emotional_profile.humor_level is defined %}
+            <div style="padding:12px;background:var(--color-surface-alt);border-radius:var(--radius-card);">
+                <div style="font-size:var(--text-micro);color:var(--color-muted);margin-bottom:4px;">Humor</div>
+                <div style="font-weight:600;color:var(--color-white);">{{ emotional_profile.humor_level | title }}</div>
+            </div>
+            {% endif %}
+            {% if emotional_profile.expertise_level is defined %}
+            <div style="padding:12px;background:var(--color-surface-alt);border-radius:var(--radius-card);">
+                <div style="font-size:var(--text-micro);color:var(--color-muted);margin-bottom:4px;">Expertise Expected</div>
+                <div style="font-weight:600;color:var(--color-white);">{{ emotional_profile.expertise_level | title }}</div>
+            </div>
+            {% endif %}
+            {% if emotional_profile.dominant_emotions %}
+            <div style="padding:12px;background:var(--color-surface-alt);border-radius:var(--radius-card);grid-column:1/-1;">
+                <div style="font-size:var(--text-micro);color:var(--color-muted);margin-bottom:6px;">Dominant Emotions</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                    {% for emotion in emotional_profile.dominant_emotions[:6] %}
+                    <span style="padding:3px 10px;border-radius:var(--radius-pill);background:rgba(99,102,241,0.12);color:#a5b4fc;font-size:var(--text-small);">{{ emotion }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% if emotional_profile.summary %}
+        <p class="text-small" style="margin-top:12px;line-height:1.6;color:var(--color-muted);font-style:italic;">
+            "{{ emotional_profile.summary }}"
+        </p>
+        {% endif %}
+        {% else %}
+        <p class="text-small" style="color:var(--color-muted);">
+            Community tone analysis runs weekly. Once available, it shows formality, humor level, expertise expectations, and dominant emotions — helping your avatars blend in naturally.
+        </p>
+        {% endif %}
+    </div>
+
+    <!-- Community Activity -->
+    <div class="surface" style="margin-bottom:var(--space-4);padding:var(--space-3);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <h2 class="text-h3" style="margin:0;">Community Activity</h2>
+            <span class="tooltip-macro-wrapper">
+                <span class="tooltip-macro-trigger" tabindex="0">ℹ️</span>
+                <span class="tooltip-macro-popup">Basic activity metrics for this subreddit — how many posts per day, subscriber count, etc. Helps gauge whether this is an active community worth investing in.</span>
+            </span>
+        </div>
+        {% if community_stats %}
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:12px;">
+            {% if community_stats.subscribers %}
+            <div style="padding:12px;background:var(--color-surface-alt);border-radius:var(--radius-card);text-align:center;">
+                <div style="font-size:20px;font-weight:700;color:var(--color-white);">{{ community_stats.subscribers_display }}</div>
+                <div style="font-size:var(--text-micro);color:var(--color-muted);margin-top:2px;">Members</div>
+            </div>
+            {% endif %}
+            {% if community_stats.posts_per_day %}
+            <div style="padding:12px;background:var(--color-surface-alt);border-radius:var(--radius-card);text-align:center;">
+                <div style="font-size:20px;font-weight:700;color:var(--color-white);">{{ community_stats.posts_per_day }}</div>
+                <div style="font-size:var(--text-micro);color:var(--color-muted);margin-top:2px;">Posts/Day</div>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <p class="text-small" style="color:var(--color-muted);">
+            Activity metrics will appear after the first scrape cycle completes for this subreddit.
+        </p>
+        {% endif %}
     </div>
 
 </div>
