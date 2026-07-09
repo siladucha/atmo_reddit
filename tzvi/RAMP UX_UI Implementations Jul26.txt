@@ -1,0 +1,610 @@
+﻿RAMP
+CLIENT PORTAL — UX/UI IMPLEMENTATION GUIDE
+For: Max Breger · From: Tzvi Vaknin · Status: Living document — updated per sprint
+
+
+This document is the single handoff between product direction and engineering.
+Each section covers one screen or component. Status column is updated as work progresses.
+Never consider a section closed until status = Done and Tzvi has signed off.
+
+
+	________________
+
+
+CONTEXT & DESIGN PHILOSOPHY
+Why this document exists.  The current build has the right foundation — dark theme, sidebar, metric cards, queue. But before we bring in a designer, we need to strip the noise so the designer has a clean surface to work on. This guide is the brief for that cleanup, and for every screen that follows.
+
+
+The client's job.  10–15 minutes per day. Approve content, check momentum, catch anything that needs attention. That is the entire daily workflow. Every element on every screen must either serve that workflow or be removed.
+
+
+The product's promise.  The client should feel like they are reviewing the work of a highly capable team — not operating a tool. If a screen requires explanation to be understood, the screen has failed.
+MASTER STATUS — ALL SCREENS
+Updated each sprint. Tzvi reviews and marks sign-off in the Status column.
+
+
+Screen / Component
+	Status
+	Notes
+	01 · Global nav & sidebar
+	🔄 In progress
+	See Section 01 — full redline below
+	02 · Onboarding progress bar
+	⏳ Pending
+	New component — spec in Section 02
+	03 · Help panel + walkthrough
+	⏳ Pending
+	New component — spec in Section 03
+	04 · Overview / Home dashboard
+	⏳ Pending
+	Full dashboard redline coming next sprint
+	05 · Daily queue screen
+	⏳ Pending
+	Core client workflow — priority after nav
+	06 · Voices screen
+	⏳ Pending
+	Replaces Avatars — spec + upsell flow
+	07 · Insights screen
+	⏳ Pending
+	Absorbs Landscape report
+	08 · AI visibility screen
+	⏳ Pending
+	Core pillar — own screen spec TBD
+	09 · Settings screen
+	⏳ Pending
+	Absorbs 8 items from old nav
+	10 · Upsell flows (Voices + Subreddits)
+	⏳ Pending
+	Spec in Section 06 + 09
+	11 · Mobile bottom nav
+	⏳ Pending
+	Spec in Section 01
+	12 · Interactive walkthrough tooltips
+	⏳ Pending
+	5-step system spec in Section 03
+	
+
+SIGN-OFF RULE: A screen moves to Done only after: (1) Max marks complete, (2) Tzvi reviews in browser, (3) no open redline comments remain. Sections marked In Progress may still have open items — check the section notes.
+________________
+
+
+01 · GLOBAL NAV & SIDEBAR
+Status: 🔄 In progress
+Priority: HIGHEST — all other screens depend on this shell being correct first.
+
+
+The Problem with the Current Build
+The current sidebar has 14 nav items. A client logging in for the first time has no idea where to go. The spec calls for 6 maximum. Everything else is either removed (admin-only) or moved into Settings sub-pages.
+
+
+Current item
+	Action
+	Destination
+	Home
+	Rename
+	→ "Overview"
+	Review Queue
+	Rename
+	→ "Daily queue"
+	Avatars
+	Rename + legal fix
+	→ "Voices" (see legal note below)
+	Subreddits
+	Remove from nav
+	→ Settings > Subreddits
+	Keywords
+	Remove from nav
+	→ Settings > Keywords
+	Strategy
+	Remove from nav
+	→ Sub-tab inside Voices screen
+	Landscape
+	Remove from nav
+	→ Section inside Insights + glimpse card in Overview
+	Report
+	Remove from nav
+	→ Download button inside Insights screen
+	AI Visibility
+	Keep
+	→ Stays as top-level nav item (core pillar)
+	Activity Log
+	Remove entirely
+	→ Admin-only. Never client-facing.
+	Schedule
+	Remove entirely
+	→ Internal EPG logic. Never client-facing.
+	My Requests
+	Remove entirely
+	→ Self-serve model makes this redundant.
+	Team
+	Remove from nav
+	→ Settings > Users and access
+	Extension
+	Remove from nav
+	→ Settings > Integrations + first-login banner
+	Profile
+	Remove from nav
+	→ Settings > My profile
+	Help & Docs
+	Remove from nav
+	→ "?" icon in topbar, opens help panel
+	Logout
+	Keep position
+	→ Bottom of Settings page or avatar dropdown
+	Run Pipeline
+	Remove entirely
+	→ Internal ops control. NEVER client-facing.
+	Rebuild EPG
+	Remove entirely
+	→ Internal ops control. NEVER client-facing.
+	
+
+LEGAL: The word "Avatars" cannot be used in client-facing copy. See legal risk document in project files. Replacement label is "Voices." This applies to nav labels, screen titles, card labels, tooltips, and all copy throughout the product.
+
+
+Final Nav Structure — 6 Items
+#
+	Label
+	Icon (Tabler outline)
+	Badge behaviour
+	Active state
+	1
+	Overview
+	ti-layout-dashboard
+	None
+	Left border 2.5px #2563C4 + #252540 bg
+	2
+	Daily queue
+	ti-inbox
+	Signal blue pill: pending draft count. Turns red if >10.
+	Left blue border
+	3
+	Voices
+	ti-message-circle-2
+	Red dot if any voice is in alert state.
+	Left blue border
+	4
+	Insights
+	ti-trending-up
+	None
+	Left blue border
+	5
+	AI visibility
+	ti-brain
+	None
+	Left blue border
+	—
+	Divider (0.5px)
+	—
+	—
+	—
+	6
+	Settings
+	ti-settings
+	None
+	Left blue border
+	
+
+Sidebar — Top Area Anatomy
+Element
+	Spec
+	Logo row
+	RAMP logotype + logomark. 26×26px mark, 14px/500 wordmark. Left-aligned. Margin-bottom 14px.
+	Client pill
+	Client logo (22px, auto-width) + client company name (12px/500, truncate at 20 chars). Background rgba(255,255,255,0.04). Border 0.5px rgba(255,255,255,0.07). Radius 7px. Padding 8px 10px. If no logo uploaded: show 2-letter initials in a #2563C4 square.
+	Onboarding bar
+	See Section 02. Appears directly below client pill when setup < 100%. Disappears when complete.
+	Nav items
+	6 items as above. Gap 1px between items. Section divider (0.5px) before Settings.
+	
+
+Sidebar — Bottom Area (Plan Widget)
+Bottom-pinned. Always visible. Contains the plan status and upgrade path without wasting a full nav slot.
+Element
+	Spec
+	Plan name
+	11px/500 #4E8EF5 "Starter plan" (or current plan name)
+	Usage count
+	11px #6B7280 "60 / 60 actions"
+	Progress bar
+	4px height. Fill: #2563C4 normally. Fill: #C62828 when at or over limit. Track: rgba(255,255,255,0.08). Radius 999px.
+	Upgrade link
+	11px/500 #4E8EF5 "Upgrade plan" with ti-arrow-up-right icon. Navigates to Settings > Plan and billing. Hidden if client is on Scale plan.
+	Container
+	Background rgba(37,99,196,0.08). Border 0.5px rgba(37,99,196,0.2). Radius 7px. Padding 10px 12px. Margin 0 6px.
+	
+
+Topbar — Layout
+Fixed topbar at top of content area (right of sidebar). Height: ~48px. Background: #0F0F1A. Border-bottom: 0.5px rgba(255,255,255,0.07).
+Element
+	Position
+	Spec
+	Screen title
+	Left
+	15px/500 #fff. E.g. "Overview"
+	Screen subtitle
+	Left, below title
+	11px/400 #6B7280. E.g. "4 voices active · Phase 3 live in r/netsec"
+	Time-frame selector
+	Right
+	Pill tabs: 30d / 60d / 90d. Active: border #2563C4, text #4E8EF5, bg rgba(37,99,196,0.14). Inactive: border rgba(255,255,255,0.1), text #6B7280. Persists in localStorage keyed to user ID. Shows on: Overview, Voices, Insights only.
+	"?" help button
+	Right, beside time-frame
+	28×28px. Icon ti-help-circle 15px #6B7280. Border 0.5px rgba(255,255,255,0.1). Radius 6px. Opens help panel (Section 03).
+	Daily queue CTA button
+	Right, primary
+	Signal blue (#2563C4) fill. White text 12px/500. "Daily queue" label + ti-inbox icon + count badge (white bg 22% opacity pill). Always visible on all screens. One tap from anywhere.
+	
+
+Mobile Navigation — Bottom Tab Bar
+On viewports < 768px: sidebar disappears. Fixed bottom tab bar appears. 5 tabs maximum. Settings and Help accessible from topbar icons.
+Tab
+	Icon
+	Badge
+	Notes
+	Overview
+	ti-layout-dashboard
+	None
+	Default active
+	Daily queue
+	ti-inbox
+	Count badge (#2563C4 pill)
+	Most important tab on mobile
+	Voices
+	ti-message-circle-2
+	Red dot if alert
+	—
+	Insights
+	ti-trending-up
+	None
+	—
+	AI visibility
+	ti-brain
+	None
+	—
+	Topbar on mobile: screen title left. Right side: "?" icon + settings icon (ti-settings) + queue button. Queue button may be text-less on mobile (icon + count badge only) to save space.
+
+
+REMOVE from the current build immediately: "Run Pipeline" button, "Rebuild EPG" button, and the blue explainer banner ("This is your campaign control center…"). These must never be visible to a client under any circumstances.
+________________
+
+
+02 · ONBOARDING PROGRESS BAR
+Status: ⏳ Pending — new component, not in current build.
+Placement: Inside the sidebar, directly below the client pill. Above the nav items.
+
+
+When It Appears and Disappears
+* Appears: when onboarding completion < 100%
+* Disappears: permanently once all 5 steps are complete. The space is reclaimed by the nav items moving up.
+* Persists across sessions — progress is server-side, not local state.
+
+
+Component Anatomy
+Element
+	Spec
+	Container
+	Background rgba(37,99,196,0.08). Border 0.5px rgba(37,99,196,0.2). Radius 7px. Padding 10px 11px. Margin-bottom 14px.
+	Header row
+	Left: "Setup progress" label (11px/500 #4E8EF5). Right: percentage (11px/500 #4E8EF5). Flex space-between. Margin-bottom 6px.
+	Progress bar
+	4px height. Fill: #2563C4. Track: rgba(255,255,255,0.08). Radius 999px. Margin-bottom 8px. Width = completion percentage.
+	Step checklist
+	5 rows. Each row: icon (ti-circle-check teal #1D9E75 if done / ti-circle #6B7280 if pending) + label 10px. Gap 3px between rows. Margin-bottom 8px.
+	"Continue setup" CTA
+	Full-width button. Background #2563C4. Text: "Continue setup" 11px/500 white + ti-arrow-right icon 12px. Radius 5px. Padding 6px 0. Navigates to the first incomplete onboarding step.
+	
+
+The 5 Onboarding Steps
+Step
+	Label in checklist
+	Considered complete when
+	1
+	Company profile
+	Company URL scraped and profile confirmed
+	2
+	ICP and keywords
+	ICP fields filled + keyword list confirmed
+	3
+	Tone of voice
+	Voice calibration loop passed (3+ sentences rated 4–5 stars)
+	4
+	Subreddit selection
+	At least 3 subreddits confirmed
+	5
+	Voice calibration
+	Final quality gate passed on Step 6 of onboarding wizard
+	
+
+The "Continue setup" button must land the client at the FIRST INCOMPLETE step, never at Step 1. If steps 1 and 2 are done and step 3 is pending, the button opens the onboarding wizard at Step 3 with all prior data pre-filled.
+________________
+
+
+03 · HELP PANEL + INTERACTIVE WALKTHROUGH
+Status: ⏳ Pending — new component, not in current build.
+
+
+Help Panel — Trigger and Container
+Triggered by the "?" icon button in the topbar. Slides in from the right as a panel overlay (not a modal — does not block the main content). Width: 300px on desktop. Full-screen on mobile. Can be dismissed by clicking outside or pressing Escape.
+Section
+	Contents
+	Header
+	Panel title "Help and support" (13px/500) + close button (ti-x, top-right)
+	Walkthrough card
+	Hero position — top of panel. Blue tint card (#E6F1FB bg, #B5D4F4 border). Title "Interactive walkthrough" (12px/500 #185FA5). Sub-label "A guided tour of the platform — takes about 3 minutes." Progress bar (5 segments, filled = completed steps). Primary CTA button "Start walkthrough" (signal blue fill). If tour previously started: shows "Resume walkthrough" instead.
+	Divider
+	0.5px border
+	Get help section
+	Label "Get help" (10px/500 muted caps). Three items: Contact support (ti-message-circle, blue icon), Documentation (ti-book, teal icon), Book an onboarding call (ti-calendar, amber icon). Each item: 30×30px icon tile + title (12px/500) + sub-label (11px muted) + chevron right.
+	Divider
+	0.5px border
+	About section
+	Label "About" (10px/500 muted caps). Two items: How RAMP works (ti-info-circle), What's new (ti-arrow-up-right).
+	
+
+Interactive Walkthrough — 5-Step System
+A guided overlay that introduces the platform on first login (or on demand from the Help panel). Each step highlights one element with a blue focus ring and shows a tooltip bubble above it.
+The tour can be exited at any step via the "Exit tour" button — always visible, never hidden. After exit, a toast confirms: "Tour paused — resume anytime from the Help panel." Completion state stored server-side.
+
+
+Step
+	Element highlighted
+	Tooltip title
+	Tooltip body (max 2 sentences)
+	1 of 5
+	Metric cards row (all 3)
+	Your three core metrics
+	These update in real time. Upvotes reflect community trust earned — the strongest signal that your voices are building credibility.
+	2 of 5
+	Daily queue button in topbar
+	Your daily 10 minutes
+	New comment drafts appear here each day for your approval. Approve, edit, or skip — your voices post what you authorise.
+	3 of 5
+	Voices nav item
+	Your community voices
+	These are the personas building your presence on Reddit. Each one earns credibility over time and unlocks brand mentions when ready.
+	4 of 5
+	AI visibility nav item
+	How AI search engines see you
+	RAMP tracks how often your brand appears in AI-generated answers. This is your long-term search authority score.
+	5 of 5
+	Strategic bulletin card
+	Your RAMP team, always on
+	This bulletin updates automatically with the most important action or opportunity for your account right now.
+	
+
+Tooltip Bubble Anatomy
+Element
+	Spec
+	Container
+	Background #1C1C2E. Border 0.5px rgba(37,99,196,0.5). Radius 10px. Padding 14px. Width 210px. Drop shadow 0 8px 24px rgba(0,0,0,0.5). Arrow: 11px rotated square at bottom-left of bubble, same bg + border.
+	Step label
+	9px/500 #4E8EF5 uppercase. E.g. "Step 1 of 5". Margin-bottom 5px.
+	Title
+	12px/500 #fff. Margin-bottom 4px.
+	Body
+	11px/400 #888888. Line-height 1.5. Margin-bottom 10px. Max 2 sentences.
+	Progress dots
+	5 dots, 5px circle each. Active: #2563C4. Inactive: rgba(255,255,255,0.15). Gap 4px.
+	"Exit tour" button
+	10px #6B7280. No border, no bg. Always on the left of the nav row.
+	"Next →" button
+	10px/500 #fff. Background #2563C4. Radius 4px. Padding 4px 10px. On last step: label changes to "Done."
+	
+
+Highlight Ring
+While a tooltip is active: the highlighted element gets a 1.5px solid #2563C4 border (border-radius matching the element). The rest of the screen dims to rgba(0,0,0,0.5). The highlighted element is NOT dimmed — it appears at full brightness above the overlay. Clicking anywhere on the dim overlay does not advance the tour — client must use the Next button or Exit.
+________________
+
+
+04 · OVERVIEW / HOME DASHBOARD
+Status: ⏳ Pending — full redline. Current build is partially correct but has critical issues.
+
+
+Critical Fixes Required NOW (Before Dashboard Spec)
+These items must be fixed before any new dashboard work starts. They are live in the current build and would be seen by a client today.
+
+
+* REMOVE: The blue explainer banner ("This is your campaign control center…"). If the UI needs a paragraph to explain itself, the UI has failed.
+* REMOVE: "Run Pipeline" and "Rebuild EPG" buttons. Internal ops. Never client-visible.
+* REMOVE: All Reddit usernames (u/Lena_Gupta19, u/d-wreck-w12, etc.) from the Momentum feed. Legal and operational risk.
+* REPLACE: "Synced subreddit karma for u/[username]" momentum entries with human-readable events (see event spec below).
+* REPLACE: "Welcome back / Here's your campaign at a glance" with screen title "Overview" + subtitle showing live status.
+* FIX: Budget banner shows "77/60" — a number over its own limit. Impossible state. Fix data or fix display.
+* MOVE: Budget alert from full-width top banner to the plan widget in the sidebar footer.
+* FIX: "Total Upvotes" number shown in green, "Comments Posted" in white — inconsistent. All metric card numbers use #fff.
+* FIX: "Subreddits Active: 0" but "3 with posted comments" — contradictory. Single metric, single definition.
+
+
+Dashboard Layout — Zone Map
+Single scrollable column inside the content area. Zones in order from top:
+Zone
+	Component
+	Visibility rule
+	Z1
+	Queue alert banner
+	Conditional — only when queue has pending drafts
+	Z2
+	3 headline metric cards
+	Always
+	Z3
+	2-column row: Voice progress (left) + Momentum feed (right)
+	Always
+	Z4
+	2-column row: Share of voice (left) + Strategic bulletin (right)
+	Always (SOV locked on Seed/Starter)
+	Z5
+	Next release features strip (3 cards)
+	Always — shows phase-gated cards with countdown
+	Z6
+	Plan-gated features strip (3 cards)
+	Always — shows locked cards for Growth plan features
+	
+
+Momentum Feed — Correct Event Format
+The current build shows raw system logs. Replace with these human-readable event types:
+Event type
+	Icon tile bg
+	Copy format
+	CTA
+	Breakout comment
+	#FAECE7 coral
+	[First name] earned [N] upvotes in r/[sub]
+	View thread →
+	Phase advance
+	#E6F1FB blue
+	[First name] advancing to Phase [N] in r/[sub]
+	View voice →
+	Competitor spike
+	#FAEEDA amber
+	[Competitor] mentioned [N]× in r/[sub] this week
+	View threads →
+	Content opportunity
+	#E1F5EE teal
+	[N] threads on [topic] — no authoritative answer yet
+	Download brief →
+	Voice alert
+	#FCEBEB red
+	[First name] has been paused — we are investigating
+	View voice →
+	New subreddit found
+	#E6F1FB blue
+	New sub found where your ICP is active: r/[sub]
+	Review →
+	NEVER show Reddit usernames in the Momentum feed or anywhere in the client portal. Use first names only (from the voice profile). Icons use Tabler outline icons at 14px inside coloured 28×28px tiles with radius 6px.
+
+
+Queue Alert Banner — Escalating States
+Queue depth
+	Visual treatment
+	0 items
+	Not rendered. No empty placeholder.
+	1–4 items
+	Amber pill in sidebar Daily queue badge only. No banner.
+	5–9 items
+	Full-width banner. Signal blue tint bg (#E6F1FB on light, rgba(37,99,196,0.12) on dark). Left: inbox icon + "[N] drafts waiting…" text. Right: "Review now" button (white bg, blue border, blue text 12px/500). Height: ~44px.
+	10+ items
+	Same banner but orange-tinted background. "Review now" button pulses with a subtle animation.
+	________________
+
+
+05 · UPSELL FLOWS — VOICES & SUBREDDITS
+Status: ⏳ Pending — new components.
+Stripe not yet connected. All purchase CTAs say "Talk to sales" until Stripe is live. When Stripe ships, replace "Talk to sales" with the appropriate plan/purchase flow. No other copy changes needed.
+
+
+Voices — "Add voice" Upsell Popup
+Triggered when client clicks "Add voice" button on the Voices screen (which replaces the current "Request New Avatar" button). Also triggers if client is at their voice limit and tries to interact with an "add" affordance.
+Element
+	Spec
+	Trigger
+	Button "Add voice" on Voices screen. If at plan limit, clicking this button opens the upsell popup instead of a request form.
+	Container
+	Right-side slide-in panel. Width 320px. Same animation as other slide-in panels. Not a modal — does not block the full screen. Dismissable by clicking outside or Escape.
+	Header
+	"Add a community voice" title (13px/500) + ti-message-circle-2 icon (16px #185FA5) + close button
+	Description
+	12px #6B7280 line-height 1.5. "Your current plan includes [N] voices. Adding more expands your presence and accelerates share of voice growth."
+	Tier cards
+	Three cards stacked. Standard (ti-user-plus, blue icon tile) / Silver — featured, border-accent (ti-star, teal icon tile, "Popular" badge) / Gold (ti-crown, purple icon tile). Each card: icon tile + name (12px/500) + detail line (11px muted). Featured card has 2px signal blue border (only exception to 0.5px rule).
+	Primary CTA
+	Full-width button. "Talk to sales" (12px/500 white on #2563C4). ti-message icon. On click: opens default email client to sales@ramp.com or opens Calendly link. To be confirmed.
+	Sub-note
+	10px #6B7280 centred below CTA. "Stripe billing coming soon — no credit card needed today."
+	
+
+Three Voice Tiers — Copy Spec
+Tier
+	Name in popup
+	Detail line
+	Badge
+	Standard
+	Standard voice
+	Fresh account · Phase 1 start · ~60 days to brand-eligible
+	—
+	Silver
+	Silver voice
+	500+ karma · Phase 2 start · brand-eligible faster
+	Popular
+	Gold
+	Gold voice
+	1,000+ karma · Phase 3 eligible from day one
+	—
+	
+
+Subreddits — Inline Upsell Tooltip (Settings > Subreddits)
+Triggered when client clicks "Add subreddit" and they are at their plan slot limit.
+Element
+	Spec
+	Slot counter bar
+	Persistent at top of the Subreddits settings section. "X / Y slots used" text (red if at limit, blue otherwise) + progress bar fill + "at limit" or "X remaining" label on right.
+	Trigger
+	Client clicks "Add subreddit" button at plan limit. Button does not depress. Tooltip appears above it.
+	Tooltip container
+	Background #FFFBEB (amber tint). Border 0.5px #F59E0B. Radius 8px. Padding 10px 12px. Appears above the "Add subreddit" button.
+	Tooltip copy
+	"You've used all [N] subreddit slots. [Contextual: if system found a new sub] We found r/[sub] — high ICP match. Add more slots to unlock it." 11px #633806.
+	"Talk to sales" button
+	Inside tooltip. Full-width within tooltip. Background #B45309. White text 11px/500. Radius 5px.
+	"Dismiss" button
+	Next to "Talk to sales." Border 0.5px #F59E0B. No fill. 11px #633806. Closes tooltip. If client tries to add again: tooltip reappears.
+	IMPORTANT: The subreddit the system found (r/[sub]) must remain visible on screen while the tooltip is showing — the client can see what they are being asked to unlock. Desire before door. Never grey out or hide the suggested subreddit card.
+
+
+General Upsell Rules — Apply to All Upsells
+* One upsell visible per screen at a time. Server determines which one.
+* Never use red colouring for upsells — red is reserved for safety/error states only.
+* Upsells are never blocking modals. Always inline tooltips or slide-in panels.
+* Always name the specific limit or opportunity ("5 / 5 slots used" not "You've reached your limit").
+* Always tell the client what they get ("adds 5 more slots" not "unlock more subreddits").
+* "Talk to sales" links to email or Calendly — to be confirmed with Tzvi. Replace with Stripe flow when billing is live.
+________________
+
+
+06 · WHAT'S COMING — SCREENS NOT YET SPECCED
+The following screens are confirmed in the product roadmap. Specs will be added to this document as each screen enters the next sprint. Nothing below should be built until a full spec section exists here.
+
+
+Screen
+	Priority
+	What it replaces / introduces
+	Daily queue
+	2nd
+	Full redline of current Review Queue. Core client workflow.
+	Voices screen
+	4tg
+	Replaces Avatars screen. Includes performance per voice + strategy sub-tab.
+	Insights screen
+	5th
+	New. Absorbs Landscape report. Contains SOV, content recs, subreddit performance.
+	AI visibility screen
+	3rd
+	New screen. One of the two core product pillars. Spec TBD.
+	Settings screen
+	6th
+	Full restructure. Must absorb: Subreddits, Keywords, Team, Extension, Notifications, Profile, Plan and billing.
+	Onboarding wizard
+	1st
+	Full multi-step flow. Spec exists in UX spec v4 document. Needs implementation review.
+	
+
+SPRINT ORDER: Nav shell → Onboarding bar → Help panel → Overview dashboard fixes → Daily queue. Do not start a new screen until the current one has Tzvi's sign-off.
+
+
+Open Questions — Requires Decision
+Question
+	Owner
+	Status
+	"Talk to sales" CTA destination: email or Calendly link?
+	Tzvi
+	⏳ Pending decision
+	Client logo upload: where in onboarding or settings?
+	Tzvi + Max
+	⏳ Pending decision
+	"Voices" label: confirm this is legally cleared as client-facing copy?
+	Tzvi + Legal
+	⏳ Pending confirmation
+	Stripe ETA: when do "Talk to sales" CTAs flip to self-serve billing?
+	Tzvi
+	⏳ Pending decision
+	________________
