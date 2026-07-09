@@ -50,7 +50,7 @@ Each stage operates on specific schedules, with independent failure modes and sa
 
 ## 3. GENERATE (Comment Creation)
 
-**Schedule:** Immediately after scoring; EPG build 08:15, 14:15
+**Schedule:** Immediately after scoring; EPG build 08:15 (full daily budget), top-up 14:15 (fills remaining for underfilled avatars)
 
 **Pre-generation gate:** Fitness Gate (6 checks per avatar×subreddit pair)
 1. Subreddit ban → hard block
@@ -80,14 +80,20 @@ Each stage operates on specific schedules, with independent failure modes and sa
 
 **Who:** Operator, client manager, or auto-approve policy
 
-**Three paths:**
-1. **Manual review** — draft appears in Review Queue, human approve/reject/edit
-2. **Auto-approve (avatar-level)** — `avatar.auto_approve_drafts=true`
-3. **Auto-approve (client-level)** — `client.autopilot_enabled=true` (overrides avatar)
+**Four paths:**
+1. **Manual review (Admin UI)** — draft appears in Review Queue, human approve/reject/edit
+2. **Extension review (July 7, 2026)** — draft appears in extension popup "📝 Review Drafts" section, executor approve/reject
+3. **Auto-approve (avatar-level)** — `avatar.auto_approve_drafts=true`
+4. **Auto-approve (client-level)** — `client.autopilot_enabled=true` (overrides avatar)
+
+**Notification on pending drafts (when auto-approve=false):**
+- Portal bell (SSE) — "New draft ready for review" with link to review page
+- Extension badge — pending count shown on popup icon
+- *(Planned: Telegram inline buttons, email digest)*
 
 **On edit:** Learning service captures changes → extracts correction patterns → improves future generation
 
-**Safety:** Auto-approve is explicit configured policy (admin sets it), not bypass. P5 satisfied.
+**Safety:** Auto-approve is explicit configured policy (admin sets it), not bypass. Extension review = explicit human tap. P5 satisfied.
 
 ---
 
@@ -160,7 +166,7 @@ Each stage operates on specific schedules, with independent failure modes and sa
 |--------|----------|---------|
 | Health Check | 07:30, 13:30 | Shadowban/suspension detection (2-layer: global + per-sub) |
 | CQS Check | 06:30 (batch read) + 07:00 (task generation) | Contributor Quality Score monitoring |
-| GEO/AEO Monitoring | Tue+Fri 09:30 | Brand visibility across Perplexity + Claude + ChatGPT |
+| GEO/AEO Monitoring | Daily 09:30 (~1/7 prompts/day) | Brand visibility across Perplexity + Claude + ChatGPT (smoothed daily rotation via UUID.int % 7) |
 | Discovery Engine | Sun 04:00 | Automated market/niche research |
 | Subreddit Risk Profiles | Sun 05:00-05:30 | Rule extraction + moderation profiling + risk scoring |
 | Emotional Profiles | Sun 04:30 | Subreddit tone analysis + avatar compatibility |
@@ -175,6 +181,7 @@ Each stage operates on specific schedules, with independent failure modes and sa
 | BYOA Stale Drafts | Every 10 min | Fail stuck avatar provisioning |
 | Extension Lease Expiry | Every 5 min | Expire stale extension tasks |
 | Weekly Reports | Mon 08:00 | Generate intelligence reports for all clients |
+| **Client Email Notifications** | Mon 08:00 + Sun 19:00 + on-event | Visibility digest (client), phase milestone (client), health alert (client), system health (owner), business summary (partner) |
 | **A/B Test Metrics** | Mon 02:30 | Collect weekly experiment metrics + generate statistical reports |
 | **A/B Test Duration** | Daily 07:00 | Alert when experiments reach planned duration |
 
@@ -243,6 +250,8 @@ Scraping stops → No fresh threads (MAX_AGE_HOURS=48)
 - Container death (Beat, Workers, App, PG, Redis) → auto-restart + alert
 - /health endpoint failure → app restart
 - Disk >90% → alert
+
+**Beat memory leak RESOLVED (July 7, 2026):** Beat now uses lightweight `beat_app.py` (no SQLAlchemy/PRAW/LiteLLM imports). Stable ~25 MB vs previous 225 MB leak that crashed every 3-6h. Deploy grace period prevents false watchdog alerts.
 
 **RTO tested:** ≤60 seconds for full cascade failure (all 5 containers killed → all recovered).
 

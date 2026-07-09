@@ -44,12 +44,13 @@ Machine-readable behavioral graph model of the entire RAMP system, extracted fro
 - `embedding_model` → text-embedding-004 (vector embeddings)
 - GEO multi-provider: same prompts run against ALL enabled providers per batch. Provider abstraction in `geo_providers.py`.
 - **Cost centralization:** ALL LLM calls through `app/services/ai.py` → `call_llm()`/`call_llm_json()` + `log_ai_usage()`. 3-layer runaway protection (R-AI-007): per-task counter (50 max), cost circuit breaker ($5/10min Redis window), call count caps (500/hour, 3000/day Redis). `LLMRunawayDetected` exception on breach. Dashboard alert in `alert_aggregation.py`.
-- **38 registered operations** across 7 pipeline stages. Every call logged in `ai_usage_log` table.
+- **38 registered operations** across 7 pipeline stages. Every call logged in `ai_usage_log` table. **Verified July 7, 2026:** 38 call sites = 38 log_ai_usage calls (1:1 parity, zero leakage).
+- **Audit trail coverage (verified July 7, 2026):** 17 CRUD actions in admin service + 47 route-level audit entries (freeze, phase_override, kill switches, posting config, strategy, EPG, email verification) + 4 portal actions (draft approve/edit/skip/posted) + settings changes + email toggles. Full coverage of all mutable operations.
 - **Known violations (July 2 audit):** 17 files still hardcode models. See `/HARDCODED_MODELS_AUDIT.md`.
 - NO formal AI registry. NO per-client routing. NO A/B testing capability.
 
 ### Orchestration (distributed, not centralized)
-- Celery Beat = temporal (WHEN)
+- Celery Beat = temporal (WHEN) — runs as lightweight `beat_app.py` (no task imports, ~25 MB). Schedule defined in `app/tasks/beat_app.py`.
 - Task chaining = causal (ORDER within pipeline)
 - State polling = reactive (WHAT based on DB state)
 - NO single orchestrator that sees full system state.
@@ -68,7 +69,7 @@ Machine-readable behavioral graph model of the entire RAMP system, extracted fro
 - NO per-subreddit slot cap (2/day is false)
 - NO 40% presence cap
 - 70% is DEMOTION threshold. 80% is PROMOTION threshold (Phase 1→2). 85% for Phase 2→3. Both exist in PhaseEvaluator
-- EPG race condition FIXED June 25 (DistributedLock in tasks/epg.py + dedup guard in portfolio_manager.py)
+- EPG race condition FIXED June 25 (DistributedLock in tasks/epg.py + dedup guard in portfolio_manager.py). **Redesigned July 6:** single morning build (08:15) + afternoon top-up (14:15) for underfilled avatars. No more duplicate slot creation possible.
 - Expert phase NOT coded (spec only)
 - System does NOT auto-post in production (POSTING_DISABLED=false as of June 28)
 - **Mentor is NOT Phase 0.** Mentor = `avatar.pool == "mentor"` (pool classification). Phase 0 = Incubation (real phase for fresh/recovering avatars). Spec: `phase-incubation-mentor-refactor`

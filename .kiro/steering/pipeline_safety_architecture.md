@@ -266,43 +266,50 @@ The Portfolio Manager (`build_portfolio`) uses `scan_opportunities()` which has 
 
 ---
 
-## EPG Dedup Guard (FIXED June 25, 2026)
+## EPG Scheduling Architecture (Redesigned July 6, 2026)
 
-### Problem
+### Design: Single Build + Afternoon Top-Up
 
-EPG `build_portfolio()` runs twice daily (08:15 + 14:15 via Beat). Without proper dedup:
-- If morning build succeeds → afternoon must NOT create new slots (duplicates)
-- If morning build fails (all slots skipped due to Gemini Flash empty response) → afternoon SHOULD retry
-- After deploy/restart, Beat fires overdue tasks → multiple concurrent EPG runs → massive duplication (22 slots for budget=3 avatar observed June 24)
+EPG runs as two complementary tasks:
 
-### Previous Guard (Broken)
+| Time | Task | Purpose |
+|------|------|---------|
+| 08:15 | `build_and_generate_epg_all_avatars` | Full daily EPG build — allocates entire budget at once |
+| 14:15 | `epg_topup_underfilled_avatars` | Top-up — fills remaining budget for avatars that got fewer slots in morning |
+
+### How It Works
+
+**Morning (08:15):** Full budget allocated. Phase 2 avatar gets up to 9 slots (7 comments + 2 posts). If only 5 opportunities exist → 5 slots created, 4 unfilled.
+
+**Afternoon (14:15):** Top-up task checks each avatar:
+1. Calculates `daily_limit - active_slots_today` (active = planned/generated/approved/posted)
+2. If remaining > 0 → calls `build_portfolio(topup_remaining=N)` with capped budget
+3. If remaining = 0 → skips (budget fully filled in morning)
+
+**Key rule:** Skipped slots do NOT free up budget. If morning had 7 slots and 3 were skipped (no LLM response), afternoon sees 4 active + 3 skipped = only fills `limit - 4` more. Skipped = burned opportunity, not recyclable budget.
+
+### Dedup Guard (Morning Build Only)
+
+The dedup guard protects the morning build from duplicate runs (deploy restarts, manual triggers):
 
 ```python
-# Old: counted ALL slots. If morning all skipped → afternoon blocked (no retry).
-# Older: excluded skipped. Multiple runs all saw 0 → all created duplicates.
-existing_slots_count = count(status.notin_(["skipped"]))
+# Only applies to morning build (topup bypasses dedup via topup_remaining param)
+if existing_active_count > 0: return "already_planned"  # Successful build exists
+if build_attempts >= 2: return "already_planned"         # Max retries exhausted
 ```
 
-### Current Guard (2-Level)
-
-```python
-# Level 1: If ANY non-skipped slots exist → successful build, skip
-existing_active_count = count(status.notin_(["skipped"]))
-if existing_active_count > 0: return "already_planned"
-
-# Level 2: Max 2 build attempts per day (morning + afternoon retry)
-build_attempts = count(DISTINCT created_at)
-if build_attempts >= 2: return "already_planned"
-
-# Otherwise: retry allowed (previous attempts all failed)
-```
+Top-up task bypasses dedup because it explicitly calculates remaining budget — it cannot over-allocate by design.
 
 ### Invariants
 
-1. **Max slots per avatar per day = budget** (Phase 1 lowest=1, Phase 1=3, Phase 2=7, Phase 3=12+3)
-2. **Max build attempts = 2** (morning + afternoon). No infinite retry loops.
-3. **Successful build blocks further builds** (non-skipped slots exist → done for today)
-4. **Failed build allows ONE retry** (all skipped → afternoon can rebuild)
+1. **Max slots per avatar per day = budget** (Phase 1=3, Phase 2=9, Phase 3=15). Enforced by: morning build uses full budget, afternoon uses only `limit - already_created`.
+2. **Successful morning build + no afternoon gap = no afternoon run.** Top-up only fires when there's unfilled capacity.
+3. **Top-up never exceeds remaining.** `build_portfolio(topup_remaining=N)` caps budget internally.
+4. **Concurrent protection.** Both tasks use `DistributedLock(epg_build_lock:{avatar_id})`.
+
+### Previous Design (Before July 6, 2026)
+
+Two identical `build_and_generate_epg_all_avatars` runs (08:15 + 14:15). Dedup guard blocked afternoon if morning succeeded. This meant: (a) afternoon never added fresh threads, (b) if morning was underfilled, budget was wasted. Replaced with explicit top-up model.
 
 ### AttentionBudget CQS Fix (June 25-27)
 

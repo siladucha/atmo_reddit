@@ -64,29 +64,31 @@ Estimated total effort: 3-4 days.
   - [x] 6.4 Return 422 on ValueError (strategy generation/validation failure)
   - [x] 6.5 Return 500 on unexpected Exception
   - [x] 6.6 Ensure `execute_handoff` returns Client and route redirects to `/admin/clients/{client.id}`
-- [ ] 7. Template Updates
+- [x] 7. Template Updates
   - [ ] 7.1 Update "Create Strategy" button in discovery session detail template with HTMX `hx-indicator` loading spinner
-  - [ ] 7.2 Add `hx-disabled-elt="this"` to prevent double-click during generation
+  - [x] 7.2 Add `hx-disabled-elt="this"` to prevent double-click during generation (done in portal strategy page avatar-level buttons)
   - [ ] 7.3 Show disabled "Strategy Created" button when `session.status == "handed_off"`
   - [ ] 7.4 Show "Complete session first" disabled button when session is not completed
   - [ ] 7.5 Add "Handed Off" green badge to discovery session list template for sessions with status "handed_off"
-- [ ] 8. Pipeline Integration — Generation
-  - [ ] 8.1 Update `app/services/generation.py` to read `client.strategy_context` for positioning in prompt context
-  - [ ] 8.2 Inject `content_pillars` names from strategy_context into generation prompt
-  - [ ] 8.3 Inject `forbidden_zones` (hard_block severity only) as negative constraints in generation prompt
-  - [ ] 8.4 Add null-safe check: `if client.strategy_context:` before reading strategy fields
-- [ ] 9. Pipeline Integration — EPG & Scoring
-  - [ ] 9.1 Update `app/services/epg/portfolio_manager.py` to read subreddit_priorities from strategy_context for weight allocation
-  - [ ] 9.2 Update ClientSubredditAssignment queries to `ORDER BY priority ASC NULLS LAST`
-  - [ ] 9.3 Add null-safe check for strategy_context before applying priority weights
-- [ ] 10. Pipeline Integration — Phase Evaluation
-  - [ ] 10.1 Update `app/services/phase.py` to reference `phase_roadmap` from `client.strategy_context`
-  - [ ] 10.2 Use `entry_conditions` from strategy phases to inform phase promotion logic
-  - [ ] 10.3 Add null-safe fallback to current behavior when no strategy_context exists
-- [ ] 11. Pipeline Integration — Avatar Strategy Engine
-  - [ ] 11.1 Update `app/services/strategy_engine.py` to inject Client Strategy context (positioning, content_pillars, forbidden_zones) into avatar strategy generation prompt
-  - [ ] 11.2 Add optional `client_strategy_id` reference field concept to StrategyDocument model
-  - [ ] 11.3 Add null-safe check: only inject when `client.strategy_context` is present
+  - [x] 7.6 **Client Portal Strategy page redesigned (July 7, 2026)** — shows client-level strategy_context (positioning, priorities, pillars, forbidden zones, roadmap, AEO targets) as structured UI instead of raw per-avatar markdown. Per-avatar StrategyDocument demoted to collapsible detail section.
+- [x] 8. Pipeline Integration — Generation
+  - [x] 8.1 Update `app/services/generation.py` to read `client.strategy_context` for positioning in prompt context
+  - [x] 8.2 Inject `content_pillars` names from strategy_context into generation prompt
+  - [x] 8.3 Inject `forbidden_zones` (hard_block severity only) as negative constraints in generation prompt
+  - [x] 8.4 Add null-safe check: `if client.strategy_context:` before reading strategy fields
+  - [x] 8.5 Inject forbidden_zones into hobby comment generation (ai_pipeline.py) for universal safety
+- [x] 9. Pipeline Integration — EPG & Scoring
+  - [x] 9.1 Update `app/services/portfolio_manager.py` to read subreddit_priorities from strategy_context for composite_score boost
+  - [x] 9.2 Priority 1 → +15 bonus, priority 10 → +0 bonus applied to opportunities in priority subs
+  - [x] 9.3 Add null-safe check for strategy_context before applying priority weights
+- [x] 10. Pipeline Integration — Phase Evaluation
+  - [x] 10.1 Update `app/services/phase.py` PhaseTransitionManager.promote() to include strategy phase_roadmap goal in promotion event metadata
+  - [x] 10.2 Activity event now includes `strategy_phase_goal` and `strategy_phase_activities` for client-facing display
+  - [x] 10.3 Add null-safe fallback to current behavior when no strategy_context exists
+- [x] 11. Pipeline Integration — Avatar Strategy Engine
+  - [x] 11.1 Update `app/services/strategy_engine.py` to inject Client Strategy context (positioning, content_pillars, forbidden_zones) into avatar strategy generation prompt
+  - [x] 11.2 Injected after Discovery context, before feedback context
+  - [x] 11.3 Add null-safe check: only inject when `client.strategy_context` is present
 - [ ] 12. Deploy & Verify
   - [ ] 12.1 rsync code to server (`rsync -avz --exclude=... ./ root@161.35.27.165:/app/`)
   - [ ] 12.2 Run Alembic migration on server: `docker compose exec app alembic upgrade head`

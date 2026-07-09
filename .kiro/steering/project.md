@@ -33,7 +33,7 @@ A Reddit marketing SaaS platform. AI monitors subreddits, scores posts, generate
 - **AI/LLM:** LiteLLM (model selection via DB `system_settings`: 13 model keys, all calls through `ai.py` → `call_llm()` + `log_ai_usage()`. Gemini Flash for scoring/reports/strategy, Claude Sonnet for generation, Perplexity Sonar + Claude + OpenAI for GEO/AEO)
 - **Real-time:** Server-Sent Events (SSE) + Redis PubSub (notifications)
 - **Mobile App:** Flutter (Dart) — posting app for avatar owners
-- **Browser Extension:** Chrome Manifest V3 — executor posting + CQS auto-check + health monitoring (spec ready, not yet built)
+- **Browser Extension:** Chrome Manifest V3 — executor posting + draft review + CQS auto-check + health monitoring + auto-update check (v0.3.1 deployed July 7, 2026)
 - **Deploy:** DigitalOcean Droplet + Docker Compose (app + PostgreSQL + Redis + Celery)
 - **Observability:** Logging + admin dashboard
 
@@ -79,6 +79,10 @@ rsync -avz --exclude='.venv/' --exclude='__pycache__/' --exclude='.hypothesis/' 
 
 # Rebuild and restart on server (REQUIRED — code is in image, not volume):
 ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml build && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d"
+
+# Or use the smart deploy script (handles watchdog grace period, auto-detects changes):
+./deploy.sh app       # Main app + workers + beat
+./deploy.sh auto      # Auto-detect what changed
 
 # Check health:
 ssh ramp "curl -s http://localhost/health"
@@ -277,6 +281,7 @@ reddit_saas/
 │   │   ├── client_report.py   # Client report generation
 │   │   ├── cookies.py         # Cookie management
 │   │   ├── cqs_checker.py     # Comment quality score checker
+│   │   ├── client_emails.py   # Client email notifications (visibility digest, phase milestone, health alert)
 │   │   ├── distributed_lock.py # Redis distributed locks
 │   │   ├── dry_run.py         # Dry run pipeline testing
 │   │   ├── export.py          # Data export
@@ -386,7 +391,9 @@ reddit_saas/
 │   │   ├── subreddit_ban_probe.py # Weekly per-subreddit ban detection
 │   │   ├── onboarding.py      # Onboarding stall detection
 │   │   ├── ab_test.py         # A/B test metric collection + duration checks
-│   │   └── worker.py          # Celery worker configuration (41 beat tasks)
+│   │   ├── weekly_emails.py  # Weekly system health (owner) + business summary (partner) emails
+│   │   ├── beat_app.py       # Lightweight Celery app for Beat (schedule only, no task imports, ~25 MB)
+│   │   └── worker.py          # Celery worker configuration (31 task modules, no schedule)
 │   ├── templates/             # Jinja2 templates (70+ pages + 120+ partials)
 │   │   ├── base.html          # Light theme (user pages)
 │   │   ├── admin_base.html    # Dark theme (admin panel)
@@ -533,7 +540,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **Reddit researcher** — PRAW-based community intelligence gathering
 - **Continuous discovery** — weekly automated runs (Sunday 04:00)
 - **Strategy handoff** — convert findings to strategy documents
-- **Client Strategy Generation** (June 24) — LLM-generated positioning, subreddit priorities, content pillars, forbidden zones, AEO targets, phase roadmap (Tasks 1-6 done, pipeline integration pending)
+- **Client Strategy Generation** (June 24) — LLM-generated positioning, subreddit priorities, content pillars, forbidden zones, AEO targets, phase roadmap (Tasks 1-6 done, client portal redesigned July 7, pipeline integration pending)
 - **Report generation fixed** (June 24) — model switched to Gemini Flash, hypothesis aggregation by category, top-7 safety cap
 - **Hypothesis confirmation limit** — MAX_CONFIRMED_HYPOTHESES=7, counter UI, "Confirm All" removed
 
@@ -554,6 +561,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **Draft management** — approve, skip, mark posted, edit from portal
 - **RBAC-scoped** — clients see only their own data
 - **Client Hub** — tab-based overview with lazy-loaded partials
+- **Strategy page redesigned (July 7, 2026)** — shows `client.strategy_context` as structured UI (positioning, community priorities, content themes, forbidden zones, growth roadmap, AEO targets). Per-avatar StrategyDocument demoted to collapsible detail. Client sees business intent, not technical implementation.
 
 ### Decision Center (June 2026)
 - **Live Pulse** — real-time system status (pipeline, avatars, slots, events)
@@ -610,7 +618,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 
 ### Security Hardening (June 2026)
 - **SecurityHeadersMiddleware** — X-Frame-Options, X-Content-Type-Options, HSTS, Referrer-Policy, Permissions-Policy
-- **RateLimitMiddleware** — 5 auth attempts per 15 min per IP (production only), global 100 req/min per IP
+- **RateLimitMiddleware** — EXISTS in code but **DISABLED** since July 7, 2026. Was 5 auth/15min + 100 global/60s per IP. Disabled because: (a) auto-logout every 10 min caused rapid re-logins, (b) multiple people share same IP/account during testing, (c) <5 users total — brute-force is not a realistic threat. Re-enable when self-serve launches with public signups.
 - **Custom 403 page** — friendly HTML error page instead of raw JSON
 - **Auto-logout on inactivity** — 10 min idle timer (JS-based), warning toast at 9 min, redirect to /logout at 10 min. Covers all base templates (admin, client, user).
 - **Email verification** (July 2026) — trial signup sends verification email via Brevo, account blocked until click. Token: 32-byte URL-safe, SHA-256 hash stored in DB, 48h expiry. Existing users grandfathered as verified.
@@ -694,9 +702,9 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 10. Draft reconciliation (every 4h): auto-links approved drafts to Reddit comments posted outside the system
 
 ## Task Architecture (Current — Celery + Redis)
-- **Producer**: FastAPI app / Celery Beat sends tasks
-- **Consumer**: Celery workers (prefork pool)
-- **Scheduler**: Celery Beat (periodic tasks)
+- **Producer**: FastAPI app / Celery Beat sends tasks (Beat uses lightweight `beat_app.py` — schedule only, no heavy imports, ~25 MB stable)
+- **Consumer**: Celery workers (prefork pool, use full `worker.py` with all task modules)
+- **Scheduler**: Celery Beat (periodic tasks defined in `app/tasks/beat_app.py`)
 - **Locks**: Redis SETNX with Lua atomic release
 - **Rate Limiter**: Redis sorted set sliding window
 - **Retry**: bind=True, max_retries=3, countdown=60×2^attempt (AI tasks only)
@@ -715,6 +723,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 | every 4h at :30 | `check_trial_negative_signals` | Trial negative signal detection |
 | every 4h at :45 | `snapshot_comment_outcomes` | Karma/deletion snapshots |
 | 01:00 | `compute_daily_performance_metrics` | Aggregate yesterday's avatar metrics |
+| 01:05 | `run_cost_reconciliation` | Compare expected (tokens×rates) vs logged cost_usd, alert on >5% drift |
 | 01:30 | `archive_old_decision_records` | Prune records > 90 days |
 | 02:00 | `run_feedback_loop_all` | Outcome analysis → EPG model correction |
 | 02:30 | `classify_expired_trials` | Trial failure classification |
@@ -734,12 +743,15 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 | 07:45, 13:45 | `scrape_hobby_all_avatars` | Hobby scraping (before EPG) |
 | 08:00, 14:00 | `run_full_pipeline_all_clients` | Score → Generate → Posts |
 | 08:00 Mon | `generate_weekly_reports_all_clients` | Weekly intelligence reports |
-| 08:15, 14:15 | `build_and_generate_epg_all_avatars` | EPG plan + generate |
-| 09:30 Tue,Fri | `run_geo_monitoring_all_clients` | GEO/AEO brand visibility (multi-provider) |
+| 08:15 | `build_and_generate_epg_all_avatars` | EPG plan + generate (full daily budget) |
+| 14:15 | `epg_topup_underfilled_avatars` | Top-up: fill remaining budget for underfilled avatars |
+| 09:30 daily | `run_geo_monitoring_daily` | GEO/AEO brand visibility (~1/7 prompts/day, rotated by UUID.int % 7) |
 | 12:15, 18:15 | `check_karma_outcomes` | 4h karma outcome check |
 | 00:15, 06:15 | `check_karma_outcomes` | 24-28h karma outcome check |
 | 02:30 Mon | `collect_weekly_ab_metrics` | A/B test metric collection + report generation |
 | 07:00 | `check_experiment_durations` | A/B test duration alerts |
+| 19:00 Sun | `send_weekly_system_health_email` | System health report to owner (capacity, latency, WoW, predictions) |
+| 19:15 Sun | `send_weekly_business_summary_email` | Business summary to partner (MRR, clients, funnel) |
 
 ## Comment Draft Status Workflow
 `pending` → `approved` / `rejected` → `posted`
@@ -795,6 +807,50 @@ Periodic CQS check task emails to executors. Closes self-healing loop for CQS=lo
 **Frequency:** CQS=lowest or age<90d → every 7 days. Mature+healthy → every 30 days.
 **Kill switch:** `cqs_check_tasks_enabled` system setting.
 **New files:** `app/services/cqs_task_generator.py`, `app/tasks/cqs_tasks.py`
+
+## Client Email Notifications (Implemented July 9, 2026)
+Automated lifecycle emails to client admins (client_admin + client_manager with verified email). Fire-and-forget — failure never blocks pipeline.
+
+**Service:** `app/services/client_emails.py`
+**Delivery:** Brevo HTTP API (via `send_task_email`)
+**Recipients:** All `client_admin` + `client_manager` users with `email_verified=true` for that client (via User.client_id + UserClientAssignment)
+
+**Five email types:**
+
+| Type | Recipient | Trigger | Subject Example |
+|------|-----------|---------|-----------------|
+| **Weekly Visibility Digest** | Client admins | Mon 08:00 after `generate_weekly_reports_all_clients` | 📊 AI Visibility: 7.7% (+3.2pp) — BrandName |
+| **Phase Milestone** | Client admins | `PhaseTransitionManager.promote()` or `.demote()` | 🎉 Avatar promoted to Phase 2 / ℹ️ Avatar — temporary phase adjustment |
+| **Health Alert** | Client admins | `check_avatar_health()` on shadowban/suspended detection | ⚠️ Avatar — health issue detected |
+| **Weekly System Health** | Owner | Sun 19:00 (Beat) | 🟢 Weekly System: HEALTHY — capacity, latency, predictions |
+| **Weekly Business Summary** | Partner (fallback: owner) | Sun 19:15 (Beat) | 💼 Weekly Business: $399/mo MRR, 1 paying, 3 trials |
+
+**Integration points:**
+- `app/tasks/intelligence_report.py` → calls `send_weekly_visibility_digest()` after report published
+- `app/services/phase.py` → `_send_phase_email()` in PhaseTransitionManager after promote/demote commit
+- `app/services/health_checker.py` → calls `send_health_alert_email()` after auto-freeze on shadowban/suspended
+- `app/tasks/weekly_emails.py` → `send_weekly_system_health_email` + `send_weekly_business_summary_email` (Beat: Sun 19:00 + 19:15)
+
+**System Health Report includes:**
+- Server capacity bars (CPU, Memory, Disk, PG Connections, PG Size, Redis) with % utilization
+- LLM response times: avg, p50, p95, max + top slow operations
+- Pipeline throughput WoW (generated, posted, conversion rate, EPG slots)
+- AI cost analysis WoW (spent, calls, $/draft, daily avg, top operations)
+- Predictive signals (cost trend, monthly projection, capacity warnings, throughput anomalies)
+- Active alerts from `alert_aggregation.py`
+- Server uptime
+
+**Business Summary includes:**
+- MRR, paying clients, trials, AI spend MTD, margin %
+- Per-client health table (red/yellow/green + posts/week + avatars)
+- Trial funnel (active → onboarded → first draft → converted)
+- Attention items (expiring trials, zero-post clients)
+
+**Beat schedule:** `app/tasks/beat_app.py` — `weekly-system-health-email` (Sun 19:00) + `weekly-business-summary-email` (Sun 19:15)
+**Worker include:** `app/tasks/weekly_emails.py` added to `worker.py`
+
+**P12 compliance:** Projected values in visibility digest use `~` prefix + disclaimer footer.
+**Tested:** All 5 types sent to max.breger@gmail.com via production Brevo API (July 9, 2026).
 
 ## Draft Reconciliation (Implemented June 24, 2026)
 Automatically links approved CommentDrafts to Reddit comments posted outside the system (executor posted manually but didn't submit permalink back).

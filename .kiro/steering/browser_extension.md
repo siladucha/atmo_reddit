@@ -227,6 +227,54 @@ Avatar model field: `delivery_channel` (email | extension | both)
 
 Admin UI: Avatar → Posting tab → "Task Delivery Channel" dropdown.
 
+### v3.1 — Draft Review + Auto-Update (July 7, 2026)
+
+**Extension becomes Reviewer + Executor.** Previously extension could only execute pre-approved tasks. Now it can review pending drafts (approve/reject) directly from popup — eliminating the dependency on admin UI for draft approval.
+
+**New capabilities:**
+
+| Feature | What | How |
+|---------|------|-----|
+| **Draft Review in Popup** | "📝 Review Drafts" section shows pending drafts with Approve/Reject buttons | Fetches from `/api/extension/dashboard` → `pending_drafts`, actions via `/api/extension/drafts/{id}/review` |
+| **Bulk Approve** | "Approve All" button for all pending drafts | `POST /api/extension/drafts/approve-all?avatar_username=X` |
+| **Auto-Update Check** | Heartbeat response includes `update_available`, `latest_version`, `download_url` | Server compares `extension_version` from heartbeat vs `extension_latest_version` DB setting |
+| **Update Banner** | Green banner in popup: "⬆️ Update available (vX.Y.Z) [Download]" | Stored in `chrome.storage.local` from heartbeat response |
+| **Portal Bell Notification** | SSE notification "New draft ready for review" pushed after EPG generation (when auto-approve=false) | `_notify_drafts_pending()` in `epg_executor.py` calls `notify_client()` |
+
+**Draft review flow (without autopilot):**
+```
+EPG build → slot "generated" → draft "pending"
+    → Portal bell: "New draft ready for review"
+    → Extension popup badge: N drafts
+    → User opens popup → sees "Review Drafts" section
+    → Approve → draft "approved" → slot "approved" → ExecutionTask created
+    → Extension polls tasks → sees new task → scheduler posts at scheduled_at
+```
+
+**Backend endpoints added:**
+- `POST /api/extension/drafts/{draft_id}/review` — approve/reject single draft (supports edit before approve)
+- `POST /api/extension/drafts/approve-all?avatar_username=X` — bulk approve all pending
+
+**Version management:**
+- `extension_latest_version` DB setting — server's knowledge of latest version
+- `extension_download_url` DB setting — URL for download
+- Heartbeat compares: `extension_version < extension_latest_version` → `update_available=true`
+- To push update: bump `extension_latest_version` in admin settings, upload new zip to `/static/extension/`
+
+**SBM compliance:**
+- P5 (Human Gate) satisfied: executor explicitly approves draft in popup before execution
+- P11 (Execution Gate) satisfied: after draft approve, executor still approves task execution via scheduler
+- Two human decision points maintained: draft review (📝) → task execution (🔔)
+
+**Files changed (July 7):**
+- `app/routes/extension_api.py` — draft review endpoints + version check in heartbeat + `_version_lt()` helper
+- `app/services/epg_executor.py` — `_notify_drafts_pending()` portal bell notification
+- `ramp_extension/manifest.json` — version 0.3.1
+- `ramp_extension/popup/popup.html` — Review Drafts section + update banner
+- `ramp_extension/popup/popup.js` — `fetchPendingDrafts()`, `handleApproveAllDrafts()`, `checkHealth()` update check
+- `ramp_extension/popup/popup.css` — `.badge--review`, `.task-card--draft`, `.alert--update` styles
+- `ramp_extension/background/heartbeat.js` — parse heartbeat response, store update/pause/maintenance state
+
 Migration: `ext04_avatar_delivery_channel.py` (depends on raa01).
 
 ### REQUIRED_UI Mode → Executor Approval Mode

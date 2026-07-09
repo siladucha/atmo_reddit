@@ -73,6 +73,49 @@ Any new service that calls an LLM must:
 | 2026-07-02 | `rule_extractor.py` used `call_llm()` but never called `log_ai_usage()` | ~$0.003/call invisible (weekly batch, minor) | Added `log_ai_usage()` with `operation="subreddit_rule_extraction"` |
 | 2026-07-02 | `emotional_profile.py` `compute_compatibility()` used `call_llm_json()` but never logged | Compatibility scoring costs invisible | Added `log_ai_usage()` with `operation="emotional_compatibility"` |
 | 2026-07-02 | R-AI-007 — No runaway loop protection beyond blunt hourly/daily caps | A single bug could burn $100+ before 500/h cap triggered | 3-layer defense: per-task counter (50 calls), cost circuit breaker ($5/10min), dashboard alert. Max damage now ~$5. |
+| 2026-07-07 | Anthropic credits exhausted ($50/mo limit) | ALL generation fallback blocked, 0 drafts generated | Root cause: Claude Sonnet GEO web search ($0.08/query) + generation calls. Need: monitor spend vs provider limits, alert before exhaustion. |
+
+## CRITICAL INVARIANT: Zero Cost Leakage (Established July 7, 2026)
+
+**Statement:** Every single API call that costs money MUST be recorded in `ai_usage_log` with accurate `cost_usd`. No exceptions. No "I'll add logging later."
+
+**Verification status (July 7, 2026): ✅ CONFIRMED**
+- 38 `call_llm`/`call_llm_json` call sites = 38 `log_ai_usage` calls (1:1 parity)
+- 0 direct `litellm.completion()` calls outside `ai.py` (except `geo_providers.py` where caller logs, and `settings.py` ping test)
+- `cost_usd` always populated via `litellm.completion_cost()` (primary) or `MODEL_COSTS` dict (fallback, 17 models)
+- GEO providers: cost computed in provider → logged by `geo_query_runner.py` caller
+
+**Why this is P0:**
+- $50/mo Anthropic limit exhausted July 7 without anyone noticing until pipeline broke
+- If 10% of calls leak (no logging), spend tracking is useless for budget decisions
+- Provider bills ≠ internal tracking → trust destroyed, pricing wrong, margins miscalculated
+
+**Enforcement checklist (before ANY deploy):**
+
+1. `grep -r "litellm.completion\|litellm.acompletion" app/services/ app/routes/ app/tasks/` → MUST return 0 results (except `ai.py` itself and `geo_providers.py` caller-logged)
+2. Every `call_llm()`/`call_llm_json()` MUST be followed by `log_ai_usage()` in the same function
+3. `cost_usd` field MUST be populated (not NULL, not 0) — `log_ai_usage()` calculates from `MODEL_COSTS` dict
+4. New models added to any service → MUST also be added to `MODEL_COSTS` in `ai.py`
+
+**Provider Budget Monitoring (NEW — July 7, 2026):**
+
+| Provider | Monthly Limit | Alert Threshold | Where to Check |
+|----------|--------------|-----------------|----------------|
+| Anthropic | $50 | Alert at $35 (70%) | console.anthropic.com |
+| Google (Gemini) | Free tier / $300 credits | Alert at $200 | console.cloud.google.com |
+| Perplexity | Pay-per-use (no limit) | Alert at $10/day | perplexity.ai/settings |
+| OpenAI | TBD (key not active) | — | platform.openai.com |
+
+**Required: Daily spend tracking alert.**
+`signal_collector` should compare `SUM(cost_usd) WHERE created_at >= month_start` against provider limits.
+If spend > 70% of any provider limit → `notify_ops(level="warning", category="cost_budget")`.
+If spend > 90% → `notify_ops(level="critical", category="cost_budget")`.
+
+**LITELLM_API_KEY usage (current — July 7, 2026):**
+- Single Anthropic key (`sk-ant-...`) set as `LITELLM_API_KEY` in Docker `.env`
+- LiteLLM uses it as fallback for ALL providers without dedicated keys
+- This means: Anthropic key is used for Claude Sonnet, Claude Haiku, AND as web_search key for GEO
+- When this key's credits hit 0 → ALL Claude calls fail → generation fallback fails → pipeline dead
 
 ## Model Routing Invariant (July 2, 2026)
 
@@ -180,16 +223,35 @@ model = get_config("llm_generation_model")
 8. ✅ If new setting key needed → add to `DEFAULT_SETTINGS` in `settings.py`
 9. ✅ Test: after one call, verify row appears in `ai_usage_log` table
 
-## Cost Model Reference
+## Cost Model Reference (Updated July 8, 2026 — post-optimization)
 
-| Model | Input $/1M | Output $/1M | Typical use |
-|-------|-----------|------------|-------------|
-| `gemini/gemini-2.5-flash` | $0.15 | $0.60 | Scoring, onboarding, strategy, reports |
-| `gemini/gemini-2.5-flash-lite` | $0.00 | $0.00 | Entity extraction, hypothesis (free tier) |
-| `gemini/gemini-2.0-flash` | $0.075 | $0.30 | Rule extraction |
-| `anthropic/claude-sonnet-4-20250514` | $3.00 | $15.00 | Generation, editing, persona, trials |
-| `anthropic/claude-haiku-4-5` | $1.00 | $5.00 | JSON retry fallback |
-| `perplexity/sonar` | ~$0.006/q | — | GEO monitoring |
+| Model | Input $/1M | Output $/1M | Used for | Monthly cost (1 client, 1 avatar) |
+|-------|-----------|------------|----------|----------------------------------|
+| `gemini/gemini-2.5-flash` | $0.15 | $0.60 | Scoring, editing, persona, onboarding, strategy, reports | $0.50 |
+| `gemini/gemini-2.5-flash-lite` | $0.00 | $0.00 | Entity extraction, hypothesis, emotional profiles (free) | $0.05 |
+| `anthropic/claude-sonnet-4-20250514` | $3.00 | $15.00 | Comment generation ONLY | $8.19 |
+| `perplexity/sonar` | ~$1.00 | ~$1.00 + $0.005/search | GEO monitoring | $1.08 |
 
-**Estimated daily cost per client (10 clients, full pipeline): ~$1.17**
-**Monthly LLM cost at 10 clients: ~$351** (93% of total operational cost)
+**Optimized (July 8, 2026):**
+- Editing: Claude Sonnet → Gemini Flash (saves $8/mo)
+- Persona selection: Claude Sonnet → Gemini Flash (saves $9/mo)
+- GEO: Claude web search DISABLED (saves $40-70/mo)
+- GEO: runs_per_prompt 3→1 (saves 67% of Perplexity cost)
+- Fallback chain: Anthropic removed from all fallbacks → Gemini-only
+
+**Unit economics formula:** `Monthly = N_avatars × $8.50 + $3.50 overhead`
+- 1 avatar: ~$10/mo (93% margin at $149 Seed)
+- 2 avatars: ~$19/mo (95% margin at $399 Starter)
+- 3 avatars: ~$28/mo (93% margin at $399 Starter)
+
+**Phase 2 Additions (July 9, 2026):**
+- Context trimming: generation input 12K→8K tokens. Saves ~$2.70/mo/avatar on Claude Sonnet input.
+- Anthropic prompt caching: `cache_control: {"type": "ephemeral"}` on system message. Saves ~$5/mo/avatar (90% discount on ~4K cached tokens).
+- GEO daily smoothing: `prompt.id.int % 7` rotates prompts across weekdays. Cost-neutral, eliminates Tue+Fri spikes.
+- Batch scoring default: 10→5 threads/call (better parse reliability while still 80% fewer calls than individual).
+- Cost reconciliation task (`run_cost_reconciliation`, daily 01:05): compares `(tokens × MODEL_COSTS rates)` vs logged `cost_usd`. Alerts on >5% delta.
+- AI Costs page redesign: provider budget bars + unit economics + forecast + Chart.js burn chart. Replaces engineering debug view.
+- New service: `app/services/unit_economics.py` (get_unit_economics, get_provider_budget_status, get_daily_burn_data, get_client_forecast).
+- New task: `app/tasks/cost_reconciliation.py` (registered in beat_app at 01:05).
+- New settings: `generation_max_body_chars` (500), `generation_max_voice_chars` (500).
+- Modified: `generation.py` (context trimming), `ai.py` (prompt caching), `geo_query_runner.py` (prompts_override), `geo_monitoring.py` (daily task), `beat_app.py` (schedule), `admin_ai_costs.html` (template redesign).

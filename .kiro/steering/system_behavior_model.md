@@ -66,6 +66,17 @@ SBM is the compass for the Meta-loop: architectural tension = SBM property under
 
 **Gap:** None for runaway protection. Fully enforced. Maximum possible damage from any runaway loop: ~$5 (10-min window before circuit breaker trips). Remaining: no per-client daily cost cap (client-level budget controls not yet implemented — spec exists).
 
+**Verification (July 7, 2026):** Full audit confirmed 38 `call_llm` sites = 38 `log_ai_usage` calls. Zero cost leakage. `cost_usd` populated on every record via `litellm.completion_cost()` primary + `MODEL_COSTS` fallback (17 models). No direct `litellm.completion()` bypass in service code.
+
+**Cost Optimization Phase 2 (July 9, 2026):** 6 measures to reduce $/avatar/month:
+- Context trimming: generation input ~12K→8K tokens (body 500ch, voice 500ch, top 3 comments, max 3 few-shot)
+- Anthropic prompt caching: `cache_control: {"type": "ephemeral"}` on system message for 90% discount on cached portion (~$5/mo/avatar)
+- Batch scoring: 5 threads/call (was 10, was 1 before Phase 1). Reduces call volume 80% vs individual.
+- GEO daily smoothing: spread across 7 days (was Tue+Fri spikes). Cost-neutral but eliminates daily variance.
+- Cost reconciliation task: daily 01:05, detects >5% drift between expected and logged cost per model.
+- AI Costs page redesign: provider budget bars, unit economics, Chart.js burn chart. Business-facing view for partner.
+- **Projected savings: ~$8/mo per avatar.** Unit economics: ~$8.50×avatars + $3.50 overhead → ~$10/mo for 1 avatar (was ~$18/mo before Phase 2).
+
 ---
 
 ### P4: Safety Monotonicity
@@ -98,6 +109,8 @@ SBM is the compass for the Meta-loop: architectural tension = SBM property under
 - **Executor email verification (July 4, 2026):** changing executor_email resets `executor_email_verified=false` and blocks ALL task creation until executor confirms via email link. Prevents tasks being sent to wrong person.
 
 **Gap:** None. Structural invariant. Code change = only violation vector → caught at review.
+
+**Extension draft review (July 7, 2026):** Extension v3.1 adds draft review capability. When `autopilot_enabled=false`, executor reviews and approves drafts in extension popup BEFORE execution task is created. This adds an explicit human decision point at the draft level (P5 satisfied). The extension cannot bypass this — drafts stay `pending` until explicit approve action via authenticated API call.
 
 ---
 
@@ -177,6 +190,8 @@ If count > 0 → alert "feedback closure broken for N comments".
 - Feature flags (epg2_enabled, fitness_gate_enabled, email_tasks_enabled)
 - Services use try/except with fallback behavior
 - **External watchdog (systemd, every 30s):** checks Redis, PG, App, Beat, Workers, Disk. Auto-restarts any dead container. Telegram alert. Tested: cascade kill (all containers) → full recovery in ≤60s.
+- **Beat memory leak RESOLVED (July 7, 2026):** separated Beat into lightweight `beat_app.py` (no heavy imports). Stable ~25 MB vs previous 225 MB leak. No more OOM crashes. Watchdog auto-restart no longer needed as primary defense — kept as safety net only.
+- **Deploy grace period (July 7, 2026):** `deploy.sh` touches marker file before container restart. Watchdog skips checks for 90s. No false DEAD alerts during deploys.
 - **PG backup (daily 03:00):** pg_dump + 14-day rotation. Alert on failure.
 - Nginx serves maintenance page when app is unavailable (auto-refresh 10s)
 
@@ -253,10 +268,13 @@ If count > 0 → alert "N active subreddits have stale/missing risk profiles".
 - Forecast accuracy tracked: predicted vs actual stored in `forecast_accuracy_log`
 - Report generation blocked if all key sources exceed staleness threshold
 
-**Gap:** System not yet implemented (spec complete July 2, 2026). Once built:
-- Runtime enforcement via JSONB schema validation (observed_json cannot contain forecast fields)
-- Automated staleness detection blocks report generation if data too old
-- Forecast accuracy tracking detects systematic bias and auto-widens confidence intervals
+**Gap:** Partially closed (July 7, 2026). UI redesign enforces visual separation:
+- Hero: measured (bold white) vs projected (green, `~` prefix) — structurally distinct
+- Engine cards: current rate ≠ projected rate — different font size, color, position
+- Trend chart: solid ≠ dashed — Chart.js `segment.borderDash` per measured/projected boundary
+- Footer: "Projections are forecasts, not guarantees"
+- Remaining gap: JSONB schema validation (observed_json cannot contain forecast fields) — not yet enforced at DB level
+- Remaining gap: Automated staleness gate (block report generation if data too old) — partially implemented in `_identify_gaps()` but not hard-blocking
 
 **Relationship to other properties:**
 - P1 (Monotonic Progress) — if client sees forecast of "38%" but actual stays at 8% for 12 weeks, P1 is not violated (pipeline running) but P12 IS violated if report doesn't clearly communicate the gap between forecast and reality
@@ -274,7 +292,7 @@ If count > 0 → alert "N active subreddits have stale/missing risk profiles".
 | **Runtime (hard block)** | P3, P4, P5, P7, P11 | P3 fully enforced (3-layer: per-task 50 calls, $5/10min circuit breaker, 500/h + 3000/d caps). P4/P5/P7/P11 fully enforced. |
 | **Runtime + External Watchdog** | P10 | External systemd watchdog (30s): auto-restart dead containers. Tested July 2 (cascade kill → full recovery ≤60s). Remaining: chaos testing for feature flags |
 | **Scheduled (detect + alert)** | P1, P6, P8 | P6 needs alert SQL, P8 needs TZ fix |
-| **Structural (data model)** | P12 | Not yet implemented (spec ready). Once built: JSONB separation + schema validation + staleness gate |
+| **Structural (data model + UI)** | P12 | 85% implemented (July 7, 2026): 5-layer JSONB separation + client UI enforces visual distinction (measured ≠ projected). Remaining: JSONB schema validation, staleness hard-gate. |
 | **Manual (review time)** | P2, P9 | Cannot automate — structural reasoning required |
 
 ---
@@ -299,3 +317,46 @@ Every incident maps to ≥1 SBM property. Post-mortem must state which property 
 
 ### For Tension Detection
 SBM property degrading (not fully violated but trending toward violation) = architectural tension. Auto-detectable via signal trends.
+
+---
+
+## Operational Rule: UI Transparency (Established July 5, 2026)
+
+### Rule
+
+**Every system mechanism that affects user-visible behavior MUST be explained in the UI where it is configured — with: what it does, how it connects to other settings, what happens when ON/OFF, and the full chain of consequences.**
+
+### Rationale
+
+Incident July 5, 2026: Extension showed "Nothing to approve" for all avatars. Root cause: `autopilot_enabled=false` on client → slots stayed in `generated` → no ExecutionTask created → extension empty. The connection between a client-level checkbox and extension emptiness was nowhere visible in the UI.
+
+### Requirements for Any Setting/Toggle/Flag
+
+1. **What it does** — one line, plain language
+2. **What happens when ON** — concrete observable effect
+3. **What happens when OFF** — concrete observable effect (including "nothing appears in X")
+4. **Related settings** — if behavior depends on OR/AND with other flags, state that explicitly
+5. **Full chain** — show the pipeline path from this setting to the user-visible outcome
+6. **Where to find related setting** — if another setting is involved, tell the user where it lives
+
+### Implementation Pattern
+
+Use `<details>` collapsible block (ℹ️ "How it works") below each toggle/setting. Keep the primary label short; put the full explanation inside the collapsible. Users who understand don't need to open it; users who are confused can expand.
+
+### Applies To (Non-Exhaustive)
+
+- `autopilot_enabled` (client) ↔ `auto_approve_drafts` (avatar) — OR logic for approval gate
+- `delivery_channel` (avatar) — determines whether tasks go to extension, email, or both
+- `email_tasks_enabled` (system setting) — gates ALL task creation
+- `executor_email_verified` (avatar) — blocks task delivery for email channel
+- `activation_routing_enabled` (system setting) — switches between zone routing and legacy hobby
+- `fitness_gate_enabled` (system setting) — enables/disables pre-generation safety gate
+- `pipeline_enabled`, `generation_enabled`, `scrape_enabled` — kill switches
+
+### For Agents (LLM/AI)
+
+When building any new UI that includes a toggle, checkbox, or configurable flag:
+- ALWAYS add an explainer block showing the full consequence chain
+- NEVER assume the user understands hidden dependencies between settings
+- If setting A only works when setting B is also enabled — say so explicitly in A's UI
+

@@ -294,32 +294,53 @@ ecpus/day = locks × 2 + rate_limiter × 3 + results × 2 + heartbeat × 2
 
 ---
 
-## Cost Summary by Node
+## Cost Summary by Node (Updated July 8, 2026 — post-optimization)
 
-### At 10 Clients (current target)
+### At 10 Clients (target)
 
 | Node | AWS Cost/mo | LLM Cost/mo | Total/mo | % of total |
 |------|------------|------------|---------|-----------|
 | Scraping | $0.01 | — | $0.01 | 0% |
-| Scoring | $0.00 | $1.80 | $1.80 | 0.5% |
-| Generation | $0.00 | $162.00 | $162.00 | 43% |
-| Persona Selection | $0.00 | $90.00 | $90.00 | 24% |
-| Comment Editor | $0.00 | $81.00 | $81.00 | 21% |
-| Hobby Comments | $0.00 | $1.35 | $1.35 | 0.4% |
+| Scoring | $0.00 | $4.20 | $4.20 | 2% |
+| Generation (Sonnet) | $0.00 | $81.90 | $81.90 | 42% |
+| Editing (Gemini Flash) | $0.00 | $0.80 | $0.80 | 0.4% |
+| Persona Selection (Gemini Flash) | $0.00 | $4.20 | $4.20 | 2% |
+| Hobby Comments (Gemini Flash) | $0.00 | $0.20 | $0.20 | 0.1% |
+| GEO/AEO (Perplexity) | $0.00 | $10.80 | $10.80 | 6% |
+| Client Portal Actions | $0.00 | $2.50 | $2.50 | 1% |
 | Review Queue | $0.00 | — | $0.00 | 0% |
 | Reddit API | $0.00 | — | $0.00 | 0% |
 | Database (Docker) | $0.00 | — | $0.00 | 0% |
-| Task Queue (SQS) | $0.00 | — | $0.00 | 0% |
-| Cache (Valkey) | $6.14 | — | $6.14 | 2% |
-| Compute (EC2) | $20.43 | — | $20.43 | 5% |
-| **TOTAL** | **$26.58** | **$336.15** | **$362.73** | **100%** |
+| Task Queue (SQS/Redis) | $0.00 | — | $0.00 | 0% |
+| Cache (Redis) | $0.00 | — | $0.00 | 0% |
+| Compute (DO Droplet) | $23.00 | — | $23.00 | 12% |
+| Intelligence (weekly batches) | $0.00 | $1.00 | $1.00 | 0.5% |
+| **TOTAL (10 clients × 2 avatars)** | **$23.01** | **$105.60** | **$192.01** | **100%** |
 
-### Cost Distribution
+### Cost Distribution (post-optimization)
 
 ```
-LLM APIs (Claude Sonnet + Gemini Flash):  93%  ████████████████████████████████████████████
-AWS Infrastructure (EC2+SQS+Valkey):       7%  ███
+LLM APIs:                          88%  ███████████████████████████████████████
+  └─ Claude Sonnet (generation):   42%  ████████████████
+  └─ Gemini Flash (scoring+edit):   5%  ██
+  └─ Perplexity (GEO):              6%  ██
+  └─ Other:                         1%  ░
+AWS/Infra (DO Droplet):            12%  █████
 ```
+
+### Forecast: Cost at Scale (post-optimization)
+
+| Clients | Avatars | LLM/mo | Infra/mo | Total/mo | Revenue/mo | Margin |
+|---------|---------|--------|----------|----------|------------|--------|
+| 1 | 1 | $10 | $23 | $33 | $149 | 78% |
+| 5 | 10 | $96 | $23 | $119 | $1,995 | 94% |
+| 10 | 20 | $192 | $23 | $215 | $3,990 | 95% |
+| 50 | 100 | $960 | $38* | $998 | $39,950 | 97% |
+| 100 | 200 | $1,920 | $130** | $2,050 | $79,900 | 97% |
+
+*Managed DB at 50 clients. **EC2 upgrade at 100 clients.
+
+**Key insight (post-optimization):** Generation (Claude Sonnet) is 85% of LLM cost. Everything else moved to free/near-free Gemini. Margins stay 94%+ from 5 clients onwards.
 
 ---
 

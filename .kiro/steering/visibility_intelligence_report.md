@@ -82,13 +82,69 @@ The visibility report has been formalized into a 5-layer truth-separated archite
 
 **Additional services:** `platform_risk.py` (multi-factor risk assessment), `accuracy_tracker.py` (predicted vs actual).
 
-**Client-facing page:** `/clients/{id}/visibility` — LIVE with hero metric, per-engine cards, trend chart (solid/dashed), competitor bars, category breakdown, AI excerpts, high-intent participation.
+**Client-facing page:** `/clients/{id}/visibility` — LIVE, redesigned July 7, 2026 (see "Client UX Design" section below).
 
 **Spec:** `.kiro/specs/forecast-reporting-layer/` (requirements.md, design.md, tasks.md)
 
 **Key invariant:** Observed ≠ Projected. These are NEVER conflated in any client communication.
 
 **Remaining:** Auto-generation Celery task hookup for `ClientIntelligenceReport`, admin accuracy review UI.
+
+## Client UX Design (Established July 7, 2026)
+
+### Design Philosophy
+
+The 5-layer backend architecture (observed → intent → forecast → risk → impact) is **correct for engineering**. But client-facing presentation must hide 60% of that complexity. Client buys "show me gap and close it" — not "here's my forecast accuracy within bounds rate."
+
+### Single-Screen Principle
+
+**ONE page** (`/clients/{id}/visibility`) replaces both the old dashboard and the separate `/clients/{id}/report/weekly`. No separate "weekly report" page in portal navigation. The weekly report route still exists for admin/programmatic use, but the client sees one screen.
+
+### Information Architecture (top-to-bottom priority)
+
+| Section | Always Visible | Purpose |
+|---------|---------------|---------|
+| **Hero Delta** | ✅ | `7.7% → ~38%` + market position (#N of M). One glance = understand gap. |
+| **Engine Cards** | ✅ | Per-engine (Perplexity/ChatGPT/Claude) measured + projected. |
+| **Competitor Bar Chart** | ✅ | Share of Voice — client vs top competitors. Bar chart only. |
+| **Category Gaps** | ✅ | "Where visible / where not" — actionable (0% = we'll create content here). |
+| **AI Excerpts** | ✅ (max 3) | Proof: real quotes from AI answers. Most powerful trust signal. |
+| **Trend Chart** | 🔒 collapsed | `<details>` — who cares can expand. Solid = measured, dashed = projected. |
+| **Query Table** | 🔒 collapsed | `<details>` — full ✅/❌ per query, for data nerds. |
+| **How it works** | 🔒 collapsed | Footer explainer for onboarding phase. |
+
+### What Was Removed From Client View
+
+| Removed | Why | Where it lives now |
+|---------|-----|--------------------|
+| High-Intent Participation section | Ops metric without client action item. No benchmark = noise. | Admin only (signal_collector can track) |
+| Weekly Intelligence Report as separate page | Same data shown twice = confusion. | Admin route still works for programmatic access |
+| 5-layer labels (📍📋📈⚠️💰) | Client doesn't need to know architecture layers. | Backend JSONB (admin debug view) |
+| 10 excerpts | Diminishing returns after 3. | Admin raw JSONB has all |
+| Always-open trend chart | Adds scroll depth without proportional value for most visits | Collapsed `<details>`, lazy Chart.js init |
+
+### Visual Language (Client-Facing)
+
+- **📍 Measured** = bold number, no prefix needed (it's obviously current if shown prominently)
+- **📈 Projected** = always prefixed with `~`, lighter color (green), marked "6 months"
+- **"gap"** label in red for 0% categories (more actionable than showing "0%")
+- Market position badge (#N of M) in hero — instant competitive framing
+- `<details>` for anything below the fold — respects time
+
+### P12 Enforcement in UI
+
+Despite simplification, P12 (Forecast Truth Separation) is **fully maintained**:
+- Hero: measured value (left) is visually distinct from projected (right, green, `~` prefix)
+- Engine cards: current rate is bold white, projection is smaller green text with `→ ~X% in 6 mo`
+- Trend chart: solid lines (measured batches) vs dashed segments (projected weeks) — unchanged
+- Footer: explicitly states "Projections are forecasts, not guarantees"
+- No projected number anywhere appears without `~` or "projected" label
+
+### For Tzvi (Sales)
+
+The demo page (`/demo/share-of-voice.html`) is separate from portal. It uses the same visual language but with curated numbers for a specific prospect pitch. The portal page is what clients see after they sign.
+
+Sales flow: Demo page (prospect) → Sign → Portal visibility page (client) → Same layout, live data.
 
 ## Related Systems
 

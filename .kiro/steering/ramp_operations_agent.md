@@ -89,6 +89,7 @@
 - Margin calculation (revenue - cost)
 - Break-even analysis
 - Optimization suggestions (model downgrades, batch consolidation)
+- **Partially addressed (July 9, 2026):** `unit_economics.py` implements $/client, $/avatar, $/draft, provider budget tracking, and "at N clients" forecast. Cost reconciliation task detects pricing drift. Full margin calculation (revenue - cost) still pending Stripe integration.
 
 ### Silent Failure Detection (Phase 3)
 - Phantom scraping (scrape succeeds but 0 new threads)
@@ -151,6 +152,7 @@ Phase 1A+1B ✅ COMPLETE. Silent death is no longer possible — operator gets T
 | 2026-07-02 | Pipeline E2E doc created (.kiro/steering/pipeline_end_to_end.md) | Agent signal sources now fully documented — collector can reference pipeline stages |
 | 2026-07-02 | **Phase 1A DEPLOYED** | External watchdog (bash+systemd) + PG backup. Tested: kill all containers → auto-recovery ≤60s. Risk R-INFRA-001/002 → mitigated. |
 | 2026-07-03 | **Phase 1B DEPLOYED** | Telegram bot token configured. Alerts now push to Max's phone. Tested: kill Beat → 🔴 alert received → ✅ recovered. |
+| 2026-07-07 | **Beat memory leak RESOLVED** | Root cause: `include=[]` loaded 31 heavy modules into Beat (unnecessary). Fix: separate lightweight `beat_app.py`. Stable 25 MB. Risk R-INFRA-002 → `resolved`. Deploy grace period added to watchdog + deploy.sh. |
 
 ## Related Documentation
 
