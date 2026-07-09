@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: reddit_saas
+          POSTGRES_USER: reddit_saas_user
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U reddit_saas_user -d reddit_saas"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=6
+
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=6
+
+    defaults:
+      run:
+        working-directory: reddit_saas
+
+    env:
+      DATABASE_URL: postgresql://reddit_saas_user:postgres@localhost:5432/reddit_saas
+      REDIS_URL: redis://localhost:6379/0
+      ENVIRONMENT: test
+      SECRET_KEY: ci-test-key-not-for-production
+      TZ: Asia/Jerusalem
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ hashFiles('reddit_saas/pyproject.toml') }}
+          restore-keys: pip-
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]" fakeredis pytest-timeout
+
+      - name: Verify imports
+        run: python -c "from app.models import *; from app.main import app; print('All imports OK')"
+
+      - name: Alembic single head
+        run: |
+          heads=$(alembic heads 2>/dev/null | wc -l)
+          if [ "$heads" -ne 1 ]; then
+            echo "::error::Multiple Alembic heads detected — run 'alembic merge heads' locally"
+            alembic heads
+            exit 1
+          fi
+          echo "✓ Single Alembic head"
+
+      - name: Run tests
+        run: |
+          pytest tests/ -x -q \
+            --timeout=30 \
+            --ignore=tests/test_geo_monitoring.py \
+            -k "not hypothesis" \
+            --tb=short \
+            --junitxml=report.xml
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: reddit_saas/report.xml
