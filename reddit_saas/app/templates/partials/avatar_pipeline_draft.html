@@ -88,9 +88,18 @@
         <span>Draft ID: {{ draft.id|string|truncate(8, True, '') }}</span>
         {% if draft.learning_metadata %}
         <span>·</span>
-        <span class="text-indigo-400" title="Learning context was injected">🧠 learning</span>
+        <button type="button"
+                hx-get="/admin/comments/{{ draft.id }}/debug-view"
+                hx-target="#debug-view-container-{{ draft.id }}"
+                hx-swap="innerHTML"
+                class="text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
+                title="Show learning context used for this generation (few-shot examples, correction patterns, token count)">
+            🧠 learning ▾
+        </button>
         {% endif %}
     </div>
+    <!-- Debug view container (loaded on click) -->
+    <div id="debug-view-container-{{ draft.id }}"></div>
 
     <!-- ═══════════════════════════════════════════════════════════════════ -->
     <!-- ACTION PANEL — the full workflow in one place                       -->

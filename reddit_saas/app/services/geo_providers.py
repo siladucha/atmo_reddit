@@ -168,7 +168,12 @@ def execute_provider_query(
         usage = response.usage
         input_tokens = usage.prompt_tokens if usage else 0
         output_tokens = usage.completion_tokens if usage else 0
-        cost_usd = _calculate_cost(model, input_tokens, output_tokens)
+
+        # Use litellm.completion_cost for accurate cost (includes web_search fees)
+        try:
+            cost_usd = litellm.completion_cost(completion_response=response)
+        except Exception:
+            cost_usd = _calculate_cost(model, input_tokens, output_tokens)
 
         return ProviderQueryResult(
             success=True,

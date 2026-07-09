@@ -186,22 +186,30 @@ class DraftExpiryService:
         next 2 hours (execution window protection).  Skips orphaned drafts
         (client_id IS NULL) with a WARNING log.
         """
-        from sqlalchemy import or_
+        from sqlalchemy import or_, and_, not_
 
         now = datetime.now(timezone.utc)
         cutoff = now - timedelta(hours=threshold_hours)
         protection_window = now + timedelta(hours=2)
 
+        # Protection logic: a draft is protected ONLY if it has an EPGSlot
+        # with scheduled_at in the near future [now, now+2h].
+        # Old slots (scheduled_at in the past) and far-future slots do NOT protect.
+        # No slot or no scheduled_at → not protected.
         results: list[CommentDraft] = (
             db.query(CommentDraft)
             .outerjoin(EPGSlot, EPGSlot.draft_id == CommentDraft.id)
             .filter(
                 CommentDraft.status == "approved",
                 CommentDraft.updated_at < cutoff,
+                # Exclude only drafts whose slot is scheduled within [now, now+2h]
                 or_(
                     EPGSlot.id.is_(None),
                     EPGSlot.scheduled_at.is_(None),
-                    EPGSlot.scheduled_at > protection_window,
+                    not_(and_(
+                        EPGSlot.scheduled_at >= now,
+                        EPGSlot.scheduled_at <= protection_window,
+                    )),
                 ),
             )
             .order_by(CommentDraft.updated_at.asc())
@@ -227,8 +235,40 @@ class DraftExpiryService:
     def _query_stale_pending(
         self, db: Session, threshold_hours: int
     ) -> list[CommentDraft]:
-        """Query pending drafts older than threshold."""
-        return []
+        """Query pending drafts older than threshold.
+
+        Returns drafts with status='pending' whose created_at is older than
+        now() - threshold_hours. Ordered by created_at ASC, limited to 500.
+        Skips drafts with client_id IS NULL (logs WARNING for orphaned drafts).
+        """
+        now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(hours=threshold_hours)
+
+        results: list[CommentDraft] = (
+            db.query(CommentDraft)
+            .filter(
+                CommentDraft.status == "pending",
+                CommentDraft.created_at < cutoff,
+            )
+            .order_by(CommentDraft.created_at.asc())
+            .limit(500)
+            .all()
+        )
+
+        # Filter out orphaned drafts (client_id IS NULL) with WARNING log
+        valid_drafts: list[CommentDraft] = []
+        for draft in results:
+            if draft.client_id is None:
+                logger.warning(
+                    "DRAFT_EXPIRY | orphaned pending draft skipped (client_id=NULL) | "
+                    "draft_id=%s avatar_id=%s",
+                    draft.id,
+                    draft.avatar_id,
+                )
+                continue
+            valid_drafts.append(draft)
+
+        return valid_drafts
 
     # ------------------------------------------------------------------
     # Processing

@@ -100,7 +100,7 @@ def dispatch_due_email_tasks():
     import uuid
     from datetime import datetime, timedelta, timezone
 
-    import pytz
+    from zoneinfo import ZoneInfo
     from sqlalchemy import func as sa_func
 
     from app.models.avatar import Avatar
@@ -118,7 +118,7 @@ def dispatch_due_email_tasks():
         window_end = now + timedelta(minutes=30)
 
         # --- Quiet hours gate ---
-        israel_tz = pytz.timezone("Asia/Jerusalem")
+        israel_tz = ZoneInfo("Asia/Jerusalem")
         now_israel = now.astimezone(israel_tz)
         current_hour = now_israel.hour
 

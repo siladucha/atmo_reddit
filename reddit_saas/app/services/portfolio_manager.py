@@ -914,6 +914,7 @@ def build_portfolio(
     db: "Session",
     avatar: "Avatar",
     client: Optional["Client"] = None,
+    topup_remaining: Optional[int] = None,
 ) -> "EPGResult":
     """Build the daily attention portfolio for an avatar.
 
@@ -993,66 +994,69 @@ def build_portfolio(
             return result
 
     # --- Dedup guard: prevent duplicate EPG builds per avatar per day ---
-    # Rules:
-    # 1. If any non-skipped slots exist (generated/approved/posted) -> skip (successful build exists)
-    # 2. If only skipped slots exist -> allow ONE retry (afternoon rebuild after morning failure)
-    # 3. Max 2 build attempts per day (counted by distinct created_at batches)
+    # Single daily EPG build. Rules:
+    # 1. If any non-skipped slots exist (generated/approved/posted) -> skip (successful build done)
+    # 2. If only skipped slots exist -> allow ONE retry (e.g. manual trigger or recovery)
+    # 3. Max 2 build attempts per day (prevents infinite loops from manual triggers)
+    # Exception: topup_remaining is set -> skip dedup (afternoon top-up for underfilled budget)
     from sqlalchemy import func as _sa_func
 
     _MAX_BUILD_ATTEMPTS_PER_DAY = 2
+    _is_topup = topup_remaining is not None
 
-    existing_active_count = (
-        db.query(_sa_func.count(EPGSlot.id))
-        .filter(
-            EPGSlot.avatar_id == avatar.id,
-            EPGSlot.plan_date == plan_date,
-            EPGSlot.status.notin_(["skipped"]),
+    if not _is_topup:
+        existing_active_count = (
+            db.query(_sa_func.count(EPGSlot.id))
+            .filter(
+                EPGSlot.avatar_id == avatar.id,
+                EPGSlot.plan_date == plan_date,
+                EPGSlot.status.notin_(["skipped"]),
+            )
+            .scalar() or 0
         )
-        .scalar() or 0
-    )
 
-    if existing_active_count > 0:
-        # Successful build exists - no rebuild needed
-        result.status = "already_planned"
-        result.message = (
-            f"EPG already built today: {existing_active_count} active slots exist. "
-            f"Skipping duplicate build."
-        )
-        logger.info(
-            "build_portfolio SKIPPED (dedup): avatar=%s plan_date=%s existing_slots=%d",
-            avatar.reddit_username, plan_date, existing_active_count,
-        )
-        return result
+        if existing_active_count > 0:
+            # Successful build exists - no rebuild needed
+            result.status = "already_planned"
+            result.message = (
+                f"EPG already built today: {existing_active_count} active slots exist. "
+                f"Skipping duplicate build."
+            )
+            logger.info(
+                "build_portfolio SKIPPED (dedup): avatar=%s plan_date=%s existing_slots=%d",
+                avatar.reddit_username, plan_date, existing_active_count,
+            )
+            return result
 
-    # Check build attempt count (all slots including skipped)
-    build_attempts = (
-        db.query(_sa_func.count(_sa_func.distinct(EPGSlot.created_at)))
-        .filter(
-            EPGSlot.avatar_id == avatar.id,
-            EPGSlot.plan_date == plan_date,
+        # Check build attempt count (all slots including skipped)
+        build_attempts = (
+            db.query(_sa_func.count(_sa_func.distinct(EPGSlot.created_at)))
+            .filter(
+                EPGSlot.avatar_id == avatar.id,
+                EPGSlot.plan_date == plan_date,
+            )
+            .scalar() or 0
         )
-        .scalar() or 0
-    )
 
-    if build_attempts >= _MAX_BUILD_ATTEMPTS_PER_DAY:
-        # Already attempted twice (morning + afternoon) - stop
-        result.status = "already_planned"
-        result.message = (
-            f"EPG build attempted {build_attempts} times today (max {_MAX_BUILD_ATTEMPTS_PER_DAY}). "
-            f"All previous slots skipped. No more retries."
-        )
-        logger.info(
-            "build_portfolio SKIPPED (max attempts): avatar=%s plan_date=%s attempts=%d",
-            avatar.reddit_username, plan_date, build_attempts,
-        )
-        return result
+        if build_attempts >= _MAX_BUILD_ATTEMPTS_PER_DAY:
+            # Already attempted twice (morning + afternoon) - stop
+            result.status = "already_planned"
+            result.message = (
+                f"EPG build attempted {build_attempts} times today (max {_MAX_BUILD_ATTEMPTS_PER_DAY}). "
+                f"All previous slots skipped. No more retries."
+            )
+            logger.info(
+                "build_portfolio SKIPPED (max attempts): avatar=%s plan_date=%s attempts=%d",
+                avatar.reddit_username, plan_date, build_attempts,
+            )
+            return result
 
-    # Allow rebuild: previous attempt(s) all failed (skipped), retry permitted
-    if build_attempts > 0:
-        logger.info(
-            "build_portfolio RETRY: avatar=%s plan_date=%s previous_attempts=%d (all skipped)",
-            avatar.reddit_username, plan_date, build_attempts,
-        )
+        # Allow rebuild: previous attempt(s) all failed (skipped), retry permitted
+        if build_attempts > 0:
+            logger.info(
+                "build_portfolio RETRY: avatar=%s plan_date=%s previous_attempts=%d (all skipped)",
+                avatar.reddit_username, plan_date, build_attempts,
+            )
 
     try:
         # ---------------------------------------------------------------
@@ -1161,6 +1165,19 @@ def build_portfolio(
             result.daily_budget = 0
             result.remaining = 0
             return result
+
+        # --- Top-up override: cap budget to remaining unfilled portion ---
+        if _is_topup:
+            budget = AttentionBudget(
+                max_comments=min(budget.max_comments, topup_remaining),
+                max_posts=min(budget.max_posts, max(0, topup_remaining - budget.max_comments)),
+                max_total_actions=topup_remaining,
+                acceptable_risk_level=budget.acceptable_risk_level,
+            )
+            logger.info(
+                "build_portfolio TOPUP mode: avatar=%s topup_remaining=%d",
+                avatar.reddit_username, topup_remaining,
+            )
 
         result.daily_budget = budget.max_total_actions
 
@@ -1273,6 +1290,44 @@ def build_portfolio(
                     + (opp.karma_potential_score or 0)
                     + (opp.strategic_alignment_score or 0)
                 ) // 5))
+
+        # ---------------------------------------------------------------
+        # Step 3d: Apply client strategy subreddit_priorities boost
+        # ---------------------------------------------------------------
+        # Higher priority subreddits get a composite_score bonus so they're
+        # more likely to be selected by the allocation engine.
+        # Priority 1 = +15, priority 2 = +12, ..., priority 10 = +0
+        try:
+            if client and client.strategy_context:
+                _sub_priorities = client.strategy_context.get("subreddit_priorities", [])
+                if _sub_priorities:
+                    _priority_map: dict[str, int] = {}
+                    for sp in _sub_priorities:
+                        _sp_name = (sp.get("subreddit", "") or "").lower().replace("r/", "").strip()
+                        _sp_priority = sp.get("priority", 10)
+                        if _sp_name:
+                            _priority_map[_sp_name] = _sp_priority
+
+                    if _priority_map:
+                        _boosted = 0
+                        for opp in opportunities:
+                            _opp_sub = (opp.subreddit or "").lower()
+                            if _opp_sub in _priority_map:
+                                # Priority 1 → +15 bonus, priority 10 → +0 bonus
+                                _bonus = max(0, 15 - (_priority_map[_opp_sub] - 1) * 2)
+                                opp.composite_score = min(100, (opp.composite_score or 0) + _bonus)
+                                _boosted += 1
+
+                        if _boosted > 0:
+                            logger.info(
+                                "Strategy priority boost: avatar=%s boosted=%d opportunities from %d priority subs",
+                                avatar.reddit_username, _boosted, len(_priority_map),
+                            )
+        except Exception:
+            logger.warning(
+                "Failed to apply strategy priority boost for avatar %s — proceeding without",
+                avatar.reddit_username,
+            )
 
         if not opportunities:
             # Zero-day: no opportunities found

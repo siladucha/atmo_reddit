@@ -28,6 +28,9 @@
             {% elif draft.avatar_phase == 3 %}
             <span class="badge-green">Phase 3</span>
             {% endif %}
+            {% if draft.status == 'expired' %}
+            <span style="padding:2px 8px;border-radius:var(--radius-pill);font-size:var(--text-micro);font-weight:600;background:rgba(245,158,11,0.15);color:#f59e0b;">Expired{% if draft.stale_age_hours %} ({{ draft.stale_age_hours }}h stale){% endif %}</span>
+            {% endif %}
             {% if draft.subreddit_name %}
             <a href="https://reddit.com/r/{{ draft.subreddit_name }}" target="_blank" rel="noopener" style="padding:2px 8px;border-radius:var(--radius-pill);background:var(--color-surface-alt);color:var(--color-muted);font-size:var(--text-micro);text-decoration:none;" onmouseover="this.style.color='var(--color-white)'" onmouseout="this.style.color='var(--color-muted)'">r/{{ draft.subreddit_name }}</a>
             {% endif %}
@@ -434,6 +437,10 @@ function batchApprove() {
     <p style="font-size:24px;margin-bottom:var(--space-2);">📊</p>
     <p style="color:var(--color-white);font-weight:500;margin-bottom:8px;">No posted comments yet</p>
     <p class="text-small">Once you post comments and mark them, they'll show up here.</p>
+    {% elif status == 'expired' %}
+    <p style="font-size:24px;margin-bottom:var(--space-2);">✓</p>
+    <p style="color:var(--color-white);font-weight:500;margin-bottom:8px;">No expired drafts</p>
+    <p class="text-small">Drafts that become too stale are automatically expired. None in the last 30 days.</p>
     {% endif %}
 </div>
 {% endif %}

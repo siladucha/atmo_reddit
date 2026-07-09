@@ -1,0 +1,16 @@
+[Unit]
+Description=RAMP Telegram Bot (owner command interface)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/ramp/telegram_bot.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/ramp-telegram-bot.log
+StandardError=append:/var/log/ramp-telegram-bot.log
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=multi-user.target

@@ -3,8 +3,12 @@
 # RAMP External Watchdog — Runs on HOST (outside Docker)
 # =============================================================================
 # Checks: Beat alive, PostgreSQL alive, App health, Disk space, Redis alive
-# Actions: Auto-restart dead containers, Telegram alerts
+# Actions: Auto-restart dead containers, Telegram state change notifications
 # Install: systemd timer (every 30s) — see ramp-watchdog.timer
+#
+# STATE CHANGE NOTIFICATIONS:
+# Every time a component transitions state (e.g. running→dead, dead→running),
+# a Telegram message is sent with: component, old_state→new_state, reason.
 # =============================================================================
 
 set -uo pipefail
@@ -14,7 +18,7 @@ COMPOSE_DIR="/app"
 COMPOSE_CMD="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
 LOG_FILE="/var/log/ramp-watchdog.log"
 STATE_DIR="/var/lib/ramp-watchdog"
-ALERT_COOLDOWN=300  # seconds between duplicate alerts
+ALERT_COOLDOWN=300  # seconds between duplicate alerts (for non-state-change alerts only)
 
 # Telegram (loaded from env file)
 TG_CONFIG="/opt/ramp/watchdog.env"
@@ -24,10 +28,102 @@ fi
 
 # Ensure state dir exists
 mkdir -p "$STATE_DIR"
+mkdir -p "$STATE_DIR/component_state"
+
+# --- Deploy Grace Period ---
+# If a deploy is in progress (marker file exists and is fresh < 90s), skip auto-RESTART
+# but still CHECK and REPORT state changes. This way operator sees downtime during deploys.
+DEPLOY_MARKER="$STATE_DIR/deploying"
+DEPLOY_IN_PROGRESS=false
+if [ -f "$DEPLOY_MARKER" ]; then
+    marker_age=$(( $(date +%s) - $(stat -c %Y "$DEPLOY_MARKER" 2>/dev/null || echo "0") ))
+    if [ "$marker_age" -lt 90 ]; then
+        DEPLOY_IN_PROGRESS=true
+        log "Deploy in progress (${marker_age}s ago). Checks run but auto-restart disabled."
+    else
+        rm -f "$DEPLOY_MARKER"
+    fi
+fi
 
 # --- Helpers ---
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') | $1" >> "$LOG_FILE"
+}
+
+send_telegram() {
+    local message="$1"
+    if [ -n "${TG_BOT_TOKEN:-}" ] && [ -n "${TG_CHAT_ID:-}" ]; then
+        curl -s --max-time 5 \
+            "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TG_CHAT_ID}" \
+            -d "text=${message}" \
+            -d "parse_mode=HTML" > /dev/null 2>&1 || true
+    fi
+}
+
+# --- State Change Tracking ---
+# Stores previous state per component. Sends Telegram on ANY transition.
+# No cooldown for state changes — every transition is reported exactly once.
+# Includes downtime duration when recovering (dead → running).
+report_state() {
+    local component="$1"   # e.g. "redis", "postgres", "app", "beat", "worker", "worker_fast", "disk"
+    local new_state="$2"   # e.g. "running", "dead", "degraded", "warning"
+    local reason="$3"      # e.g. "Container not running", "HTTP 500", "Disk at 85%"
+    
+    local state_file="$STATE_DIR/component_state/${component}"
+    local time_file="$STATE_DIR/component_state/${component}.ts"
+    local prev_state="unknown"
+    local now_ts=$(date +%s)
+    
+    if [ -f "$state_file" ]; then
+        prev_state=$(cat "$state_file")
+    fi
+    
+    # Only notify on actual state CHANGE
+    if [ "$prev_state" != "$new_state" ]; then
+        # Determine icon
+        local icon="🔄"
+        case "$new_state" in
+            running|healthy|ok) icon="✅" ;;
+            dead|down|critical)  icon="🔴" ;;
+            degraded|warning)    icon="🟡" ;;
+            restarting)          icon="🔄" ;;
+        esac
+        
+        # Calculate downtime if recovering from dead/critical state
+        local downtime_line=""
+        if [ -f "$time_file" ]; then
+            local prev_ts=$(cat "$time_file")
+            if [ -n "$prev_ts" ]; then
+                local elapsed=$((now_ts - prev_ts))
+                if [ "$elapsed" -ge 3600 ]; then
+                    downtime_line="Длительность: $((elapsed / 3600))ч $((elapsed % 3600 / 60))мин"
+                elif [ "$elapsed" -ge 60 ]; then
+                    downtime_line="Длительность: $((elapsed / 60))мин $((elapsed % 60))с"
+                else
+                    downtime_line="Длительность: ${elapsed}с"
+                fi
+            fi
+        fi
+        
+        local msg="${icon} <b>${component}</b>: ${prev_state} → ${new_state}
+Причина: ${reason}"
+        
+        if [ -n "$downtime_line" ]; then
+            msg="${msg}
+${downtime_line}"
+        fi
+        
+        msg="${msg}
+Время: $(date '+%H:%M:%S %d.%m')"
+        
+        send_telegram "$msg"
+        log "STATE_CHANGE [$component] $prev_state → $new_state | $reason | ${downtime_line:-no_prev_ts}"
+        
+        # Save new state + timestamp
+        echo "$new_state" > "$state_file"
+        echo "$now_ts" > "$time_file"
+    fi
 }
 
 send_alert() {
@@ -35,7 +131,7 @@ send_alert() {
     local message="$2"
     local alert_key="$3"
     
-    # Cooldown check — don't spam
+    # Cooldown check — don't spam (for non-state-change alerts like disk warnings)
     local cooldown_file="$STATE_DIR/cooldown_${alert_key}"
     if [ -f "$cooldown_file" ]; then
         local last_alert=$(cat "$cooldown_file")
@@ -68,7 +164,6 @@ clear_alert() {
     local cooldown_file="$STATE_DIR/cooldown_${alert_key}"
     if [ -f "$cooldown_file" ]; then
         rm -f "$cooldown_file"
-        send_alert "RECOVERED" "$2" "${alert_key}_recovered"
     fi
 }
 
@@ -80,9 +175,25 @@ check_beat() {
     beat_status=$(cd "$COMPOSE_DIR" && $COMPOSE_CMD ps celery-beat --format '{{.State}}' 2>/dev/null || echo "unknown")
     
     if [ "$beat_status" != "running" ]; then
-        log "BEAT: Container not running (state=$beat_status). Restarting..."
-        cd "$COMPOSE_DIR" && $COMPOSE_CMD restart celery-beat 2>/dev/null
-        send_alert "CRITICAL" "Celery Beat was DEAD (state=$beat_status). Auto-restarted." "beat_dead"
+        # Check if container was recently restarted (deploy in progress)
+        local container_created
+        container_created=$(docker inspect app-celery-beat-1 --format '{{.Created}}' 2>/dev/null || echo "")
+        if [ -n "$container_created" ]; then
+            local created_ts=$(date -d "$container_created" +%s 2>/dev/null || echo "0")
+            local now_ts=$(date +%s)
+            if [ $((now_ts - created_ts)) -lt 60 ]; then
+                log "BEAT: Container recreating (deploy in progress). Skipping restart."
+                return 0
+            fi
+        fi
+        
+        report_state "beat" "dead" "Контейнер не запущен (docker state=$beat_status)."
+        if [ "$DEPLOY_IN_PROGRESS" = false ]; then
+            log "BEAT: Container not running (state=$beat_status). Restarting..."
+            cd "$COMPOSE_DIR" && $COMPOSE_CMD restart celery-beat 2>/dev/null
+        else
+            log "BEAT: Container not running during deploy. NOT restarting."
+        fi
         return 1
     fi
     
@@ -100,46 +211,64 @@ check_beat() {
             uptime=$(cd "$COMPOSE_DIR" && $COMPOSE_CMD exec -T celery-beat ps -o etimes= -p 1 2>/dev/null | tr -d ' ' || echo "0")
             
             if [ "${uptime:-0}" -gt 180 ]; then
-                log "BEAT: No heartbeat after ${uptime}s uptime. Restarting..."
-                cd "$COMPOSE_DIR" && $COMPOSE_CMD restart celery-beat 2>/dev/null
-                send_alert "CRITICAL" "Celery Beat has no heartbeat after ${uptime}s. Auto-restarted." "beat_silent"
+                report_state "beat" "dead" "Нет heartbeat ${uptime}с после старта."
+                if [ "$DEPLOY_IN_PROGRESS" = false ]; then
+                    log "BEAT: No heartbeat after ${uptime}s uptime. Restarting..."
+                    cd "$COMPOSE_DIR" && $COMPOSE_CMD restart celery-beat 2>/dev/null
+                else
+                    log "BEAT: No heartbeat during deploy. NOT restarting."
+                fi
                 return 1
             fi
         fi
     fi
     
-    clear_alert "beat_dead" "Celery Beat recovered and running."
-    clear_alert "beat_silent" "Celery Beat heartbeat restored."
+    report_state "beat" "running" "Контейнер работает, heartbeat в норме."
+    clear_alert "beat_dead"
+    clear_alert "beat_silent"
     return 0
 }
 
 check_postgres() {
-    local pg_status
-    pg_status=$(cd "$COMPOSE_DIR" && $COMPOSE_CMD exec -T db pg_isready -U reddit_saas_user -d reddit_saas 2>/dev/null)
+    cd "$COMPOSE_DIR" && $COMPOSE_CMD exec -T db pg_isready -U reddit_saas_user -d reddit_saas >/dev/null 2>&1
+    local pg_ready=$?
     
-    if [ $? -ne 0 ]; then
-        log "POSTGRES: Not ready. Restarting..."
-        cd "$COMPOSE_DIR" && $COMPOSE_CMD restart db 2>/dev/null
-        send_alert "CRITICAL" "PostgreSQL was DOWN. Auto-restarted. Check data integrity!" "pg_dead"
+    if [ "$pg_ready" -ne 0 ]; then
+        report_state "postgres" "dead" "pg_isready вернул ошибку."
+        if [ "$DEPLOY_IN_PROGRESS" = false ]; then
+            log "POSTGRES: Not ready. Restarting..."
+            cd "$COMPOSE_DIR" && $COMPOSE_CMD restart db 2>/dev/null
+        else
+            log "POSTGRES: Not ready during deploy. NOT restarting."
+        fi
         return 1
     fi
     
-    clear_alert "pg_dead" "PostgreSQL recovered and accepting connections."
+    report_state "postgres" "running" "Принимает подключения (pg_isready OK)."
+    clear_alert "pg_dead"
     return 0
 }
 
 check_app_health() {
+    # Check EXTERNAL URL (as user sees it) — detects downtime during deploys too
     local http_code
-    http_code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 5 https://localhost/health 2>/dev/null || echo "000")
+    http_code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 https://gorampit.com/health 2>/dev/null || echo "000")
     
     if [ "$http_code" != "200" ]; then
-        log "APP: /health returned HTTP $http_code. Restarting app..."
-        cd "$COMPOSE_DIR" && $COMPOSE_CMD restart app 2>/dev/null
-        send_alert "CRITICAL" "App /health returned HTTP $http_code. Auto-restarted." "app_dead"
+        report_state "app" "dead" "/health вернул HTTP $http_code (внешний URL gorampit.com)."
+        
+        # Auto-restart only if NOT deploying
+        if [ "$DEPLOY_IN_PROGRESS" = false ]; then
+            log "APP: /health returned HTTP $http_code. Restarting app..."
+            cd "$COMPOSE_DIR" && $COMPOSE_CMD restart app 2>/dev/null
+        else
+            log "APP: /health returned HTTP $http_code during deploy. NOT restarting (grace period)."
+        fi
         return 1
     fi
     
-    clear_alert "app_dead" "App /health recovered (HTTP 200)."
+    report_state "app" "running" "/health HTTP 200 (gorampit.com доступен)."
+    clear_alert "app_dead"
     return 0
 }
 
@@ -151,13 +280,18 @@ check_redis() {
     pong=$(cd "$COMPOSE_DIR" && $COMPOSE_CMD exec -T redis redis-cli -a "$redis_pass" ping 2>/dev/null | tr -d '\r')
     
     if [ "$pong" != "PONG" ]; then
-        log "REDIS: Not responding. Restarting..."
-        cd "$COMPOSE_DIR" && $COMPOSE_CMD restart redis 2>/dev/null
-        send_alert "CRITICAL" "Redis was DOWN. Auto-restarted." "redis_dead"
+        report_state "redis" "dead" "PING не ответил PONG."
+        if [ "$DEPLOY_IN_PROGRESS" = false ]; then
+            log "REDIS: Not responding. Restarting..."
+            cd "$COMPOSE_DIR" && $COMPOSE_CMD restart redis 2>/dev/null
+        else
+            log "REDIS: Not responding during deploy. NOT restarting."
+        fi
         return 1
     fi
     
-    clear_alert "redis_dead" "Redis recovered."
+    report_state "redis" "running" "PING → PONG."
+    clear_alert "redis_dead"
     return 0
 }
 
@@ -166,15 +300,16 @@ check_disk() {
     usage=$(df /app --output=pcent 2>/dev/null | tail -1 | tr -dc '0-9')
     
     if [ "${usage:-0}" -gt 90 ]; then
-        send_alert "CRITICAL" "Disk usage at ${usage}%! Server may run out of space." "disk_full"
+        report_state "disk" "critical" "Использование диска ${usage}%! Места почти нет."
         return 1
     elif [ "${usage:-0}" -gt 80 ]; then
-        send_alert "WARNING" "Disk usage at ${usage}%. Consider cleanup." "disk_warning"
+        report_state "disk" "warning" "Использование диска ${usage}%. Нужна очистка."
         return 0
     fi
     
-    clear_alert "disk_full" "Disk usage back to normal (${usage}%)."
-    clear_alert "disk_warning" "Disk usage back to normal (${usage}%)."
+    report_state "disk" "ok" "Использование диска ${usage}%."
+    clear_alert "disk_full"
+    clear_alert "disk_warning"
     return 0
 }
 
@@ -183,9 +318,13 @@ check_workers() {
     celery_status=$(cd "$COMPOSE_DIR" && $COMPOSE_CMD ps celery --format '{{.State}}' 2>/dev/null || echo "unknown")
     
     if [ "$celery_status" != "running" ]; then
-        log "WORKER: celery container not running. Restarting..."
-        cd "$COMPOSE_DIR" && $COMPOSE_CMD restart celery 2>/dev/null
-        send_alert "CRITICAL" "Celery worker was DEAD. Auto-restarted." "worker_dead"
+        report_state "worker" "dead" "Контейнер celery не запущен (state=$celery_status)."
+        if [ "$DEPLOY_IN_PROGRESS" = false ]; then
+            log "WORKER: celery container not running. Restarting..."
+            cd "$COMPOSE_DIR" && $COMPOSE_CMD restart celery 2>/dev/null
+        else
+            log "WORKER: celery not running during deploy. NOT restarting."
+        fi
         return 1
     fi
     
@@ -193,14 +332,20 @@ check_workers() {
     fast_status=$(cd "$COMPOSE_DIR" && $COMPOSE_CMD ps celery-fast --format '{{.State}}' 2>/dev/null || echo "unknown")
     
     if [ "$fast_status" != "running" ]; then
-        log "WORKER-FAST: celery-fast container not running. Restarting..."
-        cd "$COMPOSE_DIR" && $COMPOSE_CMD restart celery-fast 2>/dev/null
-        send_alert "HIGH" "Celery-fast worker was DEAD. Auto-restarted." "worker_fast_dead"
+        report_state "worker_fast" "dead" "Контейнер celery-fast не запущен (state=$fast_status)."
+        if [ "$DEPLOY_IN_PROGRESS" = false ]; then
+            log "WORKER-FAST: celery-fast container not running. Restarting..."
+            cd "$COMPOSE_DIR" && $COMPOSE_CMD restart celery-fast 2>/dev/null
+        else
+            log "WORKER-FAST: celery-fast not running during deploy. NOT restarting."
+        fi
         return 1
     fi
     
-    clear_alert "worker_dead" "Celery worker recovered."
-    clear_alert "worker_fast_dead" "Celery-fast worker recovered."
+    report_state "worker" "running" "Celery worker активен."
+    report_state "worker_fast" "running" "Celery-fast worker активен."
+    clear_alert "worker_dead"
+    clear_alert "worker_fast_dead"
     return 0
 }
 

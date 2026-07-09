@@ -1,0 +1,178 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Profile — RAMP{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span>
+    <span class="mx-1.5 text-gray-600">/</span>
+    <span class="text-white">Profile</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div style="max-width:640px;">
+    <h1 class="text-h1 mb-6">Profile & Notifications</h1>
+
+    <!-- User Info -->
+    <div class="surface p-6 mb-6">
+        <h2 class="text-base font-semibold text-white mb-4">Account</h2>
+        <div class="grid grid-cols-2 gap-4 text-sm">
+            <div>
+                <span class="text-gray-500">Email</span>
+                <p class="text-white mt-1">{{ user.email }}</p>
+            </div>
+            <div>
+                <span class="text-gray-500">Name</span>
+                <p class="text-white mt-1">{{ user.full_name or '—' }}</p>
+            </div>
+            <div>
+                <span class="text-gray-500">Role</span>
+                <p class="mt-1">
+                    {% if user.role == 'owner' %}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-violet-900/50 text-violet-300 border border-violet-700">👑 Owner</span>
+                    {% elif user.role == 'partner' %}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-indigo-900/50 text-indigo-300 border border-indigo-700">🤝 Partner</span>
+                    {% else %}
+                    <span class="text-white">{{ user.role }}</span>
+                    {% endif %}
+                </p>
+            </div>
+            <div>
+                <span class="text-gray-500">Member since</span>
+                <p class="text-white mt-1">{{ user.created_at.strftime('%b %d, %Y') if user.created_at else '—' }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Telegram Notifications -->
+    <div class="surface p-6 mb-6">
+        <h2 class="text-base font-semibold text-white mb-2">Telegram Notifications</h2>
+        <p class="text-sm text-gray-400 mb-4">Get alerts pushed to your phone when something needs attention.</p>
+
+        {% if user.telegram_chat_id %}
+        <!-- Connected state -->
+        <div class="flex items-center gap-3 p-3 rounded-lg bg-emerald-900/20 border border-emerald-700/50 mb-4">
+            <span class="text-lg">✅</span>
+            <div>
+                <p class="text-sm text-emerald-300 font-medium">Connected</p>
+                <p class="text-xs text-gray-400">Chat ID: {{ user.telegram_chat_id }}{% if user.telegram_connected_at %} · since {{ user.telegram_connected_at.strftime('%b %d') }}{% endif %}</p>
+            </div>
+            <form method="post" action="/admin/profile/telegram/disconnect" class="ml-auto">
+                <button type="submit" class="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded hover:bg-red-900/20">Disconnect</button>
+            </form>
+        </div>
+        {% else %}
+        <!-- Not connected state -->
+        <div class="flex items-center gap-3 p-3 rounded-lg bg-slate-700/50 border border-slate-600 mb-4">
+            <span class="text-lg">📱</span>
+            <div>
+                <p class="text-sm text-gray-300 font-medium">Not connected</p>
+                <p class="text-xs text-gray-500">Follow the steps below to connect</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Setup instructions -->
+        <details {% if not user.telegram_chat_id %}open{% endif %} class="mb-4">
+            <summary class="text-sm text-gray-400 cursor-pointer hover:text-white font-medium">📋 How to connect</summary>
+            <div class="mt-3 pl-4 border-l-2 border-slate-600 space-y-3 text-sm text-gray-300">
+                <div class="flex items-start gap-2">
+                    <span class="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-600 text-white text-xs flex items-center justify-center font-bold">1</span>
+                    <p>Open Telegram and search for <code class="bg-slate-700 px-1.5 py-0.5 rounded text-indigo-300">@ramp_watchdog_bot</code></p>
+                </div>
+                <div class="flex items-start gap-2">
+                    <span class="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-600 text-white text-xs flex items-center justify-center font-bold">2</span>
+                    <p>Send <code class="bg-slate-700 px-1.5 py-0.5 rounded text-indigo-300">/start</code> to the bot</p>
+                </div>
+                <div class="flex items-start gap-2">
+                    <span class="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-600 text-white text-xs flex items-center justify-center font-bold">3</span>
+                    <p>The bot will reply with your <strong>Chat ID</strong> number. Copy it.</p>
+                </div>
+                <div class="flex items-start gap-2">
+                    <span class="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-600 text-white text-xs flex items-center justify-center font-bold">4</span>
+                    <p>Paste the Chat ID below and click <strong>Connect</strong>.</p>
+                </div>
+            </div>
+        </details>
+
+        <!-- Connect form -->
+        <form method="post" action="/admin/profile/telegram/connect" class="flex items-end gap-3">
+            <div class="flex-1">
+                <label class="text-xs text-gray-500 block mb-1">Telegram Chat ID</label>
+                <input type="text" name="chat_id" placeholder="e.g. 123456789"
+                       value="{{ user.telegram_chat_id or '' }}"
+                       class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-sm text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none">
+            </div>
+            <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors">
+                {% if user.telegram_chat_id %}Update{% else %}Connect{% endif %}
+            </button>
+        </form>
+
+        <!-- Notification level -->
+        <div class="mt-6 pt-4 border-t border-slate-700">
+            <label class="text-xs text-gray-500 block mb-2">Notification level</label>
+            <form method="post" action="/admin/profile/telegram/level" class="flex items-center gap-3">
+                <select name="level" class="bg-slate-700 border border-slate-600 rounded-lg text-sm text-white px-3 py-2 focus:border-indigo-500 focus:outline-none">
+                    <option value="critical" {% if (user.telegram_notifications_level or 'critical') == 'critical' %}selected{% endif %}>🔴 Critical only</option>
+                    <option value="warning" {% if user.telegram_notifications_level == 'warning' %}selected{% endif %}>⚠️ Warning + Critical</option>
+                    <option value="all" {% if user.telegram_notifications_level == 'all' %}selected{% endif %}>📢 All notifications</option>
+                    <option value="off" {% if user.telegram_notifications_level == 'off' %}selected{% endif %}>🔇 Off</option>
+                </select>
+                <button type="submit" class="px-3 py-2 bg-slate-600 hover:bg-slate-500 text-white text-sm rounded-lg transition-colors">Save</button>
+            </form>
+            <p class="text-[11px] text-gray-500 mt-2">
+                <strong>Critical:</strong> LLM credits exhausted, pipeline dead, system failures.<br>
+                <strong>Warning:</strong> Generation failures, avatar issues, cost spikes.<br>
+                <strong>All:</strong> Everything including info messages.
+            </p>
+        </div>
+    </div>
+
+    <!-- What you'll receive -->
+    <div class="surface p-6">
+        <h2 class="text-base font-semibold text-white mb-3">What triggers notifications</h2>
+        <div class="space-y-2 text-sm">
+            <div class="flex items-center gap-3 text-gray-300">
+                <span class="text-red-400">🔴</span>
+                <span>LLM credits exhausted (pipeline cannot generate)</span>
+            </div>
+            <div class="flex items-center gap-3 text-gray-300">
+                <span class="text-red-400">🔴</span>
+                <span>Zero drafts generated for active clients (system dead)</span>
+            </div>
+            <div class="flex items-center gap-3 text-gray-300">
+                <span class="text-amber-400">⚠️</span>
+                <span>Generation failures (LLM errors, model unavailable)</span>
+            </div>
+            <div class="flex items-center gap-3 text-gray-300">
+                <span class="text-amber-400">⚠️</span>
+                <span>Avatar shadowban detected</span>
+            </div>
+            <div class="flex items-center gap-3 text-gray-300">
+                <span class="text-amber-400">⚠️</span>
+                <span>Cost spike (AI spend > 3× average)</span>
+            </div>
+            <div class="flex items-center gap-3 text-gray-300">
+                <span class="text-blue-400">ℹ️</span>
+                <span>Daily summary, pipeline completion (only with "All" level)</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if flash_message %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Show a simple toast
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-4 right-4 px-4 py-3 rounded-lg text-sm font-medium z-50 shadow-lg animate-fade-in';
+    toast.style.background = '{{ "rgb(16,185,129)" if flash_type == "success" else "rgb(239,68,68)" }}';
+    toast.style.color = 'white';
+    toast.textContent = '{{ flash_message }}';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+});
+</script>
+{% endif %}
+{% endblock %}

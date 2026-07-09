@@ -95,17 +95,22 @@ async def view_weekly_report(
 
     if not report:
         # No report yet — render empty state
+        from app.routes.portal import _get_sidebar_context
+        sidebar_ctx = _get_sidebar_context(client_id, db)
         return templates.TemplateResponse(
             name="client/intelligence_report_empty.html",
             context={
                 "request": request,
                 "client": client,
                 "client_id": str(client_id),
-                "active_page": "report_weekly",
+                "active_page": "report",
+                **sidebar_ctx,
             },
             request=request,
         )
 
+    from app.routes.portal import _get_sidebar_context
+    sidebar_ctx = _get_sidebar_context(client_id, db)
     return templates.TemplateResponse(
         name="client/intelligence_report.html",
         context={
@@ -113,7 +118,8 @@ async def view_weekly_report(
             "client": client,
             "client_id": str(client_id),
             "report": report,
-            "active_page": "report_weekly",
+            "active_page": "report",
+            **sidebar_ctx,
         },
         request=request,
     )
@@ -139,6 +145,8 @@ async def report_history(
         .all()
     )
 
+    from app.routes.portal import _get_sidebar_context
+    sidebar_ctx = _get_sidebar_context(client_id, db)
     return templates.TemplateResponse(
         name="client/report_history.html",
         context={
@@ -147,6 +155,7 @@ async def report_history(
             "client_id": str(client_id),
             "reports": reports,
             "active_page": "report_history",
+            **sidebar_ctx,
         },
         request=request,
     )

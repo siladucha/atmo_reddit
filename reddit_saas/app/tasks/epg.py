@@ -1,12 +1,13 @@
 """Celery tasks for EPG (Electronic Program Guide) — daily avatar publishing program.
 
 Tasks:
-- build_and_generate_epg_all_avatars: Daily (08:15) — plans EPG + generates comments for all avatars
+- build_and_generate_epg_all_avatars: Daily (08:15) — plans EPG + generates comments for all avatars (full daily budget)
+- epg_topup_underfilled_avatars: Daily (14:15) — fills remaining budget for avatars that got fewer slots in morning
 - expire_stale_planned_slots: Daily cleanup for slots that remain "planned" past their date
 
 Integration:
 - Registered in app/tasks/worker.py
-- Beat schedule: build_and_generate_epg_all_avatars at 08:15 (after AI pipeline scoring at 08:00)
+- Beat schedule: build_and_generate_epg_all_avatars at 08:15, epg_topup at 14:15
 - Depends on: app/services/epg.py (build_daily_epg) + app/services/epg_executor.py (generate_all_planned_slots)
 """
 
@@ -214,6 +215,22 @@ def build_and_generate_epg_all_avatars():
             results["planned"], results["generated"],
             results["skipped_avatars"], results["errors"], epg2_enabled,
         )
+
+        # Notify clients with pending drafts (if autopilot=off)
+        if results["generated"] > 0:
+            try:
+                from app.services.client_email_notifications import notify_pending_drafts
+                # Find unique client_ids that got new drafts
+                notified_clients = set()
+                for avatar in eligible:
+                    if avatar.client_ids:
+                        for cid in avatar.client_ids:
+                            if cid and cid not in notified_clients:
+                                notified_clients.add(cid)
+                                notify_pending_drafts(db, cid)
+            except Exception as e:
+                logger.warning("Failed to send pending drafts notifications: %s", e)
+
         return results
 
     except Exception as e:
@@ -258,5 +275,176 @@ def expire_stale_planned_slots():
         logger.error("expire_stale_planned_slots failed: %s", e, exc_info=True)
         db.rollback()
         return {"error": str(e)}
+    finally:
+        db.close()
+
+
+@shared_task(name="epg_topup_underfilled_avatars")
+def epg_topup_underfilled_avatars():
+    """Afternoon top-up: fill remaining budget for avatars that got fewer slots than their daily limit.
+
+    Runs at 14:15 (after afternoon scrape at 14:00 brings fresh threads).
+    Only creates NEW slots for the unfilled portion of the budget — never duplicates
+    or replaces existing slots.
+
+    Example: Phase 2 avatar has budget=9 (7 comments + 2 posts). Morning run created 5
+    (2 skipped due to no opportunities). Afternoon: fresh threads available → create up to 4 more.
+
+    Skipped morning slots do NOT free up budget — they represent burned opportunities.
+    Only the gap between successfully created slots and the daily budget is filled.
+    """
+    from app.models.avatar import Avatar
+    from app.models.client import Client
+    from app.models.epg_slot import EPGSlot
+    from app.services.epg_executor import generate_all_planned_slots
+    from app.services.portfolio_manager import build_portfolio, AttentionBudget
+    from app.services.settings import get_setting
+    from sqlalchemy import func as sa_func
+
+    db = SessionLocal()
+    try:
+        # Check pipeline kill switch
+        pipeline_enabled = get_setting(db, "pipeline_enabled")
+        if pipeline_enabled in ("false", "False", "0"):
+            logger.info("epg_topup: pipeline_enabled=false, skipping")
+            return {"status": "skipped", "reason": "pipeline_disabled"}
+
+        epg2_enabled = get_setting(db, "epg2_enabled").lower() in ("true", "1")
+        today = date.today()
+
+        # Get all active avatars
+        avatars = (
+            db.query(Avatar)
+            .filter(
+                Avatar.active.is_(True),
+                Avatar.is_frozen.is_(False),
+                Avatar.pool != "mentor",
+            )
+            .all()
+        )
+
+        eligible = [
+            a for a in avatars
+            if a.health_status not in ("shadowbanned", "suspended")
+        ]
+
+        results = {"topped_up": 0, "generated": 0, "skipped": 0, "errors": 0}
+
+        for avatar in eligible:
+            try:
+                # Calculate full daily budget for this avatar
+                budget = AttentionBudget.from_avatar(avatar)
+                daily_limit = budget.max_total_actions
+
+                if daily_limit <= 0:
+                    results["skipped"] += 1
+                    continue
+
+                # Count how many non-skipped slots were successfully created today
+                # (generated/approved/posted = real slots taking up budget)
+                active_slots_today = (
+                    db.query(sa_func.count(EPGSlot.id))
+                    .filter(
+                        EPGSlot.avatar_id == avatar.id,
+                        EPGSlot.plan_date == today,
+                        EPGSlot.status.in_(["planned", "generated", "approved", "posted"]),
+                    )
+                    .scalar() or 0
+                )
+
+                remaining = daily_limit - active_slots_today
+
+                if remaining <= 0:
+                    # Budget fully filled from morning run
+                    results["skipped"] += 1
+                    continue
+
+                # This avatar has unfilled budget — run portfolio build for the gap
+                logger.info(
+                    "epg_topup: avatar=%s has %d/%d slots, filling %d more",
+                    avatar.reddit_username, active_slots_today, daily_limit, remaining,
+                )
+
+                from app.services.distributed_lock import DistributedLock
+                from app.services.ai import reset_task_call_counter
+
+                epg_lock = DistributedLock(
+                    key=f"epg_build_lock:{avatar.id}",
+                    ttl=600,
+                )
+                if not epg_lock.acquire():
+                    results["skipped"] += 1
+                    continue
+
+                try:
+                    reset_task_call_counter()
+
+                    client = None
+                    if avatar.client_ids:
+                        client = (
+                            db.query(Client)
+                            .filter(Client.id == uuid.UUID(avatar.client_ids[0]))
+                            .first()
+                        )
+
+                    if client and not client.is_active:
+                        results["skipped"] += 1
+                        continue
+
+                    if client:
+                        from app.services.trial_guard import is_trial_expired
+                        if is_trial_expired(client):
+                            results["skipped"] += 1
+                            continue
+
+                    # Build portfolio — dedup guard in build_portfolio will see existing
+                    # active slots and block. We need to temporarily override.
+                    # Instead, call build_portfolio which will be blocked by dedup.
+                    # Solution: we use the topup-aware path.
+                    if epg2_enabled:
+                        epg = build_portfolio(db, avatar, client, topup_remaining=remaining)
+                    else:
+                        # Legacy path: no topup support, skip
+                        results["skipped"] += 1
+                        continue
+
+                    if epg.status in ("frozen", "excluded", "budget_exhausted", "already_planned"):
+                        results["skipped"] += 1
+                        continue
+
+                    planned_count = len(epg.hobby_slots) + len(epg.business_slots)
+                    results["topped_up"] += planned_count
+
+                    # Generate comments for new planned slots
+                    generated = generate_all_planned_slots(db, avatar.id)
+                    results["generated"] += generated
+
+                    if generated > 0:
+                        logger.info(
+                            "epg_topup: avatar=%s topped_up=%d generated=%d",
+                            avatar.reddit_username, planned_count, generated,
+                        )
+                finally:
+                    epg_lock.release()
+
+            except Exception as e:
+                logger.error(
+                    "epg_topup failed for avatar %s: %s",
+                    avatar.reddit_username, str(e)[:200],
+                    exc_info=True,
+                )
+                results["errors"] += 1
+                continue
+
+        logger.info(
+            "epg_topup complete: topped_up=%d generated=%d skipped=%d errors=%d",
+            results["topped_up"], results["generated"],
+            results["skipped"], results["errors"],
+        )
+        return results
+
+    except Exception as e:
+        logger.error("epg_topup_underfilled_avatars failed: %s", e, exc_info=True)
+        return {"status": "error", "error": str(e)}
     finally:
         db.close()

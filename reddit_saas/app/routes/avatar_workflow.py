@@ -254,14 +254,28 @@ def workflow_rebuild_epg(
     current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
-    """Rebuild EPG and return the full workflow panel."""
+    """Rebuild EPG (plan + generate) and return the full workflow panel."""
     from app.services.epg import build_daily_epg
+    from app.services.epg_executor import generate_all_planned_slots
+    from app.services.portfolio_manager import build_portfolio
+    from app.services.settings import get_setting
 
     avatar, client = _get_avatar_and_client(db, avatar_id)
     if not avatar:
         return HTMLResponse("<div class='text-red-400 text-sm p-4'>Avatar not found</div>", status_code=404)
 
-    epg = build_daily_epg(db, avatar, client)
+    # Step 1: Build slots (Portfolio Manager if enabled, else legacy)
+    epg2_enabled = get_setting(db, "epg2_enabled") == "true"
+    if epg2_enabled:
+        result = build_portfolio(db=db, avatar=avatar, client=client)
+        total_slots = result.get("planned", 0) if isinstance(result, dict) else 0
+    else:
+        epg = build_daily_epg(db, avatar, client)
+        total_slots = epg.total_slots if epg else 0
+
+    # Step 2: Generate drafts for all planned slots
+    generated = generate_all_planned_slots(db, avatar.id)
+
     pending_drafts, approved_drafts, posted_drafts = _get_today_drafts(db, avatar)
 
     audit_service.log_action(
@@ -270,7 +284,7 @@ def workflow_rebuild_epg(
         action="rebuild_epg",
         entity_type="avatar",
         entity_id=avatar_id,
-        details={"status": epg.status, "total_slots": epg.total_slots},
+        details={"total_slots": total_slots, "generated": generated},
     )
 
     return templates.TemplateResponse(

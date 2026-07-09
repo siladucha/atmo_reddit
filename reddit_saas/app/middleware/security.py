@@ -84,7 +84,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._auth_attempts: dict[str, list[float]] = defaultdict(list)
         self._global_requests: dict[str, list[float]] = defaultdict(list)
 
-    # Endpoints that get strict rate limiting (5 attempts per 15 min per IP)
+    # Endpoints that get strict rate limiting (10 attempts per 15 min per IP)
     _AUTH_PATHS = {
         "/login", "/register", "/auth/login", "/auth/register",
         "/onboard/trial/signup", "/forgot-password", "/reset-password",

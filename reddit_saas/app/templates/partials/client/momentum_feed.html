@@ -1,26 +1,29 @@
-<!-- Momentum Events Feed — HTMX loaded on home page -->
+<!-- Momentum Events Feed — client-facing, no reddit usernames -->
 {% if events %}
-<div style="display:flex;flex-direction:column;gap:8px;">
+<div style="display:flex;flex-direction:column;gap:6px;">
     {% for ev in events %}
-    <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:var(--color-surface-alt);border-radius:8px;">
-        <span style="font-size:16px;flex-shrink:0;margin-top:2px;">{{ ev.icon }}</span>
+    <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--color-surface-alt);border-radius:8px;">
+        <!-- Icon tile with event-type tint -->
+        <div style="width:28px;height:28px;border-radius:6px;background:{{ ev.tint }};display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;margin-top:1px;">
+            {{ ev.icon }}
+        </div>
         <div style="flex:1;min-width:0;">
-            <p style="font-size:var(--text-small);color:var(--color-white);line-height:1.4;">{{ ev.message }}</p>
-            <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+            <p style="font-size:12px;color:#fff;line-height:1.4;">{{ ev.message }}</p>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
                 {% if ev.subreddit %}
-                <span style="font-size:var(--text-micro);color:#818cf8;">r/{{ ev.subreddit }}</span>
+                <span style="font-size:10px;color:#818cf8;">r/{{ ev.subreddit }}</span>
                 {% endif %}
                 {% if ev.score %}
-                <span style="font-size:var(--text-micro);color:var(--color-green);font-weight:600;">▲{{ ev.score }}</span>
+                <span style="font-size:10px;color:#22c55e;font-weight:600;">▲{{ ev.score }}</span>
                 {% endif %}
-                <span style="font-size:var(--text-micro);color:var(--color-muted);">{{ ev.time }}</span>
+                <span style="font-size:10px;color:#6B7280;">{{ ev.time }}</span>
             </div>
         </div>
     </div>
     {% endfor %}
 </div>
 {% else %}
-<div style="padding:20px;text-align:center;">
-    <p style="color:var(--color-muted);font-size:var(--text-small);">No activity yet. Events will appear here as the system discovers and engages with relevant threads.</p>
+<div style="padding:24px;text-align:center;">
+    <p style="color:#6B7280;font-size:12px;">No activity yet. Events will appear here as your voices engage with communities.</p>
 </div>
 {% endif %}

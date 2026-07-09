@@ -146,6 +146,7 @@ def run_geo_batch_for_client(
     client: Client,
     triggered_by: str = "manual",
     user_id: uuid.UUID | None = None,
+    prompts_override: list[uuid.UUID] | None = None,
 ) -> GeoExecutionBatch | None:
     """Execute a full GEO monitoring batch for a single client.
 
@@ -170,16 +171,25 @@ def run_geo_batch_for_client(
         client: The Client object.
         triggered_by: What initiated this run (manual/scheduler/onboarding).
         user_id: The user who triggered this (for audit).
+        prompts_override: If provided, execute only these prompt IDs
+                         instead of all active prompts. Used by daily scheduler.
 
     Returns:
         The completed GeoExecutionBatch, or None if no prompts to run.
     """
-    # Load active prompts
-    prompts = (
-        db.query(GeoPrompt)
-        .filter(GeoPrompt.client_id == client.id, GeoPrompt.is_active == True)
-        .all()
-    )
+    # Load active prompts (filtered or all)
+    if prompts_override is not None:
+        prompts = (
+            db.query(GeoPrompt)
+            .filter(GeoPrompt.id.in_(prompts_override), GeoPrompt.is_active == True)
+            .all()
+        )
+    else:
+        prompts = (
+            db.query(GeoPrompt)
+            .filter(GeoPrompt.client_id == client.id, GeoPrompt.is_active == True)
+            .all()
+        )
     if not prompts:
         logger.info("GEO: No active prompts for client %s, skipping", client.client_name)
         return None
@@ -471,8 +481,12 @@ def _execute_single_query(
             usage = response.usage
             input_tokens = usage.prompt_tokens if usage else 0
             output_tokens = usage.completion_tokens if usage else 0
-            from app.services.ai import _calculate_cost
-            cost_usd = _calculate_cost(model, input_tokens, output_tokens)
+            # Use litellm.completion_cost for accurate cost (includes web_search fees)
+            try:
+                cost_usd = litellm.completion_cost(completion_response=response)
+            except Exception:
+                from app.services.ai import _calculate_cost
+                cost_usd = _calculate_cost(model, input_tokens, output_tokens)
             llm_result = {
                 "content": content_text,
                 "input_tokens": input_tokens,

@@ -97,7 +97,13 @@ help:  ## Show this help
 
 .DEFAULT_GOAL := help
 
-# --- Deployment (to DigitalOcean server) ---
+# --- Pre-Flight & Deployment ---
+
+preflight:  ## Run agent pre-flight checks (Phase 1 of deploy protocol)
+	python3 scripts/agent_preflight.py
+
+preflight-all:  ## Run pre-flight on ALL app/ files
+	python3 scripts/agent_preflight.py --all
 
 deploy:  ## Smart deploy — auto-detect changes, deploy only what's needed
 	./deploy.sh auto

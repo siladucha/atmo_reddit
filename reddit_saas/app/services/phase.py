@@ -1145,13 +1145,29 @@ class PhaseTransitionManager:
             avatar.warming_phase = new_phase
             avatar.phase_changed_at = datetime.now(timezone.utc)
 
+            # Enrich metadata with client strategy phase goal (if available)
+            event_metadata = {"criteria_values": criteria_values}
+            try:
+                if avatar.client_ids:
+                    from app.models.client import Client as _ClientM
+                    _promo_client = db.query(_ClientM).filter(_ClientM.id == avatar.client_ids[0]).first()
+                    if _promo_client and _promo_client.strategy_context:
+                        _roadmap = _promo_client.strategy_context.get("phase_roadmap", {})
+                        _phases = _roadmap.get("phases", [])
+                        if new_phase < len(_phases):
+                            _phase_info = _phases[new_phase]
+                            event_metadata["strategy_phase_goal"] = _phase_info.get("goal", "")
+                            event_metadata["strategy_phase_activities"] = _phase_info.get("activities", [])[:3]
+            except Exception:
+                pass  # Non-critical enrichment
+
             self._record_event(
                 db=db,
                 avatar=avatar,
                 event_type="phase_promotion",
                 previous_phase=previous_phase,
                 new_phase=new_phase,
-                metadata={"criteria_values": criteria_values},
+                metadata=event_metadata,
             )
 
             db.commit()
@@ -1161,6 +1177,10 @@ class PhaseTransitionManager:
                 previous_phase,
                 new_phase,
             )
+
+            # Send phase milestone email to client (fire-and-forget)
+            self._send_phase_email(avatar, "phase_promotion", previous_phase, new_phase)
+
             return True
         finally:
             self.lock.release(avatar_id_str)
@@ -1243,6 +1263,9 @@ class PhaseTransitionManager:
                         "Activation route planning failed on demotion for %s: %s",
                         avatar.reddit_username, e,
                     )
+
+            # Send phase demotion email to client (fire-and-forget)
+            self._send_phase_email(avatar, "auto_downgrade", previous_phase, target_phase, trigger_reason)
 
             return True
         finally:
@@ -1367,3 +1390,31 @@ class PhaseTransitionManager:
             event_metadata=event_metadata,
         )
         db.add(event)
+
+
+    def _send_phase_email(
+        self,
+        avatar: Avatar,
+        event_type: str,
+        previous_phase: int,
+        new_phase: int,
+        trigger_reason: str = "",
+    ) -> None:
+        """Send phase milestone email to client. Fire-and-forget."""
+        try:
+            if not avatar.client_ids:
+                return
+            client_id = avatar.client_ids[0]
+
+            from app.services.client_emails import send_phase_milestone_email
+
+            send_phase_milestone_email(
+                client_id=client_id,
+                avatar_username=avatar.reddit_username,
+                event_type=event_type,
+                previous_phase=previous_phase,
+                new_phase=new_phase,
+                trigger_reason=trigger_reason,
+            )
+        except Exception as e:
+            logger.debug("Phase email failed (non-critical): %s", e)

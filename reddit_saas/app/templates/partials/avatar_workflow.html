@@ -346,6 +346,19 @@
                             📋
                         </button>
                     </div>
+                    <!-- Learning debug toggle -->
+                    {% if draft.learning_metadata %}
+                    <div class="mb-2">
+                        <button type="button"
+                                hx-get="/admin/comments/{{ draft.id }}/debug-view"
+                                hx-target="#wf-debug-{{ draft.id }}"
+                                hx-swap="innerHTML"
+                                class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer">
+                            🧠 Show learning context ▾
+                        </button>
+                        <div id="wf-debug-{{ draft.id }}"></div>
+                    </div>
+                    {% endif %}
                     <!-- Actions -->
                     <div class="flex flex-wrap items-center gap-2">
                         {% if thread and thread.url %}
@@ -396,6 +409,19 @@
                             📋
                         </button>
                     </div>
+                    <!-- Learning debug toggle -->
+                    {% if draft.learning_metadata %}
+                    <div class="mb-2">
+                        <button type="button"
+                                hx-get="/admin/comments/{{ draft.id }}/debug-view"
+                                hx-target="#wf-debug-{{ draft.id }}"
+                                hx-swap="innerHTML"
+                                class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer">
+                            🧠 Show learning context ▾
+                        </button>
+                        <div id="wf-debug-{{ draft.id }}"></div>
+                    </div>
+                    {% endif %}
                     <!-- Actions -->
                     <div class="flex flex-wrap items-center gap-2">
                         <button hx-post="/admin/avatars/{{ avatar.id }}/workflow/drafts/{{ draft.id }}/approve"

@@ -7,6 +7,7 @@ and automatic model fallback on provider errors.
 import json
 import re
 import time
+import copy
 from app.logging_config import get_logger
 from contextvars import ContextVar
 from decimal import Decimal
@@ -44,9 +45,12 @@ MODEL_COSTS = {
 # Fallback model chain: if primary model fails, try these in order.
 # Key = model prefix or exact model name, Value = ordered list of fallbacks.
 MODEL_FALLBACK_CHAIN = {
-    "gemini/gemini-2.5-flash": ["gemini/gemini-2.5-flash-lite", "anthropic/claude-haiku-4-5"],
-    "gemini/gemini-2.5-flash-lite": ["gemini/gemini-2.5-flash", "anthropic/claude-haiku-4-5"],
-    "gemini/": ["gemini/gemini-2.5-flash-lite", "anthropic/claude-haiku-4-5"],  # prefix fallback
+    "gemini/gemini-2.5-flash": ["gemini/gemini-2.5-flash-lite"],
+    "gemini/gemini-2.5-flash-lite": ["gemini/gemini-2.5-flash"],
+    "gemini/": ["gemini/gemini-2.5-flash-lite"],  # prefix fallback
+    "anthropic/claude-sonnet-4-6": ["gemini/gemini-2.5-flash"],  # Anthropic fails → Gemini (not Haiku)
+    "anthropic/claude-haiku-4-5": ["gemini/gemini-2.5-flash-lite"],
+    "anthropic/": ["gemini/gemini-2.5-flash"],  # any Anthropic → Gemini
     "perplexity/sonar": ["gemini/gemini-2.5-flash"],  # GEO fallback: Perplexity → Gemini with grounding
     "perplexity/": ["gemini/gemini-2.5-flash"],  # prefix fallback
 }
@@ -55,11 +59,18 @@ MODEL_FALLBACK_CHAIN = {
 _FALLBACK_EXCEPTIONS = (
     litellm.exceptions.RateLimitError,
     litellm.exceptions.AuthenticationError,
+    litellm.exceptions.BadRequestError,  # Includes "credit balance too low"
     litellm.exceptions.NotFoundError,
     litellm.exceptions.ServiceUnavailableError,
     litellm.exceptions.InternalServerError,
     litellm.exceptions.Timeout,
 )
+
+
+def _is_cache_control_error(error: Exception) -> bool:
+    """Check if error is related to cache_control field (Anthropic prompt caching)."""
+    msg = str(error).lower()
+    return "cache_control" in msg or "caching" in msg
 
 # ---------------------------------------------------------------------------
 # LLM Budget Gate — hard cap on daily LLM calls to prevent runaway spend
@@ -253,6 +264,180 @@ def reset_task_call_counter() -> None:
     _task_call_counter.set(0)
 
 
+# ---------------------------------------------------------------------------
+# Provider Budget Gate — auto-fallback when approaching provider credit limit
+# ---------------------------------------------------------------------------
+
+# Cache provider spend to avoid DB query on every LLM call.
+# Refreshed every 5 minutes via TTL check.
+_provider_spend_cache: dict[str, float] = {}
+_provider_spend_cache_ts: float = 0.0
+_PROVIDER_SPEND_CACHE_TTL = 300  # 5 minutes
+
+
+def _get_provider_from_model(model: str) -> str:
+    """Extract provider name from model string."""
+    if model.startswith("anthropic/") or model.startswith("bedrock/"):
+        return "anthropic"
+    elif model.startswith("gemini/"):
+        return "gemini"
+    elif model.startswith("perplexity/"):
+        return "perplexity"
+    elif model.startswith("openai/") or model.startswith("gpt"):
+        return "openai"
+    return "other"
+
+
+def _refresh_provider_spend_cache() -> None:
+    """Refresh the provider spend cache from DB (called at most every 5 min)."""
+    global _provider_spend_cache, _provider_spend_cache_ts
+
+    now = time.time()
+    if now - _provider_spend_cache_ts < _PROVIDER_SPEND_CACHE_TTL:
+        return  # cache still fresh
+
+    try:
+        from app.database import SessionLocal
+        from app.models.ai_usage import AIUsageLog
+        from sqlalchemy import func as _func, case as _case, literal_column
+        from datetime import datetime as _dt, timezone as _tz
+
+        db = SessionLocal()
+        try:
+            now_utc = _dt.now(_tz.utc)
+            month_start = now_utc.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+            rows = (
+                db.query(
+                    _case(
+                        (AIUsageLog.model.like("anthropic/%"), "anthropic"),
+                        (AIUsageLog.model.like("gemini/%"), "gemini"),
+                        (AIUsageLog.model.like("perplexity/%"), "perplexity"),
+                        (AIUsageLog.model.like("openai/%"), "openai"),
+                        (AIUsageLog.model.like("gpt%"), "openai"),
+                        (AIUsageLog.model.like("bedrock/%"), "anthropic"),
+                        else_="other",
+                    ).label("provider"),
+                    _func.coalesce(_func.sum(AIUsageLog.cost_usd), 0).label("total_cost"),
+                )
+                .filter(AIUsageLog.created_at >= month_start)
+                .group_by(literal_column("provider"))
+                .all()
+            )
+
+            _provider_spend_cache.clear()
+            for row in rows:
+                _provider_spend_cache[row.provider] = float(row.total_cost)
+            _provider_spend_cache_ts = now
+        finally:
+            db.close()
+    except Exception as e:
+        logger.debug("Provider spend cache refresh failed (non-blocking): %s", str(e)[:80])
+
+
+def _check_provider_budget(model: str) -> str:
+    """Check if the model's provider is near budget exhaustion.
+
+    If provider spend >= block_threshold (default 95%), auto-switch to
+    a fallback provider. This prevents pipeline death when credits run out.
+
+    Returns the model to use (original or fallback).
+    """
+    provider = _get_provider_from_model(model)
+    if provider == "other":
+        return model  # unknown provider, pass through
+
+    # Refresh cache if stale
+    _refresh_provider_spend_cache()
+
+    spent = _provider_spend_cache.get(provider, 0.0)
+
+    # Get budget limit from settings (cached in settings service)
+    try:
+        budget_key = f"provider_budget_{provider}_usd"
+        budget_str = get_config(budget_key)
+        budget = float(budget_str) if budget_str else 0.0
+    except (ValueError, TypeError):
+        budget = 0.0
+
+    if budget <= 0:
+        return model  # unlimited budget
+
+    usage_pct = spent / budget
+
+    # Get block threshold (default 95%)
+    try:
+        block_str = get_config("provider_budget_block_threshold_pct")
+        block_threshold = float(block_str) / 100.0 if block_str else 0.95
+    except (ValueError, TypeError):
+        block_threshold = 0.95
+
+    if usage_pct >= block_threshold:
+        # Provider is near exhaustion — find a cross-provider fallback
+        fallback = _get_cross_provider_fallback(provider)
+        if fallback and fallback != model:
+            logger.warning(
+                "PROVIDER_BUDGET_GATE | provider=%s | spent=$%.2f/$%.0f (%.0f%%) | "
+                "threshold=%.0f%% | auto_fallback=%s → %s",
+                provider, spent, budget, usage_pct * 100,
+                block_threshold * 100, model, fallback,
+            )
+            return fallback
+        else:
+            # No fallback available — log critical but allow the call
+            logger.critical(
+                "PROVIDER_BUDGET_EXHAUSTED | provider=%s | spent=$%.2f/$%.0f | "
+                "NO FALLBACK AVAILABLE — call will proceed but may fail",
+                provider, spent, budget,
+            )
+
+    elif usage_pct >= 0.70:
+        # Warning zone — log but don't redirect
+        logger.info(
+            "PROVIDER_BUDGET_WARNING | provider=%s | spent=$%.2f/$%.0f (%.0f%%)",
+            provider, spent, budget, usage_pct * 100,
+        )
+
+    return model
+
+
+def _get_cross_provider_fallback(provider: str) -> str | None:
+    """Get a fallback model from a DIFFERENT provider.
+
+    Used when a provider's budget is exhausted. Routes to the best
+    alternative that won't hit the same budget limit.
+    """
+    # Provider fallback preferences (quality-ordered)
+    _CROSS_PROVIDER_FALLBACK = {
+        "anthropic": "gemini/gemini-2.5-flash",      # Anthropic exhausted → Gemini (good quality, cheap)
+        "gemini": "anthropic/claude-sonnet-4-6",     # Gemini exhausted → Anthropic (unlikely, Gemini is cheap)
+        "perplexity": "gemini/gemini-2.5-flash",     # Perplexity exhausted → Gemini
+        "openai": "gemini/gemini-2.5-flash",         # OpenAI exhausted → Gemini
+    }
+
+    fallback_model = _CROSS_PROVIDER_FALLBACK.get(provider)
+    if not fallback_model:
+        return None
+
+    # Verify the fallback provider isn't ALSO exhausted
+    fallback_provider = _get_provider_from_model(fallback_model)
+    fallback_spent = _provider_spend_cache.get(fallback_provider, 0.0)
+
+    try:
+        fb_budget_key = f"provider_budget_{fallback_provider}_usd"
+        fb_budget_str = get_config(fb_budget_key)
+        fb_budget = float(fb_budget_str) if fb_budget_str else 0.0
+    except (ValueError, TypeError):
+        fb_budget = 0.0
+
+    if fb_budget > 0 and (fallback_spent / fb_budget) >= 0.95:
+        # Fallback provider is also exhausted — try the next option
+        # Last resort: gemini-2.5-flash-lite (free tier)
+        return "gemini/gemini-2.5-flash-lite"
+
+    return fallback_model
+
+
 
 
 def call_llm(
@@ -310,6 +495,19 @@ def call_llm(
     # --- Hard budget gate: prevent runaway LLM spend ---
     _check_llm_budget_gate(model)
 
+    # --- Provider budget gate: auto-fallback when approaching provider credit limit ---
+    model = _check_provider_budget(model)
+
+    # --- Prompt Caching: inject cache_control for Anthropic models ---
+    # deepcopy prevents mutation of caller's messages list
+    cache_retry_attempted = False
+    if model.startswith("anthropic/") and messages:
+        effective_messages = copy.deepcopy(messages)
+        effective_messages[0]["cache_control"] = {"type": "ephemeral"}
+        kwargs["messages"] = effective_messages
+    else:
+        kwargs["messages"] = messages
+
     # Attempt call with fallback chain on provider errors
     response = None
     last_error = None
@@ -321,6 +519,9 @@ def call_llm(
         try:
             kwargs["model"] = attempt_model
             kwargs["api_key"] = _resolve_api_key(attempt_model)
+            # If switching to non-Anthropic fallback, strip cache_control
+            if not attempt_model.startswith("anthropic/") and kwargs.get("messages") is not messages:
+                kwargs["messages"] = messages
             if attempt_model != model:
                 start = time.time()  # reset timer for fallback
             response = litellm.completion(**kwargs)
@@ -328,6 +529,22 @@ def call_llm(
             last_error = None
             break
         except _FALLBACK_EXCEPTIONS as e:
+            # Check if error is cache_control related — retry once without it
+            if not cache_retry_attempted and _is_cache_control_error(e):
+                cache_retry_attempted = True
+                logger.warning(
+                    "PROMPT_CACHE_STRIPPED | model=%s | error=%s",
+                    attempt_model, str(e)[:100],
+                )
+                kwargs["messages"] = messages  # use original without cache_control
+                try:
+                    response = litellm.completion(**kwargs)
+                    model = attempt_model
+                    last_error = None
+                    break
+                except _FALLBACK_EXCEPTIONS as e2:
+                    last_error = e2
+                    continue
             last_error = e
             logger.warning(
                 "LLM_FALLBACK | model=%s failed (%s: %s)",
@@ -351,8 +568,22 @@ def call_llm(
     input_tokens = usage.prompt_tokens if usage else 0
     output_tokens = usage.completion_tokens if usage else 0
 
-    # Calculate cost
-    cost_usd = _calculate_cost(model, input_tokens, output_tokens)
+    # --- Prompt Cache metrics logging ---
+    cache_creation = getattr(usage, "cache_creation_input_tokens", 0) or 0
+    cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
+    if cache_creation or cache_read:
+        total_input = cache_read + cache_creation + input_tokens
+        hit_ratio = cache_read / total_input if total_input > 0 else 0
+        logger.info(
+            "PROMPT_CACHE | model=%s | cache_creation=%d | cache_read=%d | hit_ratio=%.2f",
+            model, cache_creation, cache_read, hit_ratio,
+        )
+
+    # Calculate cost — prefer litellm.completion_cost (includes web_search fees)
+    try:
+        cost_usd = litellm.completion_cost(completion_response=response)
+    except Exception:
+        cost_usd = _calculate_cost(model, input_tokens, output_tokens)
 
     # --- Expensive call alert: flag single calls > $0.10 for ops visibility ---
     if cost_usd > 0.10:
@@ -489,6 +720,7 @@ def _extract_json(content: str) -> dict | None:
     2. Markdown code blocks (```json ... ``` or ``` ... ```)
     3. Prose-wrapped JSON (e.g. "Here is the JSON response: {...}")
     4. JSON with trailing commas or minor syntax issues
+    5. Truncated JSON (missing closing braces — common with max_tokens cutoff)
 
     Returns parsed dict or None if extraction failed.
     """
@@ -497,57 +729,113 @@ def _extract_json(content: str) -> dict | None:
 
     text = content.strip()
 
-    # 1. Try direct JSON parse (most common case)
+    # 0. Strip common Gemini preamble patterns before any parsing
+    # Gemini often prepends "Here is the JSON requested:" or similar
+    preamble_patterns = [
+        r"^Here\s+is\s+the\s+JSON\s*(?:requested|response|output)?:?\s*",
+        r"^(?:Sure|Okay|Certainly)[,!.]?\s*(?:Here(?:'s|\s+is)\s+the\s+JSON)?:?\s*",
+        r"^```(?:json)?\s*\n?",  # Leading code fence without closing
+    ]
+    cleaned = text
+    for pattern in preamble_patterns:
+        cleaned = re.sub(pattern, "", cleaned, count=1, flags=re.IGNORECASE)
+    cleaned = cleaned.strip()
+    # Remove trailing code fence if present
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3].strip()
+
+    # 1. Try direct JSON parse on cleaned text
     try:
-        return json.loads(text)
+        return json.loads(cleaned)
     except json.JSONDecodeError:
         pass
 
-    # 2. Extract from markdown code blocks
-    if "```json" in text:
-        block = text.split("```json", 1)[1]
+    # Also try original text (in case cleaning damaged it)
+    if cleaned != text:
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass
+
+    # 2. Extract from markdown code blocks (case-insensitive)
+    text_lower = text.lower()
+    if "```json" in text_lower:
+        # Find the actual position case-insensitively
+        idx = text_lower.find("```json")
+        block = text[idx + 7:]  # len("```json") = 7
         if "```" in block:
             block = block.split("```", 1)[0]
         block = block.strip()
         try:
             return json.loads(block)
         except json.JSONDecodeError:
-            pass
+            # Try fixing truncated JSON
+            fixed = _try_fix_truncated_json(block)
+            if fixed is not None:
+                return fixed
 
     if "```" in text:
         parts = text.split("```")
         if len(parts) >= 3:
             block = parts[1].strip()
-            # Remove optional language hint on first line
-            if block and block.split("\n")[0].isalpha():
+            # Remove optional language hint on first line (json, JSON, etc.)
+            first_line = block.split("\n")[0].strip()
+            if first_line and (first_line.isalpha() or first_line.lower() in ("json", "javascript", "js")):
                 block = "\n".join(block.split("\n")[1:])
             try:
                 return json.loads(block.strip())
             except json.JSONDecodeError:
-                pass
+                fixed = _try_fix_truncated_json(block.strip())
+                if fixed is not None:
+                    return fixed
+        # Handle case where there's only opening ``` (no closing — truncated)
+        elif len(parts) == 2:
+            block = parts[1].strip()
+            first_line = block.split("\n")[0].strip()
+            if first_line and first_line.lower() in ("json", "javascript", "js", ""):
+                block = "\n".join(block.split("\n")[1:])
+            block = block.strip()
+            if block:
+                try:
+                    return json.loads(block)
+                except json.JSONDecodeError:
+                    fixed = _try_fix_truncated_json(block)
+                    if fixed is not None:
+                        return fixed
 
     # 3. Find the outermost { ... } block (greedy — handles nested objects)
     brace_start = text.find("{")
     if brace_start != -1:
         # Find matching closing brace
         depth = 0
+        end_pos = -1
         for i in range(brace_start, len(text)):
             if text[i] == "{":
                 depth += 1
             elif text[i] == "}":
                 depth -= 1
                 if depth == 0:
-                    candidate = text[brace_start:i + 1]
-                    try:
-                        return json.loads(candidate)
-                    except json.JSONDecodeError:
-                        # Try fixing trailing commas
-                        fixed = re.sub(r',\s*([}\]])', r'\1', candidate)
-                        try:
-                            return json.loads(fixed)
-                        except json.JSONDecodeError:
-                            pass
+                    end_pos = i
                     break
+
+        if end_pos != -1:
+            candidate = text[brace_start:end_pos + 1]
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                # Try fixing trailing commas
+                fixed = re.sub(r',\s*([}\]])', r'\1', candidate)
+                try:
+                    return json.loads(fixed)
+                except json.JSONDecodeError:
+                    pass
+        else:
+            # No matching closing brace found — likely truncated by max_tokens
+            # Try to close the JSON ourselves
+            candidate = text[brace_start:]
+            fixed = _try_fix_truncated_json(candidate)
+            if fixed is not None:
+                return fixed
 
     # 4. Last resort: find any JSON-like pattern with regex
     json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text)
@@ -558,6 +846,82 @@ def _extract_json(content: str) -> dict | None:
             pass
 
     return None
+
+
+def _try_fix_truncated_json(text: str) -> dict | None:
+    """Attempt to fix truncated JSON by closing open braces/brackets.
+
+    Common with max_tokens cutoff: {"comment": "Great post about bre
+    We try to salvage by closing strings and braces.
+    """
+    if not text or not text.strip():
+        return None
+
+    text = text.strip()
+
+    # Remove trailing commas
+    text = re.sub(r',\s*$', '', text)
+
+    # If it doesn't start with {, skip
+    if not text.startswith("{"):
+        # Try to find { in text
+        brace_pos = text.find("{")
+        if brace_pos == -1:
+            return None
+        text = text[brace_pos:]
+
+    # Count unclosed braces and brackets
+    in_string = False
+    escape_next = False
+    open_braces = 0
+    open_brackets = 0
+    last_meaningful_char = ""
+
+    for ch in text:
+        if escape_next:
+            escape_next = False
+            continue
+        if ch == "\\":
+            escape_next = True
+            continue
+        if ch == '"' and not escape_next:
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == "{":
+            open_braces += 1
+        elif ch == "}":
+            open_braces -= 1
+        elif ch == "[":
+            open_brackets += 1
+        elif ch == "]":
+            open_brackets -= 1
+        if ch.strip():
+            last_meaningful_char = ch
+
+    # If already balanced, try direct parse
+    if open_braces == 0 and open_brackets == 0:
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            return None
+
+    # Try to close an open string (truncated mid-value)
+    if in_string:
+        text += '"'
+
+    # Remove trailing comma after closing string
+    text = re.sub(r',\s*$', '', text)
+
+    # Close open brackets then braces
+    text += "]" * max(0, open_brackets)
+    text += "}" * max(0, open_braces)
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return None
 
 
 def _get_fallback_chain(model: str) -> list[str]:
@@ -578,14 +942,19 @@ def _get_fallback_chain(model: str) -> list[str]:
                 fallbacks = list(chain)
                 break
 
-    # Always add generation model as ultimate fallback
+    # Always add generation model as ultimate fallback, then Gemini as safety net
     try:
         generation_model = get_config("llm_generation_model")
         if generation_model and generation_model not in fallbacks:
             fallbacks.append(generation_model)
+        # If generation_model is Anthropic, also add Gemini as absolute last resort
+        if generation_model and generation_model.startswith("anthropic/"):
+            gemini_safety = "gemini/gemini-2.5-flash"
+            if gemini_safety not in fallbacks:
+                fallbacks.append(gemini_safety)
     except Exception:
-        # DB unavailable — use hardcoded Sonnet as last resort
-        ultimate = "anthropic/claude-sonnet-4-6"
+        # DB unavailable — use Gemini Flash as last resort (always available, no credit limits)
+        ultimate = "gemini/gemini-2.5-flash"
         if ultimate not in fallbacks:
             fallbacks.append(ultimate)
 
@@ -597,11 +966,15 @@ def _get_fallback_chain(model: str) -> list[str]:
 def _get_json_retry_model(failed_model: str) -> str | None:
     """Get a different-provider model for JSON retry.
 
-    If Gemini failed to produce valid JSON, retry with Haiku (cheaper than Sonnet).
-    If Anthropic failed, retry with Gemini Flash Lite.
+    Strategy: stay within free/cheap providers. Avoid Anthropic as fallback
+    because of credit limits. Use Gemini variants (free tier / very cheap).
     """
-    if failed_model.startswith("gemini/"):
-        return "anthropic/claude-haiku-4-5"
+    if failed_model == "gemini/gemini-2.5-flash":
+        return "gemini/gemini-2.5-flash-lite"
+    elif failed_model == "gemini/gemini-2.5-flash-lite":
+        return "gemini/gemini-2.5-flash"
+    elif failed_model.startswith("gemini/"):
+        return "gemini/gemini-2.5-flash"
     elif failed_model.startswith("anthropic/"):
         return "gemini/gemini-2.5-flash-lite"
     return None

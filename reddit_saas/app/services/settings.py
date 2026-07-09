@@ -146,6 +146,18 @@ DEFAULTS: dict[str, dict] = {
         "desc": "Model for comment generation (quality)",
         "group": "llm",
     },
+    "llm_editing_model": {
+        "value": "gemini/gemini-2.5-flash",
+        "secret": False,
+        "desc": "Model for comment editing/cleanup (cheap, fast)",
+        "group": "llm",
+    },
+    "llm_persona_model": {
+        "value": "gemini/gemini-2.5-flash",
+        "secret": False,
+        "desc": "Model for persona selection routing (cheap, fast)",
+        "group": "llm",
+    },
     "llm_strategy_model": {
         "value": "anthropic/claude-sonnet-4-20250514",
         "secret": False,
@@ -264,6 +276,43 @@ DEFAULTS: dict[str, dict] = {
         "desc": "AWS credits remaining (manual entry)",
         "group": "budget",
     },
+    # --- Provider-Level Budget Monitoring ---
+    "provider_budget_anthropic_usd": {
+        "value": "50",
+        "secret": False,
+        "desc": "Anthropic monthly credit limit in USD. Alert at 70%, block at 95%.",
+        "group": "budget",
+    },
+    "provider_budget_gemini_usd": {
+        "value": "300",
+        "secret": False,
+        "desc": "Google Gemini monthly budget in USD (0 = unlimited/free tier).",
+        "group": "budget",
+    },
+    "provider_budget_perplexity_usd": {
+        "value": "50",
+        "secret": False,
+        "desc": "Perplexity monthly budget in USD (0 = unlimited).",
+        "group": "budget",
+    },
+    "provider_budget_openai_usd": {
+        "value": "50",
+        "secret": False,
+        "desc": "OpenAI monthly budget in USD (0 = unlimited).",
+        "group": "budget",
+    },
+    "provider_budget_alert_threshold_pct": {
+        "value": "70",
+        "secret": False,
+        "desc": "Percentage of provider budget at which warning alert fires.",
+        "group": "budget",
+    },
+    "provider_budget_block_threshold_pct": {
+        "value": "95",
+        "secret": False,
+        "desc": "Percentage of provider budget at which calls auto-fallback to another provider.",
+        "group": "budget",
+    },
     # Pipeline v2 — Operational Guardrails
     "dedup_lookback_days": {
         "value": "30",
@@ -314,15 +363,27 @@ DEFAULTS: dict[str, dict] = {
         "group": "pipeline_v2",
     },
     "scoring_batch_size": {
-        "value": "10",
+        "value": "5",
         "secret": False,
-        "desc": "Number of threads per batch scoring LLM call",
+        "desc": "Number of threads per batch scoring LLM call (Phase 2: 5 for cost optimization)",
         "group": "pipeline_v2",
     },
     "strategy_max_age_days": {
         "value": "30",
         "secret": False,
         "desc": "Strategy document validity window (days)",
+        "group": "pipeline_v2",
+    },
+    "generation_max_body_chars": {
+        "value": "500",
+        "secret": False,
+        "desc": "Maximum characters for post body in generation prompt (Phase 2 context trimming)",
+        "group": "pipeline_v2",
+    },
+    "generation_max_voice_chars": {
+        "value": "500",
+        "secret": False,
+        "desc": "Maximum characters for voice profile in generation prompt",
         "group": "pipeline_v2",
     },
     # Health Check
@@ -566,6 +627,25 @@ DEFAULTS: dict[str, dict] = {
         "secret": False,
         "desc": "Enable risk-aware zone routing for Phase 0-1 avatars (safe → bridge → target). When false, legacy hobby_subreddits used.",
         "group": "pipeline_v2",
+    },
+    # --- Draft Expiry ---
+    "draft_expiry_approved_hours": {
+        "value": "48",
+        "secret": False,
+        "desc": "Hours before approved drafts are automatically expired",
+        "group": "pipeline",
+    },
+    "draft_expiry_pending_hours": {
+        "value": "72",
+        "secret": False,
+        "desc": "Hours before pending drafts are automatically expired",
+        "group": "pipeline",
+    },
+    "draft_expiry_enabled": {
+        "value": "true",
+        "secret": False,
+        "desc": "Kill switch for automatic draft expiry",
+        "group": "pipeline",
     },
     # --- Trial Conversion Intelligence ---
     "trial_scoring_weights": {

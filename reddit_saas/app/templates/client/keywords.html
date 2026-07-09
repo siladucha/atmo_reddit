@@ -6,7 +6,7 @@
 {% block content %}
 <div id="portal-content">
     <div style="margin-bottom:var(--space-4);">
-        <h1 class="text-h1">Keywords{{ tooltip("Terms that determine thread relevance. High-priority keywords strongly boost engagement scores. You can add/remove keywords in Settings.") }}
+        <h1 class="text-h1">Keywords{{ tooltip("Terms that determine thread relevance. High-priority keywords strongly boost engagement scores. Contact your account manager to add or remove keywords.") }}
             {% set theme = "light" %}{% include "partials/keyword_priority_legend.html" %}
         </h1>
         <p class="text-small" style="margin-top:4px;">Keyword performance analytics. Showing match data from the last 90 days.</p>
@@ -17,6 +17,27 @@
         <p style="font-size:var(--text-small);color:#a5b4fc;line-height:1.5;">
             Keywords determine which Reddit threads are relevant to your brand. High-priority keywords trigger immediate engagement. The AI scans thread titles and bodies for matches, then scores them. "Engage" means the thread was selected for comment generation. "Drafts" shows how many comments were actually created.
         </p>
+        <details style="margin-top:10px;">
+            <summary style="font-size:var(--text-small);color:var(--color-muted);cursor:pointer;font-weight:500;">ℹ️ How it works</summary>
+            <div style="font-size:var(--text-small);color:var(--color-muted);margin-top:10px;line-height:1.7;padding-left:12px;border-left:2px solid var(--color-border);">
+                <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">What this page shows:</strong> Performance analytics for your scoring keywords over the last 90 days — which keywords are finding relevant threads, driving engagement, and generating drafts.</p>
+                <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">How keywords work in the pipeline:</strong></p>
+                <ol style="margin:0 0 10px 16px;padding:0;">
+                    <li style="margin-bottom:4px;">AI scrapes new Reddit threads from your target subreddits (every 6 hours).</li>
+                    <li style="margin-bottom:4px;">Each thread is scanned for keyword matches in title and body text.</li>
+                    <li style="margin-bottom:4px;">Matching threads are scored — keyword priority boosts the score (HIGH keywords add the most weight).</li>
+                    <li style="margin-bottom:4px;">Top-scoring threads tagged "engage" are selected for comment generation.</li>
+                </ol>
+                <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">Priority levels:</strong></p>
+                <ul style="margin:0 0 10px 16px;padding:0;list-style:disc;">
+                    <li style="margin-bottom:4px;"><strong style="color:#f87171;">HIGH</strong> — core pain points and buyer intent signals. Threads matching these get top priority.</li>
+                    <li style="margin-bottom:4px;"><strong style="color:var(--color-orange);">MEDIUM</strong> — relevant topics that are worth engaging in when capacity allows.</li>
+                    <li style="margin-bottom:4px;"><strong style="color:var(--color-muted);">LOW</strong> — broad terms for maintaining presence. Lower scoring weight.</li>
+                    <li style="margin-bottom:4px;"><strong style="color:#c084fc;">COMPETITOR</strong> — competitor brand names. Threads where competitors are discussed = opportunity.</li>
+                </ul>
+                <p><strong style="color:var(--color-white);">Reading the table:</strong> "Threads" = how many posts matched. "Engage" = how many were good enough to generate a comment. "Drafts" = comments created. If Threads is high but Engage is low — keyword is too broad. If a keyword shows "no matches" — it may need rewording or your subreddits don't discuss that topic.</p>
+            </div>
+        </details>
     </div>
 
     {% if keyword_stats %}

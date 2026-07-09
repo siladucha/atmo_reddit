@@ -1,5 +1,4 @@
 from celery import Celery
-from celery.schedules import crontab
 
 from app.config import get_settings
 
@@ -39,6 +38,9 @@ celery_app = Celery(
         "app.tasks.geo_monitoring",
         "app.tasks.intelligence_report",
         "app.tasks.ab_test",
+        "app.tasks.draft_expiry",
+        "app.tasks.cost_reconciliation",
+        "app.tasks.weekly_emails",
     ],
 )
 
@@ -51,164 +53,8 @@ celery_app.conf.update(
     task_track_started=True,
     task_acks_late=True,
     worker_prefetch_multiplier=1,
-    # Beat schedule — automated pipeline runs
-    beat_schedule={
-        "system-heartbeat": {
-            "task": "system_heartbeat",
-            "schedule": 60.0,  # Every 60s — system health pulse
-        },
-        "ai-pipeline-morning": {
-            "task": "run_full_pipeline_all_clients",
-            "schedule": crontab(hour=8, minute=0),
-        },
-        "ai-pipeline-afternoon": {
-            "task": "run_full_pipeline_all_clients",
-            "schedule": crontab(hour=14, minute=0),
-        },
-        # "hobby-pipeline-daily" removed: EPG handles hobby slot decisions.
-        # Hobby scraping (discovery) runs separately to supply opportunity pool.
-        "hobby-discovery-scrape": {
-            "task": "scrape_hobby_all_avatars",
-            "schedule": crontab(hour="7,13", minute=45),  # Before EPG runs (08:15, 14:15)
-        },
-        "avatar-visibility-health-check": {
-            "task": "health_check_all_avatars",
-            "schedule": crontab(hour="7,13", minute=30),  # 30 min before AI pipelines
-        },
-        "scrape-queue-tick": {
-            "task": "queue_tick",
-            "schedule": 60.0,  # Fires every 60s; actual interval gated by DB setting
-        },
-        "evaluate-avatar-phases-daily": {
-            "task": "evaluate_all_avatar_phases",
-            "schedule": crontab(hour=6, minute=0),
-        },
-        "karma-tracking-4h": {
-            "task": "track_karma_all_avatars",
-            "schedule": crontab(hour="*/4", minute=15),
-        },
-        "profile-analytics-snapshots-daily": {
-            "task": "snapshot_profile_analytics_all_avatars",
-            "schedule": crontab(hour=5, minute=20),
-        },
-        "cqs-check-daily": {
-            "task": "check_cqs_all_avatars",
-            "schedule": crontab(hour=6, minute=30),  # After phase evaluation (06:00), before health check (07:30)
-        },
-        "repurpose-scrape-weekly": {
-            "task": "scrape_repurpose_all_subreddits",
-            "schedule": crontab(hour=3, minute=0, day_of_week="sunday"),  # Weekly, low-traffic time
-        },
-        "execute-pending-posts": {
-            "task": "execute_pending_posts",
-            "schedule": 300.0,  # Every 5 minutes — check for approved slots due for posting
-        },
-        "dispatch-due-email-tasks": {
-            "task": "dispatch_due_email_tasks",
-            "schedule": 300.0,  # Every 5 minutes — send email for tasks due within 30 min
-        },
-        "cqs-check-tasks-daily": {
-            "task": "generate_cqs_check_tasks_all_avatars",
-            "schedule": crontab(hour=7, minute=0),  # 07:00 daily — CQS check tasks for executors
-        },
-        "epg-build-generate-morning": {
-            "task": "build_and_generate_epg_all_avatars",
-            "schedule": crontab(hour=8, minute=15),  # After AI pipeline (08:00) scores threads
-        },
-        "epg-build-generate-afternoon": {
-            "task": "build_and_generate_epg_all_avatars",
-            "schedule": crontab(hour=14, minute=15),  # After afternoon pipeline (14:00)
-        },
-        "check-karma-outcomes-4h": {
-            "task": "check_karma_outcomes",
-            "schedule": crontab(hour="12,18", minute=15),  # 4h after EPG runs (08:15, 14:15)
-        },
-        "check-karma-outcomes-28h": {
-            "task": "check_karma_outcomes",
-            "schedule": crontab(hour="0,6", minute=15),  # ~24-28h after EPG runs for next-day checks
-        },
-        "compute-daily-performance-metrics": {
-            "task": "compute_daily_performance_metrics",
-            "schedule": crontab(hour=1, minute=0),  # 01:00 daily — aggregate yesterday's metrics
-        },
-        "archive-old-decision-records": {
-            "task": "archive_old_decision_records",
-            "schedule": crontab(hour=1, minute=30),  # 01:30 daily — prune records > 90 days
-        },
-        "snapshot-comment-outcomes-4h": {
-            "task": "snapshot_comment_outcomes",
-            "schedule": crontab(hour="*/4", minute=45),  # Every 4h at :45 — karma/reply/deletion snapshots
-        },
-        "run-feedback-loop-daily": {
-            "task": "run_feedback_loop_all",
-            "schedule": crontab(hour=2, minute=0),  # 02:00 daily — after outcomes collected, before next EPG
-        },
-        "check-trial-negative-signals-4h": {
-            "task": "check_trial_negative_signals",
-            "schedule": crontab(hour="*/4", minute=30),  # Every 4h at :30 — negative signal detection
-        },
-        "classify-expired-trials-daily": {
-            "task": "classify_expired_trials",
-            "schedule": crontab(hour=2, minute=30),  # 02:30 daily — after feedback loop (02:00)
-        },
-        "refresh-emotional-profiles-weekly": {
-            "task": "refresh_subreddit_emotional_profiles",
-            "schedule": crontab(hour=4, minute=30, day_of_week="sunday"),  # Weekly, after continuous discovery
-        },
-        "check-stale-avatar-drafts": {
-            "task": "check_stale_avatar_drafts",
-            "schedule": 600.0,  # Every 10 minutes - fail stuck BYOA drafts
-        },
-        "check-avatar-invariant-daily": {
-            "task": "check_avatar_invariant",
-            "schedule": crontab(hour=2, minute=30),  # 02:30 daily - verify active clients have avatars
-        },
-        "check-onboarding-stall-hourly": {
-            "task": "check_onboarding_stall",
-            "schedule": crontab(minute=45),  # Every hour at :45 - detect stalled onboardings
-        },
-        "continuous-discovery-weekly": {
-            "task": "run_continuous_discovery_all",
-            "schedule": crontab(hour=4, minute=0, day_of_week="sunday"),  # Weekly, after feedback loop
-        },
-        "risk-profile-rules-weekly": {
-            "task": "extract_subreddit_rules_batch",
-            "schedule": crontab(hour=5, minute=0, day_of_week="sunday"),
-        },
-        "risk-profile-moderation-weekly": {
-            "task": "compute_moderation_profiles_batch",
-            "schedule": crontab(hour=5, minute=15, day_of_week="sunday"),
-        },
-        "risk-profile-scores-weekly": {
-            "task": "compute_risk_scores_batch",
-            "schedule": crontab(hour=5, minute=30, day_of_week="sunday"),
-        },
-        "probe-subreddit-bans-weekly": {
-            "task": "probe_subreddit_bans",
-            "schedule": crontab(hour=3, minute=45, day_of_week="sunday"),  # Weekly, after karma tracking
-        },
-        "expire-extension-leases": {
-            "task": "expire_extension_leases",
-            "schedule": 300.0,  # Every 5 minutes — expire stale extension task leases
-        },
-        "geo-monitoring-scheduled": {
-            "task": "run_geo_monitoring_all_clients",
-            "schedule": crontab(hour=9, minute=30, day_of_week="tuesday,friday"),  # Every ~3 days, after morning pipeline
-        },
-        "generate-weekly-reports": {
-            "task": "generate_weekly_reports_all_clients",
-            "schedule": crontab(hour=8, minute=0, day_of_week=1),  # Monday 08:00 — after weekend pipeline, before Tue GEO batch
-        },
-        # A/B Test Framework
-        "ab-test-collect-metrics-weekly": {
-            "task": "collect_weekly_ab_metrics",
-            "schedule": crontab(hour=2, minute=30, day_of_week=1),  # Monday 02:30 — collect previous week
-        },
-        "ab-test-check-durations-daily": {
-            "task": "check_experiment_durations",
-            "schedule": crontab(hour=7, minute=0),  # Daily 07:00 — alert on reached durations
-        },
-    },
+    # Beat schedule lives in app/tasks/beat_app.py (lightweight, no heavy imports).
+    # Workers don't need it — they only execute tasks, not schedule them.
     # Task routing: on-demand user-triggered tasks go to 'fast' queue
     # so they don't get blocked behind long-running bulk tasks.
     # Both queues share the same Redis rate limiter (global, Redis-based).

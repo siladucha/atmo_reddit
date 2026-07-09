@@ -81,8 +81,10 @@ build_marketing_image() {
 }
 
 restart_app_services() {
+    log "Signaling watchdog: deploy in progress..."
+    ssh "$SERVER" "touch /var/lib/ramp-watchdog/deploying"
     log "Restarting app + celery + celery-beat..."
-    ssh "$SERVER" "cd ${APP_PATH} && ${COMPOSE_CMD} up -d app celery celery-beat"
+    ssh "$SERVER" "cd ${APP_PATH} && ${COMPOSE_CMD} up -d app celery celery-fast celery-beat"
     log "App services restarted."
 }
 
@@ -122,6 +124,9 @@ show_status() {
 deploy_app() {
     sync_app_code
     build_app_image
+    # Update watchdog script on host (lives outside Docker)
+    log "Updating watchdog script..."
+    ssh "$SERVER" "cp ${APP_PATH}/watchdog/ramp_watchdog.sh /opt/ramp/ramp_watchdog.sh && chmod +x /opt/ramp/ramp_watchdog.sh"
     restart_app_services
     sleep 5
     check_health
@@ -139,6 +144,8 @@ deploy_all() {
     sync_marketing_code
     log "Full rebuild of all images..."
     ssh "$SERVER" "cd ${APP_PATH} && ${COMPOSE_CMD} build"
+    log "Signaling watchdog: deploy in progress..."
+    ssh "$SERVER" "touch /var/lib/ramp-watchdog/deploying"
     log "Restarting all services (except db, redis)..."
     ssh "$SERVER" "cd ${APP_PATH} && ${COMPOSE_CMD} up -d"
     sleep 5

@@ -6,7 +6,7 @@
 <div id="portal-content">
     <!-- Back link -->
     <a href="/clients/{{ client_id }}/avatars" style="display:inline-flex;align-items:center;gap:6px;color:var(--color-muted);font-size:var(--text-small);text-decoration:none;margin-bottom:var(--space-3);" onmouseover="this.style.color='var(--color-white)'" onmouseout="this.style.color='var(--color-muted)'">
-        ← Back to Avatars
+        ← Back to Voices
     </a>
 
     <!-- Header -->
@@ -39,9 +39,94 @@
     <!-- Info block -->
     <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-4);">
         <p style="font-size:var(--text-small);color:#a5b4fc;line-height:1.5;">
-            This is the avatar's personality profile. It defines HOW this account writes on Reddit — its voice, opinions, expertise areas, and boundaries. The AI uses this to generate comments that sound authentic and consistent.
+            This is the voice's personality profile. It defines HOW this persona writes on Reddit — its voice, opinions, expertise areas, and boundaries. The AI uses this to generate comments that sound authentic and consistent.
         </p>
     </div>
+
+    <!-- Edit Persona button -->
+    <div style="margin-bottom:var(--space-3);display:flex;justify-content:flex-end;">
+        <button onclick="toggleEditMode()" id="edit-persona-btn"
+                style="padding:8px 16px;border-radius:var(--radius-input);background:transparent;border:1px solid var(--color-orange);color:var(--color-orange);font-size:var(--text-small);font-weight:500;cursor:pointer;"
+                onmouseover="this.style.background='rgba(255,107,53,0.1)'" onmouseout="this.style.background='transparent'">
+            ✎ Edit Persona
+        </button>
+    </div>
+
+    <!-- Edit form (hidden by default) -->
+    <div id="edit-persona-form" style="display:none;margin-bottom:var(--space-4);">
+        <form onsubmit="savePersona(event)" class="surface" style="padding:var(--space-3);">
+            <h3 style="font-size:var(--text-h3);color:var(--color-white);margin-bottom:12px;">Edit Persona</h3>
+            <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:16px;">Changes take effect on the next AI generation. You can edit once per 30 days.</p>
+
+            <div style="margin-bottom:16px;">
+                <label style="display:block;font-size:var(--text-small);color:var(--color-muted);margin-bottom:4px;">Voice Profile</label>
+                <textarea name="voice_profile_md" rows="8" style="width:100%;background:var(--color-surface-alt);border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;color:var(--color-white);font-size:var(--text-small);font-family:inherit;resize:vertical;">{{ avatar.voice_profile_md }}</textarea>
+            </div>
+            <div style="margin-bottom:16px;">
+                <label style="display:block;font-size:var(--text-small);color:var(--color-muted);margin-bottom:4px;">Tone Principles</label>
+                <textarea name="tone_principles" rows="3" style="width:100%;background:var(--color-surface-alt);border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;color:var(--color-white);font-size:var(--text-small);font-family:inherit;resize:vertical;">{{ avatar.tone_principles }}</textarea>
+            </div>
+            <div style="margin-bottom:16px;">
+                <label style="display:block;font-size:var(--text-small);color:var(--color-muted);margin-bottom:4px;">Core Belief (Hill I Die On)</label>
+                <textarea name="hill_i_die_on" rows="3" style="width:100%;background:var(--color-surface-alt);border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;color:var(--color-white);font-size:var(--text-small);font-family:inherit;resize:vertical;">{{ avatar.hill_i_die_on }}</textarea>
+            </div>
+            <div style="margin-bottom:16px;">
+                <label style="display:block;font-size:var(--text-small);color:var(--color-muted);margin-bottom:4px;">Expertise Areas</label>
+                <textarea name="helpful_mode_topics" rows="3" style="width:100%;background:var(--color-surface-alt);border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;color:var(--color-white);font-size:var(--text-small);font-family:inherit;resize:vertical;">{{ avatar.helpful_mode_topics }}</textarea>
+            </div>
+            <div style="display:flex;gap:8px;">
+                <button type="submit" style="padding:8px 20px;border-radius:var(--radius-input);background:var(--color-green);color:#fff;font-size:var(--text-small);font-weight:600;border:none;cursor:pointer;">Save Changes</button>
+                <button type="button" onclick="toggleEditMode()" style="padding:8px 20px;border-radius:var(--radius-input);background:transparent;color:var(--color-muted);font-size:var(--text-small);font-weight:500;border:1px solid var(--color-border);cursor:pointer;">Cancel</button>
+            </div>
+            <p id="edit-error" style="display:none;margin-top:8px;font-size:var(--text-small);color:var(--color-red);"></p>
+            <p id="edit-success" style="display:none;margin-top:8px;font-size:var(--text-small);color:var(--color-green);"></p>
+        </form>
+    </div>
+
+    <script>
+    function toggleEditMode() {
+        const form = document.getElementById('edit-persona-form');
+        const btn = document.getElementById('edit-persona-btn');
+        if (form.style.display === 'none') {
+            form.style.display = 'block';
+            btn.style.display = 'none';
+        } else {
+            form.style.display = 'none';
+            btn.style.display = 'inline-flex';
+        }
+    }
+
+    function savePersona(e) {
+        e.preventDefault();
+        const form = e.target;
+        const formData = new FormData(form);
+        const errEl = document.getElementById('edit-error');
+        const succEl = document.getElementById('edit-success');
+        errEl.style.display = 'none';
+        succEl.style.display = 'none';
+
+        fetch('/clients/{{ client_id }}/avatars/{{ avatar.id }}/edit-persona', {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+        })
+        .then(r => r.json().then(data => ({status: r.status, data})))
+        .then(({status, data}) => {
+            if (status === 200) {
+                succEl.textContent = data.message || 'Saved!';
+                succEl.style.display = 'block';
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                errEl.textContent = data.message || 'Could not save. Please try again.';
+                errEl.style.display = 'block';
+            }
+        })
+        .catch(() => {
+            errEl.textContent = 'Network error. Please try again.';
+            errEl.style.display = 'block';
+        });
+    }
+    </script>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);">
 
@@ -79,7 +164,7 @@
         {% if avatar.hill_i_die_on %}
         <div class="surface" style="padding:var(--space-3);">
             <h3 style="font-size:var(--text-h3);color:var(--color-white);margin-bottom:8px;">Core Belief</h3>
-            <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:8px;">The opinion this avatar will always defend.</p>
+            <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:8px;">The opinion this voice will always defend.</p>
             <div style="background:var(--color-surface-alt);border-radius:8px;padding:12px 16px;">
                 <pre style="white-space:pre-wrap;word-wrap:break-word;font-family:inherit;font-size:var(--text-small);color:var(--color-white);margin:0;line-height:1.6;">{{ avatar.hill_i_die_on }}</pre>
             </div>
@@ -90,7 +175,7 @@
         {% if avatar.helpful_mode_topics %}
         <div class="surface" style="padding:var(--space-3);">
             <h3 style="font-size:var(--text-h3);color:var(--color-white);margin-bottom:8px;">Expertise Areas</h3>
-            <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:8px;">Topics where this avatar provides genuine help.</p>
+            <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:8px;">Topics where this voice provides genuine help.</p>
             <div style="background:var(--color-surface-alt);border-radius:8px;padding:12px 16px;">
                 <pre style="white-space:pre-wrap;word-wrap:break-word;font-family:inherit;font-size:var(--text-small);color:var(--color-muted);margin:0;line-height:1.6;">{{ avatar.helpful_mode_topics }}</pre>
             </div>
@@ -101,7 +186,7 @@
         {% if avatar.constraints %}
         <div class="surface" style="padding:var(--space-3);">
             <h3 style="font-size:var(--text-h3);color:var(--color-white);margin-bottom:8px;">Boundaries</h3>
-            <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:8px;">What this avatar will never do or say.</p>
+            <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:8px;">What this voice will never do or say.</p>
             <div style="background:var(--color-surface-alt);border-radius:8px;padding:12px 16px;">
                 <pre style="white-space:pre-wrap;word-wrap:break-word;font-family:inherit;font-size:var(--text-small);color:var(--color-muted);margin:0;line-height:1.6;">{{ avatar.constraints }}</pre>
             </div>
@@ -242,6 +327,33 @@
         </div>
     </div>
     {% endif %}
+
+    <!-- Delivery Channel -->
+    <div style="margin-top:var(--space-4);">
+        <h2 class="text-h3" style="margin-bottom:var(--space-2);">Task Delivery</h2>
+        <div class="surface" style="padding:var(--space-3);">
+            <form method="post" action="/clients/{{ client_id }}/avatars/{{ avatar.id }}/delivery-channel"
+                  style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <select name="channel" style="background:var(--color-surface-alt);border:1px solid var(--color-border);border-radius:8px;padding:8px 12px;color:var(--color-white);font-size:var(--text-small);">
+                    <option value="extension" {% if avatar.delivery_channel == 'extension' %}selected{% endif %}>🧩 Browser Extension</option>
+                    <option value="email" {% if avatar.delivery_channel == 'email' %}selected{% endif %}>📧 Email</option>
+                    <option value="both" {% if avatar.delivery_channel == 'both' %}selected{% endif %}>📧+🧩 Both (extension primary, email fallback)</option>
+                </select>
+                <button type="submit" style="padding:8px 16px;border-radius:var(--radius-input);background:var(--color-indigo);color:#fff;font-size:var(--text-small);font-weight:500;border:none;cursor:pointer;">Save</button>
+                <span style="font-size:11px;color:var(--color-muted);">
+                    {% if avatar.delivery_channel == 'extension' %}Tasks auto-delivered to Chrome extension{% elif avatar.delivery_channel == 'email' %}Tasks sent via email to executor{% else %}Extension primary, email as fallback when offline{% endif %}
+                </span>
+            </form>
+            <details style="margin-top:10px;">
+                <summary style="font-size:11px;color:var(--color-muted);cursor:pointer;">ℹ️ How it works</summary>
+                <div style="font-size:11px;color:var(--color-muted);margin-top:6px;line-height:1.5;">
+                    <strong>Extension</strong> — approved tasks are picked up by the Chrome extension and auto-posted through the executor's browser session. No email needed.<br>
+                    <strong>Email</strong> — posting instructions are sent to the executor's email ~30 min before scheduled time. Requires verified executor email.<br>
+                    <strong>Both</strong> — extension is tried first. If offline for 30+ min, system falls back to email.
+                </div>
+            </details>
+        </div>
+    </div>
 
     <!-- Recent Activity -->
     {% if activity %}

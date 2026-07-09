@@ -4,12 +4,14 @@ New dark-themed client-facing portal. Separate from admin panel.
 All routes require client access (RBAC enforced).
 """
 
+import re
+
 from app.logging_config import get_logger
 from datetime import datetime, timezone, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -102,6 +104,15 @@ def _avatar_display_name(avatar) -> str:
 # --- Helpers ---
 
 
+def _check_generation_degraded(client_id) -> str | None:
+    """Check if generation is degraded for this client (Redis flag with 4h TTL)."""
+    try:
+        from app.services.ops_notifications import is_generation_degraded
+        return is_generation_degraded(client_id)
+    except Exception:
+        return None
+
+
 def _get_sidebar_context(client_id: UUID, db: Session) -> dict:
     """Build sidebar context: pending_count, has_shadowbanned, client_name."""
     client = db.query(Client).filter(Client.id == client_id).first()
@@ -132,6 +143,29 @@ def _get_sidebar_context(client_id: UUID, db: Session) -> dict:
         is not None
     )
 
+    # Plan info for sidebar widget
+    plan_name = client.plan_type if client else "starter"
+    # Map plan_type to display name
+    PLAN_DISPLAY = {"trial": "Free trial", "seed": "Seed plan", "starter": "Starter plan", "growth": "Growth plan", "scale": "Scale plan"}
+    plan_display = PLAN_DISPLAY.get(plan_name, plan_name.title() + " plan") if plan_name else "Starter plan"
+
+    # Action limit from plan
+    PLAN_ACTION_LIMITS = {"trial": 30, "seed": 30, "starter": 60, "growth": 150, "scale": 400}
+    action_limit = PLAN_ACTION_LIMITS.get(plan_name, 60)
+
+    # Month usage (drafts generated this month)
+    from datetime import date as _date
+    month_start = datetime(datetime.now().year, datetime.now().month, 1, tzinfo=timezone.utc)
+    month_generated = (
+        db.query(func.count(CommentDraft.id))
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(
+            Avatar.client_ids.any(str(client_id)),
+            CommentDraft.created_at >= month_start,
+        )
+        .scalar()
+    ) or 0
+
     return {
         "client_id": str(client_id),
         "client_name": client_name,
@@ -139,6 +173,9 @@ def _get_sidebar_context(client_id: UUID, db: Session) -> dict:
         "has_shadowbanned": has_shadowbanned,
         "is_trial": client.plan_type == "trial" if client else False,
         "trial_days_remaining": max(0, 14 - (datetime.now(timezone.utc) - client.created_at).days) if client and client.plan_type == "trial" else None,
+        "plan_name": plan_display,
+        "action_limit": action_limit,
+        "month_generated": month_generated,
     }
 
 
@@ -330,6 +367,9 @@ def portal_review(
         .filter(
             CommentDraft.status == "approved",
             Avatar.client_ids.any(str(client_id)),
+            Avatar.active.is_(True),
+            Avatar.is_frozen.is_(False),
+            CommentDraft.created_at >= datetime.now(timezone.utc) - timedelta(days=14),
         )
         .scalar()
     ) or 0
@@ -345,6 +385,18 @@ def portal_review(
         .scalar()
     ) or 0
 
+    expired_count = (
+        db.query(func.count(CommentDraft.id))
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(
+            CommentDraft.status == "expired",
+            Avatar.client_ids.any(str(client_id)),
+            Avatar.active.is_(True),
+            CommentDraft.created_at >= datetime.now(timezone.utc) - timedelta(days=30),
+        )
+        .scalar()
+    ) or 0
+
     return _portal_render(
         request,
         "client/review.html",
@@ -355,11 +407,63 @@ def portal_review(
             "pending_count": sidebar["pending_count"],
             "approved_count": approved_count,
             "posted_count": posted_count,
+            "expired_count": expired_count,
             "can_review": can_review,
             "avatar_options": avatar_options,
+            "generation_degraded": _check_generation_degraded(client_id),
         },
     )
 
+
+
+@router.get("/clients/{client_id}/extension", response_class=HTMLResponse)
+def portal_extension(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Client portal extension download + setup page."""
+    from app.models.execution_node import ExecutionNode
+
+    # Get client's avatars with their extension status
+    avatars_raw = (
+        db.query(Avatar)
+        .filter(Avatar.client_ids.any(str(client_id)), Avatar.active.is_(True))
+        .order_by(Avatar.reddit_username.asc())
+        .all()
+    )
+
+    avatars = []
+    for a in avatars_raw:
+        # Check if extension node exists and is online
+        node = (
+            db.query(ExecutionNode)
+            .filter(ExecutionNode.active_reddit_username == a.reddit_username)
+            .first()
+        )
+        extension_online = False
+        if node and node.is_online:
+            # Consider online if heartbeat within last 5 min
+            if node.last_heartbeat:
+                age = (datetime.now(timezone.utc) - node.last_heartbeat).total_seconds()
+                extension_online = age < 300
+
+        avatars.append({
+            "id": str(a.id),
+            "username": a.reddit_username,
+            "delivery_channel": a.delivery_channel or "extension",
+            "extension_online": extension_online,
+        })
+
+    return _portal_render(
+        request,
+        "client/extension.html",
+        client_id,
+        db,
+        active_page="extension",
+        extra_context={"avatars": avatars},
+    )
 
 
 @router.get("/clients/{client_id}/avatars", response_class=HTMLResponse)
@@ -464,6 +568,17 @@ def portal_avatar_detail(
                 subreddit_name = hobby.subreddit or ""
                 thread_title = (hobby.post_title or "")[:60]
 
+        # Clean subreddit name: strip r/ prefix, whitespace
+        if subreddit_name:
+            subreddit_name = subreddit_name.strip().removeprefix("r/").strip()
+
+        # Fallback: extract subreddit from reddit_comment_url if available
+        if not subreddit_name and d.reddit_comment_url:
+            # URL format: https://reddit.com/r/SUBREDDIT/comments/...
+            m = re.search(r"/r/([^/]+)", d.reddit_comment_url)
+            if m:
+                subreddit_name = m.group(1)
+
         activity.append({
             "subreddit": subreddit_name,
             "thread_title": thread_title,
@@ -493,6 +608,7 @@ def portal_avatar_detail(
         "vocabulary_lean": avatar.vocabulary_lean or "",
         "hobby_subreddits": avatar.hobby_subreddits or [],
         "business_subreddits": avatar.business_subreddits or [],
+        "delivery_channel": avatar.delivery_channel or "extension",
     }
 
     # Per-avatar karma sparkline (last 30 days)
@@ -564,6 +680,112 @@ def portal_avatar_detail(
         },
     )
 
+
+@router.post("/clients/{client_id}/avatars/{avatar_id}/delivery-channel")
+def portal_avatar_delivery_channel(
+    request: Request,
+    client_id: UUID,
+    avatar_id: UUID,
+    channel: str = Form(...),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Client portal: switch avatar delivery channel.
+    Available to client_admin and client_manager."""
+    if user.user_role == UserRole.client_viewer:
+        return JSONResponse(status_code=403, content={"message": "Viewers cannot change delivery settings"})
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar or str(client_id) not in (avatar.client_ids or []):
+        raise HTTPException(status_code=404, detail="Avatar not found")
+
+    if channel not in ("email", "extension", "both"):
+        raise HTTPException(status_code=400, detail="Channel must be 'email', 'extension', or 'both'")
+
+    avatar.delivery_channel = channel
+    db.commit()
+
+    return RedirectResponse(
+        url=f"/clients/{client_id}/avatars/{avatar_id}",
+        status_code=303,
+    )
+
+
+@router.post("/clients/{client_id}/avatars/{avatar_id}/edit-persona")
+def portal_edit_avatar_persona(
+    request: Request,
+    client_id: UUID,
+    avatar_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    voice_profile_md: str = Form(""),
+    tone_principles: str = Form(""),
+    hill_i_die_on: str = Form(""),
+    helpful_mode_topics: str = Form(""),
+):
+    """Client can edit avatar persona (limited to 1 edit per 30 days)."""
+    from app.models.client_action_log import ClientActionLog
+
+    if user.user_role == UserRole.client_viewer:
+        return JSONResponse(status_code=403, content={"message": "Viewers cannot edit avatars"})
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar or str(client_id) not in (avatar.client_ids or []):
+        return JSONResponse(status_code=404, content={"message": "Avatar not found"})
+
+    # Rate limit: 1 persona edit per 30 days per avatar
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+    recent_edit = (
+        db.query(ClientActionLog)
+        .filter(
+            ClientActionLog.client_id == client_id,
+            ClientActionLog.action_type == "edit_persona",
+            ClientActionLog.avatar_id == avatar_id,
+            ClientActionLog.triggered_at >= thirty_days_ago,
+        )
+        .first()
+    )
+    if recent_edit:
+        days_left = 30 - (datetime.now(timezone.utc) - recent_edit.triggered_at).days
+        return JSONResponse(
+            status_code=429,
+            content={"message": f"Persona can only be edited once per month. Next edit available in {max(1, days_left)} days."},
+        )
+
+    # Apply changes (only non-empty fields)
+    changed_fields = []
+    if voice_profile_md.strip():
+        avatar.voice_profile_md = voice_profile_md.strip()
+        changed_fields.append("voice_profile_md")
+    if tone_principles.strip():
+        avatar.tone_principles = tone_principles.strip()
+        changed_fields.append("tone_principles")
+    if hill_i_die_on.strip():
+        avatar.hill_i_die_on = hill_i_die_on.strip()
+        changed_fields.append("hill_i_die_on")
+    if helpful_mode_topics.strip():
+        avatar.helpful_mode_topics = helpful_mode_topics.strip()
+        changed_fields.append("helpful_mode_topics")
+
+    if not changed_fields:
+        return JSONResponse(status_code=422, content={"message": "No changes provided"})
+
+    # Log the edit action
+    action_log = ClientActionLog(
+        client_id=client_id,
+        triggered_by=user.id,
+        action_type="edit_persona",
+        avatar_id=avatar_id,
+    )
+    db.add(action_log)
+    db.commit()
+
+    logger.info(
+        "Portal: persona edited | avatar=%s | user=%s | fields=%s",
+        avatar.reddit_username, user.email, changed_fields,
+    )
+
+    return JSONResponse(status_code=200, content={"ok": True, "message": "Persona updated successfully"})
 
 
 @router.get("/clients/{client_id}/activity", response_class=HTMLResponse)
@@ -1327,8 +1549,62 @@ def portal_subreddits(
 
         # Get risk score from risk_profile relationship if available
         risk_score = None
+        last_analysis = None
+        next_analysis = None
+        moderation_level = None
+        dangerous_hours_display = None
+        top_rules = []
         if sub and sub.risk_profile:
-            risk_score = sub.risk_profile.risk_score
+            rp = sub.risk_profile
+            risk_score = rp.risk_score
+
+            # Moderation aggressiveness (human-readable)
+            mod_profile = rp.moderation_profile or {}
+            aggr = mod_profile.get("aggressiveness")
+            if aggr:
+                moderation_level = aggr.capitalize()
+
+            # Dangerous hours (formatted)
+            if rp.dangerous_hours:
+                hours_str = ", ".join(f"{h}:00" for h in sorted(rp.dangerous_hours)[:3])
+                if len(rp.dangerous_hours) > 3:
+                    hours_str += f" +{len(rp.dangerous_hours) - 3}"
+                dangerous_hours_display = hours_str
+
+            # Top rules (short descriptions for pills)
+            if rp.extracted_rules:
+                for rule in rp.extracted_rules[:6]:
+                    if isinstance(rule, dict):
+                        cat = (rule.get("category") or "").replace("_", " ").title()
+                        val = rule.get("threshold_value") or rule.get("description", "")
+                        if val and len(str(val)) < 30:
+                            top_rules.append(f"{cat}: {val}")
+                        else:
+                            top_rules.append(cat)
+
+            # Last analysis time
+            if rp.last_rule_extraction_at:
+                la = rp.last_rule_extraction_at
+                la_age = (now_utc - la).total_seconds() / 86400
+                if la_age < 1:
+                    la_hours = (now_utc - la).total_seconds() / 3600
+                    last_analysis = f"{int(la_hours)}h ago"
+                elif la_age < 7:
+                    last_analysis = f"{int(la_age)}d ago"
+                else:
+                    last_analysis = la.strftime("%b %d")
+
+            # Next scheduled check
+            if rp.next_check_at:
+                nc = rp.next_check_at
+                if nc <= now_utc:
+                    next_analysis = "due now"
+                else:
+                    nc_days = (nc - now_utc).total_seconds() / 86400
+                    if nc_days < 1:
+                        next_analysis = f"in {int(nc_days * 24)}h"
+                    else:
+                        next_analysis = f"in {int(nc_days)}d"
 
         subreddits.append({
             "name": sub_name,
@@ -1340,6 +1616,11 @@ def portal_subreddits(
             "last_result": last_result,
             "next_scrape": next_scrape,
             "risk_score": risk_score,
+            "last_analysis": last_analysis,
+            "next_analysis": next_analysis,
+            "moderation_level": moderation_level,
+            "dangerous_hours_display": dangerous_hours_display,
+            "top_rules": top_rules,
         })
 
     can_edit = user.user_role in (UserRole.client_admin, UserRole.client_manager, UserRole.owner, UserRole.partner)
@@ -1386,10 +1667,47 @@ def portal_strategy(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Client portal current strategy page."""
+    """Client portal strategy page — shows client-level strategy + per-avatar details."""
     from app.models.strategy_document import StrategyDocument
 
-    # Get all avatars for filter selector
+    # Load client for strategy_context
+    client = db.query(Client).filter(Client.id == client_id).first()
+    strategy_ctx = client.strategy_context if client else None
+
+    # Parse client-level strategy sections
+    client_strategy = None
+    if strategy_ctx:
+        positioning = strategy_ctx.get("positioning", {})
+        subreddit_priorities = strategy_ctx.get("subreddit_priorities", [])
+        content_pillars = strategy_ctx.get("content_pillars", [])
+        forbidden_zones = strategy_ctx.get("forbidden_zones", [])
+        aeo_targets = strategy_ctx.get("aeo_targets", [])
+        phase_roadmap = strategy_ctx.get("phase_roadmap", {})
+        metadata = strategy_ctx.get("metadata", {})
+
+        # Determine current phase for the client (based on avatar phases)
+        all_avatars_q = (
+            db.query(Avatar)
+            .filter(Avatar.client_ids.any(str(client_id)), Avatar.is_active.is_(True))
+            .all()
+        )
+        phases_active = [a.warming_phase or 0 for a in all_avatars_q]
+        current_phase_num = max(phases_active) if phases_active else 0
+
+        client_strategy = {
+            "positioning": positioning,
+            "subreddit_priorities": subreddit_priorities,
+            "content_pillars": content_pillars,
+            "forbidden_zones": forbidden_zones,
+            "aeo_targets": aeo_targets,
+            "phase_roadmap": phase_roadmap,
+            "metadata": metadata,
+            "version": client.strategy_version or 0,
+            "generated_at": _relative_time(client.strategy_generated_at),
+            "current_phase": current_phase_num,
+        }
+
+    # Per-avatar strategies (collapsible detail section)
     all_avatars = (
         db.query(Avatar)
         .filter(Avatar.client_ids.any(str(client_id)))
@@ -1398,13 +1716,12 @@ def portal_strategy(
     )
     avatar_options = [{"id": str(a.id), "name": _avatar_display_name(a)} for a in all_avatars]
 
-    # Filter avatars if selector used
     if avatar_id:
         avatars_with_strategy = [a for a in all_avatars if str(a.id) == avatar_id]
     else:
         avatars_with_strategy = all_avatars
 
-    strategies = []
+    avatar_strategies = []
     for avatar in avatars_with_strategy:
         strategy = (
             db.query(StrategyDocument)
@@ -1415,7 +1732,7 @@ def portal_strategy(
             .first()
         )
         if strategy:
-            strategies.append({
+            avatar_strategies.append({
                 "avatar_id": str(avatar.id),
                 "avatar_name": _avatar_display_name(avatar),
                 "version": strategy.version,
@@ -1432,7 +1749,8 @@ def portal_strategy(
         db,
         active_page="strategy",
         extra_context={
-            "strategies": strategies,
+            "client_strategy": client_strategy,
+            "avatar_strategies": avatar_strategies,
             "avatar_options": avatar_options,
             "selected_avatar_id": avatar_id,
         },
@@ -1814,6 +2132,224 @@ def portal_report(
         extra_context={"report": report},
     )
 
+# --- Insights (Landscape, SOV, Competitive Gaps, High-Value Threads) ---
+
+
+@router.get("/clients/{client_id}/insights", response_class=HTMLResponse)
+def portal_insights(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Client portal — Insights screen (Day 1 intelligence: landscape, SOV, gaps, threads)."""
+    from app.models.discovery_session import DiscoverySession
+    from app.models.geo_execution import GeoExecutionBatch, GeoQueryResult
+    from app.models.geo_competitor import GeoCompetitor
+    from app.models.subreddit import ClientSubredditAssignment, Subreddit
+
+    client_obj = db.query(Client).filter(Client.id == client_id).first()
+    if not client_obj:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    # 1. Landscape Report — from most recent completed Discovery session
+    landscape_report = None
+    landscape_date = None
+    latest_discovery = (
+        db.query(DiscoverySession)
+        .filter(
+            DiscoverySession.client_id == client_id,
+            DiscoverySession.status.in_(["completed", "handed_off"]),
+        )
+        .order_by(DiscoverySession.completed_at.desc())
+        .first()
+    )
+    if latest_discovery and latest_discovery.reports:
+        # Get the most recent report content
+        latest_report = latest_discovery.reports[-1] if latest_discovery.reports else None
+        report_content = latest_report.content if latest_report else None
+        if report_content and isinstance(report_content, dict):
+            # Build markdown from structured JSONB content
+            raw = report_content.get("executive_summary", "")
+            if raw:
+                import html as _html
+                lines = []
+                for line in raw.split("\n"):
+                    line = _html.escape(line)
+                    if line.startswith("### "):
+                        line = f"<h4 style='color:var(--color-white);margin:12px 0 4px;font-size:13px;font-weight:600;'>{line[4:]}</h4>"
+                    elif line.startswith("## "):
+                        line = f"<h3 style='color:var(--color-white);margin:14px 0 6px;font-size:14px;font-weight:600;'>{line[3:]}</h3>"
+                    elif line.startswith("# "):
+                        line = f"<h2 style='color:var(--color-white);margin:16px 0 8px;font-size:15px;font-weight:600;'>{line[2:]}</h2>"
+                    elif line.startswith("- "):
+                        line = f"<li style='margin-left:16px;'>{line[2:]}</li>"
+                    else:
+                        line = f"<p>{line}</p>" if line.strip() else ""
+                    lines.append(line)
+                landscape_report = "\n".join(lines)
+                landscape_date = latest_discovery.completed_at.strftime("%b %d, %Y") if latest_discovery.completed_at else "Day 1"
+
+    # 2. Share of Voice — reuse visibility_report data
+    from app.services.visibility_report import compute_visibility_report
+    vis_data = compute_visibility_report(db, client_id, include_excerpts=False)
+    competitors = vis_data.get("competitors", [])
+    brand_rate = vis_data["summary"]["latest_brand_rate"] if vis_data.get("has_data") else 0
+    client_brand = client_obj.client_name or "Your brand"
+
+    # 3. Competitive Gaps — subreddits where competitors appear but client has no avatar activity
+    competitive_gaps = []
+    # Get client's active subreddits (used here and in section 4)
+    client_sub_ids = {
+        row.subreddit_id
+        for row in db.query(ClientSubredditAssignment.subreddit_id)
+        .filter(ClientSubredditAssignment.client_id == client_id, ClientSubredditAssignment.is_active.is_(True))
+        .all()
+    }
+    if competitors:
+        client_sub_names = set()
+        if client_sub_ids:
+            subs = db.query(Subreddit).filter(Subreddit.id.in_(client_sub_ids)).all()
+            client_sub_names = {s.subreddit_name.lower() for s in subs if s.subreddit_name}
+
+        # Find subreddits mentioned in GEO responses where competitors are active but client isn't
+        # For now, derive from competitor data in GEO results
+        latest_batch = (
+            db.query(GeoExecutionBatch)
+            .filter(
+                GeoExecutionBatch.client_id == client_id,
+                GeoExecutionBatch.status.in_(["completed", "partial"]),
+            )
+            .order_by(GeoExecutionBatch.started_at.desc())
+            .first()
+        )
+        if latest_batch:
+            results = (
+                db.query(GeoQueryResult)
+                .filter(
+                    GeoQueryResult.execution_batch_id == latest_batch.id,
+                    GeoQueryResult.status == "success",
+                    GeoQueryResult.brand_mentioned.is_(False),
+                    GeoQueryResult.competitors_mentioned.isnot(None),
+                )
+                .all()
+            )
+            # Aggregate: which competitors mentioned where brand wasn't
+            gap_data: dict[str, dict] = {}  # category -> {competitor_names, mentions}
+            for r in results:
+                if r.competitors_mentioned and isinstance(r.competitors_mentioned, dict):
+                    from app.models.geo_prompt import GeoPrompt
+                    prompt = db.query(GeoPrompt).filter(GeoPrompt.id == r.prompt_id).first()
+                    cat = (prompt.category or "general") if prompt else "general"
+                    if cat not in gap_data:
+                        gap_data[cat] = {"subreddit": cat, "competitor_names": set(), "competitor_mentions": 0}
+                    for comp_name in r.competitors_mentioned.keys():
+                        gap_data[cat]["competitor_names"].add(comp_name)
+                        gap_data[cat]["competitor_mentions"] += 1
+
+            competitive_gaps = [
+                {
+                    "subreddit": v["subreddit"],
+                    "competitor_names": list(v["competitor_names"])[:3],
+                    "competitor_mentions": v["competitor_mentions"],
+                }
+                for v in sorted(gap_data.values(), key=lambda x: -x["competitor_mentions"])
+            ][:6]
+
+    # 4. High-Value Threads — keyword-matching threads with high upvotes
+    high_value_threads = []
+    keywords_data = client_obj.keywords or {}
+    all_keywords = []
+    if isinstance(keywords_data, dict):
+        for priority_list in keywords_data.values():
+            if isinstance(priority_list, list):
+                all_keywords.extend([kw.lower() for kw in priority_list])
+
+    if all_keywords and client_sub_ids:
+        # Get recent high-engagement threads in client's subreddits
+        from app.models.thread import RedditThread
+        from app.models.subreddit import ClientSubreddit
+
+        # Get subreddit names for client
+        sub_name_list = [s.subreddit_name for s in db.query(Subreddit).filter(Subreddit.id.in_(client_sub_ids)).all() if s.subreddit_name]
+
+        if sub_name_list:
+            threads = (
+                db.query(RedditThread)
+                .filter(
+                    RedditThread.subreddit.in_(sub_name_list),
+                    RedditThread.ups >= 50,
+                    RedditThread.created_at >= datetime.now(timezone.utc) - timedelta(days=14),
+                )
+                .order_by(RedditThread.ups.desc())
+                .limit(30)
+                .all()
+            )
+
+            for t in threads:
+                title_lower = (t.post_title or "").lower()
+                body_lower = (t.post_body or "").lower()
+                # Check keyword match
+                if any(kw in title_lower or kw in body_lower for kw in all_keywords):
+                    high_value_threads.append({
+                        "title": (t.post_title or "")[:80],
+                        "subreddit": t.subreddit or "",
+                        "ups": t.ups or 0,
+                        "permalink": t.permalink or "",
+                        "competitor_present": False,  # TODO: cross-ref with competitor data
+                    })
+                    if len(high_value_threads) >= 8:
+                        break
+
+    # 5. Locked countdown cards (phase-gated sections)
+    locked_sections = []
+    # Find client's avatars and their phase info
+    client_avatars = (
+        db.query(Avatar)
+        .filter(Avatar.client_ids.any(str(client_id)), Avatar.active.is_(True))
+        .all()
+    )
+    max_phase = max((a.warming_phase or 0) for a in client_avatars) if client_avatars else 0
+
+    if max_phase < 2:
+        # Estimate days to Phase 2
+        phase1_avatars = [a for a in client_avatars if (a.warming_phase or 0) == 1]
+        avatar_names = [_avatar_display_name(a) for a in phase1_avatars[:2]]
+        names_str = " + ".join(avatar_names) if avatar_names else "Your voices"
+
+        # Rough estimate: Phase 1 takes ~30 days from creation
+        earliest_created = min((a.created_at for a in client_avatars if a.created_at), default=datetime.now(timezone.utc))
+        days_active = (datetime.now(timezone.utc) - earliest_created).days if earliest_created else 0
+        days_remaining = max(0, 30 - days_active)
+
+        locked_sections.append({
+            "title": "High-Intent Appearances",
+            "countdown": f"{names_str} reach Phase 2 in ~{days_remaining} days",
+        })
+        locked_sections.append({
+            "title": "Brand Mention Tracking",
+            "countdown": f"Unlocks at Phase 3 (~{max(0, 90 - days_active)} days)",
+        })
+
+    return _portal_render(
+        request,
+        "client/insights.html",
+        client_id,
+        db,
+        active_page="insights",
+        extra_context={
+            "landscape_report": landscape_report,
+            "landscape_date": landscape_date,
+            "competitors": competitors,
+            "brand_rate": brand_rate,
+            "client_brand": client_brand,
+            "competitive_gaps": competitive_gaps,
+            "high_value_threads": high_value_threads,
+            "locked_sections": locked_sections,
+        },
+    )
+
+
 # --- Visibility (Share of Voice) ---
 
 
@@ -2082,11 +2618,12 @@ def portal_drafts_partial(
     client_id: UUID,
     status: str = "pending",
     avatar_id: str = "",
+    sort: str = "newest",
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Return draft cards list for review queue (supports pending/approved/posted tabs)."""
-    valid_statuses = {"pending", "approved", "posted"}
+    """Return draft cards list for review queue (supports pending/approved/posted/expired tabs)."""
+    valid_statuses = {"pending", "approved", "posted", "expired"}
     if status not in valid_statuses:
         status = "pending"
 
@@ -2097,9 +2634,11 @@ def portal_drafts_partial(
             CommentDraft.status == status,
             Avatar.client_ids.any(str(client_id)),
             Avatar.active.is_(True),
-            Avatar.is_frozen.is_(False),
         )
     )
+    # For expired/posted, show regardless of avatar frozen state
+    if status not in ("expired", "posted"):
+        query = query.filter(Avatar.is_frozen.is_(False))
     if avatar_id:
         query = query.filter(CommentDraft.avatar_id == avatar_id)
 
@@ -2113,8 +2652,24 @@ def portal_drafts_partial(
         query = query.filter(
             CommentDraft.created_at >= datetime.now(timezone.utc) - timedelta(days=14)
         )
+    # For approved tab, limit to last 14 days (matches count in review header)
+    elif status == "approved":
+        query = query.filter(
+            CommentDraft.created_at >= datetime.now(timezone.utc) - timedelta(days=14)
+        )
+    # For expired tab, limit to last 30 days
+    elif status == "expired":
+        query = query.filter(
+            CommentDraft.created_at >= datetime.now(timezone.utc) - timedelta(days=30)
+        )
 
-    drafts_raw = query.order_by(CommentDraft.created_at.desc()).limit(50).all()
+    # Sort order
+    if sort == "oldest":
+        query = query.order_by(CommentDraft.created_at.asc())
+    else:
+        query = query.order_by(CommentDraft.created_at.desc())
+
+    drafts_raw = query.limit(50).all()
 
     client = db.query(Client).filter(Client.id == client_id).first()
 
@@ -2181,6 +2736,8 @@ def portal_drafts_partial(
             "is_hobby": d.type == "hobby",
             "reddit_comment_url": d.reddit_comment_url or "",
             "posted_at": _relative_time(d.posted_at) if d.posted_at else "",
+            "status": d.status,
+            "stale_age_hours": (d.learning_metadata or {}).get("stale_age_hours") if d.learning_metadata else None,
         })
 
     last_draft_at = None
@@ -2362,6 +2919,7 @@ def portal_mark_posted(
 
         draft = db.query(CommentDraft).filter(CommentDraft.id == draft_id).first()
         if not draft:
+            logger.warning("Portal mark-posted: draft not found | draft_id=%s", draft_id)
             return JSONResponse(status_code=404, content={"message": "Draft not found"})
 
         avatar = db.query(Avatar).filter(Avatar.id == draft.avatar_id).first()
@@ -2373,15 +2931,20 @@ def portal_mark_posted(
             return JSONResponse(status_code=404, content={"message": "Draft not found"})
 
         if draft.status not in ("approved", "pending"):
-            return JSONResponse(status_code=422, content={"message": "Draft is not in approved state"})
+            logger.warning(
+                "Portal mark-posted: wrong status | draft_id=%s | status=%s",
+                draft_id, draft.status,
+            )
+            return JSONResponse(status_code=422, content={"message": f"Draft is in '{draft.status}' state, expected 'approved'"})
 
         draft.status = "posted"
         draft.posted_at = datetime.now(timezone.utc)
         if reddit_url.strip():
             draft.reddit_comment_url = reddit_url.strip()
+
         db.commit()
 
-        # Audit log (best-effort)
+        # Audit log (best-effort, never blocks response)
         try:
             from app.services.audit import log_action
             log_action(
@@ -2398,7 +2961,7 @@ def portal_mark_posted(
                 },
             )
         except Exception as e:
-            logger.warning("Failed to log audit event: %s", e)
+            logger.warning("Failed to log audit event for mark-posted: %s", e)
 
         logger.info(
             "Portal: draft marked posted | draft_id=%s | user=%s | client=%s",
@@ -2412,8 +2975,11 @@ def portal_mark_posted(
             "Portal mark-posted UNHANDLED ERROR | draft_id=%s | client_id=%s | error=%s | type=%s",
             draft_id, client_id, str(e), type(e).__name__,
         )
-        db.rollback()
-        return JSONResponse(status_code=500, content={"message": "Server error. Please try again."})
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return JSONResponse(status_code=500, content={"message": "Could not mark as posted. Server error."})
 
 
 @router.post("/clients/{client_id}/drafts/{draft_id}/edit")
@@ -2729,48 +3295,83 @@ def portal_momentum_partial(
     now = datetime.now(timezone.utc)
     week_ago = now - timedelta(days=7)
 
+    # Only show client-relevant event types (hide ops noise like scrape, system, pipeline)
+    CLIENT_VISIBLE_TYPES = {
+        "draft_approved", "draft_posted", "phase_promotion", "phase_demotion",
+        "health_alert", "comment_deletion_detected", "karma_milestone",
+        "client_onboarded", "avatar_onboarding_complete", "draft_auto_reconciled",
+        "generate",
+    }
+
     # Fetch recent events for this client
     events_raw = (
         db.query(ActivityEvent)
         .filter(
             ActivityEvent.client_id == client_id,
             ActivityEvent.created_at >= week_ago,
+            ActivityEvent.event_type.in_(CLIENT_VISIBLE_TYPES),
         )
         .order_by(ActivityEvent.created_at.desc())
-        .limit(15)
+        .limit(12)
         .all()
     )
 
-    # Format events for display
-    EVENT_ICONS = {
-        "scrape": "🔍",
-        "score": "📊",
-        "generate": "✍",
-        "draft_approved": "✓",
-        "draft_posted": "📤",
-        "phase_promotion": "🚀",
-        "phase_demotion": "⚠",
-        "health_alert": "🚨",
-        "comment_deletion_detected": "❌",
-        "karma_milestone": "⭐",
-        "pipeline": "⚡",
-        "system": "🔧",
-        "client_onboarded": "🎉",
-        "avatar_onboarding_complete": "👤",
+    # Build avatar username → display_name map for this client
+    client_avatars = (
+        db.query(Avatar.reddit_username, Avatar.display_name)
+        .filter(Avatar.client_ids.any(str(client_id)))
+        .all()
+    )
+    username_to_display = {
+        a.reddit_username: (a.display_name or a.reddit_username.split("_")[0].title())
+        for a in client_avatars
+        if a.reddit_username
     }
+
+    # Human-readable event formatting
+    EVENT_CONFIG = {
+        "draft_posted": {"icon": "📤", "tint": "#E6F1FB"},
+        "draft_approved": {"icon": "✓", "tint": "#E1F5EE"},
+        "phase_promotion": {"icon": "🚀", "tint": "#E6F1FB"},
+        "phase_demotion": {"icon": "⚠️", "tint": "#FAEEDA"},
+        "health_alert": {"icon": "🚨", "tint": "#FCEBEB"},
+        "comment_deletion_detected": {"icon": "❌", "tint": "#FCEBEB"},
+        "karma_milestone": {"icon": "⭐", "tint": "#FAECE7"},
+        "client_onboarded": {"icon": "🎉", "tint": "#E6F1FB"},
+        "avatar_onboarding_complete": {"icon": "✨", "tint": "#E1F5EE"},
+        "draft_auto_reconciled": {"icon": "🔗", "tint": "#E6F1FB"},
+        "generate": {"icon": "✍️", "tint": "#E1F5EE"},
+    }
+
+    def _sanitize_message(msg: str, avatar_username: str = "") -> str:
+        """Replace reddit usernames with display names in event messages."""
+        if not msg:
+            return ""
+        # Replace specific avatar username
+        if avatar_username and avatar_username in username_to_display:
+            display = username_to_display[avatar_username]
+            msg = msg.replace(f"u/{avatar_username}", display)
+            msg = msg.replace(avatar_username, display)
+        # Replace any remaining u/username patterns
+        for uname, dname in username_to_display.items():
+            msg = msg.replace(f"u/{uname}", dname)
+            msg = msg.replace(uname, dname)
+        return msg
 
     events = []
     for ev in events_raw:
-        icon = EVENT_ICONS.get(ev.event_type, "📡")
         meta = ev.event_metadata or {}
+        avatar_username = meta.get("avatar_username", "")
+        cfg = EVENT_CONFIG.get(ev.event_type, {"icon": "📡", "tint": "#E6F1FB"})
 
         events.append({
-            "icon": icon,
+            "icon": cfg["icon"],
+            "tint": cfg["tint"],
             "type": ev.event_type,
-            "message": ev.message,
+            "message": _sanitize_message(ev.message, avatar_username),
             "time": _relative_time(ev.created_at),
             "subreddit": meta.get("subreddit_name", ""),
-            "avatar": meta.get("avatar_username", ""),
+            "avatar": username_to_display.get(avatar_username, ""),
             "score": meta.get("reddit_score", meta.get("upvotes", "")),
         })
 
@@ -3137,5 +3738,261 @@ def portal_tasks(
             "active_count": active_count,
             "verified_count": verified_count,
             "expired_count": expired_count,
+        },
+    )
+
+
+# ─── Team Management ─────────────────────────────────────────────────────────
+
+
+@router.get("/clients/{client_id}/team", response_class=HTMLResponse)
+def portal_team(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Client portal team management page."""
+    # Only client_admin+ can view team
+    current_role = getattr(request.state, "user_role", "")
+    can_manage = current_role in ("owner", "partner", "client_admin")
+
+    # Get all users for this client
+    team_members = (
+        db.query(User)
+        .filter(User.client_id == client_id, User.is_active.is_(True))
+        .order_by(User.created_at.asc())
+        .all()
+    )
+
+    members = []
+    for m in team_members:
+        members.append({
+            "id": str(m.id),
+            "email": m.email,
+            "full_name": m.full_name or "",
+            "role": m.role,
+            "role_display": (m.role or "").replace("_", " ").title(),
+            "email_verified": m.email_verified,
+            "created_at": _relative_time(m.created_at),
+            "is_current_user": m.id == user.id,
+        })
+
+    # Roles that can be invited (client_admin can only add manager/viewer)
+    available_roles = []
+    if current_role in ("owner", "partner"):
+        available_roles = [
+            {"value": "client_admin", "label": "Admin"},
+            {"value": "client_manager", "label": "Manager"},
+            {"value": "client_viewer", "label": "Viewer"},
+        ]
+    elif current_role == "client_admin":
+        available_roles = [
+            {"value": "client_manager", "label": "Manager"},
+            {"value": "client_viewer", "label": "Viewer"},
+        ]
+
+    return _portal_render(
+        request,
+        "client/team.html",
+        client_id,
+        db,
+        active_page="team",
+        extra_context={
+            "members": members,
+            "can_manage": can_manage,
+            "available_roles": available_roles,
+        },
+    )
+
+
+@router.post("/clients/{client_id}/team/invite", response_class=HTMLResponse)
+def portal_team_invite(
+    request: Request,
+    client_id: UUID,
+    email: str = Form(...),
+    role: str = Form(...),
+    full_name: str = Form(""),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Invite a new team member."""
+    from app.services.team_management import validate_team_management
+    from app.services.auth import hash_password
+    import secrets
+
+    # Validate permission
+    try:
+        target_role = UserRole(role)
+    except ValueError:
+        return HTMLResponse(
+            content='<span class="text-red-400 text-sm">Invalid role</span>',
+            status_code=400,
+        )
+
+    validate_team_management(user, target_role, client_id)
+
+    # Check if email already exists
+    existing = db.query(User).filter(User.email == email.strip().lower()).first()
+    if existing:
+        return HTMLResponse(
+            content='<span class="text-red-400 text-sm">A user with this email already exists</span>',
+            headers={"HX-Trigger": '{"showToast": {"type": "warning", "message": "Email already registered"}}'},
+        )
+
+    # Create user with temporary password (they'll reset via email)
+    temp_password = secrets.token_urlsafe(16)
+    new_user = User(
+        email=email.strip().lower(),
+        hashed_password=hash_password(temp_password),
+        full_name=full_name.strip() or None,
+        role=target_role.value,
+        client_id=client_id,
+        is_active=True,
+        email_verified=False,
+    )
+    db.add(new_user)
+    db.flush()
+
+    # Send verification email
+    try:
+        from app.services.email_verification import send_verification_email
+        send_verification_email(db, new_user)
+    except Exception as e:
+        logger.warning("Failed to send verification email to %s: %s", email, e)
+
+    db.commit()
+
+    logger.info(
+        "Team invite: %s invited %s as %s for client %s",
+        user.email, email, role, client_id,
+    )
+
+    # Return updated member row
+    return HTMLResponse(
+        content=f'<span class="text-green-400 text-sm">Invited {email} as {role.replace("_", " ")}</span>',
+        headers={
+            "HX-Trigger": '{"showToast": {"type": "success", "message": "Team member invited. Verification email sent."}, "refreshTeam": true}',
+        },
+    )
+
+
+@router.post("/clients/{client_id}/team/{member_id}/remove", response_class=HTMLResponse)
+def portal_team_remove(
+    request: Request,
+    client_id: UUID,
+    member_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Deactivate a team member."""
+    from app.services.team_management import validate_user_deactivation
+
+    target_user = db.query(User).filter(User.id == member_id, User.client_id == client_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Team member not found")
+
+    if target_user.id == user.id:
+        return HTMLResponse(
+            content='<span class="text-red-400 text-sm">Cannot remove yourself</span>',
+            status_code=400,
+        )
+
+    validate_user_deactivation(user, target_user)
+
+    target_user.is_active = False
+    db.commit()
+
+    logger.info(
+        "Team remove: %s deactivated %s from client %s",
+        user.email, target_user.email, client_id,
+    )
+
+    return HTMLResponse(
+        content=f'<span class="text-green-400 text-sm">{target_user.email} removed</span>',
+        headers={
+            "HX-Trigger": '{"showToast": {"type": "success", "message": "Team member removed."}, "refreshTeam": true}',
+        },
+    )
+
+
+# ─── Plan & Billing ──────────────────────────────────────────────────────────
+
+
+@router.get("/clients/{client_id}/billing", response_class=HTMLResponse)
+def portal_billing(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Client portal billing/plan page."""
+    from app.services.business_metrics import PLAN_PRICES
+
+    client = db.query(Client).filter(Client.id == client_id).first()
+
+    plan_type = client.plan_type or "starter" if client else "starter"
+    plan_price = PLAN_PRICES.get(plan_type, 0)
+
+    # Usage stats
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    avatars_count = (
+        db.query(func.count(Avatar.id))
+        .filter(Avatar.client_ids.any(str(client_id)), Avatar.active.is_(True))
+        .scalar()
+    ) or 0
+
+    comments_this_month = (
+        db.query(func.count(CommentDraft.id))
+        .filter(
+            CommentDraft.client_id == client_id,
+            CommentDraft.status.in_(["approved", "posted"]),
+            CommentDraft.created_at >= month_start,
+        )
+        .scalar()
+    ) or 0
+
+    # Plan limits (approximate)
+    plan_limits = {
+        "trial": {"avatars": 1, "comments": 30},
+        "seed": {"avatars": 1, "comments": 30},
+        "starter": {"avatars": 3, "comments": 60},
+        "growth": {"avatars": 7, "comments": 150},
+        "scale": {"avatars": 15, "comments": 400},
+    }
+    limits = plan_limits.get(plan_type, {"avatars": 3, "comments": 60})
+
+    # Days since creation (for trial)
+    days_active = (now - client.created_at).days if client and client.created_at else 0
+    trial_days_remaining = max(0, 14 - days_active) if plan_type == "trial" else None
+
+    # Available upgrades
+    plan_order = ["trial", "seed", "starter", "growth", "scale"]
+    current_idx = plan_order.index(plan_type) if plan_type in plan_order else 0
+    upgrades = []
+    for p in plan_order[current_idx + 1:]:
+        upgrades.append({
+            "name": p.title(),
+            "price": PLAN_PRICES.get(p, 0),
+            "limits": plan_limits.get(p, {}),
+        })
+
+    return _portal_render(
+        request,
+        "client/billing.html",
+        client_id,
+        db,
+        active_page="billing",
+        extra_context={
+            "plan_type": plan_type,
+            "plan_price": plan_price,
+            "avatars_count": avatars_count,
+            "comments_this_month": comments_this_month,
+            "limits": limits,
+            "trial_days_remaining": trial_days_remaining,
+            "upgrades": upgrades,
+            "days_active": days_active,
         },
     )

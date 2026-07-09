@@ -24,22 +24,147 @@
     <!-- Header + Period Filter -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 class="text-2xl font-semibold text-white">AI Cost Tracking</h1>
-        <div class="flex items-center gap-1 bg-slate-800 rounded-lg p-1">
-            {% for p_key, p_label in [("7d", "7d"), ("30d", "30d"), ("90d", "90d"), ("all", "All")] %}
-            <a href="/admin/ai-costs?period={{ p_key }}{% if filter_client_id %}&client_id={{ filter_client_id }}{% endif %}"
-               class="px-3 py-1.5 rounded-md text-xs font-medium transition-colors
-                      {% if active_period == p_key %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">
-                {{ p_label }}
-            </a>
-            {% endfor %}
+        <div class="flex items-center gap-2 flex-wrap">
+            <!-- Quick period buttons -->
+            <div class="flex items-center gap-1 bg-slate-800 rounded-lg p-1">
+                {% for p_key, p_label in [("7d", "7d"), ("30d", "30d"), ("90d", "90d"), ("all", "All")] %}
+                <a href="/admin/ai-costs?period={{ p_key }}{% if filter_client_id %}&client_id={{ filter_client_id }}{% endif %}"
+                   class="px-3 py-1.5 rounded-md text-xs font-medium transition-colors
+                          {% if active_period == p_key and not date_from %}bg-indigo-600 text-white{% else %}text-gray-400 hover:text-white hover:bg-slate-700{% endif %}">
+                    {{ p_label }}
+                </a>
+                {% endfor %}
+            </div>
+            <!-- Date range picker -->
+            <form method="get" action="/admin/ai-costs" class="flex items-center gap-1.5 bg-slate-800 rounded-lg p-1 px-2">
+                <input type="date" name="date_from" value="{{ date_from or '' }}"
+                       class="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white focus:border-indigo-500 focus:outline-none"
+                       style="color-scheme:dark;">
+                <span class="text-gray-500 text-xs">→</span>
+                <input type="date" name="date_to" value="{{ date_to or '' }}"
+                       class="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white focus:border-indigo-500 focus:outline-none"
+                       style="color-scheme:dark;">
+                {% if filter_client_id %}<input type="hidden" name="client_id" value="{{ filter_client_id }}">{% endif %}
+                <button type="submit" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded font-medium">Go</button>
+                {% if date_from %}
+                <a href="/admin/ai-costs{% if filter_client_id %}?client_id={{ filter_client_id }}{% endif %}" class="text-gray-400 hover:text-white text-xs px-1">✕</a>
+                {% endif %}
+            </form>
         </div>
     </div>
+
+    {% if date_from %}
+    <div class="text-xs text-gray-400">
+        Showing: {{ date_from }}{% if date_to %} → {{ date_to }}{% else %} → today{% endif %}
+        {% if active_period_label %} ({{ active_period_label }}){% endif %}
+    </div>
+    {% endif %}
 
     {% if budget_pct >= 80 %}
     <div class="p-3 bg-amber-900/50 border border-amber-700 rounded-lg text-amber-300 text-sm">
         ⚠️ Projected monthly spend: {{ "%.0f"|format(budget_pct) }}% of budget (${{ "%.0f"|format(budget) }}/mo).
     </div>
     {% endif %}
+
+    <!-- ═══ PHASE 2: Provider Budgets ═══ -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {% for pb in provider_budgets %}
+        <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-sm font-medium text-white">{{ pb.provider }}</span>
+                <span class="text-xs font-mono {% if pb.status == 'red' %}text-red-400{% elif pb.status == 'amber' %}text-amber-400{% else %}text-gray-400{% endif %}">
+                    ${{ "%.2f"|format(pb.spent_usd) }} / ${{ "%.0f"|format(pb.budget_usd) }}
+                </span>
+            </div>
+            <div class="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
+                <div class="h-full rounded-full transition-all {% if pb.status == 'red' %}bg-red-500{% elif pb.status == 'amber' %}bg-amber-500{% else %}bg-green-500{% endif %}"
+                     style="width: {{ [pb.percent_used, 100] | min }}%"></div>
+            </div>
+            <div class="flex justify-between mt-1 text-[10px] text-gray-500">
+                <span>{{ "%.1f"|format(pb.percent_used) }}% used</span>
+                <span>→ ~${{ "%.0f"|format(pb.projected_month_end) }}/mo</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- ═══ PHASE 2: Unit Economics + Forecast ═══ -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {% if unit_economics.cost_per_client_month is not none %}
+        <div class="bg-dark-steel rounded-lg p-3 border border-slate-700">
+            <div class="text-[10px] text-gray-500 uppercase">$/Client/mo</div>
+            <div class="text-lg font-mono font-semibold text-white mt-1">${{ "%.2f"|format(unit_economics.cost_per_client_month) }}</div>
+            <div class="text-[10px] text-gray-600">{{ unit_economics.active_clients }} active</div>
+        </div>
+        {% else %}
+        <div class="bg-dark-steel rounded-lg p-3 border border-slate-700">
+            <div class="text-[10px] text-gray-500 uppercase">$/Client/mo</div>
+            <div class="text-sm text-gray-500 mt-2">Collecting data</div>
+        </div>
+        {% endif %}
+        {% if unit_economics.cost_per_avatar_month is not none %}
+        <div class="bg-dark-steel rounded-lg p-3 border border-slate-700">
+            <div class="text-[10px] text-gray-500 uppercase">$/Avatar/mo</div>
+            <div class="text-lg font-mono font-semibold text-blue-400 mt-1">${{ "%.2f"|format(unit_economics.cost_per_avatar_month) }}</div>
+            <div class="text-[10px] text-gray-600">{{ unit_economics.active_avatars }} active</div>
+        </div>
+        {% else %}
+        <div class="bg-dark-steel rounded-lg p-3 border border-slate-700">
+            <div class="text-[10px] text-gray-500 uppercase">$/Avatar/mo</div>
+            <div class="text-sm text-gray-500 mt-2">Collecting data</div>
+        </div>
+        {% endif %}
+        {% if unit_economics.cost_per_draft is not none %}
+        <div class="bg-dark-steel rounded-lg p-3 border border-slate-700">
+            <div class="text-[10px] text-gray-500 uppercase">$/Draft</div>
+            <div class="text-lg font-mono font-semibold text-green-400 mt-1">${{ "%.4f"|format(unit_economics.cost_per_draft) }}</div>
+            <div class="text-[10px] text-gray-600">{{ unit_economics.total_drafts_30d }} drafts (30d)</div>
+        </div>
+        {% else %}
+        <div class="bg-dark-steel rounded-lg p-3 border border-slate-700">
+            <div class="text-[10px] text-gray-500 uppercase">$/Draft</div>
+            <div class="text-sm text-gray-500 mt-2">No drafts yet</div>
+        </div>
+        {% endif %}
+        <div class="bg-dark-steel rounded-lg p-3 border border-slate-700">
+            <div class="text-[10px] text-gray-500 uppercase">30d Total</div>
+            <div class="text-lg font-mono font-semibold text-white mt-1">${{ "%.2f"|format(unit_economics.total_cost_30d) }}</div>
+            <div class="text-[10px] text-gray-600">{{ unit_economics.period_start }} → {{ unit_economics.period_end }}</div>
+        </div>
+    </div>
+
+    <!-- Forecast: At N clients -->
+    {% if forecast and forecast[0].projected_monthly is not none %}
+    <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
+        <div class="text-xs text-gray-500 uppercase mb-2">Projected Monthly Cost at Scale</div>
+        <div class="grid grid-cols-4 gap-3 text-center">
+            {% for f in forecast %}
+            <div>
+                <div class="text-[10px] text-gray-500">{{ f.clients }} clients</div>
+                <div class="text-sm font-mono text-white font-semibold">${{ "%.0f"|format(f.projected_monthly) }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ═══ PHASE 2: Daily Burn Chart (Chart.js) ═══ -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
+        <h2 class="text-sm font-medium text-white mb-3">Daily AI Spend (30 days)</h2>
+        <canvas id="burnChart" height="180"></canvas>
+    </div>
+
+    <!-- How it works -->
+    <details class="bg-slate-800/30 rounded-lg border border-slate-700/50 overflow-hidden">
+        <summary class="px-4 py-2 text-xs text-gray-500 cursor-pointer hover:text-gray-300">ℹ️ How costs work</summary>
+        <div class="px-4 py-3 text-xs text-gray-400 space-y-2">
+            <p><strong class="text-gray-300">Provider Budgets:</strong> Monthly spend limits per AI provider. Amber = projected to hit 70% by month end. Red = projected 90%+. Budget limits configurable in Settings → "budget" group.</p>
+            <p><strong class="text-gray-300">Unit Economics:</strong> Actual cost from the last 30 days divided by active clients/avatars/drafts. This is your real margin — compare to plan price ($149-$1,499/mo).</p>
+            <p><strong class="text-gray-300">Forecast:</strong> Linear projection: current $/client × N. Assumes all clients have similar usage patterns.</p>
+            <p><strong class="text-gray-300">Daily Burn:</strong> Stacked by operation type. "generation" (Claude Sonnet) is 85% of cost. GEO runs daily (~1/7 prompts/day, spread across the week). Spikes = pipeline rebuild days.</p>
+            <p><strong class="text-gray-300">Cost per draft:</strong> Total generation cost ÷ drafts created. Target: &lt;$0.05/draft. If rising → check model pricing or context size.</p>
+        </div>
+    </details>
 
     <!-- Summary Cards -->
     <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
@@ -120,7 +245,7 @@
     <!-- ═══ COLLAPSIBLE SECTIONS ═══ -->
 
     <!-- Cost by Client -->
-    <details class="cost-section bg-dark-steel rounded-lg border border-slate-700 overflow-hidden" open>
+    <details class="cost-section bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
         <summary class="px-4 py-3 border-b border-slate-700 flex items-center justify-between hover:bg-slate-700/30">
             <h2 class="text-sm font-medium text-white">Cost by Client</h2>
             <svg class="chevron w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
@@ -170,7 +295,7 @@
 
     <!-- Cost per Avatar -->
     {% if by_avatar %}
-    <details class="cost-section bg-dark-steel rounded-lg border border-slate-700 overflow-hidden" open>
+    <details class="cost-section bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
         <summary class="px-4 py-3 border-b border-slate-700 flex items-center justify-between hover:bg-slate-700/30">
             <h2 class="text-sm font-medium text-white">Cost per Avatar ($/day)</h2>
             <svg class="chevron w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
@@ -421,4 +546,52 @@
     </details>
 
 </div>
+
+<!-- Chart.js for Daily Burn -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+(function() {
+    const burnData = {{ burn_data_json | safe }};
+    if (!burnData || !burnData.length) return;
+
+    const ctx = document.getElementById('burnChart');
+    if (!ctx) return;
+
+    const labels = burnData.map(d => d.date.slice(5)); // MM-DD
+    const categories = ['scoring', 'generation', 'editing', 'persona', 'geo', 'hobby', 'other'];
+    const colors = {
+        scoring: 'rgba(59, 130, 246, 0.7)',
+        generation: 'rgba(139, 92, 246, 0.7)',
+        editing: 'rgba(6, 182, 212, 0.7)',
+        persona: 'rgba(99, 102, 241, 0.7)',
+        geo: 'rgba(16, 185, 129, 0.7)',
+        hobby: 'rgba(245, 158, 11, 0.7)',
+        other: 'rgba(107, 114, 128, 0.7)',
+    };
+
+    const datasets = categories.map(cat => ({
+        label: cat,
+        data: burnData.map(d => (d[cat] || 0).toFixed(4)),
+        backgroundColor: colors[cat],
+        borderWidth: 0,
+        fill: true,
+    }));
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'top', labels: { boxWidth: 12, font: { size: 10 }, color: '#94a3b8' } },
+                tooltip: { mode: 'index', intersect: false, callbacks: { label: (c) => `${c.dataset.label}: $${c.raw}` } },
+            },
+            scales: {
+                x: { stacked: true, ticks: { color: '#64748b', font: { size: 9 } }, grid: { display: false } },
+                y: { stacked: true, ticks: { color: '#64748b', font: { size: 9 }, callback: (v) => '$' + v }, grid: { color: 'rgba(51, 65, 85, 0.3)' } },
+            },
+        },
+    });
+})();
+</script>
 {% endblock %}

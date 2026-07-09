@@ -1,17 +1,27 @@
 {% extends "client_base.html" %}
 {% from "partials/tooltip.html" import tooltip %}
 
-{% block title %}Review Queue — {{ client_name }}{% endblock %}
+{% block title %}Daily queue — {{ client_name }}{% endblock %}
 
 {% block content %}
 <div id="portal-content">
     <!-- Page header -->
     <div style="margin-bottom:var(--space-4);">
-        <h1 class="text-h1">Review Queue{{ tooltip("AI-generated comment drafts awaiting human approval. Approve to move to posting, Edit to improve (your edits train the AI), Skip to reject.") }}</h1>
-        <p class="text-small" style="margin-top:4px;">Manage your comment drafts through the approval workflow.</p>
+        <h1 class="text-h1">Daily queue{{ tooltip("New comment drafts appear here each day. Approve, edit, or skip — your voices post what you authorise.") }}</h1>
+        <p class="text-small" style="margin-top:4px;">Approve, edit, or skip today's drafts.</p>
     </div>
 
-    <!-- Status tabs -->
+    {% if generation_degraded %}
+    <!-- Service degradation banner -->
+    <div style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-3);display:flex;align-items:center;gap:10px;">
+        <span style="font-size:20px;">⚠️</span>
+        <div>
+            <p style="font-size:var(--text-small);color:#fbbf24;font-weight:600;">Content generation is temporarily paused</p>
+            <p style="font-size:var(--text-micro);color:var(--color-muted);margin-top:2px;">Our team has been notified and is working on it. New drafts will appear here once resolved. Your existing approved content continues to post normally.</p>
+        </div>
+    </div>
+    {% endif %}
+
     <div style="display:flex;gap:0;border-bottom:1px solid var(--color-border);margin-bottom:var(--space-3);">
         <button onclick="switchTab('pending')" id="tab-pending"
                 style="padding:10px 20px;font-size:var(--text-small);font-weight:600;border:none;background:transparent;cursor:pointer;border-bottom:2px solid var(--color-orange);color:var(--color-orange);">
@@ -24,6 +34,10 @@
         <button onclick="switchTab('posted')" id="tab-posted"
                 style="padding:10px 20px;font-size:var(--text-small);font-weight:600;border:none;background:transparent;cursor:pointer;border-bottom:2px solid transparent;color:var(--color-muted);">
             ✓ Posted{{ tooltip("Comments that have been published on Reddit. Showing last 30 days.") }}{% if posted_count %} <span style="background:var(--color-surface-alt);color:var(--color-muted);border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px;">{{ posted_count }}</span>{% endif %}
+        </button>
+        <button onclick="switchTab('expired')" id="tab-expired"
+                style="padding:10px 20px;font-size:var(--text-small);font-weight:600;border:none;background:transparent;cursor:pointer;border-bottom:2px solid transparent;color:var(--color-muted);">
+            ⏱ Expired{{ tooltip("Drafts that were automatically expired because they became too stale to post. Showing last 30 days.") }}{% if expired_count %} <span style="background:rgba(245,158,11,0.15);color:#f59e0b;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px;">{{ expired_count }}</span>{% endif %}
         </button>
     </div>
 
@@ -55,8 +69,36 @@
             Comments that have been posted on Reddit. Showing the last 30 days.
         </p>
     </div>
+    <div id="info-expired" style="display:none;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-3);">
+        <p style="font-size:var(--text-small);color:#fbbf24;line-height:1.5;">
+            These drafts were automatically expired because they became too stale to post. The associated threads are no longer contextually relevant.
+        </p>
+    </div>
 
-    <!-- Avatar filter -->
+    <!-- How it works -->
+    <details style="margin-bottom:var(--space-3);">
+        <summary style="font-size:var(--text-small);color:var(--color-muted);cursor:pointer;font-weight:500;">ℹ️ How it works</summary>
+        <div style="font-size:var(--text-small);color:var(--color-muted);margin-top:10px;line-height:1.7;padding-left:12px;border-left:2px solid var(--color-border);">
+            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">What this page shows:</strong> AI-generated comment drafts that need human review before posting. Every comment goes through this queue — nothing is ever posted without approval.</p>
+            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">The workflow:</strong></p>
+            <ol style="margin:0 0 10px 16px;padding:0;">
+                <li style="margin-bottom:4px;">AI scans Reddit for relevant threads matching your keywords and subreddits.</li>
+                <li style="margin-bottom:4px;">AI generates a comment draft in your avatar's voice, tailored to the thread context.</li>
+                <li style="margin-bottom:4px;">Draft appears here as <strong>Pending</strong> — waiting for your review.</li>
+                <li style="margin-bottom:4px;">You <strong>Approve</strong> (post as-is), <strong>Edit</strong> (improve it — your edits train the AI), or <strong>Skip</strong> (reject).</li>
+                <li>Approved drafts go to the posting queue and are published by the avatar owner.</li>
+            </ol>
+            <p style="margin-bottom:8px;"><strong style="color:var(--color-white);">Tips:</strong></p>
+            <ul style="margin:0 0 0 16px;padding:0;list-style:disc;">
+                <li style="margin-bottom:4px;">Editing a draft teaches the AI — future generations will reflect your corrections.</li>
+                <li style="margin-bottom:4px;">Use <strong>Regenerate</strong> if the tone is wrong. Add a note ("more casual", "focus on our product X") for better results.</li>
+                <li style="margin-bottom:4px;">Pending drafts expire after 48h if the thread becomes stale.</li>
+                <li>The thread link opens the original Reddit discussion for full context.</li>
+            </ul>
+        </div>
+    </details>
+
+    <!-- Voice filter -->
     {% if avatar_options and avatar_options | length > 1 %}
     <div style="margin-bottom:var(--space-3);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <span class="text-small" style="color:var(--color-muted);">Filter:</span>
@@ -66,6 +108,13 @@
         {% endfor %}
     </div>
     {% endif %}
+
+    <!-- Sort control -->
+    <div style="margin-bottom:var(--space-2);display:flex;align-items:center;gap:8px;">
+        <span class="text-small" style="color:var(--color-muted);">Sort:</span>
+        <button onclick="setSort('newest')" id="sort-newest" style="padding:3px 10px;border-radius:var(--radius-pill);font-size:var(--text-micro);font-weight:500;border:1px solid var(--color-orange);background:rgba(255,107,53,0.15);color:var(--color-orange);cursor:pointer;">Newest first</button>
+        <button onclick="setSort('oldest')" id="sort-oldest" style="padding:3px 10px;border-radius:var(--radius-pill);font-size:var(--text-micro);font-weight:500;border:1px solid var(--color-border);background:transparent;color:var(--color-muted);cursor:pointer;">Oldest first</button>
+    </div>
 
     <!-- Draft cards (lazy loaded) -->
     <div id="drafts-area"
@@ -86,11 +135,12 @@
 <script>
 let currentTab = 'pending';
 let currentAvatarFilter = '';
+let currentSort = 'newest';
 
 function switchTab(tab) {
     currentTab = tab;
     // Update tab styles
-    ['pending', 'approved', 'posted'].forEach(t => {
+    ['pending', 'approved', 'posted', 'expired'].forEach(t => {
         const btn = document.getElementById('tab-' + t);
         const info = document.getElementById('info-' + t);
         if (t === tab) {
@@ -124,8 +174,25 @@ function filterDrafts(avatarId) {
     loadDrafts();
 }
 
+function setSort(sort) {
+    currentSort = sort;
+    ['newest', 'oldest'].forEach(s => {
+        const btn = document.getElementById('sort-' + s);
+        if (s === sort) {
+            btn.style.borderColor = 'var(--color-orange)';
+            btn.style.background = 'rgba(255,107,53,0.15)';
+            btn.style.color = 'var(--color-orange)';
+        } else {
+            btn.style.borderColor = 'var(--color-border)';
+            btn.style.background = 'transparent';
+            btn.style.color = 'var(--color-muted)';
+        }
+    });
+    loadDrafts();
+}
+
 function loadDrafts() {
-    let url = '/clients/{{ client_id }}/partials/drafts?status=' + currentTab;
+    let url = '/clients/{{ client_id }}/partials/drafts?status=' + currentTab + '&sort=' + currentSort;
     if (currentAvatarFilter) url += '&avatar_id=' + currentAvatarFilter;
     htmx.ajax('GET', url, {target: '#drafts-area', swap: 'innerHTML'});
 }

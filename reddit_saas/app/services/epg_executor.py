@@ -198,6 +198,8 @@ Upvotes: {hobby_post.post_ups or 0}"""
         else:
             slot.status = "generated"
             db.commit()
+            # Notify via portal bell that drafts are pending review
+            _notify_drafts_pending(db, slot.client_id, avatar, hobby_post.subreddit)
 
         db.refresh(draft)
 
@@ -211,8 +213,11 @@ Upvotes: {hobby_post.post_ups or 0}"""
         return draft
 
     except Exception as e:
-        logger.error(f"EPG hobby generation failed: {e}")
+        import traceback
+        logger.error(f"EPG hobby generation failed: {e}\n{traceback.format_exc()}")
         _skip_slot(db, slot, f"generation_error: {str(e)[:100]}")
+        # Notify ops about generation failure
+        _notify_generation_failure(avatar, hobby_post.subreddit, str(e))
         return None
 
 
@@ -349,6 +354,8 @@ def _generate_professional_slot(db: Session, slot: EPGSlot, avatar: Avatar) -> C
         else:
             slot.status = "generated"
             db.commit()
+            # Notify via portal bell that drafts are pending review
+            _notify_drafts_pending(db, slot.client_id, avatar, thread.subreddit)
 
         # Audit: log successful generation for pipeline transparency
         _log_slot_generated(db, slot, avatar, thread.subreddit)
@@ -462,6 +469,83 @@ def get_budget_used_today(db: Session, avatar_id: uuid.UUID, plan_date: date | N
         .scalar()
     )
     return count or 0
+
+
+def _notify_drafts_pending(db: Session, client_id, avatar: Avatar, subreddit: str) -> None:
+    """Emit portal bell notification that a draft is pending review.
+
+    Non-blocking, non-critical. Fires SSE notification to client portal.
+    """
+    try:
+        from app.services.notifications import notify_client
+        if client_id:
+            notify_client(
+                db,
+                client_id=client_id,
+                type="info",
+                title="New draft ready for review",
+                body=f"u/{avatar.reddit_username} has a new comment for r/{subreddit} waiting for approval.",
+                link=f"/clients/{client_id}/review",
+            )
+    except Exception:
+        pass  # Non-critical — don't break generation pipeline
+
+
+def _notify_generation_failure(avatar: Avatar, subreddit: str, error_msg: str) -> None:
+    """Notify ops (Telegram + admin bell) about EPG generation failure.
+
+    Non-blocking, non-critical. Debounced via Redis key to avoid spam.
+    """
+    try:
+        import redis
+        from app.config import get_settings
+
+        # Debounce: max 1 notification per avatar per hour for same error category
+        r = redis.from_url(get_settings().redis_url)
+        error_category = "credits" if "credit balance" in error_msg.lower() else "generation"
+        dedup_key = f"ramp:ops_notify_dedup:{avatar.id}:{error_category}"
+        if r.exists(dedup_key):
+            r.close()
+            return
+        r.setex(dedup_key, 3600, "1")  # 1 hour cooldown
+
+        # Set client degradation flag (visible in portal as banner)
+        if avatar.client_ids:
+            for cid in avatar.client_ids:
+                r.setex(f"ramp:generation_degraded:{cid}", 14400, error_category)  # 4h TTL
+
+        r.close()
+
+        from app.services.ops_notifications import notify_ops
+
+        # Detect specific failure types
+        if "credit balance" in error_msg.lower():
+            notify_ops(
+                level="critical",
+                title="🔴 LLM Credits Exhausted",
+                body=f"Anthropic API: credits too low. Fallback generation blocked.\n"
+                     f"Avatar: u/{avatar.reddit_username}, sub: r/{subreddit}.\n"
+                     f"Action: top up credits at console.anthropic.com",
+                category="llm_credits",
+                link="/admin/settings",
+            )
+        elif "empty response" in error_msg.lower():
+            notify_ops(
+                level="warning",
+                title="⚠️ LLM Empty Response",
+                body=f"Generation returned empty for u/{avatar.reddit_username} in r/{subreddit}.\n"
+                     f"Primary model failed, fallback also failed.",
+                category="llm_failure",
+            )
+        else:
+            notify_ops(
+                level="warning",
+                title="⚠️ EPG Generation Failed",
+                body=f"u/{avatar.reddit_username} in r/{subreddit}: {error_msg[:200]}",
+                category="llm_failure",
+            )
+    except Exception:
+        pass  # Non-critical — never break pipeline
 
 
 def _skip_slot(db: Session, slot: EPGSlot, reason: str) -> None:

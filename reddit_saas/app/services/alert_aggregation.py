@@ -47,6 +47,7 @@ def get_system_alerts(db: Session) -> list[Alert]:
     alerts += _get_expiring_trial_alerts(db)
     alerts += _get_zero_activity_alerts(db)
     alerts += _get_llm_spend_rate_alert(db)
+    alerts += _get_provider_budget_alerts(db)
 
     alerts.sort(key=lambda a: a.severity_order)
     return alerts
@@ -421,3 +422,173 @@ def _get_llm_spend_rate_alert(db: Session) -> list[Alert]:
         pass  # Redis unavailable — skip this check
 
     return alerts
+
+
+def _get_provider_budget_alerts(db: Session) -> list[Alert]:
+    """Check monthly spend per LLM provider against configured budget limits.
+
+    Queries ai_usage_log for cumulative month-to-date spend grouped by provider.
+    Alerts at configurable thresholds (default 70% warning, 95% critical/block).
+    """
+    alerts: list[Alert] = []
+
+    try:
+        from app.models.ai_usage import AIUsageLog
+        from app.services.settings import get_setting_float, get_setting_int
+
+        now = datetime.now(timezone.utc)
+        # First day of current month at 00:00 UTC
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        # Provider budget settings
+        provider_budgets = {
+            "anthropic": get_setting_float(db, "provider_budget_anthropic_usd", 50.0),
+            "gemini": get_setting_float(db, "provider_budget_gemini_usd", 300.0),
+            "perplexity": get_setting_float(db, "provider_budget_perplexity_usd", 50.0),
+            "openai": get_setting_float(db, "provider_budget_openai_usd", 50.0),
+        }
+
+        alert_pct = get_setting_float(db, "provider_budget_alert_threshold_pct", 70.0) / 100.0
+        block_pct = get_setting_float(db, "provider_budget_block_threshold_pct", 95.0) / 100.0
+
+        # Query month-to-date spend grouped by model prefix (provider)
+        from sqlalchemy import case as sa_case, literal_column
+
+        # Get total spend per provider this month
+        rows = (
+            db.query(
+                sa_case(
+                    (AIUsageLog.model.like("anthropic/%"), "anthropic"),
+                    (AIUsageLog.model.like("gemini/%"), "gemini"),
+                    (AIUsageLog.model.like("perplexity/%"), "perplexity"),
+                    (AIUsageLog.model.like("openai/%"), "openai"),
+                    (AIUsageLog.model.like("gpt%"), "openai"),
+                    (AIUsageLog.model.like("bedrock/%"), "anthropic"),  # Bedrock = Anthropic billing
+                    else_="other",
+                ).label("provider"),
+                sa_func.coalesce(sa_func.sum(AIUsageLog.cost_usd), 0).label("total_cost"),
+            )
+            .filter(AIUsageLog.created_at >= month_start)
+            .group_by(literal_column("provider"))
+            .all()
+        )
+
+        spend_by_provider: dict[str, float] = {}
+        for row in rows:
+            spend_by_provider[row.provider] = float(row.total_cost)
+
+        # Check each provider against its budget
+        for provider, budget_usd in provider_budgets.items():
+            if budget_usd <= 0:
+                continue  # 0 = unlimited, skip
+
+            spent = spend_by_provider.get(provider, 0.0)
+            usage_ratio = spent / budget_usd
+
+            if usage_ratio >= block_pct:
+                # Critical — near exhaustion, calls will auto-fallback
+                days_in_month = (now.replace(month=now.month % 12 + 1, day=1) - now.replace(day=1)).days if now.month < 12 else 31
+                days_elapsed = (now - month_start).days + 1
+                daily_rate = spent / max(days_elapsed, 1)
+                days_until_exhausted = max(0, (budget_usd - spent) / daily_rate) if daily_rate > 0 else 999
+
+                alerts.append(Alert(
+                    type=f"provider_budget_{provider}",
+                    severity="critical",
+                    message=(
+                        f"{provider.capitalize()} budget {usage_ratio:.0%} used: "
+                        f"${spent:.2f}/${budget_usd:.0f}. "
+                        f"Exhausts in ~{days_until_exhausted:.0f}d. Auto-fallback active."
+                    ),
+                    link="/admin/ai-costs",
+                    icon="🛑",
+                ))
+            elif usage_ratio >= alert_pct:
+                # Warning — approaching limit
+                alerts.append(Alert(
+                    type=f"provider_budget_{provider}",
+                    severity="high",
+                    message=(
+                        f"{provider.capitalize()} budget {usage_ratio:.0%} used: "
+                        f"${spent:.2f}/${budget_usd:.0f}/mo"
+                    ),
+                    link="/admin/ai-costs",
+                    icon="💰",
+                ))
+
+    except Exception as e:
+        logger.warning("Provider budget alert check failed: %s", str(e)[:120])
+
+    return alerts
+
+
+def get_provider_spend_summary(db: Session) -> dict[str, dict]:
+    """Get current month spend per provider with budget context.
+
+    Returns dict: {provider: {spent, budget, pct, status, daily_rate, days_remaining}}
+    Used by admin dashboard and agent cost management.
+    """
+    from app.models.ai_usage import AIUsageLog
+    from app.services.settings import get_setting_float
+
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    provider_budgets = {
+        "anthropic": get_setting_float(db, "provider_budget_anthropic_usd", 50.0),
+        "gemini": get_setting_float(db, "provider_budget_gemini_usd", 300.0),
+        "perplexity": get_setting_float(db, "provider_budget_perplexity_usd", 50.0),
+        "openai": get_setting_float(db, "provider_budget_openai_usd", 50.0),
+    }
+
+    from sqlalchemy import case as sa_case, literal_column
+
+    rows = (
+        db.query(
+            sa_case(
+                (AIUsageLog.model.like("anthropic/%"), "anthropic"),
+                (AIUsageLog.model.like("gemini/%"), "gemini"),
+                (AIUsageLog.model.like("perplexity/%"), "perplexity"),
+                (AIUsageLog.model.like("openai/%"), "openai"),
+                (AIUsageLog.model.like("gpt%"), "openai"),
+                (AIUsageLog.model.like("bedrock/%"), "anthropic"),
+                else_="other",
+            ).label("provider"),
+            sa_func.coalesce(sa_func.sum(AIUsageLog.cost_usd), 0).label("total_cost"),
+        )
+        .filter(AIUsageLog.created_at >= month_start)
+        .group_by(literal_column("provider"))
+        .all()
+    )
+
+    spend_map: dict[str, float] = {}
+    for row in rows:
+        spend_map[row.provider] = float(row.total_cost)
+
+    days_elapsed = max((now - month_start).days + 1, 1)
+    block_pct = get_setting_float(db, "provider_budget_block_threshold_pct", 95.0) / 100.0
+
+    result = {}
+    for provider, budget in provider_budgets.items():
+        spent = spend_map.get(provider, 0.0)
+        pct = (spent / budget * 100) if budget > 0 else 0.0
+        daily_rate = spent / days_elapsed
+        days_remaining = ((budget - spent) / daily_rate) if daily_rate > 0 else 999
+
+        if budget > 0 and pct >= block_pct * 100:
+            status = "blocked"
+        elif budget > 0 and pct >= 70:
+            status = "warning"
+        else:
+            status = "ok"
+
+        result[provider] = {
+            "spent": round(spent, 2),
+            "budget": budget,
+            "pct": round(pct, 1),
+            "status": status,
+            "daily_rate": round(daily_rate, 3),
+            "days_remaining": round(days_remaining, 1),
+        }
+
+    return result

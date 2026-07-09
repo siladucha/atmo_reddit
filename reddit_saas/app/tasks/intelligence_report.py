@@ -79,6 +79,9 @@ def generate_weekly_reports_all_clients(self):
                 # Send notification (fire-and-forget)
                 _notify_report_published(client_id, report.report_period)
 
+                # Send weekly visibility digest email to client
+                _send_visibility_digest(client_id)
+
                 results.append({
                     "client_id": str(client_id),
                     "status": "published",
@@ -212,3 +215,13 @@ def _notify_report_published(client_id, report_period: str):
         )
     except Exception as e:
         logger.debug("Report notification failed (non-critical): %s", e)
+
+
+def _send_visibility_digest(client_id):
+    """Send weekly visibility digest email to client. Fire-and-forget."""
+    try:
+        from app.services.client_emails import send_weekly_visibility_digest
+
+        send_weekly_visibility_digest(client_id)
+    except Exception as e:
+        logger.debug("Visibility digest email failed (non-critical): %s", e)

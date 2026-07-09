@@ -1,262 +1,163 @@
-<!-- Client Portal Sidebar Navigation -->
+<!-- Client Portal Sidebar Navigation — Restructured per Tzvi UX spec Jul 2026 -->
 <aside class="portal-sidebar">
-    <!-- Logo + User -->
-    <div style="padding: var(--space-3); border-bottom: 1px solid var(--color-border);">
-        <a href="/clients/{{ client_id }}/home" style="display:flex;align-items:center;gap:8px;text-decoration:none;margin-bottom:12px;">
+    <!-- Logo + Client -->
+    <div style="padding: 16px 14px 12px; border-bottom: 0.5px solid rgba(255,255,255,0.07);">
+        <a href="/clients/{{ client_id }}/home" style="display:flex;align-items:center;gap:8px;text-decoration:none;margin-bottom:14px;">
             <span style="font-size:20px;">📡</span>
-            <span style="font-size:var(--text-h3);font-weight:600;color:var(--color-white);">RAMP</span>{% if app_env is defined and app_env != "production" %}<span style="font-size:9px;padding:2px 6px;border-radius:4px;font-weight:700;text-transform:uppercase;{% if app_env == "staging" %}background:rgba(234,179,8,0.15);color:#facc15;border:1px solid rgba(234,179,8,0.3);{% else %}background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);{% endif %}">{{ app_env }}</span>{% endif %}
+            <span style="font-size:14px;font-weight:500;color:#fff;">RAMP</span>{% if app_env is defined and app_env != "production" %}<span style="font-size:9px;padding:2px 6px;border-radius:4px;font-weight:700;text-transform:uppercase;{% if app_env == "staging" %}background:rgba(234,179,8,0.15);color:#facc15;border:1px solid rgba(234,179,8,0.3);{% else %}background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);{% endif %}">{{ app_env }}</span>{% endif %}
         </a>
-        <!-- User info -->
-        <div style="display:flex;align-items:center;gap:10px;">
-            <div style="width:32px;height:32px;border-radius:50%;background:var(--color-surface-alt);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--color-muted);flex-shrink:0;">
-                {{ (user_name or user_email or "?")[0] | upper }}
+        <!-- Client pill -->
+        <div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.04);border:0.5px solid rgba(255,255,255,0.07);border-radius:7px;padding:8px 10px;">
+            <div style="width:22px;height:22px;border-radius:4px;background:#2563C4;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;flex-shrink:0;">
+                {{ (client_name or "?")[:2] | upper }}
             </div>
-            <div style="min-width:0;">
-                <div style="font-size:var(--text-small);color:var(--color-white);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-                    {{ user_name or user_email or "User" }}
-                </div>
-                <div style="font-size:var(--text-micro);color:var(--color-muted);text-transform:capitalize;">
-                    {{ (user_role or "user") | replace("_", " ") }}
-                </div>
-                {% if client_name %}
-                <div style="font-size:var(--text-micro);color:var(--color-orange);font-weight:500;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-                    {{ client_name }}
-                </div>
-                {% endif %}
-            </div>
+            <span style="font-size:12px;font-weight:500;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;">
+                {{ client_name or "Client" }}
+            </span>
         </div>
     </div>
 
-    <!-- Navigation -->
-    <nav style="flex:1;padding:var(--space-2) 0;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none;">
+    <!-- Navigation — 6 items max -->
+    <nav style="flex:1;padding:8px 0;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none;">
         <style>.portal-sidebar nav::-webkit-scrollbar{display:none;}</style>
-        <!-- Home -->
+
+        <!-- 1. Overview -->
         <a href="/clients/{{ client_id }}/home"
            class="sidebar-nav-item {% if active_page == 'home' %}active{% endif %}"
-           style="display:flex;align-items:center;gap:12px;padding:10px var(--space-3);margin:2px 0;text-decoration:none;color:var(--color-muted);transition:all var(--transition-fast);position:relative;
-                  {% if active_page == 'home' %}border-left:3px solid var(--color-orange);background:var(--color-surface-alt);color:var(--color-white);{% else %}border-left:3px solid transparent;{% endif %}">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                <polyline points="9 22 9 12 15 12 15 22"/>
+           style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin:1px 6px;border-radius:6px;text-decoration:none;color:#9ca3af;transition:all 0.15s;position:relative;
+                  {% if active_page == 'home' %}border-left:2.5px solid #2563C4;background:#252540;color:#fff;{% else %}border-left:2.5px solid transparent;{% endif %}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
             </svg>
-            <span style="font-size:var(--text-body);font-weight:500;">Home</span>
+            <span style="font-size:13px;font-weight:500;">Overview</span>
         </a>
 
-        <!-- Review Queue -->
+        <!-- 2. Daily queue -->
         <a href="/clients/{{ client_id }}/review"
            class="sidebar-nav-item {% if active_page == 'review' %}active{% endif %}"
-           style="display:flex;align-items:center;gap:12px;padding:10px var(--space-3);margin:2px 0;text-decoration:none;color:var(--color-muted);transition:all var(--transition-fast);position:relative;
-                  {% if active_page == 'review' %}border-left:3px solid var(--color-orange);background:var(--color-surface-alt);color:var(--color-white);{% else %}border-left:3px solid transparent;{% endif %}">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+           style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin:1px 6px;border-radius:6px;text-decoration:none;color:#9ca3af;transition:all 0.15s;position:relative;
+                  {% if active_page == 'review' %}border-left:2.5px solid #2563C4;background:#252540;color:#fff;{% else %}border-left:2.5px solid transparent;{% endif %}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
                 <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
             </svg>
-            <span style="font-size:var(--text-body);font-weight:500;">Review Queue</span>
+            <span style="font-size:13px;font-weight:500;">Daily queue</span>
             {% if pending_count and pending_count > 0 %}
-            <span style="margin-left:auto;padding:2px 8px;border-radius:var(--radius-pill);font-size:var(--text-micro);font-weight:600;color:#fff;
-                         background:{% if pending_count > 10 %}var(--color-red){% else %}var(--color-orange){% endif %};">
+            <span style="margin-left:auto;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:600;color:#fff;
+                         background:{% if pending_count > 10 %}#dc2626{% else %}#2563C4{% endif %};">
                 {{ pending_count }}
             </span>
             {% endif %}
         </a>
 
-        <!-- Avatars -->
+        <!-- 3. Voices (was Avatars) -->
         <a href="/clients/{{ client_id }}/avatars"
            class="sidebar-nav-item {% if active_page == 'avatars' %}active{% endif %}"
-           style="display:flex;align-items:center;gap:12px;padding:10px var(--space-3);margin:2px 0;text-decoration:none;color:var(--color-muted);transition:all var(--transition-fast);position:relative;
-                  {% if active_page == 'avatars' %}border-left:3px solid var(--color-orange);background:var(--color-surface-alt);color:var(--color-white);{% else %}border-left:3px solid transparent;{% endif %}">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                <circle cx="9" cy="7" r="4"/>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+           style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin:1px 6px;border-radius:6px;text-decoration:none;color:#9ca3af;transition:all 0.15s;position:relative;
+                  {% if active_page == 'avatars' %}border-left:2.5px solid #2563C4;background:#252540;color:#fff;{% else %}border-left:2.5px solid transparent;{% endif %}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
             </svg>
-            <span style="font-size:var(--text-body);font-weight:500;">Avatars</span>
+            <span style="font-size:13px;font-weight:500;">Voices</span>
             {% if has_shadowbanned %}
-            <span style="margin-left:auto;width:8px;height:8px;border-radius:50%;background:var(--color-red);"></span>
+            <span style="margin-left:auto;width:8px;height:8px;border-radius:50%;background:#dc2626;"></span>
             {% endif %}
         </a>
 
-        <!-- Subreddits -->
-        <a href="/clients/{{ client_id }}/subreddits"
-           class="sidebar-nav-item {% if active_page == 'subreddits' %}active{% endif %}"
-           style="display:flex;align-items:center;gap:12px;padding:10px var(--space-3);margin:2px 0;text-decoration:none;color:var(--color-muted);transition:all var(--transition-fast);position:relative;
-                  {% if active_page == 'subreddits' %}border-left:3px solid var(--color-orange);background:var(--color-surface-alt);color:var(--color-white);{% else %}border-left:3px solid transparent;{% endif %}">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="2" y1="12" x2="22" y2="12"/>
-                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-            </svg>
-            <span style="font-size:var(--text-body);font-weight:500;">Subreddits</span>
-        </a>
-
-        <!-- Keywords -->
-        <a href="/clients/{{ client_id }}/keywords"
-           class="sidebar-nav-item {% if active_page == 'keywords' %}active{% endif %}"
-           style="display:flex;align-items:center;gap:12px;padding:10px var(--space-3);margin:2px 0;text-decoration:none;color:var(--color-muted);transition:all var(--transition-fast);position:relative;
-                  {% if active_page == 'keywords' %}border-left:3px solid var(--color-orange);background:var(--color-surface-alt);color:var(--color-white);{% else %}border-left:3px solid transparent;{% endif %}">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="4" y1="9" x2="20" y2="9"/>
-                <line x1="4" y1="15" x2="20" y2="15"/>
-                <line x1="10" y1="3" x2="8" y2="21"/>
-                <line x1="16" y1="3" x2="14" y2="21"/>
-            </svg>
-            <span style="font-size:var(--text-body);font-weight:500;">Keywords</span>
-        </a>
-
-        <!-- Strategy -->
-        <a href="/clients/{{ client_id }}/strategy"
-           class="sidebar-nav-item {% if active_page == 'strategy' %}active{% endif %}"
-           style="display:flex;align-items:center;gap:12px;padding:10px var(--space-3);margin:2px 0;text-decoration:none;color:var(--color-muted);transition:all var(--transition-fast);position:relative;
-                  {% if active_page == 'strategy' %}border-left:3px solid var(--color-orange);background:var(--color-surface-alt);color:var(--color-white);{% else %}border-left:3px solid transparent;{% endif %}">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-            </svg>
-            <span style="font-size:var(--text-body);font-weight:500;">Strategy</span>
-        </a>
-
-
-        <!-- Landscape Report -->
-        <a href="/clients/{{ client_id }}/landscape"
-           class="sidebar-nav-item {% if active_page == 'landscape' %}active{% endif %}"
-           style="display:flex;align-items:center;gap:12px;padding:10px var(--space-3);margin:2px 0;text-decoration:none;color:var(--color-muted);transition:all var(--transition-fast);position:relative;
-                  {% if active_page == 'landscape' %}border-left:3px solid var(--color-orange);background:var(--color-surface-alt);color:var(--color-white);{% else %}border-left:3px solid transparent;{% endif %}">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-            </svg>
-            <span style="font-size:var(--text-body);font-weight:500;">Landscape</span>
-        </a>
-        <!-- Report -->
-        <a href="/clients/{{ client_id }}/report"
-           class="sidebar-nav-item {% if active_page == 'report' %}active{% endif %}"
-           style="display:flex;align-items:center;gap:12px;padding:10px var(--space-3);margin:2px 0;text-decoration:none;color:var(--color-muted);transition:all var(--transition-fast);position:relative;
-                  {% if active_page == 'report' %}border-left:3px solid var(--color-orange);background:var(--color-surface-alt);color:var(--color-white);{% else %}border-left:3px solid transparent;{% endif %}">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="20" x2="18" y2="10"/>
-                <line x1="12" y1="20" x2="12" y2="4"/>
-                <line x1="6" y1="20" x2="6" y2="14"/>
-            </svg>
-            <span style="font-size:var(--text-body);font-weight:500;">Report</span>
-        </a>
-
-        <!-- AI Visibility -->
-        <a href="/clients/{{ client_id }}/visibility"
-           class="sidebar-nav-item {% if active_page == 'visibility' %}active{% endif %}"
-           style="display:flex;align-items:center;gap:12px;padding:10px var(--space-3);margin:2px 0;text-decoration:none;color:var(--color-muted);transition:all var(--transition-fast);position:relative;
-                  {% if active_page == 'visibility' %}border-left:3px solid var(--color-orange);background:var(--color-surface-alt);color:var(--color-white);{% else %}border-left:3px solid transparent;{% endif %}">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="11" cy="11" r="8"/>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-            <span style="font-size:var(--text-body);font-weight:500;">AI Visibility</span>
-        </a>
-
-        <!-- Activity Log -->
-        <a href="/clients/{{ client_id }}/activity"
-           class="sidebar-nav-item {% if active_page == 'activity' %}active{% endif %}"
-           style="display:flex;align-items:center;gap:12px;padding:10px var(--space-3);margin:2px 0;text-decoration:none;color:var(--color-muted);transition:all var(--transition-fast);position:relative;
-                  {% if active_page == 'activity' %}border-left:3px solid var(--color-orange);background:var(--color-surface-alt);color:var(--color-white);{% else %}border-left:3px solid transparent;{% endif %}">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <!-- 4. Insights -->
+        <a href="/clients/{{ client_id }}/insights"
+           class="sidebar-nav-item {% if active_page == 'insights' %}active{% endif %}"
+           style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin:1px 6px;border-radius:6px;text-decoration:none;color:#9ca3af;transition:all 0.15s;position:relative;
+                  {% if active_page == 'insights' %}border-left:2.5px solid #2563C4;background:#252540;color:#fff;{% else %}border-left:2.5px solid transparent;{% endif %}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
             </svg>
-            <span style="font-size:var(--text-body);font-weight:500;">Activity Log</span>
+            <span style="font-size:13px;font-weight:500;">Insights</span>
         </a>
 
-        <!-- EPG / Schedule -->
-        <a href="/clients/{{ client_id }}/epg"
-           class="sidebar-nav-item {% if active_page == 'epg' %}active{% endif %}"
-           style="display:flex;align-items:center;gap:12px;padding:10px var(--space-3);margin:2px 0;text-decoration:none;color:var(--color-muted);transition:all var(--transition-fast);position:relative;
-                  {% if active_page == 'epg' %}border-left:3px solid var(--color-orange);background:var(--color-surface-alt);color:var(--color-white);{% else %}border-left:3px solid transparent;{% endif %}">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                <line x1="16" y1="2" x2="16" y2="6"/>
-                <line x1="8" y1="2" x2="8" y2="6"/>
-                <line x1="3" y1="10" x2="21" y2="10"/>
+        <!-- 5. AI Visibility -->
+        <a href="/clients/{{ client_id }}/visibility"
+           class="sidebar-nav-item {% if active_page == 'visibility' %}active{% endif %}"
+           style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin:1px 6px;border-radius:6px;text-decoration:none;color:#9ca3af;transition:all 0.15s;position:relative;
+                  {% if active_page == 'visibility' %}border-left:2.5px solid #2563C4;background:#252540;color:#fff;{% else %}border-left:2.5px solid transparent;{% endif %}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 2L12 22M17 7C17 7 14.5 9 12 9C9.5 9 7 7 7 7M7 17C7 17 9.5 15 12 15C14.5 15 17 17 17 17"/>
             </svg>
-            <span style="font-size:var(--text-body);font-weight:500;">Schedule</span>
+            <span style="font-size:13px;font-weight:500;">AI visibility</span>
         </a>
 
-        <div style="margin:8px var(--space-3);border-top:1px solid var(--color-border);"></div>
+        <!-- Divider -->
+        <div style="margin:8px 14px;border-top:0.5px solid rgba(255,255,255,0.07);"></div>
 
-        <!-- My Requests -->
-        <a href="/clients/{{ client_id }}/requests"
-           class="sidebar-nav-item {% if active_page == 'requests' %}active{% endif %}"
-           style="display:flex;align-items:center;gap:12px;padding:10px var(--space-3);margin:2px 0;text-decoration:none;color:var(--color-muted);transition:all var(--transition-fast);position:relative;
-                  {% if active_page == 'requests' %}border-left:3px solid var(--color-orange);background:var(--color-surface-alt);color:var(--color-white);{% else %}border-left:3px solid transparent;{% endif %}">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
-                <polyline points="10 9 9 9 8 9"/>
-            </svg>
-            <span style="font-size:var(--text-body);font-weight:500;">My Requests</span>
-            {% if pending_requests_count is defined and pending_requests_count > 0 %}
-            <span style="margin-left:auto;padding:2px 8px;border-radius:var(--radius-pill);font-size:var(--text-micro);font-weight:600;color:#fff;background:rgba(251,191,36,0.9);">
-                {{ pending_requests_count }}
-            </span>
-            {% endif %}
-        </a>
-
-        <!-- Team -->
-        <a href="/clients/{{ client_id }}/team"
-           class="sidebar-nav-item {% if active_page == 'team' %}active{% endif %}"
-           style="display:flex;align-items:center;gap:12px;padding:10px var(--space-3);margin:2px 0;text-decoration:none;color:var(--color-muted);transition:all var(--transition-fast);position:relative;
-                  {% if active_page == 'team' %}border-left:3px solid var(--color-orange);background:var(--color-surface-alt);color:var(--color-white);{% else %}border-left:3px solid transparent;{% endif %}">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                <circle cx="9" cy="7" r="4"/>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-            </svg>
-            <span style="font-size:var(--text-body);font-weight:500;">Team</span>
-        </a>
-
-        <!-- Extension -->
+        <!-- 6. Extension -->
         <a href="/clients/{{ client_id }}/extension"
            class="sidebar-nav-item {% if active_page == 'extension' %}active{% endif %}"
-           style="display:flex;align-items:center;gap:12px;padding:10px var(--space-3);margin:2px 0;text-decoration:none;color:var(--color-muted);transition:all var(--transition-fast);position:relative;
-                  {% if active_page == 'extension' %}border-left:3px solid var(--color-orange);background:var(--color-surface-alt);color:var(--color-white);{% else %}border-left:3px solid transparent;{% endif %}">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+           style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin:1px 6px;border-radius:6px;text-decoration:none;color:#9ca3af;transition:all 0.15s;position:relative;
+                  {% if active_page == 'extension' %}border-left:2.5px solid #2563C4;background:#252540;color:#fff;{% else %}border-left:2.5px solid transparent;{% endif %}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
             </svg>
-            <span style="font-size:var(--text-body);font-weight:500;">Extension</span>
+            <span style="font-size:13px;font-weight:500;">Extension</span>
         </a>
 
-        <!-- Settings -->
+        <!-- 7. Settings -->
         <a href="/clients/{{ client_id }}/settings"
-           class="sidebar-nav-item {% if active_page == 'settings' %}active{% endif %}"
-           style="display:flex;align-items:center;gap:12px;padding:10px var(--space-3);margin:2px 0;text-decoration:none;color:var(--color-muted);transition:all var(--transition-fast);position:relative;
-                  {% if active_page == 'settings' %}border-left:3px solid var(--color-orange);background:var(--color-surface-alt);color:var(--color-white);{% else %}border-left:3px solid transparent;{% endif %}">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+           class="sidebar-nav-item {% if active_page in ['settings', 'subreddits', 'keywords', 'team', 'strategy'] %}active{% endif %}"
+           style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin:1px 6px;border-radius:6px;text-decoration:none;color:#9ca3af;transition:all 0.15s;position:relative;
+                  {% if active_page in ['settings', 'subreddits', 'keywords', 'team', 'strategy'] %}border-left:2.5px solid #2563C4;background:#252540;color:#fff;{% else %}border-left:2.5px solid transparent;{% endif %}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="3"/>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
-            <span style="font-size:var(--text-body);font-weight:500;">Profile</span>
+            <span style="font-size:13px;font-weight:500;">Settings</span>
         </a>
     </nav>
 
-    <!-- Help link -->
-    <div style="padding:0 var(--space-3) var(--space-2);">
-        <a href="/clients/{{ client_id }}/help"
-           class="sidebar-nav-item {% if active_page == 'help' %}active{% endif %}"
-           style="display:flex;align-items:center;gap:12px;padding:10px 0;text-decoration:none;color:var(--color-muted);transition:all var(--transition-fast);font-size:var(--text-small);
-                  {% if active_page == 'help' %}color:var(--color-white);{% endif %}">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-                <line x1="12" y1="17" x2="12.01" y2="17"/>
+    <!-- Plan Widget (bottom-pinned) -->
+    <div style="padding:8px 10px 12px;">
+        <!-- Chrome Extension link -->
+        <a href="/clients/{{ client_id }}/extension" style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:8px;background:rgba(255,107,53,0.06);border:0.5px solid rgba(255,107,53,0.2);border-radius:7px;text-decoration:none;transition:all 0.15s;"
+           onmouseover="this.style.borderColor='rgba(255,107,53,0.5)'" onmouseout="this.style.borderColor='rgba(255,107,53,0.2)'">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;">
+                <circle cx="12" cy="12" r="10" stroke="#FF6B35" stroke-width="1.5"/>
+                <circle cx="12" cy="12" r="4" fill="#FF6B35" opacity="0.3"/>
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z" fill="#FF6B35" opacity="0.7"/>
             </svg>
-            Help & Docs
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:11px;font-weight:600;color:#FF6B35;">Chrome Extension</div>
+                <div style="font-size:10px;color:#6B7280;">Auto-posting setup</div>
+            </div>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </a>
+
+        <div style="background:rgba(37,99,196,0.08);border:0.5px solid rgba(37,99,196,0.2);border-radius:7px;padding:10px 12px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                <span style="font-size:11px;font-weight:500;color:#4E8EF5;">{{ plan_name or "Starter plan" }}</span>
+                {% if action_limit %}
+                <span style="font-size:11px;color:#6B7280;">{{ month_generated or 0 }} / {{ action_limit }} actions</span>
+                {% endif %}
+            </div>
+            {% if action_limit %}
+            {% set usage_pct_val = ((month_generated or 0) / action_limit * 100) | int if action_limit > 0 else 0 %}
+            <div style="height:4px;background:rgba(255,255,255,0.08);border-radius:999px;overflow:hidden;margin-bottom:6px;">
+                <div style="height:100%;width:{{ [usage_pct_val, 100] | min }}%;background:{% if usage_pct_val >= 100 %}#C62828{% else %}#2563C4{% endif %};border-radius:999px;transition:width 0.3s;"></div>
+            </div>
+            {% endif %}
+            {% if plan_name != "Scale plan" %}
+            <a href="/clients/{{ client_id }}/billing" style="font-size:11px;font-weight:500;color:#4E8EF5;text-decoration:none;display:flex;align-items:center;gap:4px;">
+                Upgrade plan
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+            </a>
+            {% endif %}
+        </div>
     </div>
 
     <!-- Footer: logout -->
-    <div style="padding:var(--space-2) var(--space-3);border-top:1px solid var(--color-border);">
-        <a href="/logout" style="display:flex;align-items:center;gap:8px;font-size:var(--text-small);color:var(--color-muted);text-decoration:none;padding:6px 0;"
-           onmouseover="this.style.color='var(--color-red)'" onmouseout="this.style.color='var(--color-muted)'">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <div style="padding:4px 14px 12px;border-top:0.5px solid rgba(255,255,255,0.07);">
+        <a href="/logout" style="display:flex;align-items:center;gap:8px;font-size:12px;color:#6B7280;text-decoration:none;padding:8px 0;"
+           onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#6B7280'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
                 <polyline points="16 17 21 12 16 7"/>
                 <line x1="21" y1="12" x2="9" y2="12"/>

@@ -890,6 +890,22 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
                         system_prompt = _build_incubation_system_prompt(avatar, previous_comments)
                     else:
                         system_prompt = _build_hobby_system_prompt(avatar, previous_comments)
+
+                    # Inject client strategy forbidden_zones (universal safety — applies to hobby too)
+                    try:
+                        if avatar.client_ids:
+                            from app.models.client import Client as _ClientModel
+                            _hobby_client = db.query(_ClientModel).filter(_ClientModel.id == avatar.client_ids[0]).first()
+                            if _hobby_client and _hobby_client.strategy_context:
+                                _forbidden = _hobby_client.strategy_context.get("forbidden_zones", [])
+                                _hard_blocks = [fz.get("description", "") for fz in _forbidden
+                                                if fz.get("severity") == "hard_block" and fz.get("description")]
+                                if _hard_blocks:
+                                    _fz_lines = "\n".join(f"- ❌ {b}" for b in _hard_blocks[:5])
+                                    system_prompt += f"\n\n## FORBIDDEN (from client strategy — never do):\n{_fz_lines}"
+                    except Exception:
+                        pass  # Non-critical — hobby generation continues without
+
                     user_prompt = _build_hobby_user_prompt(post)
 
                     # Hobby comments: use scoring model (Gemini Flash when available, Sonnet as fallback)

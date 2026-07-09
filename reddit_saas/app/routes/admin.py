@@ -4783,6 +4783,131 @@ def admin_health(
     )
 
 
+@router.get("/health/widget/pipeline-timeline", response_class=HTMLResponse)
+def admin_health_pipeline_timeline(
+    request: Request,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """HTMX widget: pipeline run timeline — last run per pipeline type."""
+    from app.models.pipeline_run import PipelineRun
+    from sqlalchemy import distinct
+
+    # Get distinct pipeline types
+    pipeline_types = (
+        db.query(distinct(PipelineRun.pipeline_type))
+        .order_by(PipelineRun.pipeline_type)
+        .all()
+    )
+    pipeline_types = [t[0] for t in pipeline_types]
+
+    # For each pipeline type, get the latest run
+    pipelines = []
+    for ptype in pipeline_types:
+        latest = (
+            db.query(PipelineRun)
+            .filter(PipelineRun.pipeline_type == ptype)
+            .order_by(PipelineRun.started_at.desc())
+            .first()
+        )
+        if latest:
+            pipelines.append(latest)
+
+    # Also check heartbeat age
+    heartbeat_age = None
+    try:
+        import redis as redis_lib
+        from app.config import get_settings
+        settings_obj = get_settings()
+        r = redis_lib.from_url(settings_obj.redis_url, decode_responses=True, socket_timeout=2)
+        hb = r.get("ramp:heartbeat:last_at")
+        if hb:
+            from datetime import datetime, timezone
+            last_hb = datetime.fromisoformat(hb)
+            heartbeat_age = int((datetime.now(timezone.utc) - last_hb).total_seconds())
+        r.close()
+    except Exception:
+        pass
+
+    return templates.TemplateResponse(
+        name="partials/health_pipeline_timeline.html",
+        context={
+            "request": request,
+            "pipelines": pipelines,
+            "heartbeat_age": heartbeat_age,
+        },
+        request=request,
+    )
+
+
+@router.get("/health/widget/service-events", response_class=HTMLResponse)
+def admin_health_service_events(
+    request: Request,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """HTMX widget: recent pipeline events timeline (24h)."""
+    from datetime import datetime, timezone, timedelta
+    from app.models.pipeline_run import PipelineRun
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+
+    # Recent failures
+    recent_failures = (
+        db.query(PipelineRun)
+        .filter(
+            PipelineRun.status.in_(["failed", "partial"]),
+            PipelineRun.started_at >= cutoff,
+        )
+        .order_by(PipelineRun.started_at.desc())
+        .limit(20)
+        .all()
+    )
+
+    # Recent completed (last 10 for context)
+    recent_completed = (
+        db.query(PipelineRun)
+        .filter(
+            PipelineRun.status == "completed",
+            PipelineRun.started_at >= cutoff,
+        )
+        .order_by(PipelineRun.started_at.desc())
+        .limit(10)
+        .all()
+    )
+
+    # Merge and sort
+    all_events = []
+    for r in recent_failures:
+        all_events.append({
+            "time": r.started_at,
+            "component": r.pipeline_type,
+            "status": r.status,
+            "detail": r.error_message[:100] if r.error_message else f"{r.items_succeeded}✓ {r.items_failed}✗",
+            "duration_ms": r.duration_ms,
+        })
+    for r in recent_completed:
+        all_events.append({
+            "time": r.started_at,
+            "component": r.pipeline_type,
+            "status": "completed",
+            "detail": f"{r.items_succeeded}✓ {r.items_failed}✗ {r.items_skipped}⊘" if r.items_processed else "OK",
+            "duration_ms": r.duration_ms,
+        })
+
+    all_events.sort(key=lambda x: x["time"], reverse=True)
+    all_events = all_events[:30]
+
+    return templates.TemplateResponse(
+        name="partials/health_service_events.html",
+        context={
+            "request": request,
+            "events": all_events,
+        },
+        request=request,
+    )
+
+
 @router.get("/health/service/{service_name}", response_class=HTMLResponse)
 def admin_health_service_card(
     service_name: str,
@@ -4964,6 +5089,21 @@ def admin_ai_costs(
     budget = float(budget_str) if budget_str else 100.0
     budget_pct = (summary["monthly_projection"] / budget * 100) if budget > 0 else 0
 
+    # --- Phase 2: Unit Economics + Provider Budgets ---
+    from app.services.unit_economics import (
+        get_unit_economics,
+        get_provider_budget_status,
+        get_client_forecast,
+        get_daily_burn_data,
+    )
+    import json as _json
+
+    unit_economics = get_unit_economics(db)
+    provider_budgets = get_provider_budget_status(db)
+    forecast = get_client_forecast(db)
+    burn_data = get_daily_burn_data(db, days=30)
+    burn_data_json = _json.dumps(burn_data)
+
     # Clients for filter dropdown (include inactive — they have cost history)
     clients = db.query(Client).order_by(Client.client_name).all()
 
@@ -4988,6 +5128,10 @@ def admin_ai_costs(
             "active_period": active_period,
             "date_from": date_from or "",
             "date_to": date_to or "",
+            "unit_economics": unit_economics,
+            "provider_budgets": provider_budgets,
+            "forecast": forecast,
+            "burn_data_json": burn_data_json,
         },
         request=request,
     )

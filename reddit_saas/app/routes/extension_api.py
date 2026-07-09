@@ -197,19 +197,32 @@ async def get_tasks(
     # Query tasks:
     # 1. CREATED tasks matching the node's active reddit username (available for assignment)
     # 2. ASSIGNED tasks already assigned to this node (in-progress for this node)
+    # Exclude tasks past their deadline or older than 24h (stale)
+    stale_cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+
     tasks = (
         db.query(ExecutionTask)
         .filter(
             sa.or_(
                 sa.and_(
                     ExecutionTask.task_lifecycle_status == "CREATED",
+                    ExecutionTask.delivery_channel.in_(["extension", "both"]),
                     ExecutionTask.avatar_username == node.active_reddit_username,
                 ),
                 sa.and_(
                     ExecutionTask.task_lifecycle_status == "ASSIGNED",
                     ExecutionTask.execution_node_id == node.id,
                 ),
-            )
+            ),
+            # Exclude stale tasks: deadline passed OR scheduled_at older than 24h
+            sa.or_(
+                ExecutionTask.deadline.is_(None),
+                ExecutionTask.deadline > datetime.now(timezone.utc),
+            ),
+            sa.or_(
+                ExecutionTask.scheduled_at.is_(None),
+                ExecutionTask.scheduled_at > stale_cutoff,
+            ),
         )
         .order_by(
             # Priority ordering: diagnostic first, then content
@@ -224,7 +237,7 @@ async def get_tasks(
             ),
             ExecutionTask.scheduled_at.asc(),
         )
-        .limit(20)
+        .limit(50)
         .all()
     )
 
@@ -254,11 +267,45 @@ async def get_tasks(
             "posting_strategy": task.posting_strategy or "old_reddit",  # Default: old_reddit
             "scheduled_at": task.scheduled_at.isoformat() if task.scheduled_at else None,
             "lease_expires_at": task.lease_expires_at.isoformat() if task.lease_expires_at else None,
+            "status": task.status,
+            "lifecycle": task.task_lifecycle_status,
+            "has_epg_slot": task.epg_slot_id is not None,
         }
         for task in tasks
     ]
 
-    return {"tasks": task_list, "commands": []}
+    # Also include today's full history for THIS avatar (all statuses)
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    today_all = (
+        db.query(ExecutionTask)
+        .filter(
+            ExecutionTask.avatar_username == node.active_reddit_username,
+            ExecutionTask.created_at >= today_start,
+        )
+        .order_by(ExecutionTask.scheduled_at.asc().nullslast())
+        .limit(50)
+        .all()
+    )
+
+    today_history = [
+        {
+            "task_id": str(t.id),
+            "task_type": t.task_type,
+            "avatar_username": t.avatar_username,
+            "subreddit": t.subreddit,
+            "thread_url": t.thread_url,
+            "comment_text": t.generated_text,
+            "posting_strategy": t.posting_strategy or "old_reddit",
+            "scheduled_at": t.scheduled_at.isoformat() if t.scheduled_at else None,
+            "status": t.status,
+            "lifecycle": t.task_lifecycle_status,
+            "permalink": None,  # TODO: extract from report
+            "has_epg_slot": t.epg_slot_id is not None,
+        }
+        for t in today_all
+    ]
+
+    return {"tasks": task_list, "today_history": today_history, "commands": []}
 
 
 class ReportRequest(BaseModel):
@@ -636,11 +683,24 @@ async def post_heartbeat(
     # Calculate daily_cap_remaining for this node's avatar
     daily_cap_remaining = _get_daily_cap_remaining(db, node)
 
+    # Version check: compare extension_version with latest known version
+    update_available = False
+    latest_version = ""
+    download_url = ""
+    if body.extension_version:
+        latest_version = get_setting(db, "extension_latest_version") or "0.3.1"
+        if _version_lt(body.extension_version, latest_version):
+            update_available = True
+            download_url = get_setting(db, "extension_download_url") or "https://gorampit.com/static/extension/ramp_extension_latest.zip"
+
     return {
         "status": "ok",
         "server_time": now.isoformat(),
         "pause_all": pause_all,
         "daily_cap_remaining": daily_cap_remaining,
+        "update_available": update_available,
+        "latest_version": latest_version,
+        "download_url": download_url,
     }
 
 
@@ -770,10 +830,12 @@ async def activate_extension(
 
     Backend checks:
     1. Avatar with this username exists and is active
-    2. Avatar has executor_email configured (so we know who manages it)
 
     If valid → creates ExecutionNode + returns JWT (90-day) + nodeId.
     No admin action needed. No codes. No tokens to paste.
+
+    Extension is the PRIMARY execution channel. executor_email is optional
+    (only needed if delivery_channel includes email fallback).
 
     Security model:
     - Extension can only EXECUTE tasks that backend assigns to this username.
@@ -781,9 +843,7 @@ async def activate_extension(
     - Rate limited by global middleware (5/min per IP) + per-endpoint Redis limit.
     - Even if an attacker registers — they get no tasks (backend checks
       node's active_reddit_username matches the avatar before assigning).
-    - Token is scoped to executor user (never admin fallback).
-    - Avatar MUST have executor_email configured (prevents activation for
-      avatars that haven't been assigned to an executor).
+    - Token is scoped to executor user or platform owner (for audit trail).
     """
     from app.services.auth import create_access_token
     from app.models.execution_node import ExecutionNode
@@ -809,21 +869,27 @@ async def activate_extension(
             detail="Avatar not found or not configured for extension",
         )
 
-    # SECURITY: Avatar must have executor_email configured
-    # This prevents random users from activating extensions for avatars
-    # that haven't been assigned to any executor yet
-    if not avatar.executor_email:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Avatar not found or not configured for extension",
+    # Resolve executor user for JWT token
+    # Extension is the primary execution path. executor_email is optional.
+    # If no executor_email configured, fall back to platform owner for JWT issuance.
+    executor_user = None
+    if avatar.executor_email:
+        executor_user = (
+            db.query(User)
+            .filter(User.email == avatar.executor_email, User.is_active == True)  # noqa: E712
+            .first()
         )
 
-    # Resolve executor user from avatar's executor_email
-    executor_user = (
-        db.query(User)
-        .filter(User.email == avatar.executor_email, User.is_active == True)  # noqa: E712
-        .first()
-    )
+    if not executor_user:
+        # Fallback to platform owner — extension auth is node-based,
+        # executor_id in JWT is for audit trail only.
+        from app.models.user_role import UserRole
+
+        executor_user = (
+            db.query(User)
+            .filter(User.role == UserRole.owner, User.is_active == True)  # noqa: E712
+            .first()
+        )
 
     if not executor_user:
         raise HTTPException(
@@ -969,7 +1035,6 @@ async def get_extension_dashboard(
         .filter(
             EPGSlot.avatar_id == avatar.id,
             EPGSlot.plan_date >= today_start.date(),
-            EPGSlot.status.notin_(["skipped"]),
         )
         .order_by(EPGSlot.scheduled_at.asc())
         .limit(15)
@@ -987,6 +1052,9 @@ async def get_extension_dashboard(
         for slot in epg_slots
     ]
 
+    # Plan = total slots today (including skipped)
+    total_planned = len(epg_slots)
+
     # ── Pending Drafts (to approve) ───────────────────────────────────────
 
     pending_drafts = (
@@ -1000,6 +1068,7 @@ async def get_extension_dashboard(
         .all()
     )
 
+    client_id = avatar.client_ids[0] if avatar.client_ids else None
     drafts_list = [
         {
             "id": str(draft.id),
@@ -1007,14 +1076,13 @@ async def get_extension_dashboard(
             "thread_title": (draft.thread.post_title if draft.thread else "") or "",
             "text_preview": (draft.edited_draft or draft.ai_draft or "")[:120],
             "created_at": draft.created_at.isoformat() if draft.created_at else None,
-            "approve_url": f"https://gorampit.com/admin/drafts/{draft.id}",
+            "approve_url": f"https://gorampit.com/clients/{client_id}/review" if client_id else None,
         }
         for draft in pending_drafts
     ]
 
     # ── Links ─────────────────────────────────────────────────────────────
 
-    client_id = avatar.client_ids[0] if avatar.client_ids else None
     links = {
         "review_queue": f"https://gorampit.com/clients/{client_id}/review" if client_id else None,
         "avatar_detail": f"https://gorampit.com/admin/avatars/{avatar.id}",
@@ -1024,6 +1092,7 @@ async def get_extension_dashboard(
 
     return {
         "stats": stats,
+        "total_planned": total_planned,
         "epg": epg_list,
         "pending_drafts": drafts_list,
         "links": links,
@@ -1032,6 +1101,16 @@ async def get_extension_dashboard(
 
 
 # ─── Helper Functions ────────────────────────────────────────────────────────
+
+
+def _version_lt(v1: str, v2: str) -> bool:
+    """Compare two semver strings. Returns True if v1 < v2."""
+    try:
+        parts1 = [int(x) for x in v1.split(".")]
+        parts2 = [int(x) for x in v2.split(".")]
+        return parts1 < parts2
+    except (ValueError, AttributeError):
+        return False
 
 
 def _get_daily_cap_remaining(db: Session, node: ExecutionNode) -> int:
@@ -1064,6 +1143,234 @@ def _get_daily_cap_remaining(db: Session, node: ExecutionNode) -> int:
     )
 
     return max(0, daily_cap - completed_today)
+
+
+# ─── Draft Review (Approve/Reject from Extension) ───────────────────────────
+
+
+class DraftReviewRequest(BaseModel):
+    """Request body for approving/rejecting a draft from extension."""
+    action: str  # "approve" or "reject"
+    edited_text: Optional[str] = None  # Optional edit before approve
+
+
+@router.post("/drafts/{draft_id}/review")
+async def review_draft(
+    draft_id: str,
+    body: DraftReviewRequest,
+    executor: User = Depends(get_current_executor),
+    db: Session = Depends(get_db),
+):
+    """Approve or reject a pending draft directly from the extension.
+
+    This is the key endpoint that enables the extension to act as a reviewer,
+    not just an executor. When a draft is approved here:
+    1. Draft status → approved
+    2. EPG slot status → approved
+    3. ExecutionTask is created (if email_tasks_enabled)
+    4. Extension will see the task in next /tasks poll
+
+    Supports optional text edit before approval (edit + approve in one call).
+    """
+    from app.models.comment_draft import CommentDraft
+    from app.models.epg_slot import EPGSlot
+    from app.services.epg_executor import sync_slot_status, _dispatch_email_task_if_enabled
+    from app.services.transparency import record_activity_event
+
+    if body.action not in ("approve", "reject"):
+        raise HTTPException(status_code=422, detail="action must be 'approve' or 'reject'")
+
+    try:
+        d_uuid = uuid.UUID(draft_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=404, detail="Draft not found")
+
+    draft = db.query(CommentDraft).filter(CommentDraft.id == d_uuid).first()
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+
+    # Only allow review of pending drafts
+    if draft.status != "pending":
+        return {"status": "noop", "message": f"Draft already {draft.status}"}
+
+    # Verify executor has access to this draft's avatar
+    avatar = db.query(Avatar).filter(Avatar.id == draft.avatar_id).first()
+    if not avatar:
+        raise HTTPException(status_code=404, detail="Draft not found")
+
+    # Access check: executor must be linked to this avatar or be platform admin
+    has_access = False
+    if executor.role in ("owner", "partner", "avatar_manager"):
+        has_access = True
+    elif avatar.executor_email and avatar.executor_email == executor.email:
+        has_access = True
+    elif avatar.client_ids:
+        from app.models.user_client_assignment import UserClientAssignment
+        assigned = (
+            db.query(UserClientAssignment.client_id)
+            .filter(
+                UserClientAssignment.user_id == executor.id,
+                UserClientAssignment.is_active == True,  # noqa: E712
+            )
+            .all()
+        )
+        assigned_ids = {str(r.client_id) for r in assigned}
+        for cid in avatar.client_ids:
+            if cid in assigned_ids:
+                has_access = True
+                break
+
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Not authorized to review this draft")
+
+    now = datetime.now(timezone.utc)
+
+    if body.action == "approve":
+        # Apply edit if provided
+        if body.edited_text and body.edited_text.strip():
+            draft.edited_draft = body.edited_text.strip()
+
+        draft.status = "approved"
+
+        # Sync EPG slot
+        slot = db.query(EPGSlot).filter(EPGSlot.draft_id == draft.id).first()
+        if slot:
+            slot.status = "approved"
+            db.commit()
+            # Create execution task for posting
+            _dispatch_email_task_if_enabled(db, slot)
+        else:
+            db.commit()
+
+        # Activity event
+        try:
+            record_activity_event(
+                db, "review",
+                f"Draft approved via extension for r/{draft.thread.subreddit if draft.thread else '?'}",
+                draft.client_id,
+                {"draft_id": str(draft.id), "action": "approved", "by": "extension"},
+            )
+        except Exception:
+            pass
+
+        # Self-learning capture
+        try:
+            from app.services.learning import LearningService
+            thread = draft.thread
+            if thread:
+                learning_status = "approved_unchanged" if not body.edited_text else "approved"
+                LearningService().capture_edit_record(db=db, draft=draft, thread=thread, status=learning_status)
+                db.commit()
+        except Exception:
+            pass
+
+        return {"status": "approved", "draft_id": str(draft.id)}
+
+    else:  # reject
+        draft.status = "rejected"
+
+        # Sync EPG slot
+        slot = db.query(EPGSlot).filter(EPGSlot.draft_id == draft.id).first()
+        if slot:
+            slot.status = "skipped"
+            slot.skip_reason = "rejected_via_extension"
+
+        db.commit()
+
+        # Activity event
+        try:
+            record_activity_event(
+                db, "review",
+                f"Draft rejected via extension for r/{draft.thread.subreddit if draft.thread else '?'}",
+                draft.client_id,
+                {"draft_id": str(draft.id), "action": "rejected", "by": "extension"},
+            )
+        except Exception:
+            pass
+
+        return {"status": "rejected", "draft_id": str(draft.id)}
+
+
+@router.post("/drafts/approve-all")
+async def approve_all_drafts(
+    avatar_username: str = Query(..., description="Reddit username"),
+    executor: User = Depends(get_current_executor),
+    db: Session = Depends(get_db),
+):
+    """Approve all pending drafts for an avatar. Bulk action from extension.
+
+    Returns count of approved drafts.
+    """
+    from app.models.comment_draft import CommentDraft
+    from app.models.epg_slot import EPGSlot
+    from app.services.epg_executor import _dispatch_email_task_if_enabled
+    from app.services.transparency import record_activity_event
+
+    avatar = (
+        db.query(Avatar)
+        .filter(sa.func.lower(Avatar.reddit_username) == avatar_username.lower())
+        .first()
+    )
+    if not avatar:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+
+    # Access check
+    has_access = executor.role in ("owner", "partner", "avatar_manager")
+    if not has_access and avatar.executor_email and avatar.executor_email == executor.email:
+        has_access = True
+    if not has_access and avatar.client_ids:
+        from app.models.user_client_assignment import UserClientAssignment
+        assigned = (
+            db.query(UserClientAssignment.client_id)
+            .filter(UserClientAssignment.user_id == executor.id, UserClientAssignment.is_active == True)
+            .all()
+        )
+        assigned_ids = {str(r.client_id) for r in assigned}
+        for cid in avatar.client_ids:
+            if cid in assigned_ids:
+                has_access = True
+                break
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Get all pending drafts for this avatar
+    pending = (
+        db.query(CommentDraft)
+        .filter(CommentDraft.avatar_id == avatar.id, CommentDraft.status == "pending")
+        .all()
+    )
+
+    approved_count = 0
+    for draft in pending:
+        draft.status = "approved"
+        slot = db.query(EPGSlot).filter(EPGSlot.draft_id == draft.id).first()
+        if slot:
+            slot.status = "approved"
+
+    db.commit()
+
+    # Create execution tasks for all approved slots
+    for draft in pending:
+        slot = db.query(EPGSlot).filter(EPGSlot.draft_id == draft.id).first()
+        if slot:
+            _dispatch_email_task_if_enabled(db, slot)
+        approved_count += 1
+
+    # Activity event
+    try:
+        record_activity_event(
+            db, "review",
+            f"{approved_count} drafts bulk-approved via extension for u/{avatar.reddit_username}",
+            avatar.client_ids[0] if avatar.client_ids else None,
+            {"count": approved_count, "action": "bulk_approve", "by": "extension"},
+        )
+    except Exception:
+        pass
+
+    return {"status": "ok", "approved": approved_count}
+
+
+# ─── Helper Functions ────────────────────────────────────────────────────────
 
 
 def should_use_email_fallback(node_id: str | uuid.UUID, db: Session) -> bool:

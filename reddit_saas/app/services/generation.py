@@ -10,6 +10,7 @@ from app.logging_config import get_logger
 from sqlalchemy.orm import Session
 
 from app.config import get_config
+from app.services.settings import get_setting_int
 from app.models.client import Client
 from app.models.thread import RedditThread
 from app.models.avatar import Avatar
@@ -18,6 +19,57 @@ from app.services.ai import call_llm, call_llm_json, log_ai_usage
 from app.schemas.llm_outputs import CommentOutput
 
 logger = get_logger(__name__)
+
+
+# --- Context Trimming Helpers (Phase 2 cost optimization) ---
+
+def _truncate_at_word_boundary(text: str, max_chars: int) -> str:
+    """Truncate text at the last word boundary <= max_chars, append '...' if truncated."""
+    if not text or len(text) <= max_chars:
+        return text
+    cut_point = text.rfind(" ", 0, max_chars)
+    if cut_point == -1:
+        cut_point = max_chars  # No space found, hard cut
+    return text[:cut_point].rstrip() + "..."
+
+
+def _trim_comments(
+    comments_json: str | None,
+    max_comments: int = 3,
+    max_chars_each: int = 300,
+) -> str:
+    """Parse comments_json, keep top N by score, truncate each.
+
+    Attempts JSON parse first (structured list with score/body/author).
+    Falls back to splitting raw string by '---' delimiter.
+    """
+    if not comments_json:
+        return "(no comments)"
+
+    try:
+        comments = json.loads(comments_json)
+        if isinstance(comments, list) and comments:
+            # Sort by score descending (higher engagement first)
+            comments.sort(key=lambda c: c.get("score", 0) if isinstance(c, dict) else 0, reverse=True)
+            top = comments[:max_comments]
+            parts = []
+            for c in top:
+                if isinstance(c, dict):
+                    body = c.get("body", c.get("text", str(c)))
+                    author = c.get("author", "anon")
+                    score = c.get("score", 0)
+                    body = _truncate_at_word_boundary(str(body), max_chars_each)
+                    parts.append(f"[{author} ({score} pts)]: {body}")
+                else:
+                    parts.append(_truncate_at_word_boundary(str(c), max_chars_each))
+            return "\n---\n".join(parts)
+    except (json.JSONDecodeError, TypeError, AttributeError):
+        pass
+
+    # Fallback: split raw string and take first N chunks
+    chunks = comments_json.split("---")[:max_comments]
+    trimmed = [_truncate_at_word_boundary(c.strip(), max_chars_each) for c in chunks if c.strip()]
+    return "\n---\n".join(trimmed) if trimmed else "(no comments)"
 
 
 # --- Persona Selection ---
@@ -158,7 +210,7 @@ Alert: {thread.alert}
     try:
         result = call_llm_json(
             messages=messages,
-            model=get_config("llm_generation_model"),
+            model=get_config("llm_persona_model"),
             temperature=0.4,
             max_tokens=512,
         )
@@ -448,7 +500,7 @@ def generate_comment(
 
         learning_service = LearningService()
 
-        # Select few-shot examples from past edits
+        # Select few-shot examples from past edits (max 3 for cost optimization)
         examples = learning_service.select_few_shot_examples(
             db,
             avatar_id=avatar.id,
@@ -456,6 +508,7 @@ def generate_comment(
             subreddit=thread.subreddit,
             engagement_mode=persona_selection.get("mode", "helpful_peer"),
         )
+        examples = examples[:3]  # Phase 2 context trimming: limit few-shot examples
 
         # Get correction patterns (returns empty if <5 qualifying records)
         patterns = learning_service.get_correction_patterns(
@@ -518,13 +571,18 @@ def generate_comment(
 {thread.post_title}
 
 ### Post text
-{thread.post_body or '(no body)'}
+{_truncate_at_word_boundary(thread.post_body or '', get_setting_int(db, "generation_max_body_chars", 500)) or '(no body)'}
 
 ### Comments
-{thread.comments_json or '(no comments)'}"""
+{_trim_comments(thread.comments_json, max_comments=3, max_chars_each=300)}"""
+
+    # Truncate voice profile for cost optimization
+    voice_profile_trimmed = _truncate_at_word_boundary(
+        avatar.voice_profile_md or "", get_setting_int(db, "generation_max_voice_chars", 500)
+    )
 
     system_prompt = COMMENT_WRITER_PROMPT.format(
-        voice_profile=avatar.voice_profile_md or "",
+        voice_profile=voice_profile_trimmed,
         company_worldview=client.company_worldview or "",
         company_problem=client.company_problem or "",
         mode=persona_selection.get("mode", "helpful_peer"),
@@ -597,6 +655,63 @@ def generate_comment(
                 system_prompt = system_prompt + "\n\n" + strategy_context
         else:
             system_prompt = system_prompt + "\n\n" + strategy_context
+
+    # --- Client Strategy Context: positioning, pillars, forbidden zones ---
+    client_strategy_block = ""
+    try:
+        if client.strategy_context:
+            sc = client.strategy_context
+            parts = []
+
+            # Positioning — what we're trying to achieve
+            positioning = sc.get("positioning")
+            if positioning:
+                parts.append("## Client Strategy (operational context)")
+                pos_lines = []
+                if positioning.get("audience"):
+                    pos_lines.append(f"- Target audience: {positioning['audience']}")
+                if positioning.get("problem"):
+                    pos_lines.append(f"- Problem we address: {positioning['problem']}")
+                if positioning.get("value_mechanism"):
+                    pos_lines.append(f"- Value angle: {positioning['value_mechanism']}")
+                if positioning.get("differentiation"):
+                    pos_lines.append(f"- Differentiation: {positioning['differentiation']}")
+                if pos_lines:
+                    parts.append("### Positioning")
+                    parts.extend(pos_lines)
+
+            # Content pillars — what themes to use
+            pillars = sc.get("content_pillars", [])
+            if pillars:
+                pillar_names = [p.get("name", "") for p in pillars if p.get("name")]
+                if pillar_names:
+                    parts.append(f"### Content Themes: {', '.join(pillar_names)}")
+
+            # Forbidden zones — hard constraints
+            forbidden = sc.get("forbidden_zones", [])
+            hard_blocks = [fz.get("description", "") for fz in forbidden
+                          if fz.get("severity") == "hard_block" and fz.get("description")]
+            if hard_blocks:
+                parts.append("### FORBIDDEN (never do these):")
+                for block in hard_blocks[:5]:
+                    parts.append(f"- ❌ {block}")
+
+            if len(parts) > 1:  # more than just the header
+                client_strategy_block = "\n".join(parts)
+                logger.info(
+                    "Client strategy context injected for client %s (v%d): positioning=%s, pillars=%d, forbidden=%d",
+                    client.id, client.strategy_version or 0,
+                    bool(positioning), len(pillars), len(hard_blocks),
+                )
+    except Exception:
+        logger.warning(
+            "Failed to build client strategy context for client %s — proceeding without",
+            client.id,
+        )
+        client_strategy_block = ""
+
+    if client_strategy_block:
+        system_prompt = system_prompt + "\n\n" + client_strategy_block
 
 
     # --- Subreddit Tone Context: inject emotional profile warnings ---
@@ -794,7 +909,7 @@ def edit_comment(
     try:
         result = call_llm(
             messages=messages,
-            model=get_config("llm_generation_model"),
+            model=get_config("llm_editing_model"),
             temperature=0.3,
             max_tokens=256,
         )

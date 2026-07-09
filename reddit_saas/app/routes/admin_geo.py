@@ -130,14 +130,11 @@ def create_prompt(
     if len(prompt_text) < 10 or len(prompt_text) > 1000:
         raise HTTPException(status_code=400, detail="Prompt must be 10-1000 characters")
 
-    # Check limit (50 active prompts)
-    active_count = (
-        db.query(func.count(GeoPrompt.id))
-        .filter(GeoPrompt.client_id == client_id, GeoPrompt.is_active == True)
-        .scalar()
-    )
-    if active_count >= 50:
-        raise HTTPException(status_code=400, detail="Maximum 50 active prompts reached")
+    # Plan limit check — GEO prompts
+    from app.services.plan_limits import check_geo_prompt_limit
+    allowed, limit_msg, _current, _limit = check_geo_prompt_limit(db, client_id)
+    if not allowed:
+        raise HTTPException(status_code=400, detail=limit_msg)
 
     # Check duplicate
     existing = (
@@ -311,14 +308,11 @@ def create_competitor(
     if not competitor_name:
         raise HTTPException(status_code=400, detail="Competitor name is required")
 
-    # Check limit (30 active)
-    active_count = (
-        db.query(func.count(GeoCompetitor.id))
-        .filter(GeoCompetitor.client_id == client_id, GeoCompetitor.is_active == True)
-        .scalar()
-    )
-    if active_count >= 30:
-        raise HTTPException(status_code=400, detail="Maximum 30 active competitors reached")
+    # Plan limit check — GEO competitors
+    from app.services.plan_limits import check_geo_competitor_limit
+    allowed, limit_msg, _current, _limit = check_geo_competitor_limit(db, client_id)
+    if not allowed:
+        raise HTTPException(status_code=400, detail=limit_msg)
 
     # Check duplicate name
     existing = (
@@ -607,16 +601,13 @@ def generate_prompts_ai(
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
 
-    # Check how many prompts can still be added (limit: 50)
-    active_count = (
-        db.query(func.count(GeoPrompt.id))
-        .filter(GeoPrompt.client_id == client_id, GeoPrompt.is_active.is_(True))
-        .scalar()
-    ) or 0
+    # Plan-based limit check for GEO prompts
+    from app.services.plan_limits import check_geo_prompt_limit, get_plan_limit
+    allowed, limit_msg, active_count, plan_limit = check_geo_prompt_limit(db, client_id)
+    if not allowed:
+        raise HTTPException(status_code=400, detail=limit_msg)
 
-    remaining_slots = 50 - active_count
-    if remaining_slots <= 0:
-        raise HTTPException(status_code=400, detail="Maximum 50 active prompts reached")
+    remaining_slots = plan_limit - active_count
 
     # Generate up to 10 prompts (or remaining slots, whichever is smaller)
     count = min(10, remaining_slots)
@@ -784,16 +775,13 @@ def suggest_competitors_ai(
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
 
-    # Check how many competitors can still be added (limit: 30)
-    active_count = (
-        db.query(func.count(GeoCompetitor.id))
-        .filter(GeoCompetitor.client_id == client_id, GeoCompetitor.is_active.is_(True))
-        .scalar()
-    ) or 0
+    # Plan-based limit check for GEO competitors
+    from app.services.plan_limits import check_geo_competitor_limit, get_plan_limit
+    allowed, limit_msg, active_count, plan_limit = check_geo_competitor_limit(db, client_id)
+    if not allowed:
+        raise HTTPException(status_code=400, detail=limit_msg)
 
-    remaining_slots = 30 - active_count
-    if remaining_slots <= 0:
-        raise HTTPException(status_code=400, detail="Maximum 30 active competitors reached")
+    remaining_slots = plan_limit - active_count
 
     # Suggest up to 10 competitors (or remaining slots, whichever is smaller)
     count = min(10, remaining_slots)

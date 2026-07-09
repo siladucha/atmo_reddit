@@ -419,10 +419,19 @@ async def portal_regenerate_draft(
             content={"message": "Only pending drafts can be regenerated"},
         )
 
-    # Load thread
+    # Load thread (professional) or hobby post
     from app.models.thread import RedditThread
-    thread = db.query(RedditThread).filter(RedditThread.id == draft.thread_id).first() if draft.thread_id else None
-    if not thread:
+    from app.models.hobby import HobbySubreddit
+
+    thread = None
+    hobby_post = None
+
+    if draft.thread_id:
+        thread = db.query(RedditThread).filter(RedditThread.id == draft.thread_id).first()
+    elif draft.hobby_post_id:
+        hobby_post = db.query(HobbySubreddit).filter(HobbySubreddit.id == draft.hobby_post_id).first()
+
+    if not thread and not hobby_post:
         return JSONResponse(
             status_code=422,
             content={"message": "Thread not found for regeneration"},
@@ -434,8 +443,6 @@ async def portal_regenerate_draft(
 
     # Generate new comment
     try:
-        from app.services.generation import generate_comment
-
         # Build persona_selection context (minimal)
         persona_selection = {
             "avatar_id": str(avatar.id),
@@ -448,14 +455,99 @@ async def portal_regenerate_draft(
         draft.status = "regenerated"
         db.commit()
 
-        # Generate new draft
-        new_draft = generate_comment(
-            db=db,
-            thread=thread,
-            client=client,
-            avatar=avatar,
-            persona_selection=persona_selection,
-        )
+        if thread:
+            # Professional draft — use full generation service
+            from app.services.generation import generate_comment
+
+            new_draft = generate_comment(
+                db=db,
+                thread=thread,
+                client=client,
+                avatar=avatar,
+                persona_selection=persona_selection,
+            )
+        else:
+            # Hobby draft — generate inline (same as ai_pipeline hobby flow)
+            from app.services.ai import call_llm, log_ai_usage
+            from app.config import get_config
+            from app.tasks.ai_pipeline import _build_hobby_system_prompt, _build_hobby_user_prompt
+            import json as json_mod
+            import uuid as uuid_mod
+
+            # --- Self-Learning Loop: retrieve learning context ---
+            learning_context = ""
+            learning_metadata = None
+            try:
+                from app.services.learning import LearningService
+                learning_service = LearningService()
+
+                examples = learning_service.select_few_shot_examples(
+                    db,
+                    avatar_id=avatar.id,
+                    client_id=client_id,
+                    subreddit=hobby_post.subreddit if hasattr(hobby_post, "subreddit") else "",
+                    engagement_mode="hobby_engagement",
+                )
+                patterns = learning_service.get_correction_patterns(
+                    db, avatar_id=avatar.id, client_id=client_id
+                )
+
+                if examples or patterns:
+                    learning_context = learning_service.format_learning_context(examples, patterns)
+                    learning_metadata = {
+                        "edit_record_ids": [str(ex.id) for ex in examples],
+                        "correction_patterns": [p.rule_text for p in patterns],
+                        "learning_token_count": len(learning_context) // 4,
+                    }
+            except Exception:
+                logger.warning("Learning context failed for hobby regeneration — proceeding without")
+
+            system_prompt = _build_hobby_system_prompt(avatar, [])
+            if learning_context:
+                system_prompt = system_prompt + "\n\n" + learning_context
+
+            user_prompt = _build_hobby_user_prompt(hobby_post)
+
+            gen_model = get_config("llm_scoring_model") or get_config("llm_generation_model")
+
+            result = call_llm(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                model=gen_model,
+                temperature=0.85,
+                max_tokens=300,
+            )
+
+            log_ai_usage(
+                db, str(client_id), "hobby_comment_workflow", result,
+                avatar_id=str(avatar.id),
+                subreddit_name=hobby_post.subreddit if hasattr(hobby_post, "subreddit") else None,
+            )
+
+            content = result["content"].strip()
+            try:
+                parsed = json_mod.loads(content)
+                comment_text = parsed.get("comment", content)
+            except (json_mod.JSONDecodeError, TypeError):
+                comment_text = content
+
+            # Create new draft
+            new_draft = CommentDraft(
+                id=uuid_mod.uuid4(),
+                thread_id=None,
+                hobby_post_id=hobby_post.id,
+                avatar_id=avatar.id,
+                client_id=client_id,
+                type="hobby",
+                ai_draft=comment_text,
+                status="pending",
+                comment_approach="hobby_engagement",
+                learning_metadata=learning_metadata,
+            )
+            db.add(new_draft)
+            db.commit()
 
     except Exception as e:
         # Revert old draft status on failure
@@ -518,6 +610,16 @@ async def portal_add_keyword(
         return HTMLResponse(
             '<span class="text-red-400 text-sm">Invalid priority</span>',
             status_code=422,
+        )
+
+    # Plan limit check — keywords
+    from app.services.plan_limits import check_keyword_limit
+    allowed, limit_msg, _current, _limit = check_keyword_limit(db, client_id)
+    if not allowed:
+        return HTMLResponse(
+            f'<span class="text-red-400 text-sm">{limit_msg}</span>',
+            status_code=400,
+            headers={"HX-Trigger": '{"showToast": {"type": "error", "message": "' + limit_msg + '"}}'},
         )
 
     # Duplicate check
@@ -639,6 +741,16 @@ async def portal_add_subreddit(
 
     # Self-service: execute immediately (create subreddit assignment)
     from app.models.subreddit import Subreddit, ClientSubredditAssignment
+
+    # Plan limit check — subreddits
+    from app.services.plan_limits import check_subreddit_limit
+    allowed, limit_msg, _current, _limit = check_subreddit_limit(db, client_id)
+    if not allowed:
+        return HTMLResponse(
+            f'<span class="text-red-400 text-sm">{limit_msg}</span>',
+            status_code=400,
+            headers={"HX-Trigger": '{"showToast": {"type": "error", "message": "' + limit_msg + '"}}'},
+        )
 
     # Find or create subreddit
     subreddit = db.query(Subreddit).filter(

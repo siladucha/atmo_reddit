@@ -283,14 +283,18 @@ def generate_cqs_check_tasks(db: Session) -> dict:
             # (because CQS task was never generated) is now fixed.
             # See: Flaky_Finder_13 incident — CQS improved to LOW but RAMP never saw it.
 
-            # Email requirement (R4.5)
-            if not avatar.executor_email or not avatar.executor_email_verified:
-                skipped_no_email += 1
-                logger.debug(
-                    "CQS_TASK_SKIP_NO_EMAIL | avatar=%s",
-                    avatar.reddit_username,
-                )
-                continue
+            # Email requirement — only for non-extension delivery channels
+            # Extension-only avatars don't need executor_email for CQS tasks
+            # (extension posts CQS check directly via browser session)
+            delivery_ch = getattr(avatar, "delivery_channel", "email") or "email"
+            if delivery_ch not in ("extension", "both"):
+                if not avatar.executor_email or not avatar.executor_email_verified:
+                    skipped_no_email += 1
+                    logger.debug(
+                        "CQS_TASK_SKIP_NO_EMAIL | avatar=%s",
+                        avatar.reddit_username,
+                    )
+                    continue
 
             # Pending task check -- max 1 active CQS task per avatar (R5.1, R5.2)
             if _has_pending_cqs_task(db, avatar.id):

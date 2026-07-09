@@ -181,7 +181,26 @@ def get_avatar_available_subreddit_names(
         return hobby_subs
 
     if phase == 2:
-        return list(set(hobby_subs + business_subs))
+        # If avatar has explicit business_subreddits, use them + hobby
+        if business_subs:
+            return list(set(hobby_subs + business_subs))
+        # Fallback: use client-assigned subreddits as business subs
+        # This ensures Phase 2 avatars without explicit business_subreddits
+        # still generate content for the client's professional subreddits.
+        client_sub_names = (
+            db.query(Subreddit.subreddit_name)
+            .join(
+                ClientSubredditAssignment,
+                ClientSubredditAssignment.subreddit_id == Subreddit.id,
+            )
+            .filter(
+                ClientSubredditAssignment.client_id == client.id,
+                ClientSubredditAssignment.is_active.is_(True),
+            )
+            .all()
+        )
+        client_subs = [row[0].lower() for row in client_sub_names]
+        return list(set(hobby_subs + client_subs))
 
     # Phase 3: all client subreddits + hobby + business
     client_sub_names = (

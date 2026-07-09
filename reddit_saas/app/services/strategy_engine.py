@@ -327,6 +327,36 @@ class StrategyEngine:
             discovery_section = self._build_discovery_prompt_section(discovery_context)
             prompt = prompt + "\n\n" + discovery_section
 
+        # --- Inject Client Strategy context (positioning, pillars, forbidden) ---
+        try:
+            if client and client.strategy_context:
+                sc = client.strategy_context
+                _cs_parts = []
+                positioning = sc.get("positioning")
+                if positioning:
+                    _cs_parts.append("## Client Strategy (operational directives)")
+                    if positioning.get("audience"):
+                        _cs_parts.append(f"Target audience: {positioning['audience']}")
+                    if positioning.get("differentiation"):
+                        _cs_parts.append(f"Differentiation: {positioning['differentiation']}")
+
+                pillars = sc.get("content_pillars", [])
+                if pillars:
+                    pillar_names = [p.get("name", "") for p in pillars if p.get("name")]
+                    if pillar_names:
+                        _cs_parts.append(f"Content themes to weave in: {', '.join(pillar_names)}")
+
+                forbidden = sc.get("forbidden_zones", [])
+                hard_blocks = [fz.get("description", "") for fz in forbidden
+                               if fz.get("severity") == "hard_block" and fz.get("description")]
+                if hard_blocks:
+                    _cs_parts.append("FORBIDDEN zones (hard block): " + "; ".join(hard_blocks[:5]))
+
+                if len(_cs_parts) > 1:
+                    prompt = prompt + "\n\n" + "\n".join(_cs_parts)
+        except Exception:
+            pass  # Non-critical: proceed without client strategy context
+
         # --- Inject Outcome Feedback context (from feedback loop) ---
         try:
             from app.services.feedback_loop import get_performance_context

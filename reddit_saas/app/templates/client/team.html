@@ -1,0 +1,114 @@
+{% extends "client_base.html" %}
+{% from "partials/tooltip.html" import tooltip %}
+
+{% block title %}Team — {{ client_name }}{% endblock %}
+
+{% block content %}
+<div id="portal-content">
+    <div style="margin-bottom:var(--space-4);">
+        <h1 class="text-h1">Team{{ tooltip("Manage who has access to your RAMP portal. Admins can invite managers and viewers.") }}</h1>
+        <p class="text-small" style="margin-top:4px;">People who can access your RAMP portal.</p>
+    </div>
+
+    {% if can_manage %}
+    <!-- Invite Form -->
+    <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-4);">
+        <h2 class="text-h3" style="margin-bottom:12px;">Invite Team Member</h2>
+        <form hx-post="/clients/{{ client_id }}/team/invite"
+              hx-target="#invite-result"
+              hx-swap="innerHTML"
+              style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+            <div style="flex:1;min-width:200px;">
+                <label class="text-micro" style="display:block;margin-bottom:4px;">Email</label>
+                <input type="email" name="email" required placeholder="colleague@company.com"
+                       style="width:100%;padding:8px 12px;border-radius:var(--radius-input);border:1px solid var(--color-border);background:var(--color-surface-alt);color:var(--color-white);font-size:var(--text-body);">
+            </div>
+            <div style="min-width:140px;">
+                <label class="text-micro" style="display:block;margin-bottom:4px;">Name (optional)</label>
+                <input type="text" name="full_name" placeholder="John Smith"
+                       style="width:100%;padding:8px 12px;border-radius:var(--radius-input);border:1px solid var(--color-border);background:var(--color-surface-alt);color:var(--color-white);font-size:var(--text-body);">
+            </div>
+            <div style="min-width:120px;">
+                <label class="text-micro" style="display:block;margin-bottom:4px;">Role</label>
+                <select name="role" required
+                        style="width:100%;padding:8px 12px;border-radius:var(--radius-input);border:1px solid var(--color-border);background:var(--color-surface-alt);color:var(--color-white);font-size:var(--text-body);">
+                    {% for r in available_roles %}
+                    <option value="{{ r.value }}">{{ r.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-green" style="min-height:38px;padding:8px 16px;">
+                Invite
+            </button>
+        </form>
+        <div id="invite-result" style="margin-top:8px;"></div>
+
+        <details style="margin-top:12px;">
+            <summary class="text-micro" style="cursor:pointer;color:var(--color-muted);">ℹ️ Role permissions</summary>
+            <div style="margin-top:8px;font-size:var(--text-small);color:var(--color-muted);line-height:1.7;padding-left:12px;border-left:2px solid var(--color-border);">
+                <p><strong style="color:var(--color-white);">Admin</strong> — Full portal access. Can approve drafts, manage team, trigger pipeline actions, edit settings.</p>
+                <p><strong style="color:var(--color-white);">Manager</strong> — Can approve/reject drafts, view all data, trigger actions. Cannot manage team or change settings.</p>
+                <p><strong style="color:var(--color-white);">Viewer</strong> — Read-only access to all portal pages. Cannot approve, trigger, or change anything.</p>
+            </div>
+        </details>
+    </div>
+    {% endif %}
+
+    <!-- Team Members List -->
+    <div class="surface" style="padding:var(--space-3);" id="team-list"
+         hx-get="/clients/{{ client_id }}/team" hx-trigger="refreshTeam from:body" hx-select="#team-table" hx-target="#team-table" hx-swap="outerHTML">
+        <h2 class="text-h3" style="margin-bottom:12px;">Members ({{ members | length }})</h2>
+
+        {% if members %}
+        <div id="team-table" style="display:flex;flex-direction:column;gap:8px;">
+            {% for m in members %}
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--color-surface-alt);border-radius:var(--radius-card);{% if m.is_current_user %}border:1px solid rgba(255,107,53,0.3);{% endif %}">
+                <!-- Avatar circle -->
+                <div style="width:36px;height:36px;border-radius:50%;background:var(--color-surface);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:var(--color-muted);flex-shrink:0;">
+                    {{ (m.full_name or m.email)[0] | upper }}
+                </div>
+                <!-- Info -->
+                <div style="flex:1;min-width:0;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-weight:500;color:var(--color-white);">{{ m.full_name or m.email.split('@')[0] }}</span>
+                        {% if m.is_current_user %}
+                        <span class="text-micro" style="color:var(--color-orange);">YOU</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-small" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ m.email }}</div>
+                </div>
+                <!-- Role badge -->
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="padding:3px 10px;border-radius:var(--radius-pill);font-size:var(--text-micro);font-weight:600;
+                        {% if 'admin' in m.role %}background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3);
+                        {% elif 'manager' in m.role %}background:rgba(34,197,94,0.15);color:#86efac;border:1px solid rgba(34,197,94,0.3);
+                        {% else %}background:rgba(148,163,184,0.15);color:var(--color-muted);border:1px solid var(--color-border);{% endif %}">
+                        {{ m.role_display }}
+                    </span>
+                    {% if not m.email_verified %}
+                    <span style="font-size:11px;color:#fbbf24;" title="Email not yet verified">⏳ pending</span>
+                    {% endif %}
+                </div>
+                <!-- Remove button -->
+                {% if can_manage and not m.is_current_user %}
+                <button hx-post="/clients/{{ client_id }}/team/{{ m.id }}/remove"
+                        hx-target="closest div"
+                        hx-swap="outerHTML"
+                        hx-confirm="Remove {{ m.email }} from team?"
+                        style="padding:4px 8px;border:1px solid rgba(239,68,68,0.3);border-radius:var(--radius-input);background:transparent;color:var(--color-red);font-size:var(--text-micro);cursor:pointer;"
+                        title="Remove from team">
+                    Remove
+                </button>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div id="team-table" style="text-align:center;padding:var(--space-4);">
+            <p style="font-size:24px;margin-bottom:8px;">👥</p>
+            <p class="text-small">No team members yet. Invite someone above.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

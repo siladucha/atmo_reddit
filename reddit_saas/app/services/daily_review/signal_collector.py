@@ -88,6 +88,7 @@ class CostSnapshot:
     by_operation: dict[str, float]  # operation -> cost
     by_model: dict[str, float]  # model -> cost
     daily_avg_7d: float
+    by_provider_mtd: dict[str, dict] = field(default_factory=dict)  # provider -> {spent, budget, pct, status}
 
 
 @dataclass
@@ -222,23 +223,37 @@ def collect_snapshot(db: Session) -> SignalCollection:
 def _collect_worker_signals(
     db: Session, now: datetime, since_24h: datetime, since_7d: datetime
 ) -> list[HealthSignal]:
-    """Check worker heartbeat freshness."""
-    last_heartbeat = (
-        db.query(ActivityEvent.created_at)
-        .filter(
-            ActivityEvent.event_type == "system",
-            ActivityEvent.message.ilike("%heartbeat%"),
+    """Check worker heartbeat freshness via Redis (primary) or activity_events (fallback)."""
+    import redis as _redis
+    from app.config import get_settings
+
+    worker_age_sec = 9999.0
+
+    # Primary: read heartbeat from Redis (written by system_heartbeat task)
+    try:
+        settings = get_settings()
+        client = _redis.Redis.from_url(settings.redis_url, decode_responses=True, socket_timeout=2)
+        last_at_str = client.get("ramp:heartbeat:last_at")
+        client.close()
+
+        if last_at_str:
+            last_at = datetime.fromisoformat(last_at_str)
+            worker_age_sec = (now - last_at).total_seconds()
+    except Exception:
+        # Fallback: check activity_events table (legacy)
+        last_heartbeat = (
+            db.query(ActivityEvent.created_at)
+            .filter(
+                ActivityEvent.event_type == "system",
+                ActivityEvent.message.ilike("%heartbeat%"),
+            )
+            .order_by(desc(ActivityEvent.created_at))
+            .first()
         )
-        .order_by(desc(ActivityEvent.created_at))
-        .first()
-    )
+        if last_heartbeat and last_heartbeat.created_at:
+            worker_age_sec = (now - last_heartbeat.created_at).total_seconds()
 
-    if not last_heartbeat or not last_heartbeat.created_at:
-        worker_age_sec = 9999.0
-    else:
-        worker_age_sec = (now - last_heartbeat.created_at).total_seconds()
-
-    worker_online = 1.0 if worker_age_sec < 120 else 0.0
+    worker_online = 1.0 if worker_age_sec < 180 else 0.0
 
     return [
         HealthSignal(
@@ -589,12 +604,21 @@ def _collect_cost_snapshot(
 
     daily_avg = float(total_7d) / 7.0 if total_7d else 0.0
 
+    # Month-to-date spend by provider (for budget monitoring)
+    by_provider_mtd: dict[str, dict] = {}
+    try:
+        from app.services.alert_aggregation import get_provider_spend_summary
+        by_provider_mtd = get_provider_spend_summary(db)
+    except Exception as e:
+        logger.warning("Provider spend summary failed: %s", str(e)[:80])
+
     return CostSnapshot(
         total_24h_usd=float(total_24h),
         total_7d_usd=float(total_7d),
         by_operation=by_operation,
         by_model=by_model,
         daily_avg_7d=round(daily_avg, 4),
+        by_provider_mtd=by_provider_mtd,
     )
 
 

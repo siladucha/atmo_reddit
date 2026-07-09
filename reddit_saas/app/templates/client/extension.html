@@ -1,0 +1,193 @@
+{% extends "client_base.html" %}
+{% from "partials/tooltip.html" import tooltip %}
+
+{% block title %}Browser Extension — {{ client_name }}{% endblock %}
+
+{% block content %}
+<div id="portal-content">
+    <div style="margin-bottom:var(--space-4);">
+        <h1 class="text-h1">Browser Extension</h1>
+        <p class="text-small" style="margin-top:4px;">Post approved comments to Reddit with one click. No passwords, no proxies needed.</p>
+    </div>
+
+    <!-- Browser check -->
+    <div id="browser-check" class="surface" style="padding:var(--space-3);margin-bottom:var(--space-4);">
+        <div style="display:flex;align-items:center;gap:12px;">
+            <span id="browser-icon" style="font-size:24px;">⏳</span>
+            <div>
+                <p id="browser-msg" style="color:var(--color-white);font-weight:500;">Checking browser compatibility...</p>
+                <p id="browser-detail" class="text-small" style="margin-top:4px;"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Download + Install -->
+    <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-4);">
+        <h2 class="text-h3" style="margin-bottom:16px;">Install Extension</h2>
+
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
+            <a href="/static/extension/ramp_extension_latest.zip" download
+               id="download-btn"
+               style="display:inline-flex;align-items:center;gap:8px;padding:12px 24px;border-radius:var(--radius-card);background:var(--color-orange);color:#fff;font-size:var(--text-body);font-weight:600;text-decoration:none;transition:background 150ms;"
+               onmouseover="this.style.background='var(--color-orange-light)'" onmouseout="this.style.background='var(--color-orange)'">
+                ⬇️ Download Extension
+            </a>
+            <span class="text-small">v0.3.1 · Chrome / Brave / Edge</span>
+        </div>
+
+        <h3 style="font-weight:600;color:var(--color-white);margin-bottom:12px;font-size:var(--text-body);">Installation Steps</h3>
+        <ol style="list-style:decimal inside;color:var(--color-muted);font-size:var(--text-small);line-height:2.2;">
+            <li>Download the ZIP file above</li>
+            <li>Unzip (extract) the folder to a permanent location (e.g. Documents)</li>
+            <li>Open the extracted folder — make sure you can see a file called <code style="background:var(--color-surface-alt);padding:2px 6px;border-radius:3px;color:var(--color-white);">manifest.json</code> directly inside</li>
+            <li>Open Chrome → type <code style="background:var(--color-surface-alt);padding:2px 6px;border-radius:3px;color:var(--color-white);">chrome://extensions</code> in the address bar</li>
+            <li>Enable <strong>"Developer mode"</strong> toggle (top right corner)</li>
+            <li>Click <strong>"Load unpacked"</strong> → select the folder that contains manifest.json</li>
+            <li>Pin the RAMP extension icon in toolbar (puzzle icon → pin)</li>
+            <li>Open Reddit in a tab → click the RAMP icon → it auto-connects</li>
+        </ol>
+
+        <div style="margin-top:12px;padding:10px 14px;border-radius:var(--radius-card);background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);">
+            <p style="font-size:var(--text-small);color:var(--color-muted);line-height:1.6;">
+                <strong style="color:var(--color-red);">Common error:</strong> "Manifest file is missing" — this means you selected the wrong folder. After unzipping, there may be a folder inside a folder. You need the <em>inner</em> folder that directly contains <code style="background:var(--color-surface-alt);padding:1px 4px;border-radius:3px;">manifest.json</code>.
+            </p>
+        </div>
+
+        <details style="margin-top:16px;">
+            <summary style="font-size:var(--text-small);color:var(--color-muted);cursor:pointer;font-weight:500;">ℹ️ How it works</summary>
+            <div style="font-size:var(--text-small);color:var(--color-muted);margin-top:10px;line-height:1.7;padding-left:12px;border-left:2px solid var(--color-border);">
+                <p style="margin-bottom:8px;">The extension connects to your Reddit account through your browser session (no passwords stored). When you approve comments in the Review Queue, they appear in the extension popup.</p>
+                <p style="margin-bottom:8px;"><strong>Manual mode:</strong> Click "Approve" on each task in the popup → extension posts it to Reddit.</p>
+                <p><strong>Auto mode:</strong> Approve all tasks in the morning → extension posts them at the scheduled times throughout the day.</p>
+            </div>
+        </details>
+    </div>
+
+    <!-- ⚠️ IMPORTANT: Computer Sleep Warning -->
+    <div style="padding:var(--space-3);margin-bottom:var(--space-4);border-radius:var(--radius-card);background:rgba(234,179,8,0.08);border:1.5px solid rgba(234,179,8,0.4);">
+        <div style="display:flex;align-items:flex-start;gap:12px;">
+            <span style="font-size:22px;line-height:1;">⚠️</span>
+            <div>
+                <h3 style="color:#eab308;font-weight:700;font-size:var(--text-body);margin-bottom:8px;">Keep your computer AWAKE during work hours</h3>
+                <div style="font-size:var(--text-small);color:var(--color-muted);line-height:1.8;">
+                    <p style="margin-bottom:8px;">The extension can only post when Chrome is running. If your computer goes to <strong style="color:var(--color-white);">sleep</strong>, <strong style="color:var(--color-white);">hibernates</strong>, or <strong style="color:var(--color-white);">Chrome is closed</strong> — scheduled tasks will be missed and marked as ⚠️ WINDOW_MISSED.</p>
+                    <table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:var(--text-small);">
+                        <tr style="border-bottom:1px solid var(--color-border);">
+                            <td style="padding:6px 8px;">🟢 Screen lock / display off</td>
+                            <td style="padding:6px 8px;color:var(--color-green);">Works fine — tasks post normally</td>
+                        </tr>
+                        <tr style="border-bottom:1px solid var(--color-border);">
+                            <td style="padding:6px 8px;">🟢 Screen saver active</td>
+                            <td style="padding:6px 8px;color:var(--color-green);">Works fine — tasks post normally</td>
+                        </tr>
+                        <tr style="border-bottom:1px solid var(--color-border);">
+                            <td style="padding:6px 8px;">🔴 Computer sleep / hibernate</td>
+                            <td style="padding:6px 8px;color:var(--color-red);">Tasks will be MISSED</td>
+                        </tr>
+                        <tr style="border-bottom:1px solid var(--color-border);">
+                            <td style="padding:6px 8px;">🔴 Laptop lid closed</td>
+                            <td style="padding:6px 8px;color:var(--color-red);">Tasks will be MISSED</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:6px 8px;">🔴 Chrome closed / quit</td>
+                            <td style="padding:6px 8px;color:var(--color-red);">Tasks will be MISSED</td>
+                        </tr>
+                    </table>
+                    <p style="margin-top:12px;"><strong style="color:var(--color-white);">Recommended:</strong> Set your computer power settings to "Never sleep" while plugged in. Lock the screen if you walk away — that's fine.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Connected Avatars -->
+    <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-4);">
+        <h2 class="text-h3" style="margin-bottom:16px;">Connected Avatars</h2>
+
+        {% if avatars %}
+        <div style="display:flex;flex-direction:column;gap:10px;">
+            {% for av in avatars %}
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--color-surface-alt);border-radius:var(--radius-card);">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="width:8px;height:8px;border-radius:50%;background:{% if av.extension_online %}var(--color-green){% else %}var(--color-muted){% endif %};"></span>
+                    <span style="color:var(--color-white);font-weight:500;">u/{{ av.username }}</span>
+                    {% if av.extension_online %}
+                    <span style="font-size:var(--text-micro);color:var(--color-green);">CONNECTED</span>
+                    {% else %}
+                    <span style="font-size:var(--text-micro);color:var(--color-muted);">OFFLINE</span>
+                    {% endif %}
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <!-- Delivery channel selector -->
+                    <form method="post" action="/clients/{{ client_id }}/avatars/{{ av.id }}/delivery-channel"
+                          style="display:flex;align-items:center;gap:6px;">
+                        <select name="channel" style="font-size:12px;padding:4px 8px;min-width:100px;">
+                            <option value="extension" {% if av.delivery_channel == 'extension' %}selected{% endif %}>🧩 Extension</option>
+                            <option value="email" {% if av.delivery_channel == 'email' %}selected{% endif %}>📧 Email</option>
+                            <option value="both" {% if av.delivery_channel == 'both' %}selected{% endif %}>Both</option>
+                        </select>
+                        <button type="submit" style="padding:4px 10px;border-radius:4px;background:var(--color-surface);border:1px solid var(--color-border);color:var(--color-muted);font-size:11px;cursor:pointer;">Save</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-small">No avatars configured yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- Troubleshooting -->
+    <div class="surface" style="padding:var(--space-3);">
+        <h2 class="text-h3" style="margin-bottom:12px;">Troubleshooting</h2>
+        <div style="font-size:var(--text-small);color:var(--color-muted);line-height:1.8;">
+            <p><strong style="color:var(--color-white);">"Account not recognized"</strong> — Make sure you're logged into the correct Reddit account in the same browser. The extension detects the username from the page.</p>
+            <p style="margin-top:8px;"><strong style="color:var(--color-white);">Extension not posting</strong> — Check that Reddit tab is open and you're logged in. The extension needs an active Reddit session.</p>
+            <p style="margin-top:8px;"><strong style="color:var(--color-white);">Tasks not appearing</strong> — Approve drafts in the Review Queue first. Only approved comments become extension tasks.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+// Browser compatibility check
+(function() {
+    const icon = document.getElementById('browser-icon');
+    const msg = document.getElementById('browser-msg');
+    const detail = document.getElementById('browser-detail');
+    const card = document.getElementById('browser-check');
+
+    const isChrome = /Chrome/.test(navigator.userAgent) && !/Edg/.test(navigator.userAgent);
+    const isEdge = /Edg/.test(navigator.userAgent);
+    const isBrave = navigator.brave && navigator.brave.isBrave;
+    const isFirefox = /Firefox/.test(navigator.userAgent);
+    const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+
+    if (isChrome || isEdge || isBrave) {
+        icon.textContent = '✅';
+        msg.textContent = 'Your browser is compatible';
+        msg.style.color = 'var(--color-green)';
+        detail.textContent = (isChrome ? 'Google Chrome' : isEdge ? 'Microsoft Edge' : 'Brave') + ' — fully supported';
+        card.style.borderLeft = '3px solid var(--color-green)';
+    } else if (isFirefox) {
+        icon.textContent = '⚠️';
+        msg.textContent = 'Firefox is not yet supported';
+        msg.style.color = 'var(--color-amber)';
+        detail.textContent = 'The extension requires a Chromium-based browser (Chrome, Edge, or Brave). Firefox support is planned.';
+        card.style.borderLeft = '3px solid var(--color-amber)';
+        document.getElementById('download-btn').style.opacity = '0.5';
+        document.getElementById('download-btn').style.pointerEvents = 'none';
+    } else if (isSafari) {
+        icon.textContent = '❌';
+        msg.textContent = 'Safari is not supported';
+        msg.style.color = 'var(--color-red)';
+        detail.textContent = 'Please use Chrome, Edge, or Brave to install the extension.';
+        card.style.borderLeft = '3px solid var(--color-red)';
+        document.getElementById('download-btn').style.opacity = '0.5';
+        document.getElementById('download-btn').style.pointerEvents = 'none';
+    } else {
+        icon.textContent = '❓';
+        msg.textContent = 'Unknown browser';
+        detail.textContent = 'The extension works best in Chrome, Edge, or Brave.';
+    }
+})();
+</script>
+{% endblock %}

@@ -81,6 +81,20 @@
         <div data-copy-text class="text-sm text-gray-100 leading-relaxed whitespace-pre-wrap bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2.5 select-all">{{ item.draft.edited_draft or item.draft.ai_draft or '(empty)' }}</div>
     </div>
 
+    <!-- Learning debug toggle -->
+    {% if item.draft.learning_metadata %}
+    <div class="px-3 py-1">
+        <button type="button"
+                hx-get="/admin/comments/{{ item.draft.id }}/debug-view"
+                hx-target="#rq-debug-{{ item.draft.id }}"
+                hx-swap="innerHTML"
+                class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer">
+            🧠 Show learning context ▾
+        </button>
+        <div id="rq-debug-{{ item.draft.id }}"></div>
+    </div>
+    {% endif %}
+
     <!-- Reddit link (all statuses) -->
     {% if item.draft.reddit_comment_url or (item.thread and item.thread.url) %}
     <div class="px-3 py-1.5 border-t border-slate-700/50 flex items-center gap-3">
@@ -299,6 +313,28 @@
                 <button type="submit" class="bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded text-xs">Apply</button>
             </form>
         </details>
+    </div>
+    {% elif status == 'expired' %}
+    <!-- Expired status info with amber badge -->
+    <div class="px-4 py-3 border-t border-slate-700 bg-slate-800/50">
+        <div class="flex flex-wrap items-center gap-3">
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
+                ⏱ Expired
+                {% if item.draft.learning_metadata and item.draft.learning_metadata.get('stale_age_hours') is not none %}
+                <span class="font-mono">({{ item.draft.learning_metadata.stale_age_hours }}h)</span>
+                {% endif %}
+            </span>
+            {% if item.draft.learning_metadata and item.draft.learning_metadata.get('expiry_reason') %}
+            <span class="text-xs text-gray-500">
+                Reason: {{ item.draft.learning_metadata.expiry_reason|replace('_', ' ')|title }}
+            </span>
+            {% endif %}
+            {% if item.draft.learning_metadata and item.draft.learning_metadata.get('expired_at') %}
+            <span class="text-xs text-gray-500">
+                · {{ item.draft.learning_metadata.expired_at[:16]|replace('T', ' ') }}
+            </span>
+            {% endif %}
+        </div>
     </div>
     {% endif %}
 </div><!-- /flex-1 -->

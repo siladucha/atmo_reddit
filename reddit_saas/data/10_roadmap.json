@@ -1,0 +1,276 @@
+{
+  "meta": {
+    "version": "1.0.0",
+    "last_updated": "2026-07-07",
+    "owner": "Max (AI Agent)",
+    "description": "RAMP Agent Roadmap — prioritized work items derived from spec audit"
+  },
+  "phases": [
+    {
+      "id": "P0",
+      "name": "Immediate (This Week)",
+      "description": "Business blockers and quick fixes",
+      "color": "red"
+    },
+    {
+      "id": "P1",
+      "name": "This Month",
+      "description": "Growth enablers and stability hardening",
+      "color": "amber"
+    },
+    {
+      "id": "P2",
+      "name": "Next Quarter",
+      "description": "Scale infrastructure and new revenue",
+      "color": "blue"
+    },
+    {
+      "id": "P3",
+      "name": "Backlog",
+      "description": "Idea bank — spec only, no timeline",
+      "color": "gray"
+    }
+  ],
+  "items": [
+    {
+      "id": "R-001",
+      "phase": "P0",
+      "title": "Emotional Profile Error Feedback",
+      "spec": "emotional-profile-analysis-feedback",
+      "status": "ready",
+      "effort": "2h",
+      "type": "bugfix",
+      "description": "Client portal shows 'pending' when analysis failed. Fix: show error state with user-friendly message.",
+      "blocks": [],
+      "owner": "agent"
+    },
+    {
+      "id": "R-002",
+      "phase": "P0",
+      "title": "Phase 0 Incubation + Mentor Refactor",
+      "spec": "phase-incubation-mentor-refactor",
+      "status": "not_started",
+      "effort": "3-5d",
+      "type": "architecture",
+      "description": "Mentor → pool flag. Phase 0 = real incubation. Demotion replaces freeze for shadowban/CQS. Unblocks correct activation routing.",
+      "blocks": ["risk-aware-activation"],
+      "owner": "agent"
+    },
+    {
+      "id": "R-003",
+      "phase": "P0",
+      "title": "Discovery → Strategy Handoff (Tasks 7-11)",
+      "spec": "discovery-strategy-handoff",
+      "status": "in_progress",
+      "effort": "2-3d",
+      "type": "feature",
+      "description": "Templates + pipeline integration. Strategy visible to client. 50% done, finish remaining.",
+      "blocks": [],
+      "owner": "agent"
+    },
+    {
+      "id": "R-004",
+      "phase": "P0",
+      "title": "Client Portal Redesign",
+      "spec": "client-portal-redesign",
+      "status": "not_started",
+      "effort": "1-2w",
+      "type": "feature",
+      "description": "Sales-ready portal for Tzvi demos. Clean design, client journey, progress visualization.",
+      "blocks": [],
+      "owner": "agent"
+    },
+    {
+      "id": "R-005",
+      "phase": "P1",
+      "title": "AI-Native Expert Warming System",
+      "spec": "ai-native-expert-warming",
+      "status": "spec_only",
+      "effort": "2-3w",
+      "type": "moat",
+      "description": "Niche profiles, authority scoring, citability engine, content archetypes. Strategic differentiator competitors can't replicate.",
+      "blocks": [],
+      "owner": "agent"
+    },
+    {
+      "id": "R-006",
+      "phase": "P1",
+      "title": "Pipeline Resilience Hardening",
+      "spec": "pipeline-resilience-hardening",
+      "status": "not_started",
+      "effort": "1-2w",
+      "type": "infrastructure",
+      "description": "DB connection pool, DLQ, circuit breakers, catch-up mechanism. Required before 10+ clients.",
+      "blocks": [],
+      "owner": "agent"
+    },
+    {
+      "id": "R-007",
+      "phase": "P1",
+      "title": "Quality Sentinel",
+      "spec": "quality-sentinel",
+      "status": "not_started",
+      "effort": "1-2w",
+      "type": "feature",
+      "description": "Content quality monitoring: karma drift, removal rate trends, engagement patterns. Feedback loop at scale.",
+      "blocks": [],
+      "owner": "agent"
+    },
+    {
+      "id": "R-008",
+      "phase": "P1",
+      "title": "Client Document Upload + Intelligence Regen",
+      "spec": "brand-document-upload",
+      "status": "not_started",
+      "effort": "1-2w",
+      "type": "feature",
+      "description": "Client uploads brand docs, sales decks, pitch materials, competitor analyses, tone-of-voice files via portal. System extracts context → re-runs Discovery (entity extraction, hypotheses, Reddit research) → regenerates Strategy (positioning, content pillars, subreddit priorities, forbidden zones) → updates keywords + subreddit assignments → regenerates avatar voice calibration. Full pipeline re-spin from documents. Admin can trigger per-client; client_admin can upload and trigger from portal.",
+      "blocks": ["discovery-strategy-handoff"],
+      "owner": "agent"
+    },
+    {
+      "id": "R-009",
+      "phase": "P1",
+      "title": "Forecast Reporting Layer (finish)",
+      "spec": "forecast-reporting-layer",
+      "status": "in_progress",
+      "effort": "2-3d",
+      "type": "feature",
+      "description": "85% done. Remaining: auto-generation Celery task hookup, admin accuracy review UI.",
+      "blocks": [],
+      "owner": "agent"
+    },
+    {
+      "id": "R-010",
+      "phase": "P1",
+      "title": "Extension A/B Test (first experiment)",
+      "spec": "extension-posting-ab-test",
+      "status": "in_progress",
+      "effort": "2-3d",
+      "type": "experiment",
+      "description": "90% framework done. Deploy to staging, run first real experiment comparing old_reddit vs manual_email.",
+      "blocks": [],
+      "owner": "agent"
+    },
+    {
+      "id": "R-011",
+      "phase": "P1",
+      "title": "RAMP Operations Agent Phase 2",
+      "spec": "ramp-operations-agent",
+      "status": "not_started",
+      "effort": "1.5-2w",
+      "type": "infrastructure",
+      "description": "Authority framework + autonomous actions (restart workers, freeze avatar, redistribute drafts). Phase 1A+1B deployed.",
+      "blocks": [],
+      "owner": "agent"
+    },
+    {
+      "id": "R-012",
+      "phase": "P2",
+      "title": "AI Visibility Audit (Revenue Product)",
+      "spec": "ai-visibility-audit",
+      "status": "not_started",
+      "effort": "2-3w",
+      "type": "revenue",
+      "description": "Standalone paid audit for prospects. Show AI search visibility gaps without full subscription.",
+      "blocks": [],
+      "owner": "agent"
+    },
+    {
+      "id": "R-013",
+      "phase": "P2",
+      "title": "Mobile Posting App",
+      "spec": "mobile-posting-app",
+      "status": "not_started",
+      "effort": "3-4w",
+      "type": "feature",
+      "description": "Flutter app for avatar owners. Approve + post from phone. Parallel development.",
+      "blocks": [],
+      "owner": "agent"
+    },
+    {
+      "id": "R-014",
+      "phase": "P2",
+      "title": "SQS + Valkey Migration",
+      "spec": "sqs-valkey-migration",
+      "status": "spec_only",
+      "effort": "2-3w",
+      "type": "infrastructure",
+      "description": "Move from Celery+Redis to SQS+Valkey on AWS. Deferred until 100+ avatars or enterprise client.",
+      "blocks": [],
+      "owner": "agent"
+    },
+    {
+      "id": "R-015",
+      "phase": "P2",
+      "title": "Multiple ICPs",
+      "spec": "multiple-icps",
+      "status": "spec_only",
+      "effort": "1w",
+      "type": "feature",
+      "description": "Client can define multiple audience segments. From Tzvi's feature request.",
+      "blocks": [],
+      "owner": "agent"
+    },
+    {
+      "id": "R-016",
+      "phase": "P2",
+      "title": "White-Label / Agency Model",
+      "spec": "white-label-pitch",
+      "status": "spec_only",
+      "effort": "3-4w",
+      "type": "revenue",
+      "description": "Multi-tenant workspace, custom branding, agency pricing. When 3+ agency clients.",
+      "blocks": [],
+      "owner": "agent"
+    },
+    {
+      "id": "R-017",
+      "phase": "P2",
+      "title": "Telegram Posting Bot",
+      "spec": "telegram-posting-bot",
+      "status": "spec_only",
+      "effort": "1-2w",
+      "type": "feature",
+      "description": "Avatar owners approve+post via Telegram bot. Alternative to extension for mobile-first executors.",
+      "blocks": [],
+      "owner": "agent"
+    },
+    {
+      "id": "R-018",
+      "phase": "P1",
+      "title": "Daily Ops Review Phase 2",
+      "spec": "daily-ops-review",
+      "status": "in_progress",
+      "effort": "1w",
+      "type": "infrastructure",
+      "description": "Trend classification, weak signals, forecast generation. Phase 1 deployed (models, signals, UI).",
+      "blocks": [],
+      "owner": "agent"
+    },
+    {
+      "id": "R-019",
+      "phase": "P0",
+      "title": "Risk-Aware Activation (finish + deploy)",
+      "spec": "risk-aware-activation",
+      "status": "in_progress",
+      "effort": "2-3d",
+      "type": "feature",
+      "description": "90% done. Remaining: tests, staging deploy, production deploy with feature flag enabled.",
+      "blocks": ["phase-incubation-mentor-refactor"],
+      "owner": "agent"
+    },
+    {
+      "id": "R-020",
+      "phase": "P0",
+      "title": "Client Document Upload → Full Regen Pipeline",
+      "spec": "document-upload",
+      "status": "not_started",
+      "effort": "1-2w",
+      "type": "feature",
+      "description": "End-to-end flow: Client uploads docs (PDF, DOCX, slides) → AI extracts (brand, ICP, competitors, positioning) → triggers full Discovery session → regenerates Strategy document → updates keywords, subreddits, engagement approach → recalibrates avatar voices. Portal button 'Upload & Rebuild Intelligence'. Admin override to force-regenerate any client. Replaces manual onboarding reconfiguration.",
+      "blocks": ["discovery-strategy-handoff"],
+      "owner": "agent"
+    }
+  ]
+}

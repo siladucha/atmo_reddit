@@ -87,6 +87,38 @@
         </button>
     </div>
 
+    <!-- Filter by Status -->
+    <div class="flex flex-wrap gap-2 mb-4">
+        <button type="button" onclick="filterStatus('all')" id="st-all"
+                class="st-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-indigo-500 text-white bg-indigo-600/20 transition-colors">
+            All
+        </button>
+        <button type="button" onclick="filterStatus('open')" id="st-open"
+                class="st-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-red-700/40 text-red-400 bg-red-900/10 hover:bg-red-900/30 transition-colors">
+            🔴 Open ({{ status_counts.get('open', 0) }})
+        </button>
+        <button type="button" onclick="filterStatus('permanent_constraint')" id="st-permanent_constraint"
+                class="st-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-purple-700/40 text-purple-400 bg-purple-900/10 hover:bg-purple-900/30 transition-colors">
+            🟣 Permanent ({{ status_counts.get('permanent_constraint', 0) }})
+        </button>
+        <button type="button" onclick="filterStatus('closed')" id="st-closed"
+                class="st-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-green-700/40 text-green-400 bg-green-900/10 hover:bg-green-900/30 transition-colors">
+            ✅ Closed ({{ status_counts.get('fixed', 0) + status_counts.get('resolved', 0) + status_counts.get('mitigated', 0) }})
+        </button>
+        <button type="button" onclick="filterStatus('accepted')" id="st-accepted"
+                class="st-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-600/40 text-slate-400 bg-slate-800/30 hover:bg-slate-700/30 transition-colors">
+            ⚪ Accepted ({{ status_counts.get('accepted', 0) + status_counts.get('accepted_not_implemented', 0) + status_counts.get('by_design', 0) }})
+        </button>
+        <button type="button" onclick="filterStatus('monitored')" id="st-monitored"
+                class="st-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-700/40 text-blue-400 bg-blue-900/10 hover:bg-blue-900/30 transition-colors">
+            👁 Monitored ({{ status_counts.get('monitored', 0) }})
+        </button>
+        <button type="button" onclick="filterStatus('deferred')" id="st-deferred"
+                class="st-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-amber-700/40 text-amber-400 bg-amber-900/10 hover:bg-amber-900/30 transition-colors">
+            ⏸ Deferred ({{ status_counts.get('deferred', 0) }})
+        </button>
+    </div>
+
     <!-- Filter tabs (by group) -->
     <div class="border-b border-slate-700 mb-6">
         <nav class="flex gap-1 overflow-x-auto pb-px" id="risk-tabs">
@@ -123,6 +155,7 @@
                 {% elif risk.escalation == 'LOW' %}border-green-600/30
                 {% else %}border-slate-600{% endif %}"
                  data-escalation="{{ risk.escalation }}"
+                 data-status="{{ risk.status }}"
                  onclick="this.querySelector('.risk-details').classList.toggle('hidden')">
 
                 <!-- Risk Header -->
@@ -197,6 +230,10 @@
 <script>
 let activeSeverity = 'all';
 let activeGroup = 'all';
+let activeStatus = 'all';
+
+const CLOSED_STATUSES = ['fixed', 'resolved', 'mitigated'];
+const ACCEPTED_STATUSES = ['accepted', 'accepted_not_implemented', 'by_design'];
 
 function filterGroup(groupId) {
     activeGroup = groupId;
@@ -221,7 +258,6 @@ function filterSeverity(level) {
     // Update severity buttons
     document.querySelectorAll('.sev-btn').forEach(b => {
         b.classList.remove('border-indigo-500', 'text-white', 'bg-indigo-600/20');
-        // Reset to default muted style
         if (!b.classList.contains('hover:bg-red-900/30')) {
             b.classList.add('border-slate-600', 'text-gray-400');
         }
@@ -235,6 +271,28 @@ function filterSeverity(level) {
     applyFilters();
 }
 
+function filterStatus(status) {
+    activeStatus = status;
+
+    // Update status buttons
+    document.querySelectorAll('.st-btn').forEach(b => {
+        b.classList.remove('border-indigo-500', 'text-white', 'bg-indigo-600/20');
+    });
+    const activeBtn = document.getElementById('st-' + status);
+    if (activeBtn) {
+        activeBtn.classList.add('border-indigo-500', 'text-white', 'bg-indigo-600/20');
+    }
+
+    applyFilters();
+}
+
+function matchesStatus(cardStatus) {
+    if (activeStatus === 'all') return true;
+    if (activeStatus === 'closed') return CLOSED_STATUSES.includes(cardStatus);
+    if (activeStatus === 'accepted') return ACCEPTED_STATUSES.includes(cardStatus);
+    return cardStatus === activeStatus;
+}
+
 function applyFilters() {
     // Filter groups
     document.querySelectorAll('.risk-group').forEach(g => {
@@ -245,18 +303,19 @@ function applyFilters() {
         }
     });
 
-    // Filter individual risk cards by severity
+    // Filter individual risk cards by severity + status
     document.querySelectorAll('[data-escalation]').forEach(card => {
         const matchesSeverity = activeSeverity === 'all' || card.dataset.escalation === activeSeverity;
+        const matchesSt = matchesStatus(card.dataset.status);
         const groupVisible = activeGroup === 'all' || card.closest('.risk-group').dataset.group === activeGroup;
-        card.style.display = (matchesSeverity && groupVisible) ? '' : 'none';
+        card.style.display = (matchesSeverity && matchesSt && groupVisible) ? '' : 'none';
     });
 
     // Hide group headers if all cards inside are hidden
     document.querySelectorAll('.risk-group').forEach(g => {
         if (g.style.display === 'none') return;
         const visibleCards = g.querySelectorAll('[data-escalation]:not([style*="display: none"])');
-        if (visibleCards.length === 0 && activeSeverity !== 'all') {
+        if (visibleCards.length === 0) {
             g.style.display = 'none';
         }
     });

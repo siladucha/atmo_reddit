@@ -124,9 +124,22 @@
                        class="w-5 h-5 rounded border-slate-500 bg-slate-700 text-amber-500 focus:ring-amber-500 focus:ring-offset-0">
                 <div>
                     <span class="text-sm font-medium text-amber-400">⚡ Autopilot Mode</span>
-                    <p class="text-xs text-gray-500 mt-0.5">Generated drafts are auto-approved without human review. Posting happens automatically for avatars with proxy + UA configured.</p>
+                    <p class="text-xs text-gray-500 mt-0.5">All avatars for this client: drafts auto-approved without human review.</p>
                 </div>
             </label>
+
+            <!-- How it works — explainer -->
+            <details class="mt-3 ml-8 group">
+                <summary class="text-[11px] text-blue-400 cursor-pointer hover:text-blue-300 select-none">
+                    ℹ️ How this affects the pipeline
+                </summary>
+                <div class="mt-2 px-3 py-2.5 rounded bg-slate-800/60 border border-slate-600/50 text-[11px] text-gray-400 space-y-2">
+                    <p><strong class="text-gray-300">What happens when ON:</strong> EPG generates comment → immediately approved → ExecutionTask created → browser extension (or email) delivers to executor. No human review step.</p>
+                    <p><strong class="text-gray-300">What happens when OFF:</strong> Generated drafts wait in Review Queue. Someone must manually approve each draft before it reaches the executor. Extension shows "Nothing to approve" until manual action.</p>
+                    <p><strong class="text-gray-300">OR logic with avatar toggle:</strong> This is a client-wide override. If ON here — <em>all</em> avatars for this client get auto-approved, regardless of their individual toggle. Individual avatar toggle (<code>auto_approve_drafts</code>) works independently for avatars of clients with Autopilot OFF.</p>
+                    <p><strong class="text-gray-300">Full delivery chain:</strong> EPG slot → LLM generation → <span class="text-amber-400">approval gate (here)</span> → ExecutionTask → delivery via extension/email → executor posts.</p>
+                </div>
+            </details>
         </div>
 
         <button type="submit"

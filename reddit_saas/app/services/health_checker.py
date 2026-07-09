@@ -887,6 +887,24 @@ def check_avatar_health(db: Session, avatar: Avatar) -> HealthCheckResult:
                 exc_info=True,
             )
 
+        # Send health alert email to client if status became bad
+        if new_status in (HealthStatus.SHADOWBANNED.value, HealthStatus.SUSPENDED.value):
+            try:
+                client_id = None
+                if avatar.client_ids:
+                    client_id = avatar.client_ids[0]
+                if client_id:
+                    from app.services.client_emails import send_health_alert_email
+
+                    send_health_alert_email(
+                        client_id=client_id,
+                        avatar_username=username,
+                        health_status=new_status,
+                        detection_method=detection_method,
+                    )
+            except Exception:
+                logger.debug("Health alert email failed (non-critical) for %s", username)
+
     # 10. Return HealthCheckResult
     result = HealthCheckResult(
         avatar_id=avatar.id,

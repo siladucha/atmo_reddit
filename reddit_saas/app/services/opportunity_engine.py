@@ -867,30 +867,34 @@ def scan_opportunities(
 
     # --- Source 2: HobbySubreddit posts (for Phase 0-1 avatars) ---
     if avatar.warming_phase <= 1:
-        # Risk-Aware Activation: use zone subs if activation_route exists
+        # Risk-Aware Activation: use zone subs if activation_route exists AND feature enabled
         hobby_sub_names: set[str] = set()
-        if avatar.activation_route:
+        
+        from app.services.settings import get_setting
+        _activation_enabled = get_setting(db, "activation_routing_enabled") == "true"
+        
+        if _activation_enabled and avatar.activation_route:
             from app.services.activation_router import ActivationRouter
             _router = ActivationRouter()
             zone_subs = _router.get_current_zone_subs(avatar)
-            hobby_sub_names = {s.lower().lstrip("r/") for s in zone_subs if s}
+            hobby_sub_names = {s.lower().removeprefix("r/") for s in zone_subs if s}
         
         # Fallback: get hobby subreddit names from avatar config
         if not hobby_sub_names and avatar.hobby_subreddits:
             if isinstance(avatar.hobby_subreddits, dict):
                 for sub_list in avatar.hobby_subreddits.values():
                     if isinstance(sub_list, list):
-                        hobby_sub_names.update(s.lower().lstrip("r/") for s in sub_list)
+                        hobby_sub_names.update(s.lower().removeprefix("r/") for s in sub_list)
                     elif isinstance(sub_list, str):
-                        hobby_sub_names.add(sub_list.lower().lstrip("r/"))
+                        hobby_sub_names.add(sub_list.lower().removeprefix("r/"))
             elif isinstance(avatar.hobby_subreddits, list):
                 for item in avatar.hobby_subreddits:
                     if isinstance(item, dict):
                         sub_name = item.get("subreddit", "")
                         if sub_name:
-                            hobby_sub_names.add(sub_name.lower().lstrip("r/"))
+                            hobby_sub_names.add(sub_name.lower().removeprefix("r/"))
                     elif isinstance(item, str):
-                        hobby_sub_names.add(item.lower().lstrip("r/"))
+                        hobby_sub_names.add(item.lower().removeprefix("r/"))
 
         if hobby_sub_names:
             from sqlalchemy import func as sa_func, or_

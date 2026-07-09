@@ -32,21 +32,21 @@ PLAN_LIMITS: dict[str, dict[str, Any]] = {
         "price_usd": 149,
         "max_avatars": 1,
         "max_comments_month": 30,
-        "max_subreddits": 1,
+        "max_subreddits": 3,
     },
     "starter": {
         "label": "Starter",
         "price_usd": 399,
         "max_avatars": 3,
         "max_comments_month": 60,
-        "max_subreddits": 2,
+        "max_subreddits": 5,
     },
     "growth": {
         "label": "Growth",
         "price_usd": 799,
         "max_avatars": 7,
         "max_comments_month": 150,
-        "max_subreddits": 5,
+        "max_subreddits": 10,
     },
     "scale": {
         "label": "Scale",
@@ -63,6 +63,7 @@ PLAN_LIMITS: dict[str, dict[str, Any]] = {
         "max_subreddits": 999,
     },
 }
+# NOTE: Canonical plan limits with ALL resource types are in app/services/plan_limits.py
 
 
 # ---------------------------------------------------------------------------

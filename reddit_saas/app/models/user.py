@@ -32,6 +32,13 @@ class User(Base):
     password_reset_token_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     password_reset_token_expires: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Telegram notifications
+    telegram_chat_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    telegram_connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    telegram_notifications_level: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, default="critical"
+    )  # "all", "warning", "critical", "off"
+
     # Relationships
     client = relationship("Client", foreign_keys=[client_id], lazy="joined")
 

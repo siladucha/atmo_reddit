@@ -6,116 +6,148 @@
 {% block content %}
 <div id="portal-content">
     <div style="margin-bottom:var(--space-4);">
-        <h1 class="text-h1">Subreddits{{ tooltip("Reddit communities where we look for engagement opportunities. We scrape new posts every few hours and AI scores them for relevance to your brand.") }}</h1>
-        <p class="text-small" style="margin-top:4px;">Communities we're monitoring and engaging in. {{ subreddits | length }} configured.</p>
+        <h1 class="text-h1">Community Coverage{{ tooltip("Reddit communities where your avatars build presence and engage with your target audience.") }}</h1>
+        <p class="text-small" style="margin-top:4px;">{{ subreddits | length }} communities monitored. AI continuously analyzes moderation patterns to keep your avatars safe.</p>
     </div>
 
-    <!-- Info block -->
-    <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-4);">
-        <p style="font-size:var(--text-small);color:#a5b4fc;line-height:1.5;">
-            These are the Reddit communities we scan for relevant conversations. Professional subreddits are where your target audience discusses industry topics. Hobby subreddits build avatar credibility. We scrape new posts every few hours and score them for engagement potential.
-        </p>
-    </div>
+    <!-- How it works -->
+    <details style="margin-bottom:var(--space-4);">
+        <summary style="font-size:var(--text-small);color:var(--color-muted);cursor:pointer;font-weight:500;">ℹ️ How it works</summary>
+        <div style="font-size:var(--text-small);color:var(--color-muted);margin-top:10px;line-height:1.7;padding-left:12px;border-left:2px solid var(--color-border);">
+            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">What this page shows:</strong> Reddit communities where your avatars are active. Each subreddit is monitored for new threads, moderation behavior, and engagement opportunities.</p>
+            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">Two types of subreddits:</strong></p>
+            <ul style="margin:0 0 10px 16px;padding:0;list-style:disc;">
+                <li style="margin-bottom:4px;"><strong style="color:#60a5fa;">Target (professional)</strong> — communities where your ideal customers hang out. Avatar comments here drive visibility and leads.</li>
+                <li style="margin-bottom:4px;"><strong style="color:#a78bfa;">Hobby</strong> — general-interest communities used for warming. Builds karma and natural posting history before engaging in professional subs.</li>
+            </ul>
+            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">Risk analysis:</strong> Every Sunday, AI analyzes each subreddit's moderation patterns — how aggressive are moderators, what hours have high deletion rates, what rules exist. This determines the risk score (Safe → Moderate → High → Critical).</p>
+            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">Risk badges:</strong></p>
+            <ul style="margin:0 0 10px 16px;padding:0;list-style:disc;">
+                <li style="margin-bottom:4px;"><strong style="color:#4ade80;">Safe (0-30)</strong> — low moderation, avatar can post freely.</li>
+                <li style="margin-bottom:4px;"><strong style="color:#facc15;">Moderate (31-60)</strong> — some rules to follow, AI adjusts content tone.</li>
+                <li style="margin-bottom:4px;"><strong style="color:#fb923c;">High (61-80)</strong> — aggressive moderation, only high-karma avatars post here.</li>
+                <li style="margin-bottom:4px;"><strong style="color:#f87171;">Critical (81-100)</strong> — very high removal rate, blocked for newer avatars.</li>
+            </ul>
+            <p><strong style="color:var(--color-white);">Click any subreddit name</strong> to see the full risk profile: extracted rules, dangerous posting hours, and which avatars are safe to post there.</p>
+        </div>
+    </details>
 
     {% if subreddits %}
-    <div class="surface" style="overflow:hidden;">
-        <table style="width:100%;border-collapse:collapse;font-size:var(--text-small);">
-            <thead>
-                <tr style="border-bottom:1px solid var(--color-border);">
-                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Status</th>
-                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Subreddit</th>
-                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Type{{ tooltip("Professional = industry-relevant communities. Hobby = builds avatar credibility without brand mentions.") }}</th>
-                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Last Scraped{{ tooltip("When we last fetched new posts from this subreddit. Typically every 4-6 hours.") }}</th>
-                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Last Result</th>
-                    <th style="padding:12px 16px;text-align:left;color:var(--color-muted);font-weight:500;font-size:var(--text-micro);text-transform:uppercase;letter-spacing:0.05em;">Next Scrape</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for sub in subreddits %}
-                <tr style="border-bottom:1px solid var(--color-border);{% if not sub.is_active %}opacity:0.5;{% endif %}">
-                    <!-- Status -->
-                    <td style="padding:12px 16px;">
-                        {% if sub.status == 'fresh' %}
-                        <span style="display:inline-flex;align-items:center;gap:6px;">
-                            <span style="width:8px;height:8px;border-radius:50%;background:var(--color-green);"></span>
-                            <span style="color:var(--color-green);font-size:var(--text-micro);font-weight:500;">ACTIVE</span>
-                        </span>
-                        {% elif sub.status == 'stale' %}
-                        <span style="display:inline-flex;align-items:center;gap:6px;">
-                            <span style="width:8px;height:8px;border-radius:50%;background:var(--color-orange);"></span>
-                            <span style="color:var(--color-orange);font-size:var(--text-micro);font-weight:500;">STALE</span>
-                        </span>
-                        {% elif sub.status == 'paused' %}
-                        <span style="display:inline-flex;align-items:center;gap:6px;">
-                            <span style="width:8px;height:8px;border-radius:50%;background:var(--color-muted);"></span>
-                            <span style="color:var(--color-muted);font-size:var(--text-micro);font-weight:500;">PAUSED</span>
-                        </span>
-                        {% else %}
-                        <span style="display:inline-flex;align-items:center;gap:6px;">
-                            <span style="width:8px;height:8px;border-radius:50%;background:var(--color-muted);"></span>
-                            <span style="color:var(--color-muted);font-size:var(--text-micro);font-weight:500;">PENDING</span>
-                        </span>
-                        {% endif %}
-                    </td>
-                    <!-- Subreddit name + Risk -->
-                    <td style="padding:12px 16px;">
-                        <span style="display:inline-flex;align-items:center;gap:8px;">
-                            <span style="color:var(--color-white);font-weight:500;">r/{{ sub.name }}</span>
-                            {% if sub.risk_score is not none %}
-                            <a href="/portal/subreddits/{{ sub.subreddit_id }}/risk-profile"
-                               title="Risk Score: {{ sub.risk_score }}"
-                               style="display:inline-flex;align-items:center;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;text-decoration:none;
-                                      {% if sub.risk_score <= 30 %}background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);
-                                      {% elif sub.risk_score <= 60 %}background:rgba(234,179,8,0.15);color:#facc15;border:1px solid rgba(234,179,8,0.3);
-                                      {% elif sub.risk_score <= 80 %}background:rgba(249,115,22,0.15);color:#fb923c;border:1px solid rgba(249,115,22,0.3);
-                                      {% else %}background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3);{% endif %}">
-                                {{ sub.risk_score }}
-                            </a>
-                            {% endif %}
-                        </span>
-                    </td>
-                    <!-- Type -->
-                    <td style="padding:12px 16px;">
-                        {% if sub.type == 'hobby' %}
-                        <span style="padding:2px 8px;border-radius:var(--radius-pill);background:rgba(139,92,246,0.15);color:#a78bfa;font-size:var(--text-micro);font-weight:500;">hobby</span>
-                        {% else %}
-                        <span style="padding:2px 8px;border-radius:var(--radius-pill);background:rgba(59,130,246,0.15);color:#60a5fa;font-size:var(--text-micro);font-weight:500;">professional</span>
-                        {% endif %}
-                    </td>
-                    <!-- Last Scraped -->
-                    <td style="padding:12px 16px;color:var(--color-muted);">
-                        {{ sub.last_scraped }}
-                    </td>
-                    <!-- Last Result -->
-                    <td style="padding:12px 16px;">
-                        {% if sub.last_result %}
-                            {% if sub.last_result.error %}
-                            <span style="color:var(--color-red);font-size:var(--text-micro);">ERROR</span>
-                            {% else %}
-                            <span style="color:var(--color-muted);">{{ sub.last_result.posts_found }} found, {{ sub.last_result.posts_new }} new</span>
-                            {% endif %}
-                        {% else %}
-                        <span style="color:var(--color-muted);">—</span>
-                        {% endif %}
-                    </td>
-                    <!-- Next Scrape -->
-                    <td style="padding:12px 16px;">
-                        {% if sub.next_scrape %}
-                        <span style="color:{% if sub.next_scrape == 'due now' %}var(--color-orange){% else %}var(--color-muted){% endif %};">{{ sub.next_scrape }}</span>
-                        {% else %}
-                        <span style="color:var(--color-muted);">—</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+
+    <!-- Summary cards -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:12px;margin-bottom:var(--space-4);">
+        <div class="surface" style="padding:14px;text-align:center;">
+            <div style="font-size:24px;font-weight:700;color:var(--color-white);">{{ subreddits | selectattr('is_active') | list | length }}</div>
+            <div style="font-size:var(--text-micro);color:var(--color-muted);margin-top:2px;">Active</div>
+        </div>
+        <div class="surface" style="padding:14px;text-align:center;">
+            <div style="font-size:24px;font-weight:700;color:#60a5fa;">{{ subreddits | selectattr('type', 'equalto', 'professional') | list | length }}</div>
+            <div style="font-size:var(--text-micro);color:var(--color-muted);margin-top:2px;">Professional</div>
+        </div>
+        <div class="surface" style="padding:14px;text-align:center;">
+            <div style="font-size:24px;font-weight:700;color:#a78bfa;">{{ subreddits | selectattr('type', 'equalto', 'hobby') | list | length }}</div>
+            <div style="font-size:var(--text-micro);color:var(--color-muted);margin-top:2px;">Hobby</div>
+        </div>
+        <div class="surface" style="padding:14px;text-align:center;">
+            {% set safe_count = subreddits | selectattr('risk_score', 'ne', none) | selectattr('risk_score', 'le', 30) | list | length %}
+            <div style="font-size:24px;font-weight:700;color:var(--color-green);">{{ safe_count }}</div>
+            <div style="font-size:var(--text-micro);color:var(--color-muted);margin-top:2px;">Low Risk</div>
+        </div>
     </div>
+
+    <!-- Subreddit cards -->
+    <div style="display:flex;flex-direction:column;gap:10px;">
+        {% for sub in subreddits %}
+        <div class="surface" style="padding:16px 20px;{% if not sub.is_active %}opacity:0.5;{% endif %}">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+                <!-- Left: name + badges -->
+                <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+                    <!-- Status dot -->
+                    <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:
+                        {% if sub.status == 'fresh' %}var(--color-green)
+                        {% elif sub.status == 'stale' %}var(--color-orange)
+                        {% else %}var(--color-muted){% endif %};"></span>
+
+                    <!-- Name (clickable to risk profile) -->
+                    <a href="/portal/subreddits/{{ sub.subreddit_id }}/risk-profile"
+                       style="color:var(--color-white);font-weight:600;font-size:var(--text-small);text-decoration:none;"
+                       onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+                        r/{{ sub.name }}
+                    </a>
+
+                    <!-- Type pill -->
+                    {% if sub.type == 'hobby' %}
+                    <span style="padding:2px 8px;border-radius:var(--radius-pill);background:rgba(139,92,246,0.12);color:#a78bfa;font-size:10px;font-weight:500;">hobby</span>
+                    {% else %}
+                    <span style="padding:2px 8px;border-radius:var(--radius-pill);background:rgba(59,130,246,0.12);color:#60a5fa;font-size:10px;font-weight:500;">target</span>
+                    {% endif %}
+
+                    <!-- Risk score badge -->
+                    {% if sub.risk_score is not none %}
+                    <span title="Moderation Risk Score — click for full analysis"
+                          style="padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;
+                                 {% if sub.risk_score <= 30 %}background:rgba(34,197,94,0.12);color:#4ade80;
+                                 {% elif sub.risk_score <= 60 %}background:rgba(234,179,8,0.12);color:#facc15;
+                                 {% elif sub.risk_score <= 80 %}background:rgba(249,115,22,0.12);color:#fb923c;
+                                 {% else %}background:rgba(239,68,68,0.12);color:#f87171;{% endif %}">
+                        {% if sub.risk_score <= 30 %}Safe{% elif sub.risk_score <= 60 %}Moderate{% elif sub.risk_score <= 80 %}High{% else %}Critical{% endif %}
+                    </span>
+                    {% endif %}
+                </div>
+
+                <!-- Right: key metrics -->
+                <div style="display:flex;align-items:center;gap:16px;font-size:11px;color:var(--color-muted);">
+                    {% if sub.moderation_level %}
+                    <span title="How aggressively moderators remove content">
+                        🛡️ {{ sub.moderation_level }}
+                    </span>
+                    {% endif %}
+
+                    {% if sub.dangerous_hours_display %}
+                    <span title="Hours when removals are most likely (avoid posting)">
+                        ⚠️ {{ sub.dangerous_hours_display }}
+                    </span>
+                    {% endif %}
+
+                    {% if sub.last_analysis %}
+                    <span title="Last AI safety analysis: {{ sub.last_analysis }}{% if sub.next_analysis %} · Next: {{ sub.next_analysis }}{% endif %}">
+                        🔍 {{ sub.last_analysis }}
+                    </span>
+                    {% else %}
+                    <span title="Analysis pending — will run within 24h">
+                        🔍 pending
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Expandable details (key rules) -->
+            {% if sub.top_rules %}
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--color-border);">
+                <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                    {% for rule in sub.top_rules[:4] %}
+                    <span style="padding:3px 8px;border-radius:var(--radius-pill);background:var(--color-surface-alt);color:var(--color-muted);font-size:10px;">
+                        {{ rule }}
+                    </span>
+                    {% endfor %}
+                    {% if sub.top_rules | length > 4 %}
+                    <a href="/portal/subreddits/{{ sub.subreddit_id }}/risk-profile"
+                       style="padding:3px 8px;border-radius:var(--radius-pill);background:rgba(99,102,241,0.1);color:#a5b4fc;font-size:10px;text-decoration:none;">
+                        +{{ sub.top_rules | length - 4 }} more →
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
     {% else %}
     <div class="surface" style="padding:var(--space-5);text-align:center;">
         <p style="font-size:24px;margin-bottom:var(--space-2);">🌐</p>
         <p style="color:var(--color-white);font-weight:500;margin-bottom:8px;">No subreddits configured yet</p>
-        <p class="text-small">Your account manager will set these up for you.</p>
+        <p class="text-small">Your account manager will set these up during onboarding.</p>
     </div>
     {% endif %}
 </div>

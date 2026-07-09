@@ -1,0 +1,293 @@
+{% extends "admin_base.html" %}
+{% block title %}Agent Roadmap{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> / <span class="text-white">Agent Roadmap</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-white flex items-center gap-3">
+                <svg class="w-7 h-7 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z"/>
+                </svg>
+                Agent Roadmap
+            </h1>
+            <p class="text-gray-400 text-sm mt-1">v{{ meta.version }} · Updated: {{ meta.last_updated }} · {{ total_items }} items across {{ phases|length }} phases</p>
+        </div>
+        <div class="text-xs text-gray-500 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
+            Source: <code class="text-indigo-400">data/10_roadmap.json</code>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div class="bg-red-900/20 border border-red-700/40 rounded-lg p-3 text-center">
+            <p class="text-2xl font-bold text-red-400">{{ phase_counts.get('P0', 0) }}</p>
+            <p class="text-xs text-red-300/70 uppercase tracking-wide">P0 — Immediate</p>
+        </div>
+        <div class="bg-amber-900/20 border border-amber-700/40 rounded-lg p-3 text-center">
+            <p class="text-2xl font-bold text-amber-400">{{ phase_counts.get('P1', 0) }}</p>
+            <p class="text-xs text-amber-300/70 uppercase tracking-wide">P1 — This Month</p>
+        </div>
+        <div class="bg-blue-900/20 border border-blue-700/40 rounded-lg p-3 text-center">
+            <p class="text-2xl font-bold text-blue-400">{{ phase_counts.get('P2', 0) }}</p>
+            <p class="text-xs text-blue-300/70 uppercase tracking-wide">P2 — Next Quarter</p>
+        </div>
+        <div class="bg-gray-900/20 border border-gray-700/40 rounded-lg p-3 text-center">
+            <p class="text-2xl font-bold text-gray-400">{{ phase_counts.get('P3', 0) }}</p>
+            <p class="text-xs text-gray-300/70 uppercase tracking-wide">P3 — Backlog</p>
+        </div>
+    </div>
+
+    <!-- Status Overview -->
+    <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-4 mb-6">
+        <div class="flex flex-wrap gap-3">
+            {% for st, count in status_counts.items() %}
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium
+                {% if st == 'ready' %}bg-green-500/15 text-green-400 border border-green-500/30
+                {% elif st == 'in_progress' %}bg-blue-500/15 text-blue-400 border border-blue-500/30
+                {% elif st == 'not_started' %}bg-gray-500/15 text-gray-400 border border-gray-500/30
+                {% elif st == 'spec_only' %}bg-purple-500/15 text-purple-400 border border-purple-500/30
+                {% else %}bg-slate-500/15 text-slate-400 border border-slate-500/30{% endif %}">
+                {{ count }}× {{ st | replace('_', ' ') | title }}
+            </span>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Filter by Phase -->
+    <div class="flex flex-wrap gap-2 mb-4">
+        <button type="button" onclick="filterPhase('all')" id="phase-all"
+                class="phase-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-indigo-500 text-white bg-indigo-600/20 transition-colors">
+            All ({{ total_items }})
+        </button>
+        <button type="button" onclick="filterPhase('P0')" id="phase-P0"
+                class="phase-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-red-700/40 text-red-400 bg-red-900/10 hover:bg-red-900/30 transition-colors">
+            🔴 P0 Immediate ({{ phase_counts.get('P0', 0) }})
+        </button>
+        <button type="button" onclick="filterPhase('P1')" id="phase-P1"
+                class="phase-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-amber-700/40 text-amber-400 bg-amber-900/10 hover:bg-amber-900/30 transition-colors">
+            🟡 P1 This Month ({{ phase_counts.get('P1', 0) }})
+        </button>
+        <button type="button" onclick="filterPhase('P2')" id="phase-P2"
+                class="phase-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-700/40 text-blue-400 bg-blue-900/10 hover:bg-blue-900/30 transition-colors">
+            🔵 P2 Next Quarter ({{ phase_counts.get('P2', 0) }})
+        </button>
+        <button type="button" onclick="filterPhase('P3')" id="phase-P3"
+                class="phase-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-600/40 text-gray-400 bg-gray-900/10 hover:bg-gray-800/30 transition-colors">
+            ⚪ P3 Backlog ({{ phase_counts.get('P3', 0) }})
+        </button>
+    </div>
+
+    <!-- Filter by Status -->
+    <div class="flex flex-wrap gap-2 mb-4">
+        <button type="button" onclick="filterStatus('all')" id="st-all"
+                class="st-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-indigo-500 text-white bg-indigo-600/20 transition-colors">
+            All
+        </button>
+        <button type="button" onclick="filterStatus('ready')" id="st-ready"
+                class="st-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-green-700/40 text-green-400 bg-green-900/10 hover:bg-green-900/30 transition-colors">
+            ✅ Ready ({{ status_counts.get('ready', 0) }})
+        </button>
+        <button type="button" onclick="filterStatus('in_progress')" id="st-in_progress"
+                class="st-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-700/40 text-blue-400 bg-blue-900/10 hover:bg-blue-900/30 transition-colors">
+            🔄 In Progress ({{ status_counts.get('in_progress', 0) }})
+        </button>
+        <button type="button" onclick="filterStatus('not_started')" id="st-not_started"
+                class="st-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-600/40 text-gray-400 bg-gray-800/30 hover:bg-gray-700/30 transition-colors">
+            ⬜ Not Started ({{ status_counts.get('not_started', 0) }})
+        </button>
+        <button type="button" onclick="filterStatus('spec_only')" id="st-spec_only"
+                class="st-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-purple-700/40 text-purple-400 bg-purple-900/10 hover:bg-purple-900/30 transition-colors">
+            📋 Spec Only ({{ status_counts.get('spec_only', 0) }})
+        </button>
+    </div>
+
+    <!-- Filter by Type -->
+    <div class="flex flex-wrap gap-2 mb-6">
+        <button type="button" onclick="filterType('all')" id="type-all"
+                class="type-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-indigo-500 text-white bg-indigo-600/20 transition-colors">
+            All Types
+        </button>
+        {% for tp in type_list %}
+        <button type="button" onclick="filterType('{{ tp }}')" id="type-{{ tp }}"
+                class="type-btn px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-600/40 text-gray-400 bg-slate-800/30 hover:bg-slate-700/30 transition-colors">
+            {% if tp == 'bugfix' %}🐛{% elif tp == 'architecture' %}🏗{% elif tp == 'feature' %}✨{% elif tp == 'infrastructure' %}⚙️{% elif tp == 'moat' %}🏰{% elif tp == 'revenue' %}💰{% elif tp == 'experiment' %}🧪{% else %}📦{% endif %}
+            {{ tp }} ({{ type_counts.get(tp, 0) }})
+        </button>
+        {% endfor %}
+    </div>
+
+    <!-- Roadmap Cards -->
+    {% for phase in phases %}
+    {% set items = phase_items.get(phase.id, []) %}
+    {% if items %}
+    <div class="roadmap-group mb-8" data-phase="{{ phase.id }}">
+        <div class="flex items-center gap-3 mb-4">
+            <h2 class="text-lg font-semibold text-white">{{ phase.id }}: {{ phase.name }}</h2>
+            <span class="text-xs text-gray-500 bg-slate-800 px-2 py-0.5 rounded">{{ phase.description }}</span>
+        </div>
+
+        <div class="space-y-3">
+            {% for item in items %}
+            <div class="roadmap-card bg-slate-800/60 border rounded-lg p-4 cursor-pointer transition-colors hover:bg-slate-800
+                {% if item.phase == 'P0' %}border-red-600/40
+                {% elif item.phase == 'P1' %}border-amber-600/30
+                {% elif item.phase == 'P2' %}border-blue-600/30
+                {% else %}border-slate-600{% endif %}"
+                 data-phase="{{ item.phase }}"
+                 data-status="{{ item.status }}"
+                 data-type="{{ item.type }}"
+                 onclick="this.querySelector('.card-details').classList.toggle('hidden')">
+
+                <!-- Card Header -->
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap mb-1">
+                            <code class="text-xs text-gray-500 font-mono">{{ item.id }}</code>
+                            <!-- Type badge -->
+                            {% if item.type == 'bugfix' %}
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-red-500/20 text-red-400">🐛 bug</span>
+                            {% elif item.type == 'architecture' %}
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-500/20 text-purple-400">🏗 arch</span>
+                            {% elif item.type == 'feature' %}
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-500/20 text-blue-400">✨ feature</span>
+                            {% elif item.type == 'infrastructure' %}
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500/20 text-amber-400">⚙️ infra</span>
+                            {% elif item.type == 'moat' %}
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-500/20 text-emerald-400">🏰 moat</span>
+                            {% elif item.type == 'revenue' %}
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-green-500/20 text-green-400">💰 revenue</span>
+                            {% elif item.type == 'experiment' %}
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-cyan-500/20 text-cyan-400">🧪 experiment</span>
+                            {% endif %}
+                            <!-- Status badge -->
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-medium
+                                {% if item.status == 'ready' %}bg-green-500/15 text-green-400
+                                {% elif item.status == 'in_progress' %}bg-blue-500/15 text-blue-400
+                                {% elif item.status == 'not_started' %}bg-gray-500/15 text-gray-400
+                                {% elif item.status == 'spec_only' %}bg-purple-500/15 text-purple-400
+                                {% else %}bg-slate-500/15 text-slate-400{% endif %}">
+                                {{ item.status | replace('_', ' ') }}
+                            </span>
+                        </div>
+                        <p class="text-sm font-medium text-white">{{ item.title }}</p>
+                    </div>
+                    <div class="text-right flex-shrink-0">
+                        <div class="text-xs font-mono text-gray-400 bg-slate-700/50 px-2 py-0.5 rounded">{{ item.effort }}</div>
+                    </div>
+                </div>
+
+                <!-- Card Details (collapsed) -->
+                <div class="card-details hidden mt-3 pt-3 border-t border-slate-700 space-y-2 text-sm">
+                    <div>
+                        <span class="text-gray-500">Description:</span>
+                        <p class="text-gray-300 mt-0.5">{{ item.description }}</p>
+                    </div>
+                    {% if item.spec %}
+                    <div>
+                        <span class="text-gray-500">Spec:</span>
+                        <code class="text-indigo-400 ml-1">.kiro/specs/{{ item.spec }}/</code>
+                    </div>
+                    {% endif %}
+                    {% if item.blocks %}
+                    <div>
+                        <span class="text-amber-500">Blocks:</span>
+                        {% for b in item.blocks %}
+                        <span class="text-amber-300 bg-amber-900/20 px-1.5 py-0.5 rounded text-xs ml-1">{{ b }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    <div>
+                        <span class="text-gray-500">Owner:</span>
+                        <span class="text-gray-300 ml-1">{{ item.owner }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+
+    <!-- Legend -->
+    <div class="mt-8 bg-slate-800/40 border border-slate-700 rounded-lg p-4">
+        <h3 class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Legend</h3>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-gray-400">
+            <div><span class="text-green-400">●</span> ready — code done, needs deploy</div>
+            <div><span class="text-blue-400">●</span> in progress — partially implemented</div>
+            <div><span class="text-gray-400">●</span> not started — spec complete, ready to build</div>
+            <div><span class="text-purple-400">●</span> spec only — requirements written, no tasks</div>
+        </div>
+        <p class="text-xs text-gray-500 mt-3">
+            Edit <code class="text-indigo-400">data/10_roadmap.json</code> to update. Click any card to expand details.
+        </p>
+    </div>
+</div>
+
+<script>
+let activePhase = 'all';
+let activeStatus = 'all';
+let activeType = 'all';
+
+function filterPhase(phase) {
+    activePhase = phase;
+    document.querySelectorAll('.phase-btn').forEach(b => {
+        b.classList.remove('border-indigo-500', 'text-white', 'bg-indigo-600/20');
+    });
+    const btn = document.getElementById('phase-' + phase);
+    if (btn) btn.classList.add('border-indigo-500', 'text-white', 'bg-indigo-600/20');
+    applyFilters();
+}
+
+function filterStatus(status) {
+    activeStatus = status;
+    document.querySelectorAll('.st-btn').forEach(b => {
+        b.classList.remove('border-indigo-500', 'text-white', 'bg-indigo-600/20');
+    });
+    const btn = document.getElementById('st-' + status);
+    if (btn) btn.classList.add('border-indigo-500', 'text-white', 'bg-indigo-600/20');
+    applyFilters();
+}
+
+function filterType(type) {
+    activeType = type;
+    document.querySelectorAll('.type-btn').forEach(b => {
+        b.classList.remove('border-indigo-500', 'text-white', 'bg-indigo-600/20');
+    });
+    const btn = document.getElementById('type-' + type);
+    if (btn) btn.classList.add('border-indigo-500', 'text-white', 'bg-indigo-600/20');
+    applyFilters();
+}
+
+function applyFilters() {
+    // Show/hide groups
+    document.querySelectorAll('.roadmap-group').forEach(g => {
+        if (activePhase === 'all') {
+            g.style.display = '';
+        } else {
+            g.style.display = g.dataset.phase === activePhase ? '' : 'none';
+        }
+    });
+
+    // Show/hide individual cards
+    document.querySelectorAll('.roadmap-card').forEach(card => {
+        const matchPhase = activePhase === 'all' || card.dataset.phase === activePhase;
+        const matchStatus = activeStatus === 'all' || card.dataset.status === activeStatus;
+        const matchType = activeType === 'all' || card.dataset.type === activeType;
+        card.style.display = (matchPhase && matchStatus && matchType) ? '' : 'none';
+    });
+
+    // Hide empty groups
+    document.querySelectorAll('.roadmap-group').forEach(g => {
+        if (g.style.display === 'none') return;
+        const visible = g.querySelectorAll('.roadmap-card:not([style*="display: none"])');
+        if (visible.length === 0) g.style.display = 'none';
+    });
+}
+</script>
+{% endblock %}

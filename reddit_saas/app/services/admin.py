@@ -647,6 +647,12 @@ def add_keyword(
     if not client.is_active:
         raise ValueError("Cannot add keyword to inactive client")
 
+    # Plan limit check — keywords
+    from app.services.plan_limits import check_keyword_limit
+    allowed, limit_msg, _current, _limit = check_keyword_limit(db, client_id)
+    if not allowed:
+        raise ValueError(limit_msg)
+
     priority_key = priority.lower()
 
     if client.keywords is None:
@@ -870,6 +876,12 @@ def add_subreddit(
         raise ValueError("Client not found")
     if not client.is_active:
         raise ValueError("Cannot add subreddit to inactive client")
+
+    # 1b. Plan limit check — subreddits
+    from app.services.plan_limits import check_subreddit_limit
+    allowed, limit_msg, _current, _limit = check_subreddit_limit(db, client_id)
+    if not allowed:
+        raise ValueError(limit_msg)
 
     # 2. Get-or-create Subreddit record (case-insensitive lookup)
     subreddit = (

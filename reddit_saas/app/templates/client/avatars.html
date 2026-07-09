@@ -1,19 +1,19 @@
 {% extends "client_base.html" %}
 {% from "partials/tooltip.html" import tooltip %}
 
-{% block title %}Avatars — {{ client_name }}{% endblock %}
+{% block title %}Voices — {{ client_name }}{% endblock %}
 
 {% block content %}
 <div id="portal-content">
     <div style="margin-bottom:var(--space-4);display:flex;justify-content:space-between;align-items:flex-start;">
         <div>
-            <h1 class="text-h1">Avatars{{ tooltip("Managed Reddit personas working for your brand. Each has a unique voice, warming phase, and karma tier reflecting community trust.") }}</h1>
-            <p class="text-small" style="margin-top:4px;">Your brand personas on Reddit. {{ avatars | length }} total.</p>
+            <h1 class="text-h1">Voices{{ tooltip("Community personas building your brand's presence on Reddit. Each earns credibility over time and unlocks brand mentions when ready.") }}</h1>
+            <p class="text-small" style="margin-top:4px;">Your community voices. {{ avatars | length }} total.</p>
         </div>
         {% if can_onboard %}
         <a href="/clients/{{ client_id }}/avatar-onboard"
            style="padding:8px 16px;border-radius:var(--radius-pill);background:var(--color-orange);color:#fff;font-size:var(--text-small);font-weight:600;text-decoration:none;white-space:nowrap;">
-            + Add Avatar
+            + Add voice
         </a>
         {% endif %}
     </div>
@@ -21,8 +21,27 @@
     <!-- Info block -->
     <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-4);">
         <p style="font-size:var(--text-small);color:#a5b4fc;line-height:1.5;">
-            Avatars are managed personas working on your behalf. Each goes through warming phases: Phase 1 builds credibility, Phase 2 seeds content, Phase 3 integrates your brand. Karma tier reflects community trust earned.
+            Voices are community personas working on your behalf. Each goes through warming phases: Phase 1 builds credibility, Phase 2 seeds content, Phase 3 integrates your brand. Karma tier reflects community trust earned.
         </p>
+        <details style="margin-top:10px;">
+            <summary style="font-size:var(--text-small);color:var(--color-muted);cursor:pointer;font-weight:500;">ℹ️ How it works</summary>
+            <div style="font-size:var(--text-small);color:var(--color-muted);margin-top:10px;line-height:1.7;padding-left:12px;border-left:2px solid var(--color-border);">
+                <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">What avatars are:</strong> Independent Reddit personas managed by your team. Each has a unique voice, posting history, and community reputation. They participate in relevant discussions on your behalf.</p>
+                <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">Phase system:</strong></p>
+                <ul style="margin:0 0 10px 16px;padding:0;list-style:disc;">
+                    <li style="margin-bottom:4px;"><strong>Phase 1 — Credibility</strong>: Voice builds karma in hobby/general communities. No brand mentions. ~1-2 months.</li>
+                    <li style="margin-bottom:4px;"><strong>Phase 2 — Seeding</strong>: Voice begins engaging in professional/niche communities relevant to your brand. External references only.</li>
+                    <li style="margin-bottom:4px;"><strong>Phase 3 — Brand</strong>: Voice earns enough trust to naturally mention your brand in relevant contexts. Full engagement.</li>
+                </ul>
+                <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">Health status:</strong></p>
+                <ul style="margin:0 0 10px 16px;padding:0;list-style:disc;">
+                    <li style="margin-bottom:4px;"><strong style="color:var(--color-green);">● Healthy</strong> — active, posting normally, no issues detected.</li>
+                    <li style="margin-bottom:4px;"><strong style="color:var(--color-orange);">● Limited</strong> — reduced activity, under observation.</li>
+                    <li style="margin-bottom:4px;"><strong style="color:var(--color-red);">● Flagged</strong> — possible platform restriction detected. Auto-paused while we investigate. No action needed from you.</li>
+                </ul>
+                <p><strong style="color:var(--color-white);">Karma tier</strong> reflects community trust: Newcomer → Building → Established → Authority. Higher trust = comments get more visibility and engagement.</p>
+            </div>
+        </details>
     </div>
 
     {% if avatars %}
@@ -111,9 +130,9 @@
         {% if avatar_at_limit %}
         <div class="surface" style="padding:var(--space-3);border:1px dashed rgba(255,107,53,0.4);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:160px;">
             <p style="color:var(--color-orange);font-size:20px;margin-bottom:8px;">+</p>
-            <p style="color:var(--color-white);font-weight:500;font-size:var(--text-small);margin-bottom:4px;">Your avatars are fully deployed</p>
-            <p style="color:var(--color-muted);font-size:var(--text-micro);margin-bottom:12px;">More avatars = more coverage across subreddits</p>
-            <a href="mailto:tzvi@gorampit.com?subject=Avatar%20Expansion" style="padding:6px 14px;border-radius:var(--radius-pill);background:rgba(255,107,53,0.15);color:var(--color-orange);font-size:var(--text-small);font-weight:500;text-decoration:none;">Add more avatars →</a>
+            <p style="color:var(--color-white);font-weight:500;font-size:var(--text-small);margin-bottom:4px;">Your voices are fully deployed</p>
+            <p style="color:var(--color-muted);font-size:var(--text-micro);margin-bottom:12px;">More voices = more coverage across subreddits</p>
+            <a href="mailto:tzvi@gorampit.com?subject=Voice%20Expansion" style="padding:6px 14px;border-radius:var(--radius-pill);background:rgba(255,107,53,0.15);color:var(--color-orange);font-size:var(--text-small);font-weight:500;text-decoration:none;">Add more voices →</a>
         </div>
         {% endif %}
     </div>

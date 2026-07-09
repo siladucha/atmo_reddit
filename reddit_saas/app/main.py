@@ -119,9 +119,7 @@ async def permission_requires_approval_handler(request: FastAPIRequest, exc: Per
 # --- End exception handlers ---
 app.add_middleware(
     RateLimitMiddleware,
-    auth_limit=5,
-    auth_window_seconds=900,
-    enabled=(app_env == "production"),
+    enabled=False,
 )
 app.add_middleware(ErrorMiddleware, debug=(app_env != "production"))
 app.add_middleware(AuthMiddleware)

@@ -43,7 +43,7 @@
 
         <!-- Steps -->
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
-            {% set steps = ['Profile', 'Subreddits', 'Keywords', 'Avatar Setup', 'Config', 'Activate'] %}
+            {% set steps = ['Profile', 'Subreddits', 'Keywords', 'Voice Setup', 'Config', 'Activate'] %}
             {% for step_name in steps %}
             <div style="display:flex;align-items:center;gap:6px;padding:8px;border-radius:6px;{% if loop.index <= onboarding_step %}background:rgba(34,197,94,0.1);{% elif loop.index == onboarding_step + 1 %}background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);{% else %}opacity:0.5;{% endif %}">
                 {% if loop.index <= onboarding_step %}
@@ -117,7 +117,7 @@
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-3);margin-bottom:var(--space-4);">
         <div class="surface" style="padding:var(--space-3);text-align:center;">
             <p class="text-display" style="margin-bottom:4px;">{{ avatars_active }}</p>
-            <p class="text-small">Avatar{{ 's' if avatars_active != 1 else '' }} Active</p>
+            <p class="text-small">Voice{{ 's' if avatars_active != 1 else '' }} Active</p>
         </div>
         <div class="surface" style="padding:var(--space-3);text-align:center;">
             <p class="text-display" style="margin-bottom:4px;">{{ subreddits_count }}</p>
@@ -154,7 +154,7 @@
         <a href="/clients/{{ client_id }}/avatars" class="surface" style="padding:var(--space-3);text-decoration:none;transition:border-color 150ms;border:1px solid transparent;" onmouseover="this.style.borderColor='var(--color-orange)'" onmouseout="this.style.borderColor='transparent'">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
                 <span style="font-size:20px;">👥</span>
-                <span style="font-weight:600;color:var(--color-white);">Avatars</span>
+                <span style="font-weight:600;color:var(--color-white);">Voices</span>
             </div>
             <p class="text-display" style="margin-bottom:4px;">{{ avatars_active }}</p>
             <p class="text-small">managed personas · phase, karma, health</p>

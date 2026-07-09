@@ -4,6 +4,9 @@
 
 {% block content %}
 <div style="margin-bottom: 24px;">
+    <div style="margin-bottom: 12px;">
+        <a href="/clients/{{ client.id if client else client_id }}/report" style="font-size:var(--text-small);color:var(--color-muted);text-decoration:none;" onmouseover="this.style.color='var(--color-orange)'" onmouseout="this.style.color='var(--color-muted)'">← Insights & Report</a>
+    </div>
     <h1 class="text-h1">Intelligence Report</h1>
     <p class="text-small" style="margin-top: 4px;">{{ client.name if client else 'Client' }}</p>
 </div>

@@ -16,7 +16,7 @@
             <strong>How the daily schedule works:</strong><br>
             Every morning, the AI picks the best Reddit threads for each avatar and creates a publishing plan. Comments are generated, then wait for your approval in the Review Queue. Once approved, an avatar owner posts them manually on Reddit.
         </p>
-        <div style="display:flex;flex-wrap:wrap;gap:16px;font-size:var(--text-small);">
+        <div style="display:flex;flex-wrap:wrap;gap:16px;font-size:var(--text-small);margin-bottom:12px;">
             <span style="display:inline-flex;align-items:center;gap:6px;">
                 <span style="width:10px;height:10px;border-radius:50%;background:var(--color-muted);"></span>
                 <span style="color:var(--color-muted);">Scheduled — thread selected, comment not yet generated</span>
@@ -38,6 +38,21 @@
                 <span style="color:var(--color-muted);">Skipped — rejected during review</span>
             </span>
         </div>
+        <details>
+            <summary style="font-size:var(--text-small);color:var(--color-muted);cursor:pointer;font-weight:500;">ℹ️ How it works</summary>
+            <div style="font-size:var(--text-small);color:var(--color-muted);margin-top:10px;line-height:1.7;padding-left:12px;border-left:2px solid var(--color-border);">
+                <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">What this page shows:</strong> The daily publishing plan for each avatar — what will be posted, where, and when. Like a TV program guide but for your Reddit presence.</p>
+                <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">Daily cycle:</strong></p>
+                <ol style="margin:0 0 10px 16px;padding:0;">
+                    <li style="margin-bottom:4px;"><strong>Morning (08:15):</strong> AI scans fresh Reddit threads, picks the best opportunities, generates comments, assigns time slots.</li>
+                    <li style="margin-bottom:4px;"><strong>Review:</strong> Drafts appear in your Review Queue. Approve, edit, or skip.</li>
+                    <li style="margin-bottom:4px;"><strong>Afternoon (14:15):</strong> If there are unfilled slots, AI finds additional opportunities and tops up the schedule.</li>
+                    <li style="margin-bottom:4px;"><strong>Execution:</strong> Approved comments are posted by avatar owners at the scheduled times (±30 min jitter for naturalness).</li>
+                </ol>
+                <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">Budget per avatar:</strong> Each avatar has a daily comment limit based on phase — Phase 1: 2-3/day, Phase 2: up to 7/day, Phase 3: up to 15/day. This prevents overexposure.</p>
+                <p><strong style="color:var(--color-white);">Buttons:</strong> "Run Pipeline" triggers fresh thread scanning + scoring + generation. "Rebuild EPG" regenerates today's schedule (useful after you approve/skip drafts — fills empty slots with new opportunities).</p>
+            </div>
+        </details>
     </div>
 
     <!-- Action Buttons (client_manager + client_admin) -->

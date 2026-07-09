@@ -9,21 +9,6 @@
 
 {% block content %}
 <div id="portal-content">
-    <div style="margin-bottom:var(--space-4);">
-        <h1 class="text-h1">AI Search Visibility{{ tooltip("GEO/AEO monitoring: we ask AI platforms buyer-intent questions and check if your brand appears in the answers. Higher rate = your Reddit content is being cited as credible.") }}</h1>
-        <p class="text-small" style="margin-top:4px;">How often {{ brand_name }} appears when AI platforms answer buyer questions.</p>
-    </div>
-
-    <!-- Info block -->
-    <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-4);">
-        <p style="font-size:var(--text-small);color:#a5b4fc;line-height:1.5;">
-            We monitor AI search engines (<span style="color:#c084fc;">Perplexity</span>,
-            <span style="color:#4ade80;">ChatGPT</span>,
-            <span style="color:#fb923c;">Claude</span>) with real buyer-intent queries related to your market.
-            When your brand appears in AI responses, it means your Reddit presence is being cited as a credible source.
-            <span style="color:var(--color-muted);">Measured automatically every Tuesday &amp; Friday.</span>
-        </p>
-    </div>
 
     {% if not visibility.geo_enabled %}
     <!-- GEO not enabled -->
@@ -56,227 +41,205 @@
                 <span class="text-small" style="color:var(--color-white);">Awaiting first batch results</span>
             </div>
         </div>
-        <a href="mailto:tzvi@gorampit.com?subject=RAMP%20Visibility%20Report%20-%20Configuration%20Review"
-           class="btn-primary" style="display:inline-flex;text-decoration:none;">
-            Schedule configuration review →
-        </a>
     </div>
 
     {% else %}
     {# ===== FULL VISIBILITY REPORT ===== #}
 
-    <!-- Hero Delta -->
+    <!-- ═══ HERO: Current → Projected ═══ -->
     <div class="surface" style="padding:var(--space-4);margin-bottom:var(--space-4);background:linear-gradient(135deg, var(--color-surface) 0%, rgba(15,23,42,1) 100%);">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--space-3);">
             <div>
-                <p class="text-micro" style="margin-bottom:4px;">Brand Visibility</p>
-                <div style="display:flex;align-items:baseline;gap:16px;">
+                <div style="display:flex;align-items:baseline;gap:20px;">
                     <div style="text-align:center;">
-                        <span style="font-size:42px;font-weight:700;color:var(--color-white);">{{ visibility.summary.latest_brand_rate }}%</span>
-                        <p class="text-micro" style="margin-top:2px;">📍 Measured</p>
+                        <span style="font-size:48px;font-weight:700;color:var(--color-white);">{{ visibility.summary.latest_brand_rate }}%</span>
+                        <p class="text-micro" style="margin-top:4px;color:var(--color-muted);">📍 Measured today</p>
                     </div>
-                    <span style="color:var(--color-green);font-size:20px;">→</span>
+                    <span style="color:var(--color-muted);font-size:24px;">→</span>
                     <div style="text-align:center;">
                         {% set proj_vals = visibility.projected.values()|list %}
                         {% if proj_vals %}
-                        <span style="font-size:42px;font-weight:700;color:var(--color-green);">~{{ (proj_vals|sum / proj_vals|length)|round(0)|int }}%</span>
+                        <span style="font-size:48px;font-weight:700;color:var(--color-green);">~{{ (proj_vals|sum / proj_vals|length)|round(0)|int }}%</span>
                         {% else %}
-                        <span style="font-size:42px;font-weight:700;color:var(--color-muted);">—</span>
+                        <span style="font-size:48px;font-weight:700;color:var(--color-muted);">—</span>
                         {% endif %}
-                        <p class="text-micro" style="margin-top:2px;">📈 Projected (6 mo)</p>
+                        <p class="text-micro" style="margin-top:4px;color:var(--color-muted);">📈 Projected (6 months)</p>
                     </div>
                 </div>
                 {% if visibility.summary.brand_rate_delta != 0 %}
-                <p style="font-size:var(--text-small);margin-top:8px;font-weight:500;color:{% if visibility.summary.brand_rate_delta > 0 %}var(--color-green){% else %}var(--color-red){% endif %};">
+                <p style="font-size:var(--text-small);margin-top:12px;font-weight:500;color:{% if visibility.summary.brand_rate_delta > 0 %}var(--color-green){% else %}var(--color-red){% endif %};">
                     {% if visibility.summary.brand_rate_delta > 0 %}+{% endif %}{{ visibility.summary.brand_rate_delta }}pp since baseline
                 </p>
                 {% endif %}
             </div>
-            <div style="text-align:right;" class="text-micro">
-                <p>📍 {{ visibility.summary.total_queries_latest }} queries checked</p>
-                <p>📍 Last batch: {{ visibility.summary.latest_batch_date }}</p>
-                <p>📍 {{ visibility.engines|length }} engine{% if visibility.engines|length != 1 %}s{% endif %} active</p>
+            <div style="text-align:right;">
+                {% if visibility.competitors %}
+                {% set rank = visibility.competitors|length + 1 %}
+                {% for c in visibility.competitors %}
+                    {% if c.appearance_rate <= visibility.summary.latest_brand_rate %}
+                        {% set rank = loop.index %}
+                    {% endif %}
+                {% endfor %}
+                <div style="padding:12px 20px;background:var(--color-surface-alt);border-radius:12px;">
+                    <p class="text-micro" style="margin-bottom:4px;">Market Position</p>
+                    <p style="font-size:28px;font-weight:700;color:var(--color-white);">#{{ rank }}</p>
+                    <p class="text-micro">of {{ visibility.competitors|length + 1 }}</p>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
 
-    <!-- Engine Cards -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:var(--space-3);margin-bottom:var(--space-4);">
+    <!-- ═══ ENGINE CARDS ═══ -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:var(--space-3);margin-bottom:var(--space-4);">
         {% set engine_meta = {"perplexity": {"color": "#c084fc", "border": "#a855f7", "label": "Perplexity"},
                               "openai": {"color": "#4ade80", "border": "#22c55e", "label": "ChatGPT"},
                               "anthropic": {"color": "#fb923c", "border": "#f97316", "label": "Claude"}} %}
         {% for eng_name in ["perplexity", "openai", "anthropic"] %}
         {% set meta = engine_meta[eng_name] %}
         {% set eng = visibility.engines.get(eng_name, {}) %}
-        <div class="surface" style="border-left:4px solid {{ meta.border }};padding:var(--space-3);{% if not eng or eng.get('status') != 'active' %}opacity:0.5;{% endif %}">
+        <div class="surface" style="border-left:4px solid {{ meta.border }};padding:var(--space-3);{% if not eng or eng.get('status') != 'active' %}opacity:0.4;{% endif %}">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
                 <span style="padding:2px 8px;border-radius:var(--radius-pill);background:{{ meta.border }}20;color:{{ meta.color }};font-size:var(--text-micro);font-weight:600;">{{ meta.label }}</span>
-                <span class="text-micro">{% if eng and eng.get('status') == 'active' %}active{% else %}pending{% endif %}</span>
             </div>
             {% if eng and eng.get('status') == 'active' %}
-            <p style="font-size:28px;font-weight:700;color:var(--color-white);">{{ eng.rate }}%</p>
-            <p class="text-small">{{ eng.brand_mentions }} of {{ eng.queries_checked }} queries</p>
-            {% else %}
-            <p style="font-size:28px;font-weight:700;color:var(--color-muted);">—</p>
-            <p class="text-small">Not yet measured</p>
-            {% endif %}
+            <p style="font-size:32px;font-weight:700;color:var(--color-white);">{{ eng.rate }}%</p>
+            <p class="text-micro" style="color:var(--color-muted);">{{ eng.brand_mentions }}/{{ eng.queries_checked }} queries</p>
             {% if visibility.projected.get(eng_name) %}
-            <p style="font-size:var(--text-small);color:var(--color-green);margin-top:6px;">→ ~{{ visibility.projected[eng_name] }}% projected</p>
+            <p style="font-size:var(--text-small);color:var(--color-green);margin-top:6px;">→ ~{{ visibility.projected[eng_name] }}% in 6 mo</p>
+            {% endif %}
+            {% else %}
+            <p style="font-size:32px;font-weight:700;color:var(--color-muted);">—</p>
+            <p class="text-micro" style="color:var(--color-muted);">Not yet measured</p>
             {% endif %}
         </div>
         {% endfor %}
     </div>
 
-    <!-- Charts Row -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);margin-bottom:var(--space-4);">
-        <!-- Trend Chart -->
-        <div class="surface" style="padding:var(--space-3);">
-            <h3 class="text-h3" style="margin-bottom:4px;">Visibility Trend</h3>
-            <p class="text-micro" style="margin-bottom:12px;">Solid = measured · Dashed = projected</p>
-            <canvas id="portal-trend-chart" style="max-height:200px;"></canvas>
-        </div>
-
-        <!-- Competitor Chart -->
-        <div class="surface" style="padding:var(--space-3);">
-            <h3 class="text-h3" style="margin-bottom:4px;">Share of Voice</h3>
-            <p class="text-micro" style="margin-bottom:12px;">Brand mention rate across competitors</p>
-            <canvas id="portal-competitor-chart" style="max-height:200px;"></canvas>
-        </div>
+    <!-- ═══ COMPETITORS (Share of Voice) ═══ -->
+    {% if visibility.competitors %}
+    <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-4);">
+        <h3 class="text-h3" style="margin-bottom:var(--space-2);">Share of Voice</h3>
+        <p class="text-micro" style="margin-bottom:16px;color:var(--color-muted);">How often each brand is mentioned when AI answers buyer questions in your market</p>
+        <canvas id="portal-competitor-chart" style="max-height:220px;"></canvas>
     </div>
+    {% endif %}
 
-    <!-- Category Breakdown -->
+    <!-- ═══ CATEGORY GAPS (Actionable) ═══ -->
     {% if visibility.categories %}
     <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-4);">
-        <h3 class="text-h3" style="margin-bottom:4px;">Visibility by Category</h3>
-        <p class="text-micro" style="margin-bottom:12px;">Where you're visible vs where you need content</p>
+        <h3 class="text-h3" style="margin-bottom:4px;">Where You're Visible — and Where You're Not</h3>
+        <p class="text-micro" style="margin-bottom:16px;color:var(--color-muted);">Categories with 0% = content gaps. We're creating Reddit content to fill these.</p>
         <div style="display:flex;flex-direction:column;gap:10px;">
             {% for cat in visibility.categories %}
             <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-                <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+                <div style="display:flex;align-items:center;gap:8px;min-width:120px;">
                     <span style="padding:2px 8px;border-radius:var(--radius-pill);background:var(--color-surface-alt);color:var(--color-white);font-size:var(--text-micro);white-space:nowrap;">{{ cat.category }}</span>
                 </div>
-                <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-                    <span class="text-micro" style="white-space:nowrap;">{{ cat.brand_hits }}/{{ cat.total_queries }}</span>
-                    <div style="width:100px;height:8px;border-radius:4px;background:var(--color-surface-alt);overflow:hidden;">
-                        <div style="height:100%;border-radius:4px;width:{{ cat.rate }}%;background:{% if cat.rate > 0 %}var(--color-green){% else %}var(--color-red){% endif %};"></div>
-                    </div>
-                    <span style="font-size:var(--text-small);font-weight:600;min-width:40px;text-align:right;color:{% if cat.rate > 0 %}var(--color-white){% else %}var(--color-red){% endif %};">{{ cat.rate }}%</span>
+                <div style="flex:1;height:8px;border-radius:4px;background:var(--color-surface-alt);overflow:hidden;">
+                    <div style="height:100%;border-radius:4px;width:{{ cat.rate }}%;background:{% if cat.rate > 0 %}var(--color-green){% else %}var(--color-red){% endif %};min-width:{% if cat.rate > 0 %}2px{% else %}0{% endif %};"></div>
                 </div>
+                <span style="font-size:var(--text-small);font-weight:600;min-width:50px;text-align:right;color:{% if cat.rate > 0 %}var(--color-green){% else %}var(--color-red){% endif %};">
+                    {% if cat.rate > 0 %}{{ cat.rate }}%{% else %}gap{% endif %}
+                </span>
             </div>
             {% endfor %}
         </div>
     </div>
     {% endif %}
 
-    <!-- Query Hit/Miss Table -->
-    {% if visibility.queries %}
-    <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-4);">
-        <h3 class="text-h3" style="margin-bottom:4px;">Query Results</h3>
-        <p class="text-micro" style="margin-bottom:12px;">✅ brand mentioned · ❌ not mentioned · — not measured</p>
-        <div style="overflow-x:auto;max-height:320px;overflow-y:auto;">
-            <table style="width:100%;border-collapse:collapse;font-size:var(--text-small);">
-                <thead style="position:sticky;top:0;background:var(--color-surface);">
-                    <tr style="border-bottom:1px solid var(--color-border);">
-                        <th style="padding:8px 12px;text-align:left;color:var(--color-muted);font-weight:500;">Query</th>
-                        <th style="padding:8px 8px;text-align:center;color:#c084fc;font-weight:500;width:60px;">Perp</th>
-                        <th style="padding:8px 8px;text-align:center;color:#4ade80;font-weight:500;width:60px;">GPT</th>
-                        <th style="padding:8px 8px;text-align:center;color:#fb923c;font-weight:500;width:60px;">Claude</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for q in visibility.queries[:15] %}
-                    <tr style="border-bottom:1px solid var(--color-border);">
-                        <td style="padding:8px 12px;color:var(--color-white);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ q.prompt_text }}">{{ q.prompt_text[:70] }}{% if q.prompt_text|length > 70 %}…{% endif %}</td>
-                        {% for eng_name in ["perplexity", "openai", "anthropic"] %}
-                        <td style="padding:8px 8px;text-align:center;font-size:16px;">{% if eng_name in q.engines %}{% if q.engines[eng_name] %}✅{% else %}❌{% endif %}{% else %}—{% endif %}</td>
-                        {% endfor %}
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- AI Response Excerpts -->
+    <!-- ═══ AI EXCERPTS (Most Powerful) ═══ -->
     {% if visibility.excerpts %}
     <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-4);">
-        <h3 class="text-h3" style="margin-bottom:4px;">AI Response Excerpts</h3>
-        <p class="text-micro" style="margin-bottom:12px;">Actual AI answers where {{ brand_name }} was mentioned</p>
+        <h3 class="text-h3" style="margin-bottom:4px;">What AI Says About You</h3>
+        <p class="text-micro" style="margin-bottom:16px;color:var(--color-muted);">Real quotes from AI search engines where {{ brand_name }} was mentioned</p>
         <div style="display:flex;flex-direction:column;gap:12px;">
-            {% for ex in visibility.excerpts %}
+            {% for ex in visibility.excerpts[:3] %}
             <div style="background:var(--color-bg);border:1px solid var(--color-border);border-radius:8px;padding:12px 16px;">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
                     {% set ex_meta = engine_meta.get(ex.provider, {"color": "#94a3b8", "border": "#64748b", "label": ex.provider}) %}
                     <span style="padding:2px 8px;border-radius:var(--radius-pill);background:{{ ex_meta.border }}20;color:{{ ex_meta.color }};font-size:var(--text-micro);font-weight:600;">{{ ex_meta.label }}</span>
-                    <span class="text-micro">{{ ex.date }}</span>
+                    <span class="text-micro" style="color:var(--color-muted);">{{ ex.date }}</span>
                 </div>
-                <p style="font-size:var(--text-small);color:var(--color-white);font-style:italic;line-height:1.6;">"{{ ex.text[:250] }}{% if ex.text|length > 250 %}...{% endif %}"</p>
-                <p class="text-micro" style="margin-top:6px;">Query: "{{ ex.query[:80] }}"</p>
+                <p style="font-size:var(--text-small);color:var(--color-white);font-style:italic;line-height:1.7;">"{{ ex.text[:200] }}{% if ex.text|length > 200 %}..."{% endif %}</p>
+                <p class="text-micro" style="margin-top:8px;color:var(--color-muted);">Query: "{{ ex.query[:60] }}"</p>
             </div>
             {% endfor %}
         </div>
     </div>
     {% endif %}
 
-    <!-- High-Intent Thread Participation -->
-    <div style="margin-bottom:var(--space-4);">
-        <h2 class="text-h3" style="margin-bottom:var(--space-2);">High-Intent Thread Participation</h2>
-        <p class="text-small" style="margin-bottom:var(--space-2);">How often your avatars appear in threads where people are actively comparing or evaluating — the highest-value discussions.</p>
-        <div class="surface" style="padding:var(--space-3);">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);margin-bottom:var(--space-3);">
-                <div style="text-align:center;padding:var(--space-2);background:var(--color-surface-alt);border-radius:8px;">
-                    <p class="text-micro" style="margin-bottom:4px;">High-Intent Rate</p>
-                    <p style="font-size:28px;font-weight:700;color:{% if visibility.high_intent_rate >= 40 %}var(--color-green){% elif visibility.high_intent_rate >= 20 %}var(--color-orange){% else %}var(--color-muted){% endif %};">{{ visibility.high_intent_rate }}%</p>
-                    <p class="text-micro" style="margin-top:4px;">{{ visibility.high_intent_posted }} of {{ visibility.total_posted_30d }} comments (30d)</p>
-                </div>
-                <div style="text-align:center;padding:var(--space-2);background:var(--color-surface-alt);border-radius:8px;">
-                    <p class="text-micro" style="margin-bottom:4px;">Target</p>
-                    <p style="font-size:28px;font-weight:700;color:var(--color-muted);">40%+</p>
-                    <p class="text-micro" style="margin-top:4px;">recommended for AEO impact</p>
-                </div>
+    <!-- ═══ TREND CHART (Details — collapsible) ═══ -->
+    <details style="margin-bottom:var(--space-4);">
+        <summary class="surface" style="padding:var(--space-3);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:16px;">📈</span>
+                <span style="font-weight:500;color:var(--color-white);">Visibility Trend Over Time</span>
             </div>
-
-            {% if visibility.intent_breakdown %}
-            <p class="text-micro" style="margin-bottom:8px;">Thread intent distribution (30 days)</p>
-            <div style="display:flex;flex-direction:column;gap:6px;">
-                {% for item in visibility.intent_breakdown %}
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <span style="min-width:130px;font-size:var(--text-small);color:var(--color-white);font-weight:{% if item.is_high %}500{% else %}400{% endif %};">{{ item.intent }}</span>
-                    <div style="flex:1;height:8px;border-radius:4px;background:var(--color-surface-alt);overflow:hidden;">
-                        {% set bar_w = (item.count / visibility.total_posted_30d * 100)|int if visibility.total_posted_30d > 0 else 0 %}
-                        <div style="height:100%;border-radius:4px;width:{{ bar_w }}%;background:{% if item.is_high %}rgba(34,197,94,0.7){% else %}rgba(148,163,184,0.4){% endif %};"></div>
-                    </div>
-                    <span style="min-width:28px;font-size:var(--text-small);font-family:ui-monospace,monospace;color:var(--color-muted);text-align:right;">{{ item.count }}</span>
-                    {% if item.is_high %}
-                    <span style="padding:1px 6px;border-radius:var(--radius-pill);background:rgba(34,197,94,0.15);color:var(--color-green);font-size:8px;font-weight:600;">HIGH</span>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <p class="text-small" style="text-align:center;padding:var(--space-2);color:var(--color-muted);">Intent data will appear after the first month of posting.</p>
-            {% endif %}
+            <span class="text-micro" style="color:var(--color-muted);">Solid = measured · Dashed = projected</span>
+        </summary>
+        <div class="surface" style="padding:var(--space-3);border-top:1px solid var(--color-border);border-radius:0 0 var(--radius-card) var(--radius-card);">
+            <canvas id="portal-trend-chart" style="max-height:200px;"></canvas>
         </div>
-    </div>
+    </details>
 
-    <!-- How It Works -->
-    <div class="surface" style="padding:var(--space-3);">
-        <h3 style="font-size:var(--text-h3);color:var(--color-white);margin-bottom:8px;">How AI Visibility Works</h3>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-3);">
-            <div>
-                <p style="color:var(--color-orange);font-weight:600;margin-bottom:4px;">1. Presence</p>
-                <p class="text-small">Your avatars participate in high-value Reddit discussions with expert-level content.</p>
+    <!-- ═══ QUERY DETAILS (collapsible) ═══ -->
+    {% if visibility.queries %}
+    <details style="margin-bottom:var(--space-4);">
+        <summary class="surface" style="padding:var(--space-3);cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:16px;">🔎</span>
+                <span style="font-weight:500;color:var(--color-white);">All Query Results</span>
             </div>
-            <div>
-                <p style="color:var(--color-orange);font-weight:600;margin-bottom:4px;">2. Authority</p>
-                <p class="text-small">Upvotes + replies signal to AI engines that your content is trustworthy and community-validated.</p>
-            </div>
-            <div>
-                <p style="color:var(--color-orange);font-weight:600;margin-bottom:4px;">3. Citation</p>
-                <p class="text-small">AI search engines (Perplexity, ChatGPT, Claude) cite Reddit content where your brand is positioned.</p>
+            <span class="text-micro" style="color:var(--color-muted);">{{ visibility.summary.total_queries_latest }} queries checked</span>
+        </summary>
+        <div class="surface" style="padding:var(--space-3);border-top:1px solid var(--color-border);border-radius:0 0 var(--radius-card) var(--radius-card);">
+            <p class="text-micro" style="margin-bottom:12px;">✅ brand mentioned · ❌ not mentioned · — not measured</p>
+            <div style="overflow-x:auto;max-height:320px;overflow-y:auto;">
+                <table style="width:100%;border-collapse:collapse;font-size:var(--text-small);">
+                    <thead style="position:sticky;top:0;background:var(--color-surface);">
+                        <tr style="border-bottom:1px solid var(--color-border);">
+                            <th style="padding:8px 12px;text-align:left;color:var(--color-muted);font-weight:500;">Query</th>
+                            <th style="padding:8px 8px;text-align:center;color:#c084fc;font-weight:500;width:50px;">P</th>
+                            <th style="padding:8px 8px;text-align:center;color:#4ade80;font-weight:500;width:50px;">G</th>
+                            <th style="padding:8px 8px;text-align:center;color:#fb923c;font-weight:500;width:50px;">C</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for q in visibility.queries %}
+                        <tr style="border-bottom:1px solid var(--color-border);">
+                            <td style="padding:8px 12px;color:var(--color-white);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ q.prompt_text }}">{{ q.prompt_text[:65] }}{% if q.prompt_text|length > 65 %}…{% endif %}</td>
+                            {% for eng_name in ["perplexity", "openai", "anthropic"] %}
+                            <td style="padding:8px 8px;text-align:center;font-size:14px;">{% if eng_name in q.engines %}{% if q.engines[eng_name] %}✅{% else %}❌{% endif %}{% else %}—{% endif %}</td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
+    </details>
+    {% endif %}
+
+    <!-- ═══ FOOTER: Last updated + How it works ═══ -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-2) 0;flex-wrap:wrap;gap:8px;">
+        <p class="text-micro" style="color:var(--color-muted);">
+            Last measured: {{ visibility.summary.latest_batch_date }} · Updated every Tuesday & Friday
+        </p>
+        <details>
+            <summary style="font-size:var(--text-micro);color:var(--color-muted);cursor:pointer;font-weight:500;">ℹ️ How this works</summary>
+            <div style="font-size:var(--text-small);color:var(--color-muted);margin-top:10px;line-height:1.7;padding:12px 16px;background:var(--color-surface);border-radius:var(--radius-card);">
+                <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">What you're seeing:</strong> How often AI search engines mention {{ brand_name }} when answering buyer questions in your market.</p>
+                <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">How we measure:</strong> Every Tue & Fri, we ask AI platforms real buyer questions and check if your brand appears in the answers.</p>
+                <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">The chain:</strong></p>
+                <ol style="margin:0 0 10px 16px;padding:0;">
+                    <li style="margin-bottom:4px;"><strong style="color:var(--color-orange);">Presence</strong> — Your avatars participate in relevant Reddit discussions</li>
+                    <li style="margin-bottom:4px;"><strong style="color:var(--color-orange);">Authority</strong> — Upvotes signal AI engines that content is trustworthy</li>
+                    <li><strong style="color:var(--color-orange);">Citation</strong> — AI search engines start citing your brand as a solution</li>
+                </ol>
+                <p style="margin-bottom:0;"><strong>📍 Measured</strong> = real data from latest batch. <strong>📈 Projected</strong> = where we estimate you'll be in 6 months. Projections are forecasts, not guarantees.</p>
+            </div>
+        </details>
     </div>
 
     {% endif %}
@@ -290,10 +253,50 @@
     Chart.defaults.color = '#94a3b8';
     Chart.defaults.borderColor = '#2e2e4a';
 
-    // Trend chart
-    const trendData = {{ visibility.trend_chart | tojson }};
-    const trendCtx = document.getElementById('portal-trend-chart');
-    if (trendCtx && trendData.weeks && trendData.weeks.length > 0) {
+    // --- Competitor bar chart ---
+    const compData = {{ visibility.competitors | tojson }};
+    const compCtx = document.getElementById('portal-competitor-chart');
+    if (compCtx && compData.length > 0) {
+        const brandRate = {{ visibility.summary.latest_brand_rate }};
+        const labels = compData.map(c => c.name).concat(['{{ brand_name }}']);
+        const data = compData.map(c => c.appearance_rate).concat([brandRate]);
+        const colors = data.map((_, i) => i === data.length - 1 ? '#a855f7' : '#475569');
+
+        new Chart(compCtx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{label: 'Mention Rate (%)', data, backgroundColor: colors, borderRadius: 4}]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                plugins: {legend: {display: false}},
+                scales: {
+                    x: {beginAtZero: true, max: 100, ticks: {callback: v => v + '%'}, grid: {color: '#1e1e32'}},
+                    y: {grid: {display: false}, ticks: {font: {size: 11}}}
+                }
+            }
+        });
+    }
+
+    // --- Trend chart (inside <details>, init on open) ---
+    let trendChartInitialized = false;
+    const detailsEl = document.querySelector('details:has(#portal-trend-chart)');
+    if (detailsEl) {
+        detailsEl.addEventListener('toggle', function() {
+            if (this.open && !trendChartInitialized) {
+                trendChartInitialized = true;
+                initTrendChart();
+            }
+        });
+    }
+
+    function initTrendChart() {
+        const trendData = {{ visibility.trend_chart | tojson }};
+        const trendCtx = document.getElementById('portal-trend-chart');
+        if (!trendCtx || !trendData.weeks || trendData.weeks.length === 0) return;
+
         const engineColors = {perplexity: '#a855f7', openai: '#22c55e', anthropic: '#f97316'};
         const engineLabels = {perplexity: 'Perplexity', openai: 'ChatGPT', anthropic: 'Claude'};
         const datasets = [];
@@ -318,33 +321,6 @@
                 scales: {
                     y: {beginAtZero: true, max: 60, ticks: {callback: v => v + '%'}, grid: {color: '#1e1e32'}},
                     x: {grid: {color: '#1e1e32'}, ticks: {font: {size: 10}}}
-                }
-            }
-        });
-    }
-
-    // Competitor chart
-    const compData = {{ visibility.competitors | tojson }};
-    const compCtx = document.getElementById('portal-competitor-chart');
-    if (compCtx && compData.length > 0) {
-        const brandRate = {{ visibility.summary.latest_brand_rate }};
-        const labels = compData.map(c => c.name).concat(['{{ brand_name }}']);
-        const data = compData.map(c => c.appearance_rate).concat([brandRate]);
-        const colors = data.map((_, i) => i === data.length - 1 ? '#a855f7' : '#475569');
-
-        new Chart(compCtx, {
-            type: 'bar',
-            data: {
-                labels,
-                datasets: [{label: 'Mention Rate (%)', data, backgroundColor: colors, borderRadius: 4}]
-            },
-            options: {
-                indexAxis: 'y',
-                responsive: true,
-                plugins: {legend: {display: false}},
-                scales: {
-                    x: {beginAtZero: true, max: 100, ticks: {callback: v => v + '%'}, grid: {color: '#1e1e32'}},
-                    y: {grid: {display: false}, ticks: {font: {size: 11}}}
                 }
             }
         });

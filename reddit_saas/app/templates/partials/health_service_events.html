@@ -1,0 +1,60 @@
+<!-- Service Events Timeline — last 24h pipeline events -->
+<div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
+    <div class="flex items-center justify-between mb-4">
+        <div class="text-sm text-gray-400 uppercase tracking-wide">Events Timeline (24h)</div>
+        <span class="text-xs text-gray-500">{{ events | length }} events</span>
+    </div>
+
+    {% if events %}
+    <div class="max-h-80 overflow-y-auto space-y-0.5 pr-1 scrollbar-thin">
+        {% for ev in events %}
+        <div class="flex items-center gap-2 py-1 text-xs border-b border-slate-800/50 last:border-0 hover:bg-slate-700/20 rounded px-1">
+            <!-- Status icon -->
+            {% if ev.status == 'completed' %}
+                <span class="text-emerald-400 w-4 text-center">✓</span>
+            {% elif ev.status == 'failed' %}
+                <span class="text-red-400 w-4 text-center">✗</span>
+            {% elif ev.status == 'partial' %}
+                <span class="text-amber-400 w-4 text-center">⚠</span>
+            {% else %}
+                <span class="text-gray-500 w-4 text-center">•</span>
+            {% endif %}
+
+            <!-- Time -->
+            <span class="text-gray-500 w-14 flex-shrink-0 font-mono">
+                {{ ev.time.strftime('%H:%M') }}
+            </span>
+
+            <!-- Component -->
+            <span class="font-mono w-32 truncate flex-shrink-0
+                {% if ev.status == 'failed' %}text-red-300
+                {% elif ev.status == 'partial' %}text-amber-300
+                {% else %}text-gray-400{% endif %}"
+                title="{{ ev.component }}">
+                {{ ev.component }}
+            </span>
+
+            <!-- Detail -->
+            <span class="text-gray-500 truncate flex-1" title="{{ ev.detail }}">
+                {{ ev.detail }}
+            </span>
+
+            <!-- Duration -->
+            {% if ev.duration_ms %}
+            <span class="text-gray-600 w-12 text-right flex-shrink-0">
+                {% if ev.duration_ms > 60000 %}
+                    {{ (ev.duration_ms / 60000) | round(1) }}m
+                {% elif ev.duration_ms > 1000 %}
+                    {{ (ev.duration_ms / 1000) | round(1) }}s
+                {% else %}
+                    {{ ev.duration_ms }}ms
+                {% endif %}
+            </span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-gray-500 text-sm text-center py-4">No pipeline events in last 24 hours</div>
+    {% endif %}
+</div>

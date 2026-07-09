@@ -10,6 +10,17 @@
         <p class="text-small" style="margin-top:4px;">Ongoing campaign refinement. Keywords and subreddits have their own dedicated pages in the sidebar.</p>
     </div>
 
+    <!-- How it works -->
+    <details style="margin-bottom:var(--space-4);">
+        <summary style="font-size:var(--text-small);color:var(--color-muted);cursor:pointer;font-weight:500;">ℹ️ How it works</summary>
+        <div style="font-size:var(--text-small);color:var(--color-muted);margin-top:10px;line-height:1.7;padding-left:12px;border-left:2px solid var(--color-border);">
+            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">What this page controls:</strong> Brand-level settings that influence how AI generates content across all your avatars.</p>
+            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">Brand Guardrails:</strong> Define what the AI should never say — competitor disparagement, specific claims, forbidden terminology. These are hard limits applied to every generated comment.</p>
+            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">Voice Feedback:</strong> Free-text guidance for the AI about your preferred communication style. Examples: "More casual, less corporate", "Use first-person stories", "Avoid exclamation marks". The AI incorporates this into all future generations.</p>
+            <p><strong style="color:var(--color-white);">Changes take effect immediately</strong> — next time the AI generates a comment, it will use your updated guardrails and voice preferences.</p>
+        </div>
+    </details>
+
     <div style="display:flex;flex-direction:column;gap:var(--space-3);">
 
         <!-- Brand Guardrails Section -->
@@ -49,22 +60,26 @@
             <p style="font-size:var(--text-small);color:var(--color-muted);margin-top:6px;">Coming soon</p>
         </div>
 
-        <!-- Team — Coming Soon -->
-        <div class="surface" style="padding:var(--space-3);opacity:0.6;">
+        <!-- Team -->
+        <div class="surface" style="padding:var(--space-3);">
             <div style="display:flex;align-items:center;gap:8px;">
-                <span style="font-size:18px;">🔒</span>
+                <span style="font-size:18px;">👥</span>
                 <h2 style="font-size:var(--text-h2);color:var(--color-white);margin:0;">Team</h2>
             </div>
-            <p style="font-size:var(--text-small);color:var(--color-muted);margin-top:6px;">Coming soon</p>
+            <p style="font-size:var(--text-small);color:var(--color-muted);margin-top:6px;">
+                <a href="/clients/{{ client_id }}/team" style="color:var(--color-orange);text-decoration:none;">Manage your team members →</a>
+            </p>
         </div>
 
-        <!-- Plan & Billing — Coming Soon -->
-        <div class="surface" style="padding:var(--space-3);opacity:0.6;">
+        <!-- Plan & Billing -->
+        <div class="surface" style="padding:var(--space-3);">
             <div style="display:flex;align-items:center;gap:8px;">
-                <span style="font-size:18px;">🔒</span>
+                <span style="font-size:18px;">💳</span>
                 <h2 style="font-size:var(--text-h2);color:var(--color-white);margin:0;">Plan & Billing</h2>
             </div>
-            <p style="font-size:var(--text-small);color:var(--color-muted);margin-top:6px;">Coming soon</p>
+            <p style="font-size:var(--text-small);color:var(--color-muted);margin-top:6px;">
+                <a href="/clients/{{ client_id }}/billing" style="color:var(--color-orange);text-decoration:none;">View your plan and usage →</a>
+            </p>
         </div>
 
     </div>

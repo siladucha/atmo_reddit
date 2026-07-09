@@ -75,6 +75,11 @@ class SubredditRiskProfile(Base):
         String(50), default="UTC", server_default="UTC"
     )
 
+    # Adaptive refresh scheduling
+    next_check_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

@@ -44,7 +44,7 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 SUBREDDIT_MAX_SHARE = 0.40  # No single subreddit > 40% of actions
-SUBREDDIT_ABSOLUTE_CAP = 2  # Hard limit: max 2 slots per subreddit per avatar per day
+SUBREDDIT_ABSOLUTE_CAP = 1  # Hard limit: max 1 slot per subreddit per avatar per day
 ACTIVE_HOURS_START = 8      # 08:00
 ACTIVE_HOURS_END = 23       # 23:00
 MIN_INTERVAL_MINUTES = 45

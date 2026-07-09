@@ -1,0 +1,181 @@
+{% extends "client_base.html" %}
+{% from "partials/tooltip.html" import tooltip %}
+
+{% block title %}Insights — {{ client_name }}{% endblock %}
+
+{% block content %}
+<div id="portal-content">
+    <!-- Page header -->
+    <div style="margin-bottom:var(--space-4);">
+        <h1 class="text-h1" style="font-size:15px;font-weight:500;">Insights</h1>
+        <p class="text-small" style="margin-top:4px;font-size:11px;color:#6B7280;">Reddit landscape intelligence &amp; competitive positioning</p>
+    </div>
+
+    <!-- Section 1: Landscape Report -->
+    <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-3);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <h2 style="font-size:14px;font-weight:600;color:var(--color-white);display:flex;align-items:center;gap:8px;">
+                <span style="font-size:18px;">🗺️</span> Reddit Landscape Report
+                {{ tooltip("Auto-generated from your onboarding config. Shows competitor presence across your target subreddits.") }}
+            </h2>
+            {% if landscape_report %}
+            <span class="text-micro" style="color:var(--color-green);">Generated {{ landscape_date or "Day 1" }}</span>
+            {% endif %}
+        </div>
+        {% if landscape_report %}
+        <div style="background:var(--color-surface-alt);border-radius:var(--radius-input);padding:14px;line-height:1.7;font-size:13px;color:var(--color-muted);max-height:300px;overflow-y:auto;">
+            {{ landscape_report | safe }}
+        </div>
+        {% else %}
+        <div style="text-align:center;padding:24px;color:var(--color-muted);">
+            <p style="font-size:13px;">Landscape report generates automatically from your onboarding configuration.</p>
+            <p style="font-size:12px;margin-top:8px;">Complete onboarding to see your report here.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Section 2: Share of Voice (Competitor Comparison) -->
+    <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-3);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <h2 style="font-size:14px;font-weight:600;color:var(--color-white);display:flex;align-items:center;gap:8px;">
+                <span style="font-size:18px;">📊</span> Share of Voice
+                {{ tooltip("How often competitors appear in AI-generated answers vs your brand. Based on GEO monitoring data.") }}
+            </h2>
+        </div>
+        {% if competitors and competitors | length > 0 %}
+        <div style="display:flex;flex-direction:column;gap:8px;">
+            <!-- Client brand (always first) -->
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:rgba(37,99,196,0.08);border:1px solid rgba(37,99,196,0.2);border-radius:6px;">
+                <span style="font-size:12px;font-weight:600;color:#4E8EF5;min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ client_brand or "Your brand" }}</span>
+                <div style="flex:1;height:20px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;">
+                    <div style="height:100%;width:{{ brand_rate }}%;background:#2563C4;border-radius:4px;transition:width 0.5s;min-width:2px;"></div>
+                </div>
+                <span style="font-size:12px;font-weight:600;color:#4E8EF5;min-width:40px;text-align:right;">{{ brand_rate }}%</span>
+            </div>
+            <!-- Competitors -->
+            {% for comp in competitors[:5] %}
+            <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;">
+                <span style="font-size:12px;font-weight:500;color:var(--color-muted);min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ comp.name }}</span>
+                <div style="flex:1;height:16px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;">
+                    <div style="height:100%;width:{{ comp.appearance_rate }}%;background:rgba(255,255,255,0.2);border-radius:4px;transition:width 0.5s;min-width:2px;"></div>
+                </div>
+                <span style="font-size:11px;color:var(--color-muted);min-width:40px;text-align:right;">{{ comp.appearance_rate }}%</span>
+            </div>
+            {% endfor %}
+        </div>
+        <p class="text-small" style="margin-top:10px;font-style:italic;">Delta tracked from Day 1 baseline. Your brand starts at {{ brand_rate }}% — the growth is the story.</p>
+        {% else %}
+        <div style="text-align:center;padding:20px;color:var(--color-muted);">
+            <p style="font-size:13px;">Share of voice data appears after your first GEO monitoring batch.</p>
+            <p style="font-size:12px;margin-top:6px;">Scheduled: Tuesday &amp; Friday 09:30.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Section 3: Competitive Gaps -->
+    <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-3);">
+        <div style="margin-bottom:12px;">
+            <h2 style="font-size:14px;font-weight:600;color:var(--color-white);display:flex;align-items:center;gap:8px;">
+                <span style="font-size:18px;">🎯</span> Competitive Gaps
+                {{ tooltip("Subreddits where competitors are active and you are not yet. Each gap = engagement opportunity.") }}
+            </h2>
+        </div>
+        {% if competitive_gaps and competitive_gaps | length > 0 %}
+        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:10px;">
+            {% for gap in competitive_gaps[:6] %}
+            <div style="background:var(--color-surface-alt);border-radius:6px;padding:12px;border-left:3px solid var(--color-orange);">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                    <span style="font-size:13px;font-weight:600;color:var(--color-white);">r/{{ gap.subreddit }}</span>
+                    <span style="font-size:10px;padding:2px 6px;border-radius:999px;background:rgba(245,158,11,0.15);color:#F59E0B;">gap</span>
+                </div>
+                <p style="font-size:11px;color:var(--color-muted);line-height:1.4;">
+                    {{ gap.competitor_names | join(", ") }} active here ({{ gap.competitor_mentions }} mentions)
+                </p>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align:center;padding:20px;color:var(--color-muted);">
+            <p style="font-size:13px;">Competitive gap analysis builds as GEO monitoring collects data.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Section 4: High-Value Threads (brand absent) -->
+    <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-3);">
+        <div style="margin-bottom:12px;">
+            <h2 style="font-size:14px;font-weight:600;color:var(--color-white);display:flex;align-items:center;gap:8px;">
+                <span style="font-size:18px;">🔥</span> High-Value Threads
+                {{ tooltip("Threads with high engagement where your keywords match but your brand is absent. Ranked by upvotes.") }}
+            </h2>
+        </div>
+        {% if high_value_threads and high_value_threads | length > 0 %}
+        <div style="display:flex;flex-direction:column;gap:6px;">
+            {% for thread in high_value_threads[:8] %}
+            <a href="https://reddit.com{{ thread.permalink }}" target="_blank" rel="noopener"
+               style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--color-surface-alt);border-radius:6px;text-decoration:none;transition:border-color 0.15s;border:1px solid transparent;"
+               onmouseover="this.style.borderColor='var(--color-orange)'" onmouseout="this.style.borderColor='transparent'">
+                <span style="font-size:12px;font-weight:600;color:var(--color-orange);min-width:44px;text-align:center;">⬆ {{ thread.ups }}</span>
+                <div style="flex:1;min-width:0;">
+                    <p style="font-size:12px;color:var(--color-white);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ thread.title }}</p>
+                    <p style="font-size:10px;color:var(--color-muted);margin-top:2px;">r/{{ thread.subreddit }}{% if thread.competitor_present %} · <span style="color:#F59E0B;">competitor present</span>{% endif %}</p>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align:center;padding:20px;color:var(--color-muted);">
+            <p style="font-size:13px;">High-value thread detection activates after subreddit monitoring begins.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Section 5: Performance Benchmark -->
+    <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-3);">
+        <div style="margin-bottom:12px;">
+            <h2 style="font-size:14px;font-weight:600;color:var(--color-white);display:flex;align-items:center;gap:8px;">
+                <span style="font-size:18px;">📈</span> Performance Benchmark
+                {{ tooltip("Your cadence and engagement velocity compared to RAMP clients at a similar stage.") }}
+            </h2>
+        </div>
+        <div style="text-align:center;padding:24px;color:var(--color-muted);background:var(--color-surface-alt);border-radius:6px;">
+            <p style="font-size:13px;font-weight:500;">Coming soon</p>
+            <p style="font-size:11px;margin-top:6px;">Performance benchmarks become available once enough clients are active at your stage.</p>
+        </div>
+    </div>
+
+    <!-- Section 6: Phase-Gated (Locked Countdown Cards) -->
+    {% if locked_sections and locked_sections | length > 0 %}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:var(--space-3);margin-bottom:var(--space-3);">
+        {% for section in locked_sections %}
+        <div class="surface" style="padding:var(--space-3);position:relative;overflow:hidden;">
+            <div style="position:absolute;inset:0;background:rgba(13,13,26,0.7);backdrop-filter:blur(2px);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:8px;">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                <p style="font-size:12px;font-weight:500;color:var(--color-white);text-align:center;">{{ section.title }}</p>
+                <p style="font-size:11px;color:var(--color-muted);text-align:center;margin-top:4px;">{{ section.countdown }}</p>
+            </div>
+            <!-- Placeholder content behind overlay -->
+            <div style="opacity:0.3;">
+                <h3 style="font-size:13px;font-weight:600;color:var(--color-white);margin-bottom:8px;">{{ section.title }}</h3>
+                <div style="height:60px;background:var(--color-surface-alt);border-radius:4px;"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- How it works -->
+    <details style="margin-top:var(--space-3);">
+        <summary style="cursor:pointer;font-size:12px;color:var(--color-muted);padding:8px 0;">ℹ️ How Insights works</summary>
+        <div style="padding:12px;background:var(--color-surface-alt);border-radius:6px;margin-top:8px;font-size:12px;color:var(--color-muted);line-height:1.6;">
+            <p><strong>Landscape Report</strong> — auto-generated from your onboarding config (company profile, keywords, subreddits). Updated when discovery sessions run.</p>
+            <p style="margin-top:8px;"><strong>Share of Voice</strong> — measures how often each brand appears in AI-generated search answers (Perplexity, ChatGPT, Claude). Measured Tue & Fri.</p>
+            <p style="margin-top:8px;"><strong>Competitive Gaps</strong> — subreddits where competitors engage but you don't. Each gap is an opportunity for your voices to fill.</p>
+            <p style="margin-top:8px;"><strong>High-Value Threads</strong> — threads matching your keywords with high upvotes where your brand hasn't appeared yet.</p>
+            <p style="margin-top:8px;"><strong>Performance Benchmark</strong> — compares your approval cadence, upvote velocity, and posting rate to similar-stage RAMP clients.</p>
+        </div>
+    </details>
+</div>
+{% endblock %}

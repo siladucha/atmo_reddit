@@ -9,7 +9,7 @@ Computes a weighted risk score (0-100) from four sub-scores:
 Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -50,6 +50,21 @@ INSUFFICIENT_DATA_SCORE = 50
 
 # Min posts for confidence (Req 4.7)
 MIN_POSTS_FOR_CONFIDENCE = 5
+
+# ---------------------------------------------------------------------------
+# Adaptive refresh intervals (days)
+# ---------------------------------------------------------------------------
+# Determined by risk score + moderation aggressiveness after each analysis.
+# Higher risk / more aggressive → more frequent checks (rules change often).
+# Low risk / stable → infrequent checks (saves LLM cost).
+
+REFRESH_INTERVAL_HIGH_RISK = 3        # risk > 70 or extreme aggressiveness
+REFRESH_INTERVAL_MEDIUM_HIGH = 7      # risk 51-70 or high aggressiveness
+REFRESH_INTERVAL_MEDIUM = 14          # risk 31-50 or medium aggressiveness
+REFRESH_INTERVAL_LOW = 21             # risk 11-30, stable
+REFRESH_INTERVAL_VERY_LOW = 30        # risk 0-10, very stable
+REFRESH_INTERVAL_FIRST_CHECK = 7      # first ever analysis → recheck in 7 days
+REFRESH_INTERVAL_SPIKE = 3            # spike detected → urgent recheck
 
 
 # ---------------------------------------------------------------------------
@@ -131,6 +146,60 @@ def _compute_trend_direction_score(profile: SubredditRiskProfile) -> float:
 
     # Clamp to 0-100
     return max(0.0, min(100.0, mapped))
+
+
+# ---------------------------------------------------------------------------
+# Adaptive refresh interval computation
+# ---------------------------------------------------------------------------
+
+
+def _compute_next_check_at(
+    risk_score: int,
+    profile: SubredditRiskProfile,
+    spiked: bool = False,
+) -> datetime:
+    """Determine when this subreddit should be re-analyzed next.
+
+    Logic:
+    - Spike detected → 3 days (urgent recheck)
+    - risk > 70 or extreme aggressiveness → 3 days
+    - risk 51-70 or high aggressiveness → 7 days
+    - risk 31-50 → 14 days
+    - risk 11-30 → 21 days
+    - risk 0-10 → 30 days
+    - First analysis (history ≤ 1 entry) → 7 days
+
+    Cost impact: Gemini Flash ~$0.003/sub. At 50 subs with avg 14-day interval
+    ≈ 107 calls/month ≈ $0.32/month. Very cheap.
+    """
+    now = datetime.now(timezone.utc)
+
+    # Spike = urgent
+    if spiked:
+        return now + timedelta(days=REFRESH_INTERVAL_SPIKE)
+
+    # First analysis
+    history = profile.risk_score_history or []
+    if len(history) <= 1:
+        return now + timedelta(days=REFRESH_INTERVAL_FIRST_CHECK)
+
+    # Aggressiveness factor
+    moderation_profile = profile.moderation_profile or {}
+    aggressiveness = moderation_profile.get("aggressiveness", "low")
+
+    # Use the more aggressive of risk-score-based or aggressiveness-based interval
+    if risk_score > 70 or aggressiveness == "extreme":
+        days = REFRESH_INTERVAL_HIGH_RISK
+    elif risk_score > 50 or aggressiveness == "high":
+        days = REFRESH_INTERVAL_MEDIUM_HIGH
+    elif risk_score > 30:
+        days = REFRESH_INTERVAL_MEDIUM
+    elif risk_score > 10:
+        days = REFRESH_INTERVAL_LOW
+    else:
+        days = REFRESH_INTERVAL_VERY_LOW
+
+    return now + timedelta(days=days)
 
 
 # ---------------------------------------------------------------------------
@@ -282,6 +351,11 @@ def refresh_all_risk_scores(db: Session) -> dict:
                     subreddit.subreddit_name,
                     new_score,
                 )
+
+        # Adaptive refresh: schedule next check based on score + aggressiveness
+        profile.next_check_at = _compute_next_check_at(
+            new_score, profile, spiked=(delta > SPIKE_THRESHOLD)
+        )
 
         stats["updated"] += 1
 

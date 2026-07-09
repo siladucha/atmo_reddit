@@ -374,3 +374,171 @@ def compute_risk_scores_batch():
     finally:
         db.close()
         lock.release()
+
+
+# ---------------------------------------------------------------------------
+# Task 4: refresh_due_risk_profiles (Daily 05:00) — Adaptive interval
+# ---------------------------------------------------------------------------
+
+
+@celery_app.task(name="refresh_due_risk_profiles")
+def refresh_due_risk_profiles():
+    """Daily 05:00 — Re-analyze subreddits whose next_check_at has passed.
+
+    Adaptive refresh: instead of weekly full batch, checks only subs that are
+    "due" based on their risk score / aggressiveness. High-risk subs get checked
+    every 3 days, low-risk every 30 days.
+
+    Cost: ~$0.003/sub (Gemini Flash rule extraction). Typically 2-10 subs/day.
+    """
+    from datetime import datetime, timezone
+
+    from sqlalchemy import or_, exists
+
+    from app.models.subreddit import ClientSubredditAssignment, Subreddit
+    from app.models.subreddit_risk_profile import SubredditRiskProfile
+    from app.services.moderation_profiler import compute_moderation_profile, compute_daily_stats
+    from app.services.risk_scorer import refresh_all_risk_scores
+    from app.services.rule_extractor import extract_rules_for_subreddit
+
+    logger.info("RISK_PROFILE_ADAPTIVE | task=refresh_due_risk_profiles | status=start")
+
+    db = SessionLocal()
+    now = datetime.now(timezone.utc)
+    start_time = time.time()
+
+    try:
+        # Active subreddit IDs (with at least one active assignment)
+        subreddit_ids_with_assignments = (
+            db.query(ClientSubredditAssignment.subreddit_id)
+            .filter(ClientSubredditAssignment.is_active.is_(True))
+            .distinct()
+            .subquery()
+        )
+
+        # Step 0: Ensure all active subs have a risk profile record.
+        # Subs without a profile get one created (next_check_at=NULL → due immediately).
+        subs_without_profile = (
+            db.query(Subreddit)
+            .filter(
+                Subreddit.id.in_(subreddit_ids_with_assignments),
+                Subreddit.is_active.is_(True),
+                ~exists().where(SubredditRiskProfile.subreddit_id == Subreddit.id),
+            )
+            .all()
+        )
+        new_profiles_created = 0
+        for sub in subs_without_profile:
+            new_profile = SubredditRiskProfile(subreddit_id=sub.id)
+            db.add(new_profile)
+            new_profiles_created += 1
+        if new_profiles_created > 0:
+            db.commit()
+            logger.info(
+                "RISK_PROFILE_ADAPTIVE | created %d missing profiles",
+                new_profiles_created,
+            )
+
+        # Find profiles that are due for refresh
+        # Due = next_check_at <= now OR next_check_at IS NULL (never scheduled / just created)
+        due_profiles = (
+            db.query(SubredditRiskProfile)
+            .join(Subreddit, Subreddit.id == SubredditRiskProfile.subreddit_id)
+            .filter(
+                Subreddit.id.in_(subreddit_ids_with_assignments),
+                Subreddit.is_active.is_(True),
+                or_(
+                    SubredditRiskProfile.next_check_at <= now,
+                    SubredditRiskProfile.next_check_at.is_(None),
+                ),
+            )
+            .all()
+        )
+
+        total_due = len(due_profiles)
+        if total_due == 0:
+            logger.info("RISK_PROFILE_ADAPTIVE | no subs due for refresh today")
+            return {"status": "ok", "due": 0, "processed": 0, "new_profiles": new_profiles_created}
+
+        logger.info(
+            "RISK_PROFILE_ADAPTIVE | subs due=%d | processing",
+            total_due,
+        )
+
+        stats = {"due": total_due, "new_profiles": new_profiles_created, "extracted": 0, "profiled": 0, "scored": 0, "errors": 0}
+
+        for profile in due_profiles:
+            subreddit = (
+                db.query(Subreddit).filter(Subreddit.id == profile.subreddit_id).first()
+            )
+            if not subreddit:
+                continue
+
+            sub_name = subreddit.subreddit_name
+
+            try:
+                # Step 1: Extract rules
+                extract_rules_for_subreddit(db, sub_name)
+                stats["extracted"] += 1
+
+                # Step 2: Compute moderation profile
+                profile_data = compute_moderation_profile(db, sub_name)
+                profile.moderation_profile = {
+                    "removal_rate": profile_data.removal_rate,
+                    "aggressiveness": profile_data.aggressiveness,
+                    "patterns": profile_data.patterns,
+                    "total_posted": profile_data.total_posted,
+                    "total_deleted": profile_data.total_deleted,
+                }
+                profile.dangerous_hours = profile_data.dangerous_hours
+                profile.confidence_level = profile_data.confidence_level
+                profile.last_profile_computed_at = now
+                db.commit()
+                stats["profiled"] += 1
+
+                # Compute daily stats
+                compute_daily_stats(db, sub_name)
+
+            except Exception as e:
+                db.rollback()
+                stats["errors"] += 1
+                logger.warning(
+                    "RISK_PROFILE_ADAPTIVE | subreddit=r/%s | error=%s",
+                    sub_name, str(e)[:150],
+                )
+
+            # Rate limit: 3s between subs (Reddit API)
+            time.sleep(SUBREDDIT_DELAY_SECONDS)
+
+        # Step 3: Recompute risk scores for all (fast, no API calls)
+        score_result = refresh_all_risk_scores(db)
+        stats["scored"] = score_result.get("updated", 0)
+
+        duration_seconds = int(time.time() - start_time)
+        stats["duration_seconds"] = duration_seconds
+
+        record_activity_event(
+            db=db,
+            event_type="risk_profile_adaptive",
+            message=(
+                f"Adaptive risk refresh: {stats['extracted']}/{total_due} extracted, "
+                f"{stats['errors']} errors, {duration_seconds}s"
+            ),
+            metadata=stats,
+        )
+
+        logger.info(
+            "RISK_PROFILE_ADAPTIVE | status=complete | stats=%s",
+            stats,
+        )
+        return stats
+
+    except Exception as e:
+        logger.error(
+            "RISK_PROFILE_ADAPTIVE | fatal_error=%s",
+            str(e)[:200],
+        )
+        db.rollback()
+        return {"status": "error", "error": str(e)[:200]}
+    finally:
+        db.close()
