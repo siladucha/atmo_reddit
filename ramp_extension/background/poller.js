@@ -115,6 +115,11 @@ export async function pollOnce() {
       _onTasksReceived(tasks);
     }
 
+    // Store today's full history for popup display
+    if (data.today_history) {
+      await chrome.storage.local.set({ ramp_today_history: data.today_history });
+    }
+
     // Handle commands from backend (e.g., pause_all)
     if (data.commands && data.commands.length > 0) {
       _handleCommands(data.commands);

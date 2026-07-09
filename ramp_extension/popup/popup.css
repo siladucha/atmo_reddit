@@ -109,6 +109,25 @@ body {
   border: 1px solid rgba(234, 179, 8, 0.2);
 }
 
+.alert--update {
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--green);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.alert__action {
+  color: #fff;
+  background: var(--green);
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
 .task-card--scheduled {
   border-left: 3px solid var(--accent);
   opacity: 0.9;
@@ -161,6 +180,11 @@ body {
   font-size: 11px;
   font-weight: 600;
   margin-left: 6px;
+}
+
+.badge--review {
+  background: var(--yellow);
+  color: #1a1a2e;
 }
 
 /* ─── Buttons ────────────────────────────────────────────── */
@@ -309,6 +333,21 @@ body {
   border-color: rgba(34, 197, 94, 0.2);
 }
 .task-card--done .task-card__time { color: var(--green); }
+
+/* Draft review card (amber border) */
+.task-card--draft {
+  border-color: rgba(234, 179, 8, 0.3);
+  background: rgba(234, 179, 8, 0.05);
+}
+.task-card--draft .task-card__sub { color: var(--yellow); }
+.task-card__title {
+  font-size: 11px;
+  color: var(--text-muted);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* Failed card */
 .task-card--failed {

@@ -113,7 +113,33 @@ export async function sendHeartbeat() {
     });
 
     if (response.ok) {
+      const data = await response.json();
       console.log('[RAMP Heartbeat] Sent successfully');
+
+      // Store server commands (pause_all, daily_cap)
+      await chrome.storage.local.set({
+        ramp_pause_all: data.pause_all || false,
+        ramp_daily_cap_remaining: data.daily_cap_remaining ?? null,
+      });
+
+      // Version check: server tells us if update is available
+      if (data.update_available) {
+        await chrome.storage.local.set({
+          ramp_update_available: true,
+          ramp_latest_version: data.latest_version || '',
+          ramp_download_url: data.download_url || '',
+        });
+      } else {
+        await chrome.storage.local.remove(['ramp_update_available', 'ramp_latest_version', 'ramp_download_url']);
+      }
+
+      // Server maintenance detection
+      await chrome.storage.local.set({ ramp_server_status: 'ok' });
+    } else if (response.status >= 500) {
+      await chrome.storage.local.set({ ramp_server_status: 'maintenance' });
+      console.warn(
+        `[RAMP Heartbeat] Server error: ${response.status} ${response.statusText}`
+      );
     } else {
       console.warn(
         `[RAMP Heartbeat] Failed: ${response.status} ${response.statusText}`

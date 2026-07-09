@@ -41,20 +41,64 @@
 
       case 'OLD_REDDIT_CHECK_THREAD': {
         // Check if thread is locked/archived
-        const locked = !!document.querySelector(
-          '.locked-comment-form, .archived-infobar, ' +
-          '.infobar[id*="locked"], .thing.locked'
-        );
-        // Also check if comment form exists at all
+        // IMPORTANT: Only check the MAIN post (.thing.link) for locked class,
+        // not any .thing on page (comments also have .thing class).
+        // Old reddit locked indicators:
+        //   - .locked-comment-form (shown instead of textarea when locked)
+        //   - .archived-infobar (explicit banner)
+        //   - The main post div has class "locked": .thing.link.locked
+        const hasLockedForm = !!document.querySelector('.locked-comment-form');
+        const hasArchivedBar = !!document.querySelector('.archived-infobar');
+        const mainPostLocked = !!document.querySelector('.sitetable > .thing.link.locked, #siteTable > .thing.link.locked');
+
+        // Check if comment form exists — broad selector to catch all old reddit layouts
         const hasCommentForm = !!document.querySelector(
-          '.commentarea textarea, #comment_reply_form textarea, .usertext-edit textarea'
+          'textarea[name="text"], .commentarea textarea, ' +
+          '#comment_reply_form textarea, .usertext-edit textarea'
         );
-        const bodyText = document.body?.textContent || '';
-        const textLocked = /this thread has been locked|comments are locked|this is an archived post/i.test(bodyText);
+
+        // Text-based detection — look for Reddit's SPECIFIC lock banners only
+        // These are shown in dedicated info elements, not in comment text
+        const lockBanner = document.querySelector(
+          '.commentarea .infobar, .commentarea .info, .commentarea .locked-banner'
+        );
+        let textLocked = false;
+        if (lockBanner) {
+          const bannerText = lockBanner.textContent || '';
+          textLocked = /this thread has been locked|comments are locked|this is an archived post/i.test(bannerText);
+        }
+        // Also check for Reddit's dedicated lock element that appears ABOVE comments
+        if (!textLocked) {
+          const lockNotice = document.querySelector(
+            '.comment-visits-box + .infobar, .commentarea > .infobar, ' +
+            '.commentarea > .locked-infobar, [class*="lock-notice"]'
+          );
+          if (lockNotice) {
+            textLocked = /locked|archived/i.test(lockNotice.textContent || '');
+          }
+        }
+
+        const isLocked = hasLockedForm || hasArchivedBar || mainPostLocked || textLocked;
+
+        // Safety: if textarea exists and no explicit lock form — override text_match
+        // Reddit REPLACES the textarea with .locked-comment-form when truly locked.
+        // If textarea is present, the thread is postable regardless of text content.
+        const effectiveLocked = hasCommentForm
+          ? (hasLockedForm || hasArchivedBar || mainPostLocked)  // textarea present = ignore text_match
+          : isLocked;
+
+        console.log('[RAMP] CHECK_THREAD:', {
+          hasLockedForm, hasArchivedBar, mainPostLocked, textLocked,
+          hasCommentForm, isLocked, effectiveLocked,
+          url: window.location.href
+        });
 
         sendResponse({
-          locked: locked || textLocked || !hasCommentForm,
+          locked: effectiveLocked,
           has_form: hasCommentForm,
+          reason: effectiveLocked
+            ? (hasLockedForm ? 'locked_form' : hasArchivedBar ? 'archived' : mainPostLocked ? 'post_locked_class' : 'text_match')
+            : null,
         });
         return false;
       }

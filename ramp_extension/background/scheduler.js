@@ -196,6 +196,20 @@ async function _doTick() {
     const jitteredTime = applyJitter(task.scheduled_at, task._jitter_offset);
 
     if (jitteredTime <= now) {
+      // Safety: skip tasks that are overdue by more than 30 minutes.
+      // Posting a burst of stale tasks after laptop wake = ban risk.
+      const MAX_OVERDUE_MS = 30 * 60 * 1000; // 30 minutes
+      if (jitteredTime > 0 && (now - jitteredTime) > MAX_OVERDUE_MS) {
+        task.status = 'failed';
+        task.error_code = 'WINDOW_MISSED';
+        task.error_details = `Posting window missed by ${Math.round((now - jitteredTime) / 60000)} min (laptop sleep?)`;
+        task.failed_at = new Date().toISOString();
+        console.warn(`[RAMP Scheduler] Task ${task.task_id} skipped — window missed by ${Math.round((now - jitteredTime) / 60000)} min`);
+        await saveQueue(queue);
+        await reportFailureToBackend(task, { error_code: 'WINDOW_MISSED', error_details: task.error_details });
+        continue;
+      }
+
       dueTask = task;
       break;
     }

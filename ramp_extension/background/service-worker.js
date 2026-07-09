@@ -57,6 +57,22 @@ function onTasksReceived(tasks) {
   console.log(`[RAMP] Received ${tasks.length} task(s) from backend`);
   for (const task of tasks) {
     if (task && task.task_id) {
+      // Determine local queue status from backend state:
+      // - EPG tasks (has_epg_slot + scheduled_at) are already draft-approved on backend
+      //   → they don't need a second approval in extension, mark as 'approved' for scheduler
+      // - Immediate tasks (no epg_slot, no scheduled_at) need human approval in popup
+      //   → mark as 'pending'
+      if (!task.status) {
+        if (task.has_epg_slot || task.scheduled_at) {
+          task.status = 'approved';
+        } else {
+          task.status = 'pending';
+        }
+      } else if (task.status === 'generated' && (task.has_epg_slot || task.scheduled_at)) {
+        // Backend status 'generated' for EPG tasks = draft was approved, task was created
+        // Extension should treat these as ready-to-execute
+        task.status = 'approved';
+      }
       enqueueTask(task);
     }
   }

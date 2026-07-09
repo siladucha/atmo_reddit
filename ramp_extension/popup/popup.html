@@ -21,6 +21,12 @@
   </header>
 
   <main class="popup__main">
+    <!-- Update Available Banner -->
+    <div class="alert alert--update" id="update-banner" style="display: none;">
+      ⬆️ Update available (v<span id="update-version"></span>)
+      <a href="#" id="update-link" target="_blank" class="alert__action">Download</a>
+    </div>
+
     <!-- Health Warning (only when broken) -->
     <div class="alert alert--error" id="health-warning" style="display: none;">
       ⚠️ Reddit changed something — auto-posting paused. Tasks will go via email.
@@ -30,6 +36,15 @@
     <div class="alert alert--maintenance" id="maintenance-warning" style="display: none;">
       🔄 Server is updating. Tasks will resume in a few minutes.
     </div>
+
+    <!-- Section 0: DRAFT REVIEW — pending drafts to approve/reject before they become tasks -->
+    <section class="section" id="review-section" style="display: none;">
+      <div class="section-header">
+        <h3>📝 Review Drafts <span class="badge badge--review" id="review-count">0</span></h3>
+        <button class="btn-primary" id="btn-approve-all-drafts">Approve All</button>
+      </div>
+      <div id="review-list" class="task-list"></div>
+    </section>
 
     <!-- Section 1: ACTION REQUIRED — tasks to approve -->
     <section class="section" id="action-section">
@@ -49,16 +64,20 @@
       </div>
       <div class="today-stats">
         <div class="today-stat">
-          <span class="today-stat__value" id="stat-posted">0</span>
+          <span class="today-stat__value" id="stat-plan">0</span>
+          <span class="today-stat__label">Plan</span>
+        </div>
+        <div class="today-stat">
+          <span class="today-stat__value today-stat__value--ok" id="stat-posted">0</span>
           <span class="today-stat__label">Posted</span>
         </div>
         <div class="today-stat">
           <span class="today-stat__value" id="stat-queued">0</span>
-          <span class="today-stat__label">Scheduled</span>
+          <span class="today-stat__label">Waiting</span>
         </div>
         <div class="today-stat">
-          <span class="today-stat__value today-stat__value--warn" id="stat-failed">0</span>
-          <span class="today-stat__label">Failed</span>
+          <span class="today-stat__value" id="stat-failed">0</span>
+          <span class="today-stat__label">Missed</span>
         </div>
       </div>
       <div id="scheduled-list" class="task-list">

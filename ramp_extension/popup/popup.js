@@ -21,6 +21,7 @@ async function init() {
   }
 
   document.getElementById('btn-approve-all')?.addEventListener('click', handleApproveAll);
+  document.getElementById('btn-approve-all-drafts')?.addEventListener('click', handleApproveAllDrafts);
 
   await refreshAll();
   setInterval(refreshAll, REFRESH_INTERVAL);
@@ -29,6 +30,7 @@ async function init() {
 async function refreshAll() {
   await detectAccount();
   await checkHealth();
+  await fetchPendingDrafts();
   await fetchQueueAndRender();
   await fetchDashboardStats();
   updateTimestamp();
@@ -56,22 +58,54 @@ async function detectAccount() {
   if (!hasAuth) {
     dot.className = 'popup__status-dot popup__status-dot--disconnected';
     stText.textContent = 'Offline';
+    return;
+  }
+
+  // Check if Reddit tab is available (query active Reddit tabs)
+  let hasRedditTab = false;
+  try {
+    const tabs = await chrome.tabs.query({ url: ['*://*.reddit.com/*'] });
+    hasRedditTab = tabs && tabs.length > 0;
+  } catch {}
+
+  if (!hasRedditTab) {
+    dot.className = 'popup__status-dot popup__status-dot--warning';
+    stText.textContent = 'Open Reddit';
   } else {
-    dot.className = 'popup__status-dot popup__status-dot--connected';
-    stText.textContent = 'Connected';
+    // Check session validity from health monitor
+    const result = await chrome.storage.local.get('ramp_health');
+    const health = result?.ramp_health;
+    if (health && health.reddit_session_valid === false) {
+      dot.className = 'popup__status-dot popup__status-dot--warning';
+      stText.textContent = 'Session expired';
+    } else {
+      dot.className = 'popup__status-dot popup__status-dot--connected';
+      stText.textContent = 'Connected';
+    }
   }
 }
 
 async function checkHealth() {
   const banner = document.getElementById('health-warning');
   const maintenanceBanner = document.getElementById('maintenance-warning');
+  const updateBanner = document.getElementById('update-banner');
   try {
-    const result = await chrome.storage.local.get(['ramp_health', 'ramp_server_status']);
+    const result = await chrome.storage.local.get(['ramp_health', 'ramp_server_status', 'ramp_update_available', 'ramp_latest_version', 'ramp_download_url']);
     const health = result?.ramp_health;
     const serverStatus = result?.ramp_server_status;
 
     banner.style.display = health?.dom_health === 'broken' ? 'block' : 'none';
     maintenanceBanner.style.display = serverStatus === 'maintenance' ? 'block' : 'none';
+
+    // Update available banner
+    if (result?.ramp_update_available) {
+      updateBanner.style.display = 'block';
+      document.getElementById('update-version').textContent = result.ramp_latest_version || '';
+      const link = document.getElementById('update-link');
+      link.href = result.ramp_download_url || 'https://gorampit.com/static/extension/index.html';
+    } else {
+      updateBanner.style.display = 'none';
+    }
 
     // Update connection status dot
     const dot = document.getElementById('status-dot');
@@ -83,7 +117,148 @@ async function checkHealth() {
   } catch {
     banner.style.display = 'none';
     maintenanceBanner.style.display = 'none';
+    updateBanner.style.display = 'none';
   }
+}
+
+// ─── Pending Drafts (Review before they become tasks) ───────────────────────
+
+async function fetchPendingDrafts() {
+  const auth = await getAuth();
+  if (!auth?.token || !auth?.rampUrl) return;
+
+  let username = auth.avatarUsername || '';
+  if (!username) {
+    const stored = await chrome.storage.local.get('activeRedditUsername');
+    username = stored?.activeRedditUsername || '';
+  }
+  if (!username) return;
+
+  const reviewSection = document.getElementById('review-section');
+  const reviewList = document.getElementById('review-list');
+  const reviewCount = document.getElementById('review-count');
+
+  try {
+    const resp = await fetch(
+      `${auth.rampUrl}/api/extension/dashboard?avatar_username=${encodeURIComponent(username)}`,
+      { headers: { 'Authorization': `Bearer ${auth.token}` } }
+    );
+    if (!resp.ok) {
+      reviewSection.style.display = 'none';
+      return;
+    }
+    const data = await resp.json();
+    const drafts = data.pending_drafts || [];
+
+    if (drafts.length === 0) {
+      reviewSection.style.display = 'none';
+      return;
+    }
+
+    reviewSection.style.display = '';
+    reviewCount.textContent = drafts.length;
+    reviewList.innerHTML = drafts.map(d => renderDraftCard(d)).join('');
+    bindDraftActions(reviewList);
+
+    // Update badge: drafts + pending tasks
+    const currentBadge = parseInt(document.getElementById('pending-count')?.textContent || '0');
+    const total = drafts.length + currentBadge;
+    chrome.action.setBadgeText({ text: total > 0 ? String(total) : '' });
+    chrome.action.setBadgeBackgroundColor({ color: '#f59e0b' });
+
+  } catch {
+    reviewSection.style.display = 'none';
+  }
+}
+
+function renderDraftCard(draft) {
+  const sub = draft.subreddit || '';
+  const title = truncate(draft.thread_title || '', 50);
+  const text = truncate(draft.text_preview || '', 120);
+  const time = draft.created_at ? formatTime(draft.created_at) : '';
+
+  return `
+    <div class="task-card task-card--draft" data-draft-id="${draft.id}">
+      <div class="task-card__row">
+        <div class="task-card__meta">
+          <span class="task-card__sub">r/${esc(sub)}</span>
+          ${title ? `<span class="task-card__title">${esc(title)}</span>` : ''}
+          ${time ? `<span class="task-card__time">${time}</span>` : ''}
+        </div>
+        <div class="task-card__actions">
+          <button class="btn-sm btn-sm--approve" data-action="approve-draft" data-id="${draft.id}" title="Approve">✓</button>
+          <button class="btn-sm btn-sm--skip" data-action="reject-draft" data-id="${draft.id}" title="Reject">✗</button>
+        </div>
+      </div>
+      <div class="task-card__text">"${esc(text)}"</div>
+    </div>
+  `;
+}
+
+function bindDraftActions(container) {
+  container.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+
+    const action = btn.dataset.action;
+    const id = btn.dataset.id;
+    const auth = await getAuth();
+    if (!auth?.token || !auth?.rampUrl) return;
+
+    btn.disabled = true;
+
+    try {
+      if (action === 'approve-draft') {
+        await fetch(`${auth.rampUrl}/api/extension/drafts/${id}/review`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${auth.token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ action: 'approve' }),
+        });
+      } else if (action === 'reject-draft') {
+        await fetch(`${auth.rampUrl}/api/extension/drafts/${id}/review`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${auth.token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ action: 'reject' }),
+        });
+      }
+    } catch {}
+
+    await refreshAll();
+  });
+}
+
+async function handleApproveAllDrafts() {
+  const btn = document.getElementById('btn-approve-all-drafts');
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+
+  const auth = await getAuth();
+  if (auth?.token && auth?.rampUrl) {
+    let username = auth.avatarUsername || '';
+    if (!username) {
+      const stored = await chrome.storage.local.get('activeRedditUsername');
+      username = stored?.activeRedditUsername || '';
+    }
+    if (username) {
+      try {
+        await fetch(
+          `${auth.rampUrl}/api/extension/drafts/approve-all?avatar_username=${encodeURIComponent(username)}`,
+          {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${auth.token}` },
+          }
+        );
+      } catch {}
+    }
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = 'Approve All'; }
+  await refreshAll();
 }
 
 // ─── Task Queue ─────────────────────────────────────────────────────────────
@@ -95,21 +270,61 @@ async function fetchQueueAndRender() {
     tasks = response?.tasks || [];
   } catch {}
 
-  const pending = tasks.filter(t => !t.status || t.status === 'pending');
-  const approved = tasks.filter(t => t.status === 'approved' || t.status === 'executing');
-  const completed = tasks.filter(t => t.status === 'completed');
-  const failed = tasks.filter(t => t.status === 'failed');
+  // Also load today_history from storage (server-side full picture)
+  let todayHistory = [];
+  try {
+    const stored = await chrome.storage.local.get('ramp_today_history');
+    todayHistory = stored?.ramp_today_history || [];
+  } catch {}
 
-  // Stats
+  // Merge: use today_history as primary source, overlay local queue status for active tasks
+  const localMap = new Map(tasks.map(t => [t.task_id, t]));
+  const allTasks = todayHistory.map(h => {
+    const local = localMap.get(h.task_id);
+    if (local) {
+      // Local queue has more current status (approved, executing, completed, failed)
+      return { ...h, ...local, _source: 'local' };
+    }
+    return { ...h, _source: 'server' };
+  });
+  // Add any local-only tasks not in server history
+  for (const t of tasks) {
+    if (!todayHistory.find(h => h.task_id === t.task_id)) {
+      allTasks.push({ ...t, _source: 'local_only' });
+    }
+  }
+
+  // Categorize
+  // EPG tasks (has_epg_slot=true OR has scheduled_at) that are generated = already approved via draft review
+  // Immediate tasks (no epg slot, no scheduled_at) = need human approval in extension
+  const pending = allTasks.filter(t =>
+    t.status === 'pending' ||
+    (!t.status && t.lifecycle === 'CREATED') ||
+    // Immediate tasks (no EPG slot, no schedule) need human approval
+    (t.status === 'generated' && !t.has_epg_slot && !t.scheduled_at && (t.lifecycle === 'ASSIGNED' || t.lifecycle === 'CREATED'))
+  );
+  const approved = allTasks.filter(t =>
+    t.status === 'approved' || t.status === 'executing' ||
+    // EPG tasks already approved via draft review — waiting for execution time
+    (t.status === 'generated' && (t.has_epg_slot || t.scheduled_at) && (t.lifecycle === 'ASSIGNED' || t.lifecycle === 'CREATED'))
+  );
+  const completed = allTasks.filter(t =>
+    t.status === 'completed' || t.lifecycle === 'REPORTED' || t.lifecycle === 'FINALIZED'
+  );
+  const failed = allTasks.filter(t => t.status === 'failed' || (t.lifecycle === 'EXPIRED' && t.status !== 'cancelled'));
+  const cancelled = allTasks.filter(t => t.status === 'cancelled');
+
+  // Stats — Waiting and Missed computed from allTasks (consistent with rendered list)
+  // Posted is overridden by fetchDashboardStats (more accurate — includes email-posted)
   document.getElementById('stat-posted').textContent = completed.length;
-  document.getElementById('stat-queued').textContent = approved.length;
-  document.getElementById('stat-failed').textContent = failed.length;
+  document.getElementById('stat-queued').textContent = pending.length + approved.length;
+  document.getElementById('stat-failed').textContent = failed.length + cancelled.length;
   const failedValue = document.getElementById('stat-failed');
-  failedValue.className = failed.length > 0
+  failedValue.className = (failed.length + cancelled.length) > 0
     ? 'today-stat__value today-stat__value--warn'
     : 'today-stat__value';
 
-  // Scheduled list (approved tasks — user's day view)
+  // Scheduled list (approved tasks — executing soon)
   const scheduledList = document.getElementById('scheduled-list');
   if (approved.length === 0) {
     scheduledList.innerHTML = '<p class="empty-text">No tasks scheduled yet</p>';
@@ -147,9 +362,10 @@ async function fetchQueueAndRender() {
   // Failed section
   const failedSection = document.getElementById('failed-section');
   const failedList = document.getElementById('failed-list');
-  if (failed.length > 0) {
+  const allFailed = [...failed, ...cancelled];
+  if (allFailed.length > 0) {
     failedSection.style.display = '';
-    failedList.innerHTML = failed.map(t => renderFailedCard(t)).join('');
+    failedList.innerHTML = allFailed.map(t => renderFailedCard(t)).join('');
     bindFailedActions(failedList);
   } else {
     failedSection.style.display = 'none';
@@ -181,12 +397,12 @@ async function fetchDashboardStats() {
     if (!resp.ok) return;
     const data = await resp.json();
 
-    // Override posted count with backend data (more accurate — includes email-posted)
-    const postsToday = data.stats?.posts_today || 0;
-    const el = document.getElementById('stat-posted');
-    if (el && postsToday > parseInt(el.textContent || '0')) {
-      el.textContent = postsToday;
-    }
+    // Plan = EPG slots today (from dashboard)
+    const planEl = document.getElementById('stat-plan');
+    if (planEl) planEl.textContent = data.total_planned || 0;
+
+    // Posted = from dashboard (includes email-posted + extension-posted)
+    document.getElementById('stat-posted').textContent = data.stats?.posts_today || 0;
   } catch {}
 }
 
@@ -196,13 +412,25 @@ function renderPendingCard(task) {
   const time = formatTime(task.scheduled_at);
   const sub = task.subreddit || '';
   const text = truncate(task.comment_text || '', 100);
+  const avatar = task.avatar_username ? `u/${task.avatar_username}` : '';
+
+  // Check if task is overdue (scheduled_at in the past)
+  let overdue = false;
+  if (task.scheduled_at) {
+    const scheduledTime = new Date(task.scheduled_at).getTime();
+    overdue = scheduledTime < Date.now();
+  }
+
+  const timeClass = overdue ? 'task-card__time task-card__time--overdue' : 'task-card__time';
+  const overdueLabel = overdue ? ' ⚠️' : '';
 
   return `
     <div class="task-card" data-id="${task.task_id}">
       <div class="task-card__row">
         <div class="task-card__meta">
-          <span class="task-card__time">${time}</span>
+          <span class="${timeClass}">${time}${overdueLabel}</span>
           <span class="task-card__sub">r/${esc(sub)}</span>
+          ${avatar ? `<span class="task-card__avatar">${esc(avatar)}</span>` : ''}
         </div>
         <div class="task-card__actions">
           <button class="btn-sm btn-sm--approve" data-action="approve" data-id="${task.task_id}">✓</button>
@@ -267,17 +495,27 @@ function renderDoneCard(task) {
 function renderFailedCard(task) {
   const time = formatTime(task.failed_at || task.scheduled_at);
   const sub = task.subreddit || '';
-  const error = task.error_details || task.error_code || 'Unknown error';
+
+  // Determine error message based on status
+  let error;
+  let icon;
+  if (task.status === 'cancelled') {
+    error = task.lifecycle === 'EXPIRED' ? 'Expired (overdue)' : 'Cancelled';
+    icon = '⊘';
+  } else {
+    error = task.error_details || task.error_code || 'Failed';
+    icon = '❌';
+  }
 
   return `
     <div class="task-card task-card--failed" data-id="${task.task_id}">
       <div class="task-card__row">
         <div class="task-card__meta">
-          <span class="task-card__time">❌ ${time}</span>
+          <span class="task-card__time">${icon} ${time}</span>
           <span class="task-card__sub">r/${esc(sub)}</span>
         </div>
         <div class="task-card__actions">
-          <button class="btn-sm btn-sm--retry" data-action="retry" data-id="${task.task_id}">Retry</button>
+          ${task.status !== 'cancelled' ? `<button class="btn-sm btn-sm--retry" data-action="retry" data-id="${task.task_id}">Retry</button>` : ''}
           <button class="btn-sm btn-sm--skip" data-action="dismiss" data-id="${task.task_id}">✗</button>
         </div>
       </div>
