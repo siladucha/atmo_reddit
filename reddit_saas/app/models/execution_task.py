@@ -56,7 +56,7 @@ class ExecutionTask(Base):
     executor_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    executor_contact: Mapped[str] = mapped_column(String(255), nullable=False)  # email / telegram / phone
+    executor_contact: Mapped[str | None] = mapped_column(String(255), nullable=True)  # email / telegram / phone (nullable for extension-only delivery)
     executor_type: Mapped[str] = mapped_column(
         String(50), nullable=False, default="admin"
     )  # admin | avatar_owner | provider

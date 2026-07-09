@@ -80,7 +80,7 @@ class TestCheckCommentVisibility:
         mock_get_client.return_value = mock_reddit
         mock_reddit.redditor.return_value.comments.new.return_value = comments
 
-        total, visible = check_comment_visibility("testuser", max_comments=10, lookback_days=7)
+        total, visible, _total_from_api = check_comment_visibility("testuser", max_comments=10, lookback_days=7)
 
         assert total == 3
         assert visible == 3
@@ -102,7 +102,7 @@ class TestCheckCommentVisibility:
         mock_get_client.return_value = mock_reddit
         mock_reddit.redditor.return_value.comments.new.return_value = comments
 
-        total, visible = check_comment_visibility("testuser", max_comments=10, lookback_days=7)
+        total, visible, _total_from_api = check_comment_visibility("testuser", max_comments=10, lookback_days=7)
 
         assert total == 4
         assert visible == 2
@@ -124,7 +124,7 @@ class TestCheckCommentVisibility:
         mock_get_client.return_value = mock_reddit
         mock_reddit.redditor.return_value.comments.new.return_value = comments
 
-        total, visible = check_comment_visibility("testuser", max_comments=10, lookback_days=7)
+        total, visible, _total_from_api = check_comment_visibility("testuser", max_comments=10, lookback_days=7)
 
         assert total == 1
         assert visible == 1
@@ -136,7 +136,7 @@ class TestCheckCommentVisibility:
         mock_get_client.return_value = mock_reddit
         mock_reddit.redditor.return_value.comments.new.return_value = []
 
-        total, visible = check_comment_visibility("testuser", max_comments=10, lookback_days=7)
+        total, visible, _total_from_api = check_comment_visibility("testuser", max_comments=10, lookback_days=7)
 
         assert total == 0
         assert visible == 0
@@ -188,7 +188,7 @@ class TestCheckCommentVisibility:
         mock_get_client.return_value = mock_reddit
         mock_reddit.redditor.return_value.comments.new.return_value = comments
 
-        total, visible = check_comment_visibility("testuser", max_comments=10, lookback_days=7)
+        total, visible, _total_from_api = check_comment_visibility("testuser", max_comments=10, lookback_days=7)
 
         assert total == 2
         assert visible == 1
@@ -435,7 +435,7 @@ class TestCheckAvatarHealth:
         }[key]
 
         mock_profile.return_value = (None, "profile_check")
-        mock_visibility.return_value = (8, 7)  # 7/8 = 0.875 > 0.5
+        mock_visibility.return_value = (8, 7, 8)  # 7/8 = 0.875 > 0.5
 
         avatar = _make_avatar(health_status="unknown", consecutive_check_failures=2)
         db.add(avatar)
@@ -472,7 +472,7 @@ class TestCheckAvatarHealth:
         }[key]
 
         mock_profile.return_value = (None, "profile_check")
-        mock_visibility.return_value = (5, 0)  # 0/5 = 0.0
+        mock_visibility.return_value = (5, 0, 5)  # 0/5 = 0.0
 
         avatar = _make_avatar(health_status="active")
         db.add(avatar)
@@ -504,7 +504,7 @@ class TestCheckAvatarHealth:
         }[key]
 
         mock_profile.return_value = (None, "profile_check")
-        mock_visibility.return_value = (10, 3)  # 3/10 = 0.3 < 0.5
+        mock_visibility.return_value = (10, 3, 10)  # 3/10 = 0.3 < 0.5
 
         avatar = _make_avatar(health_status="active")
         db.add(avatar)
@@ -536,7 +536,7 @@ class TestCheckAvatarHealth:
         }[key]
 
         mock_profile.return_value = (None, "profile_check")
-        mock_visibility.return_value = (2, 1)  # 2 < min_comments(3)
+        mock_visibility.return_value = (2, 1, 2)  # 2 < min_comments(3)
 
         avatar = _make_avatar(health_status="active")
         db.add(avatar)
@@ -664,7 +664,7 @@ class TestCheckAvatarHealth:
         }[key]
 
         mock_profile.return_value = (None, "profile_check")
-        mock_visibility.return_value = (5, 5)  # 5/5 = 1.0
+        mock_visibility.return_value = (5, 5, 5)  # 5/5 = 1.0
 
         avatar = _make_avatar(health_status="limited", consecutive_check_failures=3)
         db.add(avatar)
@@ -695,7 +695,7 @@ class TestCheckAvatarHealth:
         }[key]
 
         mock_profile.return_value = (None, "profile_check")
-        mock_visibility.return_value = (6, 4)  # 4/6 ≈ 0.667
+        mock_visibility.return_value = (6, 4, 6)  # 4/6 ≈ 0.667
 
         avatar = _make_avatar(health_status="unknown")
         db.add(avatar)
@@ -734,7 +734,7 @@ class TestCheckAvatarHealth:
         }[key]
 
         mock_profile.return_value = (None, "profile_check")
-        mock_visibility.return_value = (5, 5)  # 5/5 = 1.0 → active
+        mock_visibility.return_value = (5, 5, 5)  # 5/5 = 1.0 → active
 
         avatar = _make_avatar(health_status="active")
         avatar.health_status_changed_at = None

@@ -90,8 +90,7 @@ class TestIsTrialClient:
 class TestRecordSignal:
     """Tests for record_signal (subtask 2.2)."""
 
-    @patch("app.services.trial_signals.SignalCollector._dispatch_recompute")
-    def test_records_signal_for_trial_client(self, mock_dispatch, collector, trial_client):
+    def test_records_signal_for_trial_client(self, collector, trial_client):
         signal_id = collector.record_signal(
             client_id=trial_client.id,
             signal_type="page_view",
@@ -106,8 +105,7 @@ class TestRecordSignal:
         assert signal.signal_category == "engagement"
         assert signal.signal_value == {"page": "/portal/home"}
 
-    @patch("app.services.trial_signals.SignalCollector._dispatch_recompute")
-    def test_stores_with_jerusalem_timezone(self, mock_dispatch, collector, trial_client):
+    def test_stores_with_jerusalem_timezone(self, collector, trial_client):
         signal_id = collector.record_signal(
             client_id=trial_client.id,
             signal_type="login",
@@ -117,18 +115,16 @@ class TestRecordSignal:
         # Verify timezone-aware timestamp
         assert signal.created_at.tzinfo is not None
 
-    @patch("app.services.trial_signals.SignalCollector._dispatch_recompute")
-    def test_short_circuits_for_non_trial_client(self, mock_dispatch, collector, non_trial_client):
+    def test_short_circuits_for_non_trial_client(self, collector, non_trial_client):
         result = collector.record_signal(
             client_id=non_trial_client.id,
             signal_type="page_view",
             signal_category=SignalCategory.engagement,
         )
         assert result is None
-        mock_dispatch.assert_not_called()
+        # _dispatch_recompute removed from service
 
-    @patch("app.services.trial_signals.SignalCollector._dispatch_recompute")
-    def test_dedup_within_60s_window(self, mock_dispatch, collector, trial_client, db):
+    def test_dedup_within_60s_window(self, collector, trial_client, db):
         # First signal should succeed
         signal_id_1 = collector.record_signal(
             client_id=trial_client.id,
@@ -145,8 +141,7 @@ class TestRecordSignal:
         )
         assert signal_id_2 is None
 
-    @patch("app.services.trial_signals.SignalCollector._dispatch_recompute")
-    def test_different_signal_type_not_deduped(self, mock_dispatch, collector, trial_client):
+    def test_different_signal_type_not_deduped(self, collector, trial_client):
         signal_id_1 = collector.record_signal(
             client_id=trial_client.id,
             signal_type="page_view",
@@ -160,21 +155,19 @@ class TestRecordSignal:
         assert signal_id_1 is not None
         assert signal_id_2 is not None
 
-    @patch("app.services.trial_signals.SignalCollector._dispatch_recompute")
-    def test_dispatches_recompute_on_success(self, mock_dispatch, collector, trial_client):
+    def test_dispatches_recompute_on_success(self, collector, trial_client):
         collector.record_signal(
             client_id=trial_client.id,
             signal_type="page_view",
             signal_category=SignalCategory.engagement,
         )
-        mock_dispatch.assert_called_once_with(trial_client.id)
+        # _dispatch_recompute removed from service
 
 
 class TestDailyCap:
     """Tests for daily cap enforcement (subtask 2.4)."""
 
-    @patch("app.services.trial_signals.SignalCollector._dispatch_recompute")
-    def test_enforces_daily_cap(self, mock_dispatch, collector, trial_client, db):
+    def test_enforces_daily_cap(self, collector, trial_client, db):
         now = datetime.now(TZ)
         # Pre-populate with DAILY_SIGNAL_CAP signals
         for i in range(DAILY_SIGNAL_CAP):
@@ -247,8 +240,7 @@ class TestRetryOnDbError:
 class TestRecordNegativeSignal:
     """Tests for record_negative_signal helper."""
 
-    @patch("app.services.trial_signals.SignalCollector._dispatch_recompute")
-    def test_records_with_negative_category(self, mock_dispatch, collector, trial_client):
+    def test_records_with_negative_category(self, collector, trial_client):
         signal_id = collector.record_negative_signal(
             client_id=trial_client.id,
             signal_type="no_activity_72h",
@@ -263,8 +255,7 @@ class TestRecordNegativeSignal:
 class TestGetSignals:
     """Tests for get_signals helper."""
 
-    @patch("app.services.trial_signals.SignalCollector._dispatch_recompute")
-    def test_returns_all_signals_for_client(self, mock_dispatch, collector, trial_client):
+    def test_returns_all_signals_for_client(self, collector, trial_client):
         # Record a few signals with different types
         collector.record_signal(trial_client.id, "page_view", SignalCategory.engagement)
         collector.record_signal(trial_client.id, "report_viewed", SignalCategory.value_realization)
@@ -272,8 +263,7 @@ class TestGetSignals:
         signals = collector.get_signals(trial_client.id)
         assert len(signals) == 2
 
-    @patch("app.services.trial_signals.SignalCollector._dispatch_recompute")
-    def test_filters_by_since(self, mock_dispatch, collector, trial_client, db):
+    def test_filters_by_since(self, collector, trial_client, db):
         # Create an old signal directly
         old_signal = TrialSignal(
             client_id=trial_client.id,

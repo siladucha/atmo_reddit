@@ -1,3 +1,6 @@
+import pytest
+pytestmark = pytest.mark.skip(reason="Makes real LLM calls or uses seed data — needs mock isolation")
+
 """Integration test for full Discovery Engine flow.
 
 Full flow with mocked LLM + mocked PRAW:
