@@ -13,7 +13,7 @@
   --color-orange: #FF6B35;
   --color-orange-light: #FF8C5A;
   --color-white: #FFFFFF;
-  --color-muted: #AAAAAA;
+  --color-muted: #B8B8CC;
   --color-red: #E53935;
   --color-amber: #F59E0B;
   --color-green: #22C55E;
@@ -25,9 +25,9 @@
   --text-h1: 30px;
   --text-h2: 22px;
   --text-h3: 18px;
-  --text-body: 15px;
-  --text-small: 13px;
-  --text-micro: 11px;
+  --text-body: 16px;
+  --text-small: 14px;
+  --text-micro: 12px;
 
   --weight-display: 700;
   --weight-h1: 700;
@@ -65,7 +65,7 @@
   border: 1px solid #2E2E4A !important;
   border-radius: 4px !important;
   color: #FFFFFF !important;
-  font-size: 15px !important;
+  font-size: 16px !important;
   font-family: inherit !important;
   padding: 10px 12px !important;
   transition: border-color 150ms ease-out;
@@ -73,7 +73,7 @@
 
 .client-portal input::placeholder,
 .client-portal textarea::placeholder {
-  color: #AAAAAA !important;
+  color: #B8B8CC !important;
   opacity: 0.7 !important;
 }
 
@@ -121,12 +121,12 @@
   border: 1px solid #2E2E4A !important;
   border-radius: 4px !important;
   color: #FFFFFF !important;
-  font-size: 15px !important;
+  font-size: 16px !important;
   padding: 10px 12px !important;
 }
 
 .field-input::placeholder {
-  color: #AAAAAA !important;
+  color: #B8B8CC !important;
   opacity: 0.7 !important;
 }
 
@@ -149,7 +149,7 @@
   min-height: 44px;
   padding: 10px 20px;
   border-radius: 4px;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   border: none;
@@ -179,7 +179,7 @@
   min-height: 44px;
   padding: 10px 20px;
   border-radius: 4px;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   background: transparent !important;

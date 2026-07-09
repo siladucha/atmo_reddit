@@ -1,9 +1,9 @@
 {
   "meta": {
     "domain": "risk_registry",
-    "version": "3.1.0",
-    "description": "Complete risk registry for RAMP system. Unified from code analysis, steering docs, production incidents (June 24-July 2, 2026), fleet PRAW audit (June 27), Reddit platform intelligence, and Forecast & Reporting Layer design (July 2). Designed for consumption by RAMP AI agent and human analysts.",
-    "last_updated": "2026-07-02",
+    "version": "3.2.0",
+    "description": "Complete risk registry for RAMP system. Unified from code analysis, steering docs, production incidents (June 24-July 4, 2026), fleet PRAW audit (June 27), Reddit platform intelligence, Forecast & Reporting Layer design (July 2), Extension v3 old_reddit migration (July 4), and A/B Test Framework deployment (July 4). Designed for consumption by RAMP AI agent and human analysts.",
+    "last_updated": "2026-07-07",
     "authors": [
       "Kiro (AI agent — code analysis, steering doc cross-reference)",
       "Max Breger (production incident report, ban detection design)",
@@ -20,7 +20,12 @@
       "08_agent_instructions.json",
       "Production incident: StopAutomatic717 / r/Juve shadowban (June 25, 2026)",
       "Production incident: Flaky_Finder_13 global shadowban (June 25, 2026)",
-      "Code analysis: health_checker.py, snapshot_outcomes.py, subreddit_ban.py, subreddit_ban_probe.py, avatar_subreddit_ban.py, fitness_gate.py, rule_extractor.py, moderation_profiler.py, risk_scorer.py, reddit.py, praw_factory.py"
+      "Code analysis: health_checker.py, snapshot_outcomes.py, subreddit_ban.py, subreddit_ban_probe.py, avatar_subreddit_ban.py, fitness_gate.py, rule_extractor.py, moderation_profiler.py, risk_scorer.py, reddit.py, praw_factory.py",
+      "Extension v3 old_reddit strategy change (July 4, 2026)",
+      "A/B Test Framework deployment (July 4, 2026)",
+      "Executor email verification deployment (July 4, 2026)",
+      "Reddit reCAPTCHA Enterprise discovery (July 4, 2026)",
+      "Ad Age report: Reddit AA AI anti-spam systems (July 7, 2026) — LLM behavioral analysis, Reputation Filter, Preventive Screening"
     ],
     "usage_notes": {
       "for_ai_agent": "When asked about risks, always reference by ID. When proposing fixes, map to existing GAP/IMP IDs. When analyzing new incidents, check if they map to an existing risk or require a new entry.",
@@ -139,7 +144,10 @@
       "related_gaps": [
         "GAP-004"
       ],
-      "related_risks": ["R-PLATFORM-005", "R-PLATFORM-006"],
+      "related_risks": [
+        "R-PLATFORM-005",
+        "R-PLATFORM-006"
+      ],
       "mitigation": "IMPLEMENTED: 1. BYOA model — clients create accounts from personal devices/IP. 2. Browser extension for posting — executor's own IP, no API fingerprint. 3. Email task delivery — executor posts manually from own device. 4. Server performs only read-only PRAW calls (public profile data). 5. No automated posting from server IP.",
       "status": "resolved",
       "detected_date": "2026-06-25",
@@ -201,7 +209,9 @@
       "escalation": "LOW",
       "source": "Fleet PRAW audit June 27 + recovery probes June 28 + architecture review July 2, 2026. docs/ops/reddit_platform_intelligence.md (I-017)",
       "related_gaps": [],
-      "related_risks": ["R-PLATFORM-001"],
+      "related_risks": [
+        "R-PLATFORM-001"
+      ],
       "mitigation": "IMPLEMENTED: Root cause (shared infrastructure) eliminated. BYOA model = clients create accounts on personal devices. Extension/email = posting from executor IP. Server = read-only only. Cohort linkage impossible under current architecture.",
       "status": "resolved",
       "detected_date": "2026-06-27",
@@ -232,7 +242,9 @@
       "escalation": "HIGH",
       "source": "Reddit Responsible Builder Policy (support.reddithelp.com), GitHub issues (gallery-dl #8559, Apollo-Reborn #82). docs/ops/reddit_platform_intelligence.md (I-012)",
       "related_gaps": [],
-      "related_risks": ["R-BIZ-002"],
+      "related_risks": [
+        "R-BIZ-002"
+      ],
       "mitigation": "1. API = read-only utility only (scraping, health probes, CQS reads). 2. All posting via browser extension (zero API consumption). 3. Minimize API calls: batch reads, cache aggressively, deduplicate karma_tracking+profile_analytics+presence. 4. 60 req/min sufficient for ~100 avatars read-only with optimization.",
       "status": "permanent_constraint",
       "detected_date": "2026-06-27"
@@ -289,7 +301,10 @@
       "escalation": "MEDIUM",
       "source": "crawlora.hashnode.dev report (May 28, 2026). Reddit platform change.",
       "related_gaps": [],
-      "related_risks": ["R-PLATFORM-007", "R-BIZ-002"],
+      "related_risks": [
+        "R-PLATFORM-007",
+        "R-BIZ-002"
+      ],
       "mitigation": "Already using authenticated PRAW for all scraping. No immediate action. But reinforces: API budget is finite and non-expandable. Every call matters.",
       "status": "permanent_constraint",
       "detected_date": "2026-06-27"
@@ -298,14 +313,17 @@
       "id": "R-PLATFORM-012",
       "group": "PLATFORM",
       "title": "Extension Bulk Text Insert Detected as Programmatic Posting",
-      "description": "Current extension inserts full comment text in one operation (textarea.value = text). While old.reddit.com uses server-side form POST (so the server receives only the final string), Reddit could add client-side JavaScript monitoring keystroke timing, input event patterns, or textarea value-change velocity. If detected, accounts posting via extension may be flagged as automated.",
+      "description": "Extension v3 (July 4, 2026) defaults to old.reddit.com textarea posting. Text is inserted via content script value assignment (not keystroke-by-keystroke). While old.reddit.com uses server-side form POST (so the server receives only the final string), Reddit could add client-side JavaScript monitoring keystroke timing, input event patterns, or textarea value-change velocity. If detected, accounts posting via extension may be flagged as automated.",
       "impact": "Elevated shadowban rates for extension-posted avatars. Posting channel compromised — must fall back to email-only (higher executor friction, lower throughput). Worst case: bulk ban of all avatars that posted via extension.",
       "likelihood": "Low (old reddit has no known client-side monitoring as of July 2026, but Reddit is actively developing anti-automation)",
       "escalation": "MEDIUM",
       "source": "Ori handoff docs (REDDIT_POSTING_AUTOMATION.md, Feb 2026) describe full human-typing simulation. Extension A/B test framework (July 2026) will measure this risk empirically.",
       "related_gaps": [],
-      "related_risks": ["R-PLATFORM-001", "R-PLATFORM-006"],
-      "mitigation": "1. A/B test framework deployed (old_reddit vs manual_email vs new_reddit_debugger) — will quantify detection signal. 2. DORMANT typing simulation module ready: `ramp_extension/background/human-typing.js` — per-character CDP keystrokes (70-190ms), typo simulation (1.2% with QWERTY adjacency map), immediate+delayed corrections, ghost mouse Bézier curves. Activate when A/B test shows old_reddit shadowban rate > manual_email by ≥2σ. 3. Human-like navigation already implemented (subreddit browse → scroll → click thread, not direct URL). 4. Minimum 3-min interval between posts already enforced.",
+      "related_risks": [
+        "R-PLATFORM-001",
+        "R-PLATFORM-006"
+      ],
+      "mitigation": "1. A/B test framework deployed (old_reddit vs manual_email vs new_reddit_debugger) — will quantify detection signal empirically. 2. DORMANT typing simulation module ready: ramp_extension/background/human-typing.js — per-character CDP keystrokes (70-190ms), typo simulation (1.2% with QWERTY adjacency map), immediate+delayed corrections, ghost mouse Bezier curves. Activate when A/B test shows old_reddit shadowban rate > manual_email by >=2 sigma. 3. Default strategy changed from new_reddit_debugger to old_reddit (July 4) — simpler DOM, no reCAPTCHA, 10+ years stable. 4. Minimum 3-min interval between posts already enforced. 5. Human-like navigation (subreddit browse then scroll then click thread, not direct URL).",
       "status": "monitored",
       "detected_date": "2026-07-04",
       "monitoring_mechanism": "A/B test weekly metrics (MetricCollector → StatisticalReporter). Compare removal_rate and shadowban_incidents between old_reddit and manual_email groups.",
@@ -322,7 +340,9 @@
       "escalation": "CRITICAL",
       "source": "R-PLATFORM-007 (app creation blocked) + single app architecture. If revoked, no fallback exists.",
       "related_gaps": [],
-      "related_risks": ["R-PLATFORM-007"],
+      "related_risks": [
+        "R-PLATFORM-007"
+      ],
       "mitigation": "1. Minimize suspicious API patterns (no burst reads, respectful rate usage). 2. Browser extension as parallel monitoring channel (health + CQS independent of API). 3. Consider: can we get a second app approved via Reddit partnership program? Low probability but worth exploring. 4. Scraping via browser session as emergency fallback.",
       "status": "open",
       "detected_date": "2026-06-27"
@@ -350,14 +370,15 @@
       "title": "Celery Beat SPOF — Silent Scheduler Death",
       "description": "Beat scheduler is a single process. If it hangs or crashes, the entire time-based pipeline (scoring, EPG, posting, health checks) stops silently. System appears 'up' but does nothing.",
       "impact": "Missed posting windows, SLA breach. No new tasks launched. May go unnoticed for hours without external monitoring.",
-      "likelihood": "Low",
+      "likelihood": "Very Low",
       "escalation": "CRITICAL",
       "source": "07_scalability_boundaries, 02_temporal_model",
       "related_gaps": [],
-      "mitigation": "MITIGATED (July 2, 2026): External systemd watchdog (every 30s) checks Beat container state + Redis heartbeat timestamp. Auto-restarts on failure. Telegram alert. RTO=1-3min vs previously unbounded. REMAINING: RedBeat for HA (multiple Beat instances) at scale.",
-      "status": "mitigated",
+      "mitigation": "RESOLVED (July 7, 2026): Root cause eliminated. Beat now uses lightweight beat_app.py (no heavy imports: no SQLAlchemy, PRAW, LiteLLM). Memory stable at ~25 MB (was 225 MB leaking to OOM every 3h). Docker limit 128 MB. Deploy grace period in watchdog prevents false alerts. PREVIOUS (July 2): External watchdog auto-restart masked the leak. REMAINING: RedBeat for HA at scale.",
+      "status": "resolved",
       "detected_date": "2026-06-25",
-      "mitigated_date": "2026-07-02"
+      "mitigated_date": "2026-07-02",
+      "resolved_date": "2026-07-07"
     },
     {
       "id": "R-INFRA-003",
@@ -598,7 +619,11 @@
       "escalation": "HIGH",
       "source": "07_scalability_boundaries, Reddit Responsible Builder Policy, R-PLATFORM-007",
       "related_gaps": [],
-      "related_risks": ["R-PLATFORM-007", "R-PLATFORM-011", "R-INFRA-006"],
+      "related_risks": [
+        "R-PLATFORM-007",
+        "R-PLATFORM-011",
+        "R-INFRA-006"
+      ],
       "mitigation": "1. API = read-only, minimize calls. 2. All posting via browser extension. 3. Deduplicate fetches (karma+profile+presence). 4. Smart scheduling. 5. Accept: API is finite, not a growth vector.",
       "status": "permanent_constraint",
       "detected_date": "2026-06-25",
@@ -1476,7 +1501,9 @@
       "escalation": "HIGH",
       "source": "Forecast & Reporting Layer design (July 2, 2026). Architectural analysis of GEO monitoring query selection.",
       "related_gaps": [],
-      "related_risks": ["R-FORECAST-003"],
+      "related_risks": [
+        "R-FORECAST-003"
+      ],
       "mitigation": "1. Category distribution requirement: queries MUST cover ≥5 categories including ones where brand is NOT present. 2. Include competitor-dominated queries (shows honest gap). 3. 'Blind spot' metric: % of categories with 0% visibility (healthy system SHOULD have some). 4. Monthly manual spot-check of queries NOT in monitoring set. 5. Never add queries BECAUSE brand already appears — defeats the purpose.",
       "status": "open",
       "detected_date": "2026-07-02"
@@ -1491,7 +1518,9 @@
       "escalation": "HIGH",
       "source": "Forecast & Reporting Layer design (July 2, 2026). Truth Resolution Model analysis.",
       "related_gaps": [],
-      "related_risks": ["R-FORECAST-001"],
+      "related_risks": [
+        "R-FORECAST-001"
+      ],
       "mitigation": "1. Structural separation in report JSONB (observed_json ≠ forecasted_json — machine-verifiable). 2. UI: projected values ALWAYS dashed/italic, measured ALWAYS solid/bold. 3. Every projection accompanied by range (never point estimate). 4. Forecast accuracy tracking: if predictions consistently miss, confidence intervals auto-widen. 5. Tzvi briefing: projected numbers are scenarios, not promises. 6. Client-facing reports always label '📈 Projected' with explicit model/assumptions.",
       "status": "open",
       "detected_date": "2026-07-02"
@@ -1590,11 +1619,167 @@
       "escalation": "MEDIUM",
       "source": "AI Cost Centralization steering file (July 2, 2026). Production audit found 5 violations.",
       "related_gaps": [],
-      "related_risks": ["R-AI-007", "R-BIZ-001"],
+      "related_risks": [
+        "R-AI-007",
+        "R-BIZ-001"
+      ],
       "mitigation": "1. Steering rule established: EVERY LLM call through call_llm() + log_ai_usage(). 2. Code review checklist item. 3. Consider: lint rule that flags 'import litellm' in services (except ai.py and geo_providers.py). 4. Runtime: periodic audit comparing litellm call count vs ai_usage_log row count.",
       "status": "fixed",
       "detected_date": "2026-07-02",
       "fixed_date": "2026-07-02"
+    },
+    {
+      "id": "R-PLATFORM-013",
+      "group": "PLATFORM",
+      "title": "New Reddit reCAPTCHA Enterprise Blocks API/GraphQL Posting Path",
+      "description": "Confirmed July 4, 2026: New Reddit (www.reddit.com) uses reCAPTCHA Enterprise on comment submission via GQL CreateCaptchaToken mutation. The faceplate-form web component does NOT submit via fetch() and cannot be intercepted or replayed programmatically. This permanently blocks any API or GraphQL-based posting approach on new Reddit.",
+      "impact": "Cannot use new Reddit DOM for automated posting without solving reCAPTCHA. Entire extension posting strategy must route through old.reddit.com (plain textarea + form POST, no reCAPTCHA observed). If Reddit retires old.reddit.com, posting channel is blocked until human-typing simulation or reCAPTCHA solving is implemented.",
+      "likelihood": "Occurred (permanent constraint for new Reddit)",
+      "escalation": "MEDIUM",
+      "source": "Intercepted CreateCaptchaToken GQL mutation in network tab (July 4, 2026). Confirmed: faceplate-form submit not capturable via fetch interceptor.",
+      "related_gaps": [],
+      "related_risks": [
+        "R-PLATFORM-012",
+        "R-PLATFORM-014"
+      ],
+      "mitigation": "1. IMPLEMENTED: Default posting strategy switched to old_reddit (July 4). Old Reddit has no reCAPTCHA, plain textarea + .save button. 2. A/B test framework can compare old_reddit vs new_reddit_debugger if needed. 3. human-typing.js module DORMANT as countermeasure if old Reddit adds client-side monitoring.",
+      "status": "permanent_constraint",
+      "detected_date": "2026-07-04"
+    },
+    {
+      "id": "R-PLATFORM-014",
+      "group": "PLATFORM",
+      "title": "Reddit Retires old.reddit.com — Extension Posting Path Eliminated",
+      "description": "Reddit has announced old.reddit.com retirement multiple times but never executed. If retired, the extension primary posting path (textarea + form POST) disappears. The new Reddit path is blocked by reCAPTCHA Enterprise (R-PLATFORM-013). This would force fallback to email-only delivery or require implementing human-typing simulation on new Reddit with reCAPTCHA bypass.",
+      "impact": "Extension posting disabled entirely. Must revert to email-only delivery (8 manual steps per task, significantly higher executor friction, lower throughput). Or invest in human-typing simulation + debugger approach on new Reddit (higher detection risk).",
+      "likelihood": "Low (announced multiple times 2024-2026, never executed; millions of users still on old Reddit)",
+      "escalation": "HIGH",
+      "source": "Reddit announcements (2024-2026). Platform uncertainty principle: cannot predict when/if this happens.",
+      "related_gaps": [],
+      "related_risks": [
+        "R-PLATFORM-012",
+        "R-PLATFORM-013"
+      ],
+      "mitigation": "1. Monitor Reddit announcements for old.reddit.com sunset timeline. 2. human-typing.js module ready (DORMANT) for new Reddit if needed. 3. Email delivery remains always-available fallback. 4. Track A/B test results to validate old_reddit path safety. 5. Consider: mobile web reddit (i.reddit.com) as alternative if old.reddit dies.",
+      "status": "open",
+      "detected_date": "2026-07-04"
+    },
+    {
+      "id": "R-OPS-005",
+      "group": "OPS",
+      "title": "Executor Email Verification Delay — Task Delivery Blocked During 72h Window",
+      "description": "When admin changes executor_email on an avatar (July 4 deployment), executor_email_verified resets to false immediately. All task creation (EPG email, CQS tasks) is blocked until executor clicks verification link (72h expiry). If executor does not check email promptly, avatar produces zero output during verification window.",
+      "impact": "Temporary P1 (Monotonic Progress) degradation for affected avatar. 0 tasks delivered until verification. If only one avatar per client then client gets zero value. Maximum window: 72h.",
+      "likelihood": "Medium (every executor_email change triggers this; executor response time varies)",
+      "escalation": "LOW",
+      "source": "Executor email verification deployment (July 4, 2026). By-design safety gate.",
+      "related_gaps": [],
+      "related_risks": [
+        "R-POSTING-003"
+      ],
+      "mitigation": "1. Admin Mark as Verified override available for trusted executors. 2. Resend Verification button in admin UI. 3. Extension delivery_channel=extension bypasses email verification entirely (tasks delivered via polling). 4. Activity event emitted when verification blocks task.",
+      "status": "accepted",
+      "detected_date": "2026-07-04"
+    },
+    {
+      "id": "R-OPS-006",
+      "group": "OPS",
+      "title": "A/B Test Phase Evaluation Block — Avatars Stuck in Phase During Experiment",
+      "description": "When an avatar is assigned to an active A/B experiment (ExperimentRun status=running), phase_evaluator.py skips that avatar during daily 06:00 evaluation. This prevents phase promotion/demotion from confounding the experiment. However, if experiment runs for 8+ weeks, avatars that would naturally graduate Phase 1 to 2 remain stuck at Phase 1 (hobby-only, lower output).",
+      "impact": "Reduced output for experiment avatars (Phase 1 = 2-3 comments/day vs Phase 2 = 7/day). Client may perceive system broken for those avatars. Experiment duration directly gates avatar progression.",
+      "likelihood": "Medium (intended behavior, but extended experiments could delay business value)",
+      "escalation": "LOW",
+      "source": "A/B Test Framework design (July 4, 2026). phase.py modification blocks eval for experiment avatars.",
+      "related_gaps": [],
+      "related_risks": [
+        "R-PLATFORM-012"
+      ],
+      "mitigation": "1. Experiment planned duration = 6-8 weeks (sufficient statistical power without excessive delay). 2. Admin can conclude experiment early if clear signal emerges (early termination detection in StatisticalReporter). 3. On experiment conclusion, phase eval immediately runs for freed avatars. 4. Only avatars meeting eligibility criteria assigned (>=5 per group, balanced account age).",
+      "status": "accepted",
+      "detected_date": "2026-07-04"
+    },
+    {
+      "id": "R-PLATFORM-015",
+      "group": "PLATFORM",
+      "title": "Old Reddit Consistent Usage Pattern as Bot Signal",
+      "description": "Extension v3 defaults to old.reddit.com for all posting. If Reddit analyzes user sessions and sees accounts that EXCLUSIVELY use old.reddit.com for commenting (never new Reddit), this pattern could be flagged as unusual. While millions of users prefer old Reddit, accounts that never once use new Reddit may stand out in behavioral analysis.",
+      "impact": "Elevated trust score degradation for extension-posted avatars. Potentially higher shadowban rate if Reddit uses UI-preference as a behavioral signal.",
+      "likelihood": "Low (millions use old Reddit exclusively; unlikely Reddit penalizes this preference)",
+      "escalation": "LOW",
+      "source": "Reddit platform uncertainty principle. Unknown whether Reddit correlates UI preference with trust scoring.",
+      "related_gaps": [],
+      "related_risks": [
+        "R-PLATFORM-012",
+        "R-PLATFORM-014"
+      ],
+      "mitigation": "1. A/B test will detect if old_reddit group has elevated shadowban vs manual_email group. 2. If signal detected: mix some new Reddit browsing activity (read-only) to diversify session fingerprint. 3. Executor naturally browses Reddit with both UIs — session cookies shared.",
+      "status": "open",
+      "detected_date": "2026-07-04",
+      "monitoring_mechanism": "A/B test MetricCollector tracks shadowban_incidents per treatment group weekly."
+    },
+    {
+      "id": "R-PLATFORM-016",
+      "group": "PLATFORM",
+      "title": "Reddit LLM Behavioral Analysis Detects Coordinated Posting Patterns",
+      "description": "Reddit deployed AI/LLM-based behavioral analysis (confirmed Q1 2026, Ad Age report July 2026). System specifically targets 'coordinated inauthentic behavior' — multiple accounts acting in concert, posting similar content, using similar language patterns, or operating on correlated schedules. If multiple RAMP avatars for the same client produce content via the same Claude Sonnet prompt template with similar style/length/timing, Reddit's LLM may detect the coordination pattern even without shared infrastructure.",
+      "impact": "Multiple avatars of one client simultaneously flagged as coordinated spam ring. Mass shadowban of client's entire avatar fleet in single enforcement action. Client value destroyed, recovery impossible (Reddit anti-coordination enforcement is typically permanent).",
+      "likelihood": "Medium (Reddit explicitly states LLM analysis for 'скрытые скоординированные паттерны' is live in 2026)",
+      "escalation": "HIGH",
+      "source": "Ad Age report (July 2026): 'Reddit's AA AI automated systems catch spammy posts and comments'. Reddit Safety blog Q1 2026: LLM-based detection of coordinated inauthentic behavior. 23M spam impressions/day blocked, 25K posts/comments removed daily.",
+      "related_gaps": [],
+      "related_risks": [
+        "R-PLATFORM-001",
+        "R-PLATFORM-006",
+        "R-PLATFORM-012"
+      ],
+      "mitigation": "1. Cross-avatar dedup (PLANNED, priority raised): prevent 2+ client avatars posting in same thread. 2. Stylistic variation: per-avatar temperature variance, prompt template rotation (2-3 variants per generation call), randomized response length. 3. Timing decorrelation: avatars of same client must have non-overlapping posting windows (spread across day, not clustered in 1-hour EPG burst). 4. Topic diversity: same client's avatars must never mention same brand/product in same subreddit within 7 days. 5. One niche cluster per avatar principle already enforced (different subs, different topics). 6. Human-in-the-loop variability: executor edits add natural variation that pure AI output lacks.",
+      "status": "open",
+      "detected_date": "2026-07-07",
+      "source_document": "Ad Age: 'Reddit's AA AI automated systems catch spammy posts and comments' (July 2026)"
+    },
+    {
+      "id": "R-PLATFORM-017",
+      "group": "PLATFORM",
+      "title": "Reddit Reputation Filter Degrades Low-Karma Account Visibility",
+      "description": "Reddit confirmed 'Reputation Filter' tool (2026) that automatically reduces visibility of content from accounts with low 'quality score' (based on karma, email verification, account age, behavior patterns). This is NOT removal — content stays posted but gets hidden from other users via reduced distribution. Phase 0-1 avatars with karma < 50 are in the highest-risk category for Reputation Filter suppression. Content may appear posted successfully but have zero actual visibility.",
+      "impact": "Phase 0-1 warming becomes significantly slower: comments visible in profile but invisible to community (zero karma accumulation, zero engagement). Warming period extends from 4-6 weeks to potentially 8-12 weeks. EPG feedback loop receives false signal (posted but 0 karma = interpreted as low quality, when actual cause is visibility suppression). Phase evaluation may falsely demote avatars whose content is simply invisible.",
+      "likelihood": "High (explicitly confirmed by Reddit as deployed tool available to moderators, also applied site-wide for spam accounts)",
+      "escalation": "HIGH",
+      "source": "Reddit Safety blog Q1 2026: 'Reputation Filter — automatically filters content from users with low quality score (karma, verification)'. Reddit Crowd Control documentation.",
+      "related_gaps": [],
+      "related_risks": [
+        "R-PLATFORM-006",
+        "R-PLATFORM-009"
+      ],
+      "mitigation": "1. Do NOT accelerate Phase 1 warming — each day of organic karma genuinely increases quality score. 2. Phase evaluation must account for 'invisible content' scenario: if karma=0 for 5+ comments but no deletions detected, consider Reputation Filter as cause (not content quality). 3. Email/phone verification on Reddit accounts before RAMP onboarding (higher quality score at birth). 4. Safe zone subs (AskReddit, CasualConversation) have lax Crowd Control settings — continue using for Phase 0. 5. Monitor: if karma accumulation rate drops significantly for new avatars vs historical baseline, flag as potential Reputation Filter tightening. 6. Extension health monitoring: check if comments are visible in thread (not just on profile).",
+      "status": "open",
+      "detected_date": "2026-07-07",
+      "source_document": "Ad Age: 'Reddit's AA AI automated systems catch spammy posts and comments' (July 2026)"
+    },
+    {
+      "id": "R-PLATFORM-018",
+      "group": "PLATFORM",
+      "title": "Reddit Preventive Screening at Account Creation (Pre-Birth Trust Scoring)",
+      "description": "Reddit confirmed AI-based 'preventive screening' that analyzes signals at account creation to stop bots BEFORE first post. Signals likely include: IP reputation, device fingerprint, email provider, registration timing pattern, browser fingerprint, and potentially correlations with other recently-created accounts from similar infrastructure. This confirms R-PLATFORM-006 (identity-based shadowban) is not speculation but a documented, active system.",
+      "impact": "Accounts created in batches, from VPN/proxy IPs, with disposable email addresses, or with suspicious browser fingerprints are flagged at creation — no amount of subsequent good behavior can overcome initial flag. BYOA accounts from clients' personal devices are SAFE (clean infrastructure). Farm accounts or bulk-provisioned avatars are HIGH RISK.",
+      "likelihood": "High (explicitly confirmed as deployed system, 2026)",
+      "escalation": "HIGH",
+      "source": "Reddit Safety blog Q1 2026: 'Preventive screening — analyzing suspicious signals at account creation to stop bots before first publication'. Ad Age report July 2026.",
+      "related_gaps": [],
+      "related_risks": [
+        "R-PLATFORM-006",
+        "R-PLATFORM-001",
+        "R-PLATFORM-005"
+      ],
+      "mitigation": "1. BYOA model (client creates own accounts from personal devices) already eliminates this risk for new avatars. 2. For pre-warmed avatar farm: each account must be created from unique residential IP, unique device, unique email provider (not disposable), spaced ≥48h apart. 3. Account creation protocol document for Tzvi/avatar sourcing team (NEEDED). 4. Never create accounts from server IP, VPN, or datacenter IP. 5. Reddit email verification on account immediately after creation. 6. First 14 days: zero system interaction, only organic browsing.",
+      "status": "open",
+      "detected_date": "2026-07-07",
+      "source_document": "Ad Age: 'Reddit's AA AI automated systems catch spammy posts and comments' (July 2026)",
+      "action_items": [
+        "Create account creation safety protocol document for avatar sourcing team",
+        "Audit existing pre-warmed farm accounts for creation infrastructure quality",
+        "Add 'creation_infrastructure_quality' field to avatar model (clean/unknown/compromised)"
+      ]
     }
   ],
   "priorities": {
@@ -2234,8 +2419,19 @@
         "NOT_in_scope": "DOM scraping (PRAW handles), voting (no use case), auto-mode (Phase 2)",
         "timeline": "2-3 weeks",
         "owner": "Engineer",
-        "risks_closed": ["R-PLATFORM-005", "R-PLATFORM-007", "R-PLATFORM-008", "R-PLATFORM-010", "R-INFRA-006"],
-        "risks_mitigated": ["R-PLATFORM-004", "R-PLATFORM-006", "R-PLATFORM-009", "R-BIZ-002"],
+        "risks_closed": [
+          "R-PLATFORM-005",
+          "R-PLATFORM-007",
+          "R-PLATFORM-008",
+          "R-PLATFORM-010",
+          "R-INFRA-006"
+        ],
+        "risks_mitigated": [
+          "R-PLATFORM-004",
+          "R-PLATFORM-006",
+          "R-PLATFORM-009",
+          "R-BIZ-002"
+        ],
         "how": "All write operations move to browser session (zero API fingerprint). Health monitoring independent of PRAW. CQS diagnostics bypass frozen-state filters. Single app SPOF mitigated by parallel monitoring channel."
       },
       {
@@ -2244,8 +2440,14 @@
         "scope": "New avatars created ONLY from executor personal devices/home IP. RAMP never touches account registration.",
         "timeline": "Immediate (policy) + 14 days per avatar (warmup)",
         "owner": "Operations + Executors",
-        "risks_closed": ["R-PLATFORM-006"],
-        "risks_mitigated": ["R-PLATFORM-001", "R-PLATFORM-005", "R-PLATFORM-008"],
+        "risks_closed": [
+          "R-PLATFORM-006"
+        ],
+        "risks_mitigated": [
+          "R-PLATFORM-001",
+          "R-PLATFORM-005",
+          "R-PLATFORM-008"
+        ],
         "how": "Eliminate identity-based ban risk at source. Each avatar = unique IP + device + email. No shared infrastructure."
       },
       {
@@ -2254,8 +2456,12 @@
         "scope": "14-day gradual entry, 7-day gradual exit, 2x max rule, voice continuity, 20-30% organic preservation",
         "timeline": "Policy + pipeline enforcement",
         "owner": "Engineer + Operations",
-        "risks_closed": ["R-PLATFORM-009"],
-        "risks_mitigated": ["R-PLATFORM-008"],
+        "risks_closed": [
+          "R-PLATFORM-009"
+        ],
+        "risks_mitigated": [
+          "R-PLATFORM-008"
+        ],
         "how": "Prevent behavioral discontinuity signal. RAMP activity blends into avatar's existing pattern."
       },
       {
@@ -2265,29 +2471,150 @@
         "timeline": "2 days",
         "owner": "Engineer",
         "risks_closed": [],
-        "risks_mitigated": ["R-BIZ-002", "R-PLATFORM-007", "R-INFRA-006"],
+        "risks_mitigated": [
+          "R-BIZ-002",
+          "R-PLATFORM-007",
+          "R-INFRA-006"
+        ],
         "how": "Eliminate burst patterns. Maximize value from 60 req/min. Reduce suspicious activity signals."
       }
     ],
     "per_risk_closure": [
-      {"risk_id": "R-PLATFORM-001", "closure_type": "collective", "mitigations": ["MIT-001", "MIT-002", "MIT-003"], "residual": "None — architecture eliminates vector (BYOA + extension)", "status": "resolved"},
-      {"risk_id": "R-PLATFORM-005", "closure_type": "collective", "mitigations": ["MIT-001", "MIT-002"], "residual": "Legacy dead avatars (historical). No future risk.", "status": "resolved"},
-      {"risk_id": "R-PLATFORM-006", "closure_type": "individual", "mitigations": ["MIT-002"], "residual": "None if executor uses clean device", "status": "closed_by_policy"},
-      {"risk_id": "R-PLATFORM-007", "closure_type": "collective", "mitigations": ["MIT-001", "MIT-004"], "residual": "App revocation = emergency", "status": "permanent_mitigated"},
-      {"risk_id": "R-PLATFORM-008", "closure_type": "collective", "mitigations": ["MIT-001", "MIT-002", "MIT-003"], "residual": "N+1 redundancy needed", "status": "mitigated"},
-      {"risk_id": "R-PLATFORM-009", "closure_type": "individual", "mitigations": ["MIT-003"], "residual": "Executor compliance needed", "status": "closed_by_protocol"},
-      {"risk_id": "R-PLATFORM-010", "closure_type": "collective", "mitigations": ["MIT-001", "MIT-004"], "residual": "Server still scrapes (low risk)", "status": "mitigated"},
-      {"risk_id": "R-PLATFORM-011", "closure_type": "none_needed", "mitigations": [], "residual": "Already handled by PRAW OAuth", "status": "no_action"},
-      {"risk_id": "R-INFRA-006", "closure_type": "collective", "mitigations": ["MIT-001", "MIT-004"], "residual": "Pre-extension = vulnerable", "status": "mitigated_post_extension"},
-      {"risk_id": "R-BIZ-002", "closure_type": "collective", "mitigations": ["MIT-001", "MIT-004"], "residual": "At 200+ avatars: Data365 Plan B", "status": "not_a_problem_now"}
+      {
+        "risk_id": "R-PLATFORM-001",
+        "closure_type": "collective",
+        "mitigations": [
+          "MIT-001",
+          "MIT-002",
+          "MIT-003"
+        ],
+        "residual": "None — architecture eliminates vector (BYOA + extension)",
+        "status": "resolved"
+      },
+      {
+        "risk_id": "R-PLATFORM-005",
+        "closure_type": "collective",
+        "mitigations": [
+          "MIT-001",
+          "MIT-002"
+        ],
+        "residual": "Legacy dead avatars (historical). No future risk.",
+        "status": "resolved"
+      },
+      {
+        "risk_id": "R-PLATFORM-006",
+        "closure_type": "individual",
+        "mitigations": [
+          "MIT-002"
+        ],
+        "residual": "None if executor uses clean device",
+        "status": "closed_by_policy"
+      },
+      {
+        "risk_id": "R-PLATFORM-007",
+        "closure_type": "collective",
+        "mitigations": [
+          "MIT-001",
+          "MIT-004"
+        ],
+        "residual": "App revocation = emergency",
+        "status": "permanent_mitigated"
+      },
+      {
+        "risk_id": "R-PLATFORM-008",
+        "closure_type": "collective",
+        "mitigations": [
+          "MIT-001",
+          "MIT-002",
+          "MIT-003"
+        ],
+        "residual": "N+1 redundancy needed",
+        "status": "mitigated"
+      },
+      {
+        "risk_id": "R-PLATFORM-009",
+        "closure_type": "individual",
+        "mitigations": [
+          "MIT-003"
+        ],
+        "residual": "Executor compliance needed",
+        "status": "closed_by_protocol"
+      },
+      {
+        "risk_id": "R-PLATFORM-010",
+        "closure_type": "collective",
+        "mitigations": [
+          "MIT-001",
+          "MIT-004"
+        ],
+        "residual": "Server still scrapes (low risk)",
+        "status": "mitigated"
+      },
+      {
+        "risk_id": "R-PLATFORM-011",
+        "closure_type": "none_needed",
+        "mitigations": [],
+        "residual": "Already handled by PRAW OAuth",
+        "status": "no_action"
+      },
+      {
+        "risk_id": "R-INFRA-006",
+        "closure_type": "collective",
+        "mitigations": [
+          "MIT-001",
+          "MIT-004"
+        ],
+        "residual": "Pre-extension = vulnerable",
+        "status": "mitigated_post_extension"
+      },
+      {
+        "risk_id": "R-BIZ-002",
+        "closure_type": "collective",
+        "mitigations": [
+          "MIT-001",
+          "MIT-004"
+        ],
+        "residual": "At 200+ avatars: Data365 Plan B",
+        "status": "not_a_problem_now"
+      }
     ],
     "immediate_actions": [
-      {"priority": "P0", "action": "Notify Tzvi — NeuroYoga zero working avatars", "owner": "Operations", "deadline": "Today"},
-      {"priority": "P0", "action": "Verify 3 likely-OK avatars via post test (RunPriyaRun, TXMan97, Icy_Version4101)", "owner": "Engineer", "deadline": "Today"},
-      {"priority": "P1", "action": "Determine registration source for StopAutomatic717 and lucas_parker2", "owner": "Operations", "deadline": "Tomorrow"},
-      {"priority": "P1", "action": "Implement spread health checks (30-min window)", "owner": "Engineer", "deadline": "2 days"},
-      {"priority": "P2", "action": "Browser Extension MVP (CQS + posting + health + heartbeat)", "owner": "Engineer", "deadline": "2-3 weeks"},
-      {"priority": "P2", "action": "New avatar for NeuroYoga from clean executor device (14-day warmup)", "owner": "Operations + Executor", "deadline": "Start now"}
+      {
+        "priority": "P0",
+        "action": "Notify Tzvi — NeuroYoga zero working avatars",
+        "owner": "Operations",
+        "deadline": "Today"
+      },
+      {
+        "priority": "P0",
+        "action": "Verify 3 likely-OK avatars via post test (RunPriyaRun, TXMan97, Icy_Version4101)",
+        "owner": "Engineer",
+        "deadline": "Today"
+      },
+      {
+        "priority": "P1",
+        "action": "Determine registration source for StopAutomatic717 and lucas_parker2",
+        "owner": "Operations",
+        "deadline": "Tomorrow"
+      },
+      {
+        "priority": "P1",
+        "action": "Implement spread health checks (30-min window)",
+        "owner": "Engineer",
+        "deadline": "2 days"
+      },
+      {
+        "priority": "P2",
+        "action": "Browser Extension MVP (CQS + posting + health + heartbeat)",
+        "owner": "Engineer",
+        "deadline": "2-3 weeks"
+      },
+      {
+        "priority": "P2",
+        "action": "New avatar for NeuroYoga from clean executor device (14-day warmup)",
+        "owner": "Operations + Executor",
+        "deadline": "Start now"
+      }
     ]
   }
 }
