@@ -11,7 +11,8 @@ from app.models import *  # noqa: F401,F403
 
 
 # Use the real local DB for integration tests
-TEST_DB_URL = "postgresql://user@localhost:5432/reddit_saas"
+import os
+TEST_DB_URL = os.environ.get("DATABASE_URL", "postgresql://user@localhost:5432/reddit_saas")
 engine = create_engine(TEST_DB_URL)
 TestSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

@@ -91,3 +91,4 @@ jobs:
         with:
           name: test-report
           path: reddit_saas/report.xml
+          if-no-files-found: ignore
