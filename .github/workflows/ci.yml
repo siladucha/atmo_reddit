@@ -88,7 +88,8 @@ jobs:
       DATABASE_URL: postgresql://reddit_saas_user:postgres@localhost:5432/reddit_saas
       REDIS_URL: redis://localhost:6379/0
       ENVIRONMENT: test
-      SECRET_KEY: ci-test-key-not-for-production
+      APP_ENV: development
+      SECRET_KEY: ci-test-key-not-for-production-minimum-32-chars-long
       TZ: Asia/Jerusalem
 
     steps:
