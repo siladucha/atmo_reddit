@@ -41,7 +41,9 @@ name: CI
 
 on:
   push:
-    branches: ['**']
+    branches-ignore:
+      - staging
+      - main
   pull_request:
     branches: [staging, main]
   # Allow deploy workflows to call this as a prerequisite
