@@ -56,10 +56,12 @@ def seeded(db):
 
     # Avatars
     a1 = Avatar(reddit_username="a1", active=True, reddit_status="active",
+                health_status="active",
                 warming_phase=1, last_phase_evaluated_at=now - timedelta(days=60))
     a2 = Avatar(reddit_username="a2", active=True, reddit_status="shadowbanned",
                 health_status="shadowbanned", warming_phase=2)
     a3 = Avatar(reddit_username="a3", active=True, reddit_status="active",
+                health_status="active",
                 warming_phase=3)
     a4 = Avatar(reddit_username="a4", active=False, reddit_status="suspended",
                 warming_phase=1)
