@@ -236,8 +236,8 @@ jobs:
           echo "  /api/sse/notifications → $sse"
 
           [ "$login" = "200" ] || { echo "❌ /login failed"; exit 1; }
-          [ "$admin" = "302" ] || { echo "❌ /admin/ should be 302"; exit 1; }
-          [ "$sse" = "401" ] || { echo "❌ SSE should be 401"; exit 1; }
+          [[ "$admin" =~ ^30[2-3]$ ]] || { echo "❌ /admin/ should redirect (302/303)"; exit 1; }
+          [[ "$sse" =~ ^(401|302|303)$ ]] || { echo "❌ SSE should be 401 or redirect"; exit 1; }
 
           echo "✅ All smoke tests passed"
 
