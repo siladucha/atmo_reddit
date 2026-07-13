@@ -20,10 +20,7 @@
 #   11. Docker cleanup (images + build cache older than 72h)
 #
 # REQUIRED SECRETS:
-#   - STAGING_SSH_KEY       — ed25519 private key for staging server
-#   - STAGING_SERVER_IP     — 167.172.191.42
-#   - STAGING_SERVER_USER   — root
-#   - STAGING_URL           — https://staging.gorampit.com
+#   - SSH_DEPLOY  — ed25519 private key (works for both staging and production servers)
 #
 # REQUIRED ENVIRONMENT:
 #   - staging (no protection rules — auto-deploy allowed)
@@ -60,16 +57,16 @@ jobs:
 
       - name: Setup SSH
         env:
-          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          SSH_KEY: ${{ secrets.SSH_DEPLOY }}
         run: |
           mkdir -p ~/.ssh
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.STAGING_SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -H 167.172.191.42 >> ~/.ssh/known_hosts 2>/dev/null
           cat >> ~/.ssh/config << EOF
           Host staging
-            HostName ${{ secrets.STAGING_SERVER_IP }}
-            User ${{ secrets.STAGING_SERVER_USER }}
+            HostName 167.172.191.42
+            User root
             IdentityFile ~/.ssh/deploy_key
             StrictHostKeyChecking no
           EOF
@@ -124,12 +121,10 @@ jobs:
           echo "$migration_log"
 
       - name: Health check
-        env:
-          STAGING_URL: ${{ secrets.STAGING_URL }}
         run: |
           for i in $(seq 1 6); do
             sleep 10
-            status=$(curl -sf -o /dev/null -w '%{http_code}' "${STAGING_URL}/health" || echo "000")
+            status=$(curl -sf -o /dev/null -w '%{http_code}' "https://staging.gorampit.com/health" || echo "000")
             if [ "$status" = "200" ]; then
               echo "✅ Health check passed (attempt $i)"
               # pipeline_alive=false is expected on staging (workers may not have pipeline enabled)
@@ -142,12 +137,10 @@ jobs:
           exit 1
 
       - name: Smoke tests
-        env:
-          STAGING_URL: ${{ secrets.STAGING_URL }}
         run: |
-          login=$(curl -sf -o /dev/null -w '%{http_code}' "${STAGING_URL}/login" || echo "000")
-          admin=$(curl -sf -o /dev/null -w '%{http_code}' "${STAGING_URL}/admin/" || echo "000")
-          sse=$(curl -sf -o /dev/null -w '%{http_code}' "${STAGING_URL}/api/sse/notifications" || echo "000")
+          login=$(curl -sf -o /dev/null -w '%{http_code}' "https://staging.gorampit.com/login" || echo "000")
+          admin=$(curl -sf -o /dev/null -w '%{http_code}' "https://staging.gorampit.com/admin/" || echo "000")
+          sse=$(curl -sf -o /dev/null -w '%{http_code}' "https://staging.gorampit.com/api/sse/notifications" || echo "000")
 
           echo "  /login → $login"
           echo "  /admin/ → $admin"
