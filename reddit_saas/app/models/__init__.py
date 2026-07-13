@@ -168,3 +168,10 @@ from app.models.ab_test import (
     WeeklyReport,
     ControlViolation,
 )
+
+# Billing Plan Enforcement
+from app.models.plan_definition import PlanDefinition
+from app.models.client_subscription import ClientSubscription
+from app.models.webhook_event import WebhookEvent
+from app.models.billing_period_history import BillingPeriodHistory
+from app.models.upsell_event import UpsellEvent

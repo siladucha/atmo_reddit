@@ -63,6 +63,7 @@ PUBLIC_PREFIXES = (
     "/static/",
     "/api/oauth/",
     "/api/extension/",
+    "/api/telegram/",
     "/tasks/",
     "/demo/",
 )

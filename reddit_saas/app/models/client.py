@@ -75,3 +75,9 @@ class Client(Base):
     # Relationships
     subreddits = relationship("ClientSubreddit", back_populates="client")  # legacy, kept for migration
     subreddit_assignments = relationship("ClientSubredditAssignment", back_populates="client")
+
+    # Billing state (denormalized from client_subscriptions for fast pipeline queries)
+    subscription_status: Mapped[str] = mapped_column(String(20), default="trial", server_default="trial")
+    # trial | active | past_due | suspended | canceled | trial_expired | archived
+    billing_period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    billing_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -968,7 +968,6 @@ def scan_opportunities(
 
                 _archive_filters = [
                     HobbySubreddit.avatar_username == avatar.reddit_username,
-                    sa_func.lower(HobbySubreddit.subreddit).in_(hobby_sub_names),
                     HobbySubreddit.post_body.isnot(None),
                     sa_func.length(HobbySubreddit.post_body) > 20,
                     or_(
@@ -983,13 +982,25 @@ def scan_opportunities(
                         HobbySubreddit.id.notin_(_all_drafted_hobby_ids)
                     )
 
-                hobby_posts = (
-                    db.query(HobbySubreddit)
-                    .filter(*_archive_filters)
-                    .order_by(HobbySubreddit.scraped_at.desc())
-                    .limit(10)
-                    .all()
-                )
+                # Round-robin archive fallback: per-sub limit to ensure diversity
+                _archive_per_sub = max(2, 10 // max(len(hobby_sub_names), 1))
+                hobby_posts = []
+                for _arch_sub in hobby_sub_names:
+                    _arch_posts = (
+                        db.query(HobbySubreddit)
+                        .filter(
+                            *_archive_filters,
+                            sa_func.lower(HobbySubreddit.subreddit) == _arch_sub,
+                        )
+                        .order_by(HobbySubreddit.scraped_at.desc())
+                        .limit(_archive_per_sub)
+                        .all()
+                    )
+                    hobby_posts.extend(_arch_posts)
+
+                import random as _rnd_arch
+                _rnd_arch.shuffle(hobby_posts)
+                hobby_posts = hobby_posts[:10]
                 if hobby_posts:
                     _fallback_tier_used = 1
                     logger.info(

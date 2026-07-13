@@ -1726,6 +1726,7 @@ def get_ai_costs_by_operation(db: Session, days: int | None = None) -> list[dict
         "subreddit_rule_extraction": "Subreddit Intel",
         "emotional_profile": "Subreddit Intel",
         "emotional_compatibility": "Subreddit Intel",
+        "telegram_draft_edit": "Telegram",
     }
 
     total_cost = sum(float(r.cost) for r in rows) or 1.0

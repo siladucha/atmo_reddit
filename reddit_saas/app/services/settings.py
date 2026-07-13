@@ -660,6 +660,50 @@ DEFAULTS: dict[str, dict] = {
         "desc": "JSON weights for trial scoring categories (engagement, intent, value_realization, conversion, negative_cap)",
         "group": "trial_intelligence",
     },
+    # --- Telegram Draft Review ---
+    "telegram_draft_review_enabled": {
+        "value": "false",
+        "secret": False,
+        "desc": "Enable Telegram draft review notifications. When true, users with linked Telegram and notification level 'all' or 'warning' receive draft cards for approval.",
+        "group": "telegram",
+    },
+    "telegram_webhook_secret": {
+        "value": "",
+        "secret": True,
+        "desc": "Secret token for Telegram webhook validation (X-Telegram-Bot-Api-Secret-Token header). Generate a random string.",
+        "group": "telegram",
+    },
+    # Billing Plan Enforcement
+    "billing_enabled": {
+        "value": "false",
+        "secret": False,
+        "desc": "Master kill switch for billing enforcement. When false, all plan limit checks are bypassed (existing behavior preserved).",
+        "group": "billing",
+    },
+    "grace_period_default_days": {
+        "value": "7",
+        "secret": False,
+        "desc": "Standard grace period duration in days after payment failure (self-serve clients).",
+        "group": "billing",
+    },
+    "grace_period_repeat_days": {
+        "value": "3",
+        "secret": False,
+        "desc": "Shortened grace period for repeat offenders (previous grace within 60 days).",
+        "group": "billing",
+    },
+    "grace_period_agency_days": {
+        "value": "14",
+        "secret": False,
+        "desc": "Extended grace period for agency tier clients (invoice-based billing).",
+        "group": "billing",
+    },
+    "stripe_webhook_secret": {
+        "value": "",
+        "secret": True,
+        "desc": "Stripe webhook signing secret (whsec_...). Required for webhook signature verification.",
+        "group": "billing",
+    },
 }
 
 # ---------------------------------------------------------------------------

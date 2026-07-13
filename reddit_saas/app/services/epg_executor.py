@@ -504,10 +504,11 @@ def get_budget_used_today(db: Session, avatar_id: uuid.UUID, plan_date: date | N
 
 
 def _notify_drafts_pending(db: Session, client_id, avatar: Avatar, subreddit: str) -> None:
-    """Emit portal bell notification that a draft is pending review.
+    """Emit notifications that a draft is pending review.
 
-    Non-blocking, non-critical. Fires SSE notification to client portal.
+    Non-blocking, non-critical. Fires SSE notification to client portal + Telegram.
     """
+    # Portal bell (SSE)
     try:
         from app.services.notifications import notify_client
         if client_id:
@@ -519,6 +520,29 @@ def _notify_drafts_pending(db: Session, client_id, avatar: Avatar, subreddit: st
                 body=f"u/{avatar.reddit_username} has a new comment for r/{subreddit} waiting for approval.",
                 link=f"/clients/{client_id}/review",
             )
+    except Exception:
+        pass  # Non-critical — don't break generation pipeline
+
+    # Telegram draft review notifications
+    try:
+        from app.services.settings import get_setting
+        if get_setting(db, "telegram_draft_review_enabled") == "true":
+            from app.services.telegram.draft_review import TelegramDraftReview
+            from app.models.comment_draft import CommentDraft
+            # Get recently generated pending drafts for this avatar + client
+            pending_drafts = (
+                db.query(CommentDraft)
+                .filter(
+                    CommentDraft.avatar_id == avatar.id,
+                    CommentDraft.client_id == client_id,
+                    CommentDraft.status == "pending",
+                )
+                .order_by(CommentDraft.created_at.desc())
+                .limit(10)
+                .all()
+            )
+            if pending_drafts:
+                TelegramDraftReview().notify_pending_drafts(db, str(client_id), pending_drafts)
     except Exception:
         pass  # Non-critical — don't break generation pipeline
 

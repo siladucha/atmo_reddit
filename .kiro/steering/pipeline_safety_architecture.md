@@ -559,3 +559,6 @@ Archive fallback excludes ALL `hobby_post_id` values that exist in `comment_draf
 | ~~Locked thread email delivery~~ | Executor receives tasks for locked threads, stuck in limbo | **FIXED June 26** (pre-dispatch liveness check + executor "Can't Post" button) |
 | ~~Hobby drafts "Unknown thread" in review queue~~ | hobby_post_id had no FK, no relationship, no eager load → admin review never resolved hobby context | **FIXED June 28** (shared HobbyThreadProxy + FK + relationship) |
 | ~~Phase 0-1 sub selection is static~~ | Hobby subs hardcoded, no risk-aware routing | **DONE July 2** (`activation_router.py` — zone routing safe→bridge→target using SubredditRiskProfile, feature-flagged) |
+| ~~EPG scan_opportunities no round-robin~~ | Most-scraped sub monopolizes all EPG slots (e.g., worldcup 51 posts → 100% of budget) | **FIXED July 13** (per-sub limit + shuffle in both primary query and archive fallback) |
+| ~~EPG hobby prompt drift~~ | `epg_executor.py` had weak placeholder prompt vs full pipeline prompt → repetitive generic output ("Respect for the analysis" ×3) | **FIXED July 13** (full prompt rewrite: engagement angles, anti-repetition, connect-to-details, voice profile) |
+| EPG vs pipeline prompt unification | Two code paths for hobby comment generation with different prompts → drift risk | TODO (deferred: Tzvi prompt audit pending) |

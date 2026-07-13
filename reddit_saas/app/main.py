@@ -16,6 +16,7 @@ from app.middleware.security import SecurityHeadersMiddleware, RateLimitMiddlewa
 from app.routes import admin, auth, dashboard, review, pipeline, avatars, avatar_analysis, avatar_pipeline, avatar_workflow, clients, pages, dry_run, export, decision_center, portal, portal_actions, portal_requests, onboarding, oauth, posting_dashboard, discovery, admin_geo, sse, avatar_onboard, admin_tasks, executor_tasks, trial_intelligence, admin_risk_profile, portal_risk_profile, daily_review, intelligence_report, admin_intelligence_report, demo, admin_ab_test
 from app.routes.extension_api import router as extension_api_router
 from app.routes.extension_events import router as extension_events_router
+from app.routes.telegram_webhook import router as telegram_webhook_router
 from app.routes import notifications as notifications_routes
 from app.routes import manual as manual_routes
 from app.services.metrics_collector import (
@@ -173,6 +174,7 @@ app.include_router(intelligence_report.router, tags=["intelligence-report"])
 app.include_router(admin_intelligence_report.router, tags=["admin-intelligence-report"])
 app.include_router(demo.router, tags=["demo"])
 app.include_router(admin_ab_test.router, tags=["admin-ab-tests"])
+app.include_router(telegram_webhook_router, tags=["telegram"])
 
 
 @app.get("/health")
