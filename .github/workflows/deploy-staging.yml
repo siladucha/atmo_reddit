@@ -89,6 +89,8 @@ jobs:
             --exclude='node_modules/' \
             --exclude='.pytest_cache/' \
             ./reddit_saas/ staging:/app/
+          # Use staging-specific nginx config (correct SSL cert path)
+          ssh staging "cp /app/nginx/nginx.staging.conf /app/nginx/nginx.conf"
 
       - name: Stop Celery gracefully
         run: |
