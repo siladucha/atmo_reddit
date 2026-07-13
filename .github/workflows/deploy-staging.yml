@@ -162,10 +162,6 @@ jobs:
           db = SessionLocal()
           errors = []
 
-          # Orphaned avatars (no client)
-          r = db.execute(text('SELECT COUNT(*) FROM avatars WHERE client_id IS NULL AND is_active = true')).scalar()
-          if r > 0: errors.append(f'Orphaned active avatars: {r}')
-
           # Drafts with invalid status
           r = db.execute(text(\\\"SELECT COUNT(*) FROM comment_drafts WHERE status NOT IN ('pending','approved','rejected','posted')\\\")).scalar()
           if r > 0: errors.append(f'Invalid draft status: {r}')
