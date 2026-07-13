@@ -35,9 +35,17 @@ def _make_activity_event(db, event_type: str, created_at: datetime, has_error: b
 def _make_scrape_log(db, scraped_at: datetime, has_error: bool = False):
     """Insert a scrape_log entry into the test DB using raw SQL."""
     from sqlalchemy import text as sql_text
-    # Get an existing client_id from the DB
+    # Get an existing client_id from the DB, or create one
     row = db.execute(sql_text("SELECT id FROM clients LIMIT 1")).fetchone()
-    client_id = str(row[0]) if row else str(uuid.uuid4())
+    if row:
+        client_id = str(row[0])
+    else:
+        client_id = str(uuid.uuid4())
+        db.execute(
+            sql_text("INSERT INTO clients (id, client_name, brand_name, is_active) VALUES (:id, :name, :brand, true)"),
+            {"id": client_id, "name": "Topology Test Client", "brand": "TopTest"},
+        )
+        db.flush()
     entry_id = uuid.uuid4()
     db.execute(
         sql_text("""
