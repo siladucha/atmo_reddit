@@ -1,0 +1,89 @@
+# =============================================================================
+# CD — Deploy Marketing Site
+# =============================================================================
+#
+# PURPOSE: Deploy marketing site independently from main app.
+# TRIGGER: Push to main when marketing_site/ files change.
+#          Also: manual workflow_dispatch.
+#
+# FLOW:
+#   1. rsync marketing_site/ to server
+#   2. Build only the marketing Docker image
+#   3. Restart only the marketing container
+#   4. Health check (marketing pages respond)
+#
+# REQUIRED SECRETS:
+#   - PRODUCTION_SSH_KEY       — same as production deploy
+#   - PRODUCTION_SERVER_IP     — same server (161.35.27.165)
+#   - PRODUCTION_SERVER_USER   — root
+#   - PRODUCTION_URL           — https://gorampit.com
+#
+# NOTE: Marketing site is a separate FastAPI app on the same server.
+#       Deployed independently — doesn't affect main app or Celery.
+#
+# =============================================================================
+
+name: Deploy Marketing
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'marketing_site/**'
+  workflow_dispatch:
+
+concurrency: deploy-marketing
+
+jobs:
+  deploy:
+    name: Deploy Marketing Site
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        env:
+          SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.PRODUCTION_SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+          cat >> ~/.ssh/config << EOF
+          Host production
+            HostName ${{ secrets.PRODUCTION_SERVER_IP }}
+            User ${{ secrets.PRODUCTION_SERVER_USER }}
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+
+      - name: rsync marketing site
+        run: |
+          rsync -avz --delete \
+            --exclude='__pycache__/' \
+            --exclude='*.pyc' \
+            --exclude='.DS_Store' \
+            --exclude='.venv/' \
+            ./marketing_site/ production:/marketing_site/
+
+      - name: Build marketing image
+        run: |
+          ssh production "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml build marketing"
+
+      - name: Restart marketing
+        run: |
+          ssh production "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps marketing"
+
+      - name: Health check
+        env:
+          PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
+        run: |
+          sleep 5
+          status=$(curl -sf -o /dev/null -w '%{http_code}' "${PRODUCTION_URL}/" || echo "000")
+          if [ "$status" = "200" ]; then
+            echo "✅ Marketing site health check passed"
+          else
+            echo "❌ Marketing site returned HTTP $status"
+            exit 1
+          fi

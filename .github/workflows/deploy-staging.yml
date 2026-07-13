@@ -1,0 +1,194 @@
+# =============================================================================
+# CD — Deploy to Staging
+# =============================================================================
+#
+# PURPOSE: Deploy verified code to staging server for manual testing.
+# TRIGGER: Push to `staging` branch (after merging feature branch).
+#          Also: manual workflow_dispatch for any branch.
+#
+# FLOW:
+#   1. Run CI (tests must pass) — calls ci.yml as reusable workflow
+#   2. SSH + rsync code to staging server
+#   3. Gracefully stop Celery workers (finish current tasks)
+#   4. Clean beat schedule file (prevent BerkeleyDB corruption)
+#   5. Build Docker image ON the server (no registry needed)
+#   6. Restart app services (keep postgres/redis running)
+#   7. Verify Alembic migrations applied (entrypoint.sh runs them on start)
+#   8. Health check (6 retries × 10s)
+#   9. Smoke tests (login page, admin redirect, SSE auth)
+#   10. Data integrity check (FK violations, orphaned records)
+#   11. Docker cleanup (images + build cache older than 72h)
+#
+# REQUIRED SECRETS:
+#   - STAGING_SSH_KEY       — ed25519 private key for staging server
+#   - STAGING_SERVER_IP     — 167.172.191.42
+#   - STAGING_SERVER_USER   — root
+#   - STAGING_URL           — https://staging.gorampit.com
+#
+# REQUIRED ENVIRONMENT:
+#   - staging (no protection rules — auto-deploy allowed)
+#
+# NOTE: Staging has Celery workers running but pipeline_enabled=false.
+#       Health endpoint may show pipeline_alive=false — this is expected.
+#
+# =============================================================================
+
+name: Deploy Staging
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+concurrency: deploy-staging
+
+jobs:
+  # ---- CI Gate: tests must pass before deploy ----
+  ci:
+    name: CI Gate
+    uses: ./.github/workflows/ci.yml
+
+  # ---- Deploy to staging server ----
+  deploy:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: ci
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        env:
+          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.STAGING_SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+          cat >> ~/.ssh/config << EOF
+          Host staging
+            HostName ${{ secrets.STAGING_SERVER_IP }}
+            User ${{ secrets.STAGING_SERVER_USER }}
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+
+      - name: rsync code
+        run: |
+          rsync -avz --delete \
+            --exclude='.venv/' \
+            --exclude='__pycache__/' \
+            --exclude='.hypothesis/' \
+            --exclude='.git/' \
+            --exclude='*.pyc' \
+            --exclude='.DS_Store' \
+            --exclude='logs/' \
+            --exclude='.env' \
+            --exclude='.vscode/' \
+            --exclude='.claude/' \
+            --exclude='.kiro/' \
+            --exclude='tests/' \
+            --exclude='node_modules/' \
+            --exclude='.pytest_cache/' \
+            ./reddit_saas/ staging:/app/
+
+      - name: Stop Celery gracefully
+        run: |
+          ssh staging "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml stop celery celery-fast celery-beat" || true
+
+      - name: Clean beat schedule
+        run: |
+          ssh staging "docker compose -f /app/docker-compose.yml -f /app/docker-compose.prod.yml exec -T celery-beat rm -f /tmp/celerybeat-schedule" || true
+
+      - name: Build Docker images
+        run: |
+          ssh staging "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml build"
+
+      - name: Restart services
+        run: |
+          ssh staging "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps app celery celery-fast celery-beat nginx"
+
+      # Alembic migrations run automatically in entrypoint.sh on app container start.
+      # Verify they completed successfully.
+      - name: Verify migrations applied
+        run: |
+          sleep 5
+          migration_log=$(ssh staging "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=20 app 2>&1 | grep -i 'alembic\|migration'" || true)
+          if echo "$migration_log" | grep -qi "error\|failed\|traceback"; then
+            echo "❌ Alembic migration error detected:"
+            echo "$migration_log"
+            exit 1
+          fi
+          echo "✅ Migrations OK"
+          echo "$migration_log"
+
+      - name: Health check
+        env:
+          STAGING_URL: ${{ secrets.STAGING_URL }}
+        run: |
+          for i in $(seq 1 6); do
+            sleep 10
+            status=$(curl -sf -o /dev/null -w '%{http_code}' "${STAGING_URL}/health" || echo "000")
+            if [ "$status" = "200" ]; then
+              echo "✅ Health check passed (attempt $i)"
+              # pipeline_alive=false is expected on staging (workers may not have pipeline enabled)
+              exit 0
+            fi
+            echo "  Attempt $i: HTTP $status"
+          done
+          echo "❌ Health check failed after 6 attempts"
+          ssh staging "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=30 app" || true
+          exit 1
+
+      - name: Smoke tests
+        env:
+          STAGING_URL: ${{ secrets.STAGING_URL }}
+        run: |
+          login=$(curl -sf -o /dev/null -w '%{http_code}' "${STAGING_URL}/login" || echo "000")
+          admin=$(curl -sf -o /dev/null -w '%{http_code}' "${STAGING_URL}/admin/" || echo "000")
+          sse=$(curl -sf -o /dev/null -w '%{http_code}' "${STAGING_URL}/api/sse/notifications" || echo "000")
+
+          echo "  /login → $login"
+          echo "  /admin/ → $admin"
+          echo "  /api/sse/notifications → $sse"
+
+          [ "$login" = "200" ] || { echo "❌ /login failed"; exit 1; }
+          [ "$admin" = "302" ] || { echo "❌ /admin/ should be 302"; exit 1; }
+          [ "$sse" = "401" ] || { echo "❌ SSE should be 401"; exit 1; }
+
+          echo "✅ All smoke tests passed"
+
+      - name: Data integrity check
+        run: |
+          ssh staging "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T app python -c \"
+          from app.database import SessionLocal
+          from sqlalchemy import text
+          db = SessionLocal()
+          errors = []
+
+          # Orphaned avatars (no client)
+          r = db.execute(text('SELECT COUNT(*) FROM avatars WHERE client_id IS NULL AND is_active = true')).scalar()
+          if r > 0: errors.append(f'Orphaned active avatars: {r}')
+
+          # Drafts with invalid status
+          r = db.execute(text(\\\"SELECT COUNT(*) FROM comment_drafts WHERE status NOT IN ('pending','approved','rejected','posted')\\\")).scalar()
+          if r > 0: errors.append(f'Invalid draft status: {r}')
+
+          # EPG slots referencing deleted avatars
+          r = db.execute(text('SELECT COUNT(*) FROM epg_slots WHERE avatar_id NOT IN (SELECT id FROM avatars)')).scalar()
+          if r > 0: errors.append(f'Orphaned EPG slots: {r}')
+
+          db.close()
+
+          if errors:
+              for e in errors: print(f'⚠️ {e}')
+              print('⚠️ Data integrity warnings found (non-blocking)')
+          else:
+              print('✅ Data integrity OK')
+          \"" || echo "⚠️ Data integrity check could not run (non-blocking)"
+
+      - name: Docker cleanup
+        run: |
+          ssh staging "docker image prune -f --filter 'until=72h'" || true
+          ssh staging "docker builder prune -f --filter 'until=72h'" || true

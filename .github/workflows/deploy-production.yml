@@ -1,0 +1,269 @@
+# =============================================================================
+# CD — Deploy to Production
+# =============================================================================
+#
+# PURPOSE: Deploy verified staging code to production server.
+# TRIGGER: Push to `main` branch (after merging staging → main PR).
+#          Also: manual workflow_dispatch (requires typing "deploy").
+#
+# FLOW:
+#   1. Run CI (tests must pass) — calls ci.yml as reusable workflow
+#   2. Pre-deploy backup:
+#      - Tag current Docker image as :previous (for code rollback)
+#      - pg_dump database (for data rollback)
+#      - Verify backup is not empty (>1MB)
+#   3. SSH + rsync code to production server
+#   4. Gracefully stop Celery workers
+#   5. Clean beat schedule file
+#   6. Signal external watchdog (don't alert during restart)
+#   7. Build Docker image ON the server
+#   8. Restart app services
+#   9. Health check (6 retries × 10s)
+#   10. AUTO-ROLLBACK if health check fails:
+#       - Restore :previous Docker image
+#       - Restart services
+#       - Verify recovery
+#   11. Smoke tests
+#   12. Version verification
+#   13. Docker image cleanup
+#
+# REQUIRED SECRETS:
+#   - PRODUCTION_SSH_KEY       — ed25519 private key for production
+#   - PRODUCTION_SERVER_IP     — 161.35.27.165
+#   - PRODUCTION_SERVER_USER   — root
+#   - PRODUCTION_URL           — https://gorampit.com
+#
+# REQUIRED ENVIRONMENT:
+#   - production (add "Required reviewers" for manual approval gate)
+#
+# ROLLBACK:
+#   - Code: automatic (CI restores :previous image on health fail)
+#   - Data: manual (pg_restore from /app/backups/pre_deploy_*.custom)
+#
+# =============================================================================
+
+name: Deploy Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "deploy" to confirm production deployment'
+        required: true
+
+concurrency: deploy-production
+
+jobs:
+  # ---- CI Gate: tests must pass before deploy ----
+  ci:
+    name: CI Gate
+    uses: ./.github/workflows/ci.yml
+
+  # ---- Deploy to production server ----
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: ci
+    environment: production
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Only for manual dispatch: require typing "deploy"
+      - name: Validate confirmation
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "deploy" ]; then
+            echo "❌ You must type 'deploy' to confirm. Got: '${{ github.event.inputs.confirm }}'"
+            exit 1
+          fi
+
+      - name: Setup SSH
+        env:
+          SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.PRODUCTION_SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+          cat >> ~/.ssh/config << EOF
+          Host production
+            HostName ${{ secrets.PRODUCTION_SERVER_IP }}
+            User ${{ secrets.PRODUCTION_SERVER_USER }}
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+
+      # ---- PRE-DEPLOY BACKUP ----
+      # If deploy breaks things, we can restore from this.
+      # Code rollback = automatic. Data rollback = manual pg_restore.
+      - name: Pre-deploy backup
+        run: |
+          ssh production << 'EOF'
+            echo "=== Pre-deploy backup ==="
+
+            # 1. Tag current Docker image (for code rollback)
+            docker tag reddit-saas-app:latest reddit-saas-app:previous 2>/dev/null || true
+
+            # 2. Save current version
+            mkdir -p /app/backups
+            cat /app/VERSION > /app/backups/previous_version.txt 2>/dev/null || true
+
+            # 3. Database backup (in case migration corrupts data)
+            docker compose -f /app/docker-compose.yml -f /app/docker-compose.prod.yml \
+              exec -T db pg_dump -U reddit_saas_user -d reddit_saas \
+              --format=custom > /app/backups/pre_deploy_$(date +%Y%m%d_%H%M).custom
+
+            # 4. Verify backup is real (not empty/corrupt)
+            backup_file=$(ls -t /app/backups/pre_deploy_*.custom 2>/dev/null | head -1)
+            backup_size=$(stat -c%s "$backup_file" 2>/dev/null || echo "0")
+            if [ "$backup_size" -lt 1048576 ]; then
+              echo "❌ Backup too small (${backup_size} bytes) — ABORTING DEPLOY"
+              exit 1
+            fi
+            echo "✅ DB backup: $(du -h $backup_file | cut -f1)"
+
+            # 5. Keep only last 3 pre-deploy backups
+            ls -t /app/backups/pre_deploy_*.custom 2>/dev/null | tail -n +4 | xargs rm -f 2>/dev/null || true
+          EOF
+
+      # ---- DEPLOY ----
+      - name: rsync code
+        run: |
+          rsync -avz --delete \
+            --exclude='.venv/' \
+            --exclude='__pycache__/' \
+            --exclude='.hypothesis/' \
+            --exclude='.git/' \
+            --exclude='*.pyc' \
+            --exclude='.DS_Store' \
+            --exclude='logs/' \
+            --exclude='.env' \
+            --exclude='.vscode/' \
+            --exclude='.claude/' \
+            --exclude='.kiro/' \
+            --exclude='tests/' \
+            --exclude='node_modules/' \
+            --exclude='.pytest_cache/' \
+            ./reddit_saas/ production:/app/
+
+      - name: Stop Celery gracefully
+        run: |
+          ssh production "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml stop celery celery-fast celery-beat" || true
+
+      - name: Clean beat schedule
+        run: |
+          ssh production "docker compose -f /app/docker-compose.yml -f /app/docker-compose.prod.yml exec -T celery-beat rm -f /tmp/celerybeat-schedule" || true
+
+      - name: Signal watchdog
+        run: |
+          ssh production "touch /var/lib/ramp-watchdog/deploying"
+
+      - name: Build Docker images
+        run: |
+          ssh production "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml build"
+
+      - name: Restart services
+        run: |
+          ssh production "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps app celery celery-fast celery-beat nginx"
+
+      # Alembic migrations run automatically in entrypoint.sh on app container start.
+      # Verify they completed successfully.
+      - name: Verify migrations applied
+        run: |
+          sleep 5
+          migration_log=$(ssh production "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=20 app 2>&1 | grep -i 'alembic\|migration'" || true)
+          if echo "$migration_log" | grep -qi "error\|failed\|traceback"; then
+            echo "❌ Alembic migration error detected:"
+            echo "$migration_log"
+            exit 1
+          fi
+          echo "✅ Migrations OK"
+          echo "$migration_log"
+
+      # ---- HEALTH CHECK ----
+      - name: Health check
+        id: healthcheck
+        env:
+          PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
+        run: |
+          for i in $(seq 1 6); do
+            sleep 10
+            status=$(curl -sf -o /dev/null -w '%{http_code}' "${PRODUCTION_URL}/health" || echo "000")
+            if [ "$status" = "200" ]; then
+              echo "✅ Health check passed (attempt $i)"
+              echo "healthy=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            echo "  Attempt $i: HTTP $status"
+          done
+          echo "❌ Health check failed after 6 attempts"
+          echo "healthy=false" >> $GITHUB_OUTPUT
+
+      # ---- AUTO-ROLLBACK ON FAILURE ----
+      - name: Rollback on failure
+        if: steps.healthcheck.outputs.healthy == 'false'
+        run: |
+          echo "🔴 ROLLING BACK to previous image..."
+          ssh production << 'EOF'
+            # Restore previous Docker image
+            docker tag reddit-saas-app:previous reddit-saas-app:latest 2>/dev/null || true
+            cd /app
+
+            # Restart with old image
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps app celery celery-fast celery-beat nginx
+
+            sleep 10
+
+            # Verify rollback worked
+            if curl -sf http://localhost/health | grep -q "ok"; then
+              echo "✅ Rollback successful — previous version restored"
+            else
+              echo "❌ Rollback ALSO FAILED — manual intervention required!"
+              echo "   Restore DB: pg_restore -Fc /app/backups/pre_deploy_*.custom"
+            fi
+          EOF
+          echo "❌ Deploy failed — rolled back automatically"
+          exit 1
+
+      # ---- POST-DEPLOY VERIFICATION ----
+      - name: Smoke tests
+        env:
+          PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
+        run: |
+          login=$(curl -sf -o /dev/null -w '%{http_code}' "${PRODUCTION_URL}/login" || echo "000")
+          admin=$(curl -sf -o /dev/null -w '%{http_code}' "${PRODUCTION_URL}/admin/" || echo "000")
+          sse=$(curl -sf -o /dev/null -w '%{http_code}' "${PRODUCTION_URL}/api/sse/notifications" || echo "000")
+
+          echo "  /login → $login"
+          echo "  /admin/ → $admin"
+          echo "  /api/sse/notifications → $sse"
+
+          [ "$login" = "200" ] || { echo "❌ /login failed"; exit 1; }
+          [ "$admin" = "302" ] || { echo "❌ /admin/ should be 302"; exit 1; }
+          [ "$sse" = "401" ] || { echo "❌ SSE should be 401"; exit 1; }
+
+          echo "✅ All smoke tests passed"
+
+      - name: Version verification
+        env:
+          PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
+        run: |
+          deployed=$(curl -sf "${PRODUCTION_URL}/health" | python3 -c "import sys,json; print(json.load(sys.stdin).get('version','unknown'))" 2>/dev/null || echo "unknown")
+          expected=$(cat reddit_saas/VERSION 2>/dev/null || echo "unknown")
+
+          echo "Deployed: $deployed | Expected: $expected"
+
+          if [ "$deployed" = "$expected" ]; then
+            echo "✅ Version verified: $deployed"
+          else
+            echo "⚠️ Version mismatch (may be OK if VERSION not bumped)"
+          fi
+
+      - name: Docker cleanup
+        run: |
+          ssh production "docker image prune -f --filter 'until=72h'" || true
+          ssh production "docker builder prune -f --filter 'until=72h'" || true
