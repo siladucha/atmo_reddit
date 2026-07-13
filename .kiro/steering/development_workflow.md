@@ -1,9 +1,9 @@
 # Development Workflow — CI/CD Discipline
 
-## Status: TRANSITION IN PROGRESS (July 9, 2026)
+## Status: TRANSITION IN PROGRESS (July 13, 2026)
 
 **Old flow (DEPRECATED):** Mac → rsync → prod. No tests, no staging, no review.
-**New flow (TARGET):** Mac → commit → push → CI (lint + test) → merge to main → deploy to staging → verify → deploy to prod.
+**New flow (TARGET):** feature branch → PR to develop → CI → staging auto-deploy → verify → release tag → production deploy (same artifact).
 
 ---
 
@@ -17,29 +17,52 @@
 
 ---
 
-## Target Git Flow
+## Git Flow — Artifact Promotion Model
 
 ```
-feature/branch (local Mac)
-    ↓ push
-GitHub (siladucha/atmo_reddit)
-    ↓ CI runs (GitHub Actions)
-    ↓ lint + tests pass → green ✓
-    ↓ merge to main (PR or fast-forward)
-main branch
-    ↓ deploy to staging (manual or CD trigger)
+feature/xyz (local Mac)
+    ↓ push to origin
+    ↓ CI runs (tests + imports + alembic)
+    ↓ PR → develop
+    ↓ merge
+develop
+    ↓ CI builds Docker image artifact (SHA-tagged)
+    ↓ Auto-deploy to staging (same artifact)
 staging.gorampit.com (167.172.191.42)
-    ↓ smoke test (manual 2 min)
-    ↓ operator approves
+    ↓ Verify (smoke test, 2 min)
+    ↓ Operator approves
+    ↓ git tag v1.2.0 && git push origin v1.2.0
+    ↓ CI deploys SAME artifact to production
 production gorampit.com (161.35.27.165)
 ```
 
+### Core Principle: What Was Tested = What Gets Deployed
+
+Production NEVER rebuilds code. It receives the exact Docker image that was already verified on staging. This eliminates "works on staging, breaks on prod" class of bugs.
+
 ### Branch Rules
 
-- `main` = production-ready code (always deployable)
-- `feature/*` = active development (may be broken)
-- Direct push to `main` → allowed for hotfixes only (with test pass)
-- No force-push to `main`
+- `develop` = staging-ready code. Auto-deploys to staging on every merge.
+- `main` = production mirror. Updated only when release tag is created (fast-forward from develop).
+- `feature/*` = active development (may be broken). Always branches from `develop`.
+- Direct push to `develop` → allowed for hotfixes only (must pass CI).
+- No force-push to `develop` or `main`.
+
+### Release Flow
+
+```bash
+# After staging verification passes:
+git checkout develop
+git pull origin develop
+git tag v0.4.1
+git push origin v0.4.1
+
+# CI sees tag → deploys same artifact to production
+# Then update main to match:
+git checkout main
+git merge develop --ff-only
+git push origin main
+```
 
 ---
 

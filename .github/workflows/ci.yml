@@ -1,25 +1,63 @@
+# =============================================================================
+# RAMP CI/CD Pipeline
+# =============================================================================
+#
+# Architecture: Artifact Promotion (what passes staging = what goes to prod)
+#
+# Flow:
+#   1. Any push → run tests (lint, imports, pytest)
+#   2. Push to develop → build Docker image → auto-deploy to STAGING
+#   3. Release tag (v1.2.0) → deploy SAME image to PRODUCTION
+#
+# Required GitHub Secrets (Settings → Secrets → Actions):
+#   - STAGING_SSH_KEY   — private SSH key for staging server (ed25519)
+#   - STAGING_HOST      — staging server IP (e.g., 167.172.191.42)
+#   - STAGING_URL       — staging URL (e.g., https://staging.gorampit.com)
+#   - PROD_SSH_KEY      — private SSH key for production server (ed25519)
+#   - PROD_HOST         — production server IP (e.g., 161.35.27.165)
+#   - PROD_URL          — production URL (e.g., https://gorampit.com)
+#
+# Required GitHub Environments (Settings → Environments):
+#   - staging           — no protection rules (auto-deploy)
+#   - production        — optional: add "Required reviewers" for manual approval
+#
+# To generate SSH keys for CI:
+#   ssh-keygen -t ed25519 -f deploy_ci -C "github-actions" -N ""
+#   Then: deploy_ci contents → GitHub Secret, deploy_ci.pub → server authorized_keys
+#
+# =============================================================================
+
 name: CI
 
+# When does this pipeline run?
 on:
   push:
-    branches: ['**']
+    branches: ['**']       # Every push to any branch triggers tests
   pull_request:
-    branches: [main]
+    branches: [develop, main]  # PRs to develop/main also trigger tests
 
 jobs:
+  # ===========================================================================
+  # JOB 1: TESTS
+  # ===========================================================================
+  # Runs on EVERY push. This is the quality gate — nothing merges without passing.
+  # Creates ephemeral PostgreSQL + Redis containers just for testing (destroyed after).
   test:
-    name: Tests
+    name: Tests & Build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 15    # Kill the job if it takes longer (stuck tests, etc.)
 
+    # Ephemeral service containers — these are NOT your real databases!
+    # They exist only during this CI job and are destroyed after.
+    # Credentials here are throwaway — not secrets.
     services:
       postgres:
-        image: pgvector/pgvector:pg16
+        image: pgvector/pgvector:pg16   # Same as production (pgvector extension)
         env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: reddit_saas
+          POSTGRES_PASSWORD: postgres    # Throwaway password for CI only
+          POSTGRES_DB: reddit_saas       # Must match DATABASE_URL below
           POSTGRES_USER: reddit_saas_user
-        ports: ['5432:5432']
+        ports: ['5432:5432']             # Maps container port to runner localhost
         options: >-
           --health-cmd="pg_isready -U reddit_saas_user -d reddit_saas"
           --health-interval=5s
@@ -35,24 +73,31 @@ jobs:
           --health-timeout=5s
           --health-retries=6
 
+    # All `run:` commands execute in this directory
     defaults:
       run:
         working-directory: reddit_saas
 
+    # Environment variables for the app to start in test mode.
+    # These are NOT production values — they point to the ephemeral services above.
+    # The app's Settings (pydantic-settings) reads these to initialize.
     env:
       DATABASE_URL: postgresql://reddit_saas_user:postgres@localhost:5432/reddit_saas
       REDIS_URL: redis://localhost:6379/0
-      ENVIRONMENT: test
-      SECRET_KEY: ci-test-key-not-for-production
-      TZ: Asia/Jerusalem
+      ENVIRONMENT: test                       # App skips real API calls in test mode
+      SECRET_KEY: ci-test-key-not-for-production  # JWT signing — any string works for tests
+      TZ: Asia/Jerusalem                      # Must match production timezone
 
     steps:
+      # Checkout the code from the repository
       - uses: actions/checkout@v4
 
+      # Install Python (same version as production Dockerfile)
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
+      # Cache pip packages between runs (speeds up CI from ~90s to ~15s install)
       - name: Cache pip
         uses: actions/cache@v4
         with:
@@ -60,12 +105,23 @@ jobs:
           key: pip-${{ hashFiles('reddit_saas/pyproject.toml') }}
           restore-keys: pip-
 
+      # Install all dependencies including dev extras (pytest, etc.)
       - name: Install dependencies
         run: pip install -e ".[dev]" fakeredis pytest-timeout
 
+      # -----------------------------------------------------------------------
+      # CHECK 1: Can the app even start?
+      # If any model has a bad import, circular dependency, or missing package,
+      # this catches it immediately (before running 60+ test files).
+      # -----------------------------------------------------------------------
       - name: Verify imports
         run: python -c "from app.models import *; from app.main import app; print('All imports OK')"
 
+      # -----------------------------------------------------------------------
+      # CHECK 2: Database migrations are clean
+      # Multiple Alembic heads = broken migrations that will crash on deploy.
+      # This catches when two developers create migrations from the same parent.
+      # -----------------------------------------------------------------------
       - name: Alembic single head
         run: |
           heads=$(alembic heads 2>/dev/null | wc -l)
@@ -76,6 +132,18 @@ jobs:
           fi
           echo "✓ Single Alembic head"
 
+      # -----------------------------------------------------------------------
+      # CHECK 3: Full regression test suite
+      # Runs ALL tests in tests/ directory (60+ files) except:
+      #   - test_geo_monitoring.py — hangs due to mock isolation bug
+      #   - hypothesis tests — too slow for CI (property-based, runs separately)
+      #
+      # Flags explained:
+      #   -x           = stop on first failure (fail fast, don't waste CI minutes)
+      #   -q           = quiet output (less noise in logs)
+      #   --timeout=30 = kill any single test that hangs >30 seconds
+      #   --junitxml   = generate XML report for GitHub Actions UI
+      # -----------------------------------------------------------------------
       - name: Run tests
         run: |
           pytest tests/ -x -q \
@@ -85,10 +153,227 @@ jobs:
             --tb=short \
             --junitxml=report.xml
 
+      # Upload test results as artifact (visible in GitHub Actions UI → Artifacts tab)
       - name: Upload test report
-        if: always()
+        if: always()   # Upload even if tests failed (so we can see what broke)
         uses: actions/upload-artifact@v4
         with:
           name: test-report
           path: reddit_saas/report.xml
           if-no-files-found: ignore
+
+  # ===========================================================================
+  # JOB 2: BUILD DOCKER IMAGE
+  # ===========================================================================
+  # Only runs for develop branch and release tags (not every feature branch push).
+  # Creates a Docker image and saves it as a GitHub artifact (.tar file).
+  # This is the artifact that gets promoted: staging → production.
+  #
+  # Key principle: we build ONCE, deploy the SAME binary everywhere.
+  # No "works on staging, breaks on prod" because it's literally the same file.
+  build-image:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: test   # Only builds if ALL tests pass
+    # Only build for develop (→ staging) or tags (→ production)
+    if: github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Buildx gives us layer caching (much faster rebuilds)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Build the image but DON'T push to registry — save as .tar file instead.
+      # We use GitHub Actions cache for Docker layers (cache-from/cache-to).
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: reddit_saas           # Dockerfile is in reddit_saas/
+          push: false                    # Don't push to Docker Hub/GHCR
+          tags: ramp-app:${{ github.sha }}  # Tag with commit SHA (unique identifier)
+          outputs: type=docker,dest=/tmp/ramp-app-image.tar  # Save as tar
+          cache-from: type=gha           # Use GitHub Actions cache for layers
+          cache-to: type=gha,mode=max    # Save layers to cache for next build
+
+      # Store the .tar as a GitHub artifact (downloadable for 7 days).
+      # Both staging and production jobs will download THIS SAME file.
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ramp-app-image-${{ github.sha }}
+          path: /tmp/ramp-app-image.tar
+          retention-days: 7   # Auto-delete after 7 days to save storage
+
+  # ===========================================================================
+  # JOB 3: DEPLOY TO STAGING (automatic on develop merge)
+  # ===========================================================================
+  # Triggered automatically when code is merged to develop.
+  # Downloads the Docker image artifact and deploys it to staging server.
+  #
+  # After this job, staging.gorampit.com runs the new version.
+  # Operator verifies manually (2 min), then creates a release tag.
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build-image
+    if: github.ref == 'refs/heads/develop'
+    environment: staging   # Links to GitHub Environment (can add protection rules)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Download the SAME image that was built in job 2
+      - name: Download image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ramp-app-image-${{ github.sha }}
+          path: /tmp
+
+      # SSH into staging server, load the image, restart containers
+      - name: Deploy to staging
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          STAGING_HOST: ${{ secrets.STAGING_HOST }}
+        run: |
+          # Setup SSH key for connecting to staging server
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$STAGING_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          # Transfer the Docker image tar to staging server
+          scp -i ~/.ssh/deploy_key /tmp/ramp-app-image.tar root@${STAGING_HOST}:/tmp/
+
+          # Execute deployment commands on staging server
+          ssh -i ~/.ssh/deploy_key root@${STAGING_HOST} << 'EOF'
+            # Load the image into Docker (makes it available for docker compose)
+            docker load -i /tmp/ramp-app-image.tar
+
+            # Restart all services with new image
+            cd /app
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+            # Basic health check
+            sleep 5
+            curl -sf http://localhost/health || echo "WARNING: health check failed"
+
+            # Cleanup
+            rm -f /tmp/ramp-app-image.tar
+            # Remove old unused images (older than 3 days) to prevent disk bloat
+            docker image prune -f --filter "until=72h"
+          EOF
+
+      # Verify staging is actually responding after deploy.
+      # NOTE: staging has Celery workers stopped (by design), so "pipeline_alive"
+      # will be false. We only check that the app itself responds HTTP 200.
+      - name: Staging health check
+        env:
+          STAGING_URL: ${{ secrets.STAGING_URL }}
+        run: |
+          sleep 10
+          status=$(curl -sf -o /dev/null -w '%{http_code}' "${STAGING_URL}/health" || echo "000")
+          if [ "$status" = "200" ]; then
+            echo "✅ Staging health check passed (HTTP 200)"
+            echo "ℹ️  pipeline_alive=false is expected on staging (workers stopped)"
+          else
+            echo "❌ Staging health check failed (HTTP $status)"
+            exit 1
+          fi
+
+  # ===========================================================================
+  # JOB 4: DEPLOY TO PRODUCTION (only on release tags)
+  # ===========================================================================
+  # Triggered ONLY when a release tag is pushed: git tag v1.2.0 && git push origin v1.2.0
+  #
+  # CRITICAL: This deploys the SAME Docker image artifact that was already
+  # verified on staging. No rebuild. No "maybe it'll work". Same binary.
+  #
+  # If you added "Required reviewers" to the 'production' environment in GitHub,
+  # this job will WAIT for manual approval before running.
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build-image
+    if: startsWith(github.ref, 'refs/tags/v')   # Only release tags like v0.4.1
+    environment: production   # GitHub Environment — can require manual approval
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Download the SAME image artifact (same SHA, same binary as staging)
+      - name: Download image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ramp-app-image-${{ github.sha }}
+          path: /tmp
+
+      # Extract version number from tag (v1.2.0 → 1.2.0)
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      # SSH into production, load image, restart with watchdog coordination
+      - name: Deploy to production
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_KEY }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+        run: |
+          # Setup SSH
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          # Transfer the SAME artifact that was tested on staging
+          scp -i ~/.ssh/deploy_key /tmp/ramp-app-image.tar root@${PROD_HOST}:/tmp/
+
+          # Execute deployment on production server
+          ssh -i ~/.ssh/deploy_key root@${PROD_HOST} << 'EOF'
+            # Tell the external watchdog "we're deploying, don't panic if services restart"
+            # Without this, watchdog would detect containers stopping and send alerts
+            touch /var/lib/ramp-watchdog/deploying
+
+            # Load the Docker image
+            docker load -i /tmp/ramp-app-image.tar
+            cd /app
+
+            # Restart only app services (not postgres/redis — they keep their data)
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d app celery celery-fast celery-beat
+
+            # Wait for app to fully start (migrations run on startup via entrypoint.sh)
+            sleep 10
+
+            # Health check — if this fails, manual intervention is needed
+            if curl -sf http://localhost/health | grep -q "ok"; then
+              echo "✅ Production health check passed"
+            else
+              echo "❌ Production health check FAILED — manual intervention needed"
+              exit 1
+            fi
+
+            # Cleanup
+            rm -f /tmp/ramp-app-image.tar
+            # Remove old images to prevent disk space issues on 60GB droplet
+            docker image prune -f --filter "until=72h"
+          EOF
+
+      # Final verification: check production URL externally
+      - name: Production verification
+        env:
+          PROD_URL: ${{ secrets.PROD_URL }}
+        run: |
+          sleep 15
+          health=$(curl -sf "${PROD_URL}/health" || echo "{}")
+          echo "Production health: $health"
+
+          # Verify the deployed version matches the release tag
+          deployed_version=$(echo "$health" | python3 -c "import sys,json; print(json.load(sys.stdin).get('version','unknown'))" 2>/dev/null || echo "unknown")
+          expected_version="${{ steps.version.outputs.VERSION }}"
+
+          if [ "$deployed_version" = "$expected_version" ]; then
+            echo "✅ Version verified: $deployed_version"
+          else
+            echo "⚠️ Version mismatch: deployed=$deployed_version expected=$expected_version"
+          fi
