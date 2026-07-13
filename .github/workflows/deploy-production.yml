@@ -167,7 +167,7 @@ jobs:
 
       - name: Restart services
         run: |
-          ssh production "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps app celery celery-fast celery-beat nginx"
+          ssh production "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps app celery celery-fast celery-beat nginx marketing"
 
       # Alembic migrations run automatically in entrypoint.sh on app container start.
       # Verify they completed successfully.
@@ -211,7 +211,7 @@ jobs:
             cd /app
 
             # Restart with old image
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps app celery celery-fast celery-beat nginx
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps app celery celery-fast celery-beat nginx marketing
 
             sleep 10
 
@@ -255,6 +255,80 @@ jobs:
           else
             echo "⚠️ Version mismatch (may be OK if VERSION not bumped)"
           fi
+
+      # Verify SSL certificate is valid and not expiring soon
+      - name: SSL check
+        run: |
+          expiry=$(echo | openssl s_client -connect gorampit.com:443 -servername gorampit.com 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
+          if [ -z "$expiry" ]; then
+            echo "❌ Could not check SSL certificate"
+            exit 1
+          fi
+          expiry_epoch=$(date -d "$expiry" +%s 2>/dev/null || date -j -f "%b %d %T %Y %Z" "$expiry" +%s 2>/dev/null || echo "0")
+          now_epoch=$(date +%s)
+          days_left=$(( (expiry_epoch - now_epoch) / 86400 ))
+          echo "SSL cert expires: $expiry ($days_left days left)"
+          if [ "$days_left" -lt 7 ]; then
+            echo "❌ SSL cert expires in less than 7 days!"
+            exit 1
+          fi
+          echo "✅ SSL certificate OK"
+
+      # Verify Celery workers are running and Beat is alive
+      - name: Celery workers check
+        run: |
+          health=$(curl -sf "https://gorampit.com/health")
+          worker_alive=$(echo "$health" | python3 -c "import sys,json; print(json.load(sys.stdin).get('worker_alive', False))" 2>/dev/null)
+          pipeline_alive=$(echo "$health" | python3 -c "import sys,json; print(json.load(sys.stdin).get('pipeline_alive', False))" 2>/dev/null)
+          heartbeat_age=$(echo "$health" | python3 -c "import sys,json; print(json.load(sys.stdin).get('worker_heartbeat_age_sec', 999))" 2>/dev/null)
+
+          echo "  worker_alive: $worker_alive"
+          echo "  pipeline_alive: $pipeline_alive"
+          echo "  heartbeat_age_sec: $heartbeat_age"
+
+          if [ "$worker_alive" != "True" ]; then
+            echo "❌ Celery worker not alive"
+            exit 1
+          fi
+          echo "✅ Celery workers OK"
+
+      # Verify database is accessible and has data
+      - name: Database integrity check
+        run: |
+          ssh production "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T app python -c \"
+          from app.database import SessionLocal
+          from sqlalchemy import text
+          db = SessionLocal()
+          checks = []
+
+          # DB is accessible
+          r = db.execute(text('SELECT 1')).scalar()
+          checks.append(('DB connection', r == 1))
+
+          # Core tables have data
+          clients = db.execute(text('SELECT COUNT(*) FROM clients WHERE is_active = true')).scalar()
+          checks.append(('Active clients exist', clients > 0))
+
+          avatars = db.execute(text('SELECT COUNT(*) FROM avatars WHERE active = true')).scalar()
+          checks.append(('Active avatars exist', avatars > 0))
+
+          # No broken FK in critical tables
+          orphan_slots = db.execute(text('SELECT COUNT(*) FROM epg_slots WHERE avatar_id NOT IN (SELECT id FROM avatars)')).scalar()
+          checks.append(('No orphaned EPG slots', orphan_slots == 0))
+
+          db.close()
+
+          all_ok = True
+          for name, passed in checks:
+              status = '✅' if passed else '❌'
+              print(f'  {status} {name}')
+              if not passed: all_ok = False
+
+          if not all_ok:
+              print('❌ Database integrity issues detected')
+              exit(1)
+          print('✅ Database integrity OK')
+          \""
 
       - name: Docker cleanup
         run: |

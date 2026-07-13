@@ -108,7 +108,7 @@ jobs:
 
       - name: Restart services
         run: |
-          ssh staging "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps app celery celery-fast celery-beat nginx"
+          ssh staging "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps app celery celery-fast celery-beat nginx marketing"
 
       # Alembic migrations run automatically in entrypoint.sh on app container start.
       # Verify they completed successfully.
