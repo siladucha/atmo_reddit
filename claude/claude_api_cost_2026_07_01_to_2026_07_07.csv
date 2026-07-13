@@ -1,0 +1,32 @@
+usage_date_utc,model,workspace,api_key,usage_type,context_window,token_type,cost_usd,list_price_usd,cost_type,inference_geo,speed,api_key_id,api_key_status
+2026-07-01,Claude Haiku 4.5,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,input_no_cache,0.02,0.02,token,not_available,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-01,Claude Haiku 4.5,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,output,0.01,0.01,token,not_available,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-01,Claude Sonnet 4.6,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,input_no_cache,0.18,0.18,token,global,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-01,Claude Sonnet 4.6,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,output,0.03,0.03,token,global,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-02,Claude Haiku 4.5,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,input_no_cache,0.02,0.02,token,not_available,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-02,Claude Haiku 4.5,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,output,0.01,0.01,token,not_available,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-02,Claude Sonnet 4.6,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,input_no_cache,0.21,0.21,token,global,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-02,Claude Sonnet 4.6,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,output,0.04,0.04,token,global,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-03,--,Default,KEY_ANTHROPIC_PROD,--,--,--,0.97,0.97,web_search,--,--,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-03,Claude Haiku 4.5,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,input_no_cache,0.03,0.03,token,not_available,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-03,Claude Haiku 4.5,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,output,0.02,0.02,token,not_available,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-03,Claude Sonnet 4.6,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,input_no_cache,4.83,4.83,token,global,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-03,Claude Sonnet 4.6,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,output,1.34,1.34,token,global,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-04,Claude Haiku 4.5,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,input_no_cache,0.03,0.03,token,not_available,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-04,Claude Haiku 4.5,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,output,0.02,0.02,token,not_available,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-04,Claude Sonnet 4.6,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,input_no_cache,0.27,0.27,token,global,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-04,Claude Sonnet 4.6,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,output,0.06,0.06,token,global,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-05,Claude Haiku 4.5,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,input_no_cache,0.21,0.21,token,not_available,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-05,Claude Haiku 4.5,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,output,0.23,0.23,token,not_available,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-05,Claude Sonnet 4.6,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,input_no_cache,0.38,0.38,token,global,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-05,Claude Sonnet 4.6,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,output,0.06,0.06,token,global,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-06,Claude Haiku 4.5,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,input_no_cache,0.04,0.04,token,not_available,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-06,Claude Haiku 4.5,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,input_no_cache,0.02,0.02,token,not_available,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-06,Claude Haiku 4.5,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,output,0.04,0.04,token,not_available,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-06,Claude Sonnet 4.6,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,input_no_cache,0.19,0.19,token,global,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-06,Claude Sonnet 4.6,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,output,0.03,0.03,token,global,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-07,--,Default,KEY_ANTHROPIC_PROD,--,--,--,2.68,2.68,web_search,--,--,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-07,Claude Haiku 4.5,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,input_no_cache,0.05,0.05,token,not_available,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-07,Claude Haiku 4.5,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,output,0.05,0.05,token,not_available,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-07,Claude Sonnet 4.6,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,input_no_cache,13.53,13.53,token,global,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active
+2026-07-07,Claude Sonnet 4.6,Default,KEY_ANTHROPIC_PROD,message,≤ 200k,output,3.42,3.42,token,global,,apikey_01RaLSRUZk8PSi9nEeB3vUL8,active

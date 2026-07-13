@@ -41,52 +41,52 @@ PLAN_LIMITS: dict[str, dict[str, Any]] = {
     "trial": {
         "label": "Trial (14 days)",
         "price_usd": 0,
-        "max_avatars": 1,
-        "max_comments_month": 0,      # Trial: drafts visible but not approvable
-        "max_subreddits": 2,          # 1 professional + 1 discovery
-        "max_keywords": 10,           # Enough for demo, not for spam
-        "max_geo_prompts": 5,         # Basic visibility check only
-        "max_geo_competitors": 3,     # Top 3 competitors
+        "max_avatars": 0,             # Trial: 5-comment burst only, no persistent avatar
+        "max_comments_month": 5,      # One-time burst (not daily drip)
+        "max_subreddits": 1,          # Single subreddit for aha moment
+        "max_keywords": 999,          # Unlimited — internal infrastructure, not client-facing
+        "max_geo_prompts": 3,         # Minimal visibility check
+        "max_geo_competitors": 999,   # Unlimited internally, top 3-5 shown to client
     },
     "seed": {
         "label": "Seed",
         "price_usd": 149,
         "max_avatars": 1,
         "max_comments_month": 30,
-        "max_subreddits": 3,          # 1 professional + hobbies (2 hobby)
-        "max_keywords": 20,
+        "max_subreddits": 2,          # Tight — upgrade pressure by design (Tzvi)
+        "max_keywords": 999,          # Unlimited — not a client-facing limit
         "max_geo_prompts": 10,        # Basic AEO
-        "max_geo_competitors": 5,
+        "max_geo_competitors": 999,   # Unlimited internally, top 3-5 shown to client
     },
     "starter": {
         "label": "Starter",
         "price_usd": 399,
         "max_avatars": 3,
         "max_comments_month": 60,
-        "max_subreddits": 5,          # 2 professional + hobbies
-        "max_keywords": 30,
+        "max_subreddits": 4,          # Step up from Seed
+        "max_keywords": 999,          # Unlimited — not a client-facing limit
         "max_geo_prompts": 20,        # Basic AEO
-        "max_geo_competitors": 10,
+        "max_geo_competitors": 999,   # Unlimited internally, top 3-5 shown to client
     },
     "growth": {
         "label": "Growth",
         "price_usd": 799,
         "max_avatars": 7,
         "max_comments_month": 150,
-        "max_subreddits": 10,         # 5 professional + hobbies
-        "max_keywords": 50,
+        "max_subreddits": 8,          # Comfortable coverage
+        "max_keywords": 999,          # Unlimited — not a client-facing limit
         "max_geo_prompts": 40,        # Full AEO
-        "max_geo_competitors": 15,
+        "max_geo_competitors": 999,   # Unlimited internally, top 3-5 shown to client
     },
     "scale": {
         "label": "Scale",
         "price_usd": 1499,
         "max_avatars": 15,
         "max_comments_month": 400,
-        "max_subreddits": 999,        # Unlimited
-        "max_keywords": 100,
+        "max_subreddits": 999,        # Unlimited — $1,499 client shouldn't hit walls
+        "max_keywords": 999,          # Unlimited — not a client-facing limit
         "max_geo_prompts": 60,        # Full AEO
-        "max_geo_competitors": 30,
+        "max_geo_competitors": 999,   # Unlimited internally, top 3-5 shown to client
     },
     "agency": {
         "label": "Agency",
@@ -94,9 +94,9 @@ PLAN_LIMITS: dict[str, dict[str, Any]] = {
         "max_avatars": 999,
         "max_comments_month": 9999,
         "max_subreddits": 999,
-        "max_keywords": 200,
+        "max_keywords": 999,
         "max_geo_prompts": 100,
-        "max_geo_competitors": 50,
+        "max_geo_competitors": 999,
     },
 }
 

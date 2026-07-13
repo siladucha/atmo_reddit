@@ -50,7 +50,7 @@ Each stage operates on specific schedules, with independent failure modes and sa
 
 ## 3. GENERATE (Comment Creation)
 
-**Schedule:** Immediately after scoring; EPG build 08:15 (full daily budget), top-up 14:15 (fills remaining for underfilled avatars)
+**Schedule:** Immediately after scoring; EPG build 08:15 (full daily budget), enforcement 09:00 (guarantee minimum), top-up 14:15 (fills remaining for underfilled avatars)
 
 **Pre-generation gate:** Fitness Gate (6 checks per avatar×subreddit pair)
 1. Subreddit ban → hard block
@@ -184,6 +184,7 @@ Each stage operates on specific schedules, with independent failure modes and sa
 | **Client Email Notifications** | Mon 08:00 + Sun 19:00 + on-event | Visibility digest (client), phase milestone (client), health alert (client), system health (owner), business summary (partner) |
 | **A/B Test Metrics** | Mon 02:30 | Collect weekly experiment metrics + generate statistical reports |
 | **A/B Test Duration** | Daily 07:00 | Alert when experiments reach planned duration |
+| **EPG Daily Minimum Enforcement** | Daily 09:00 | Guarantee every active avatar has ≥1 EPG slot today; retry with archive fallback if 0 |
 
 ---
 

@@ -215,8 +215,8 @@ def scrape_hobby_subreddits(avatar_id: str):
             if name:
                 hobby_sub_names.append(name)
 
-        # Fallback: Phase 1 avatars with no hobby subs get default starter subs
-        if not hobby_sub_names and avatar.warming_phase == 1:
+        # Fallback: Phase 0-1 avatars with no hobby subs get default starter subs
+        if not hobby_sub_names and avatar.warming_phase <= 1:
             from app.services.sanitize import DEFAULT_PHASE1_HOBBY_SUBREDDITS
             hobby_sub_names = list(DEFAULT_PHASE1_HOBBY_SUBREDDITS)
             logger.info(
@@ -322,7 +322,7 @@ def scrape_hobby_all_avatars():
             .filter(
                 Avatar.active.is_(True),
                 Avatar.is_frozen.is_(False),
-                Avatar.warming_phase > 0,
+                Avatar.warming_phase >= 0,  # Phase 0 (Incubation) included — needs hobby posts for 1/day budget
                 Avatar.health_status.notin_(("shadowbanned", "suspended")),
             )
             .all()

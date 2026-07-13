@@ -959,10 +959,8 @@ def build_portfolio(
         result.message = f"Avatar frozen: {avatar.freeze_reason or 'no reason'}"
         return result
 
-    if avatar.warming_phase == 0:
-        result.status = "excluded"
-        result.message = "Mentor avatars excluded from EPG"
-        return result
+    # Mentor pool is excluded (not a phase — pool-based classification)
+    # Phase 0 (Incubation) IS allowed with budget=1 comment/day (safe subs only)
 
     if getattr(avatar, "pool", "b2b") not in ("b2b", "b2c", "warm"):
         result.status = "excluded"

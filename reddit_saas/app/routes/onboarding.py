@@ -1365,7 +1365,7 @@ def trial_signup(
         brand_name=company_name.strip() or email.split("@")[0],
         plan_type="trial",
         max_avatars=1,
-        max_comments_per_month=30,
+        max_comments_per_month=5,  # One-time burst, not daily drip (Tzvi July 10)
         is_active=True,
         current_onboarding_step=1,
     )

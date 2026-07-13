@@ -744,6 +744,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 | 08:00, 14:00 | `run_full_pipeline_all_clients` | Score → Generate → Posts |
 | 08:00 Mon | `generate_weekly_reports_all_clients` | Weekly intelligence reports |
 | 08:15 | `build_and_generate_epg_all_avatars` | EPG plan + generate (full daily budget) |
+| 09:00 | `ensure_daily_epg_minimum` | Enforcement: guarantee every avatar has ≥1 slot today |
 | 14:15 | `epg_topup_underfilled_avatars` | Top-up: fill remaining budget for underfilled avatars |
 | 09:30 daily | `run_geo_monitoring_daily` | GEO/AEO brand visibility (~1/7 prompts/day, rotated by UUID.int % 7) |
 | 12:15, 18:15 | `check_karma_outcomes` | 4h karma outcome check |

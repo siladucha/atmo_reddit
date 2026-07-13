@@ -266,15 +266,16 @@ The Portfolio Manager (`build_portfolio`) uses `scan_opportunities()` which has 
 
 ---
 
-## EPG Scheduling Architecture (Redesigned July 6, 2026)
+## EPG Scheduling Architecture (Redesigned July 6, 2026; Enforcement added July 10, 2026)
 
-### Design: Single Build + Afternoon Top-Up
+### Design: Build + Enforce + Top-Up
 
-EPG runs as two complementary tasks:
+EPG runs as three complementary tasks:
 
 | Time | Task | Purpose |
 |------|------|---------|
 | 08:15 | `build_and_generate_epg_all_avatars` | Full daily EPG build — allocates entire budget at once |
+| 09:00 | `ensure_daily_epg_minimum` | **Enforcement** — guarantees every active avatar has ≥1 slot. Force scrape + rebuild for starving avatars. |
 | 14:15 | `epg_topup_underfilled_avatars` | Top-up — fills remaining budget for avatars that got fewer slots in morning |
 
 ### How It Works
@@ -476,6 +477,63 @@ For each client target subreddit, finds 3-8 bridge candidates:
 | `app/services/phase.py` | Route re-plan on demotion to Phase 0-1 |
 | `app/services/admin.py` | Route refresh on client subreddit changes |
 | `alembic/versions/raa01_activation_route.py` | Migration: activation_route JSONB + zone fields |
+
+---
+
+## Daily EPG Minimum Guarantee (ADDED July 10, 2026)
+
+### Invariant
+
+**Every active avatar with budget > 0 MUST receive ≥1 EPG slot (and generation) every day.**
+
+This is a business requirement from Tzvi: clients pay for daily engagement activity. Zero-day is unacceptable for any avatar that should be working.
+
+### Implementation — 3 Layers
+
+| Layer | When | Mechanism |
+|-------|------|-----------|
+| **1 — Archive Fallback** | During `scan_opportunities()` | If no fresh unused hobby posts (7d), query entire archive excluding posts already drafted for this avatar |
+| **2 — Enforcement Task** | 09:00 daily (`ensure_daily_epg_minimum`) | Checks all avatars for 0 slots today → force scrape + rebuild for starving avatars |
+| **3 — Alert** | After enforcement | If still 0 after retry → activity event + operator alert |
+
+### Archive Fallback Logic (Layer 1)
+
+```
+1. Primary: hobby_subreddits WHERE status="new" AND ai_comment IS NULL AND created_at >= 7 days ago
+2. If empty → Archive: hobby_subreddits WHERE id NOT IN (all hobby_post_ids this avatar ever drafted for)
+   - No freshness limit (yesterday, last week, last month — all valid)
+   - Sorted by scraped_at DESC (most recent first)  
+   - URL filter (no image/link posts)
+   - post_body length > 20 chars
+```
+
+### Critical Rule: No Repeats
+
+Archive fallback excludes ALL `hobby_post_id` values that exist in `comment_drafts` for this avatar (ANY status — pending, approved, posted, rejected). An avatar never gets the same thread twice.
+
+### Enforcement Task (`ensure_daily_epg_minimum`)
+
+- Beat schedule: 09:00 (45 min after morning EPG build at 08:15)
+- For each starving avatar: `scrape_hobby_subreddits()` → `build_portfolio(topup_remaining=budget)`
+- Uses topup path to bypass dedup guard (morning build may have produced zero_day)
+- If recovery succeeds: `generate_all_planned_slots()` → avatar gets content
+- If still 0: emit `⚠️ EPG daily minimum NOT met` activity event
+
+### Phase 0 Inclusion
+
+- `build_portfolio()` no longer excludes Phase 0 (was incorrectly blocking Incubation avatars as "Mentor")
+- `scrape_hobby_all_avatars` now includes Phase 0 (`warming_phase >= 0`)
+- Phase 0 budget = 1 comment/day in safe subs (from `AttentionBudget.from_avatar`)
+- Mentor exclusion is via `avatar.pool == "mentor"` check (separate from phase)
+
+### When Guarantee Does NOT Apply
+
+- `budget.max_total_actions == 0` (CQS=lowest — legitimate full stop)
+- `avatar.pool == "mentor"` (excluded from pipeline by design)
+- `avatar.is_frozen == True` (admin action or suspended)
+- `avatar.health_status in ("shadowbanned", "suspended")` (platform enforcement)
+- `pipeline_enabled == false` (system-wide kill switch)
+- `client.is_active == false` or expired trial
 
 ---
 

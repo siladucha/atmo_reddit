@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "RAMP Extension",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "RAMP Execution Node v3 — automated comment posting via old.reddit.com",
   "permissions": [
     "storage",

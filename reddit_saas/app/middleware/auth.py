@@ -53,8 +53,8 @@ BASIC_AUTH_ROUTES = {
 # This has NOTHING to do with the /login form — that uses users table in DB.
 # If /login fails, check: SELECT email, role, is_superuser FROM users;
 _DOCS_CREDENTIALS = {
-    "max@admin.reddit": "MethodB2024!",
-    "jenny@admin.reddit": "qa.13.05.2026",
+    "max.breger@gmail.com": "MethodB2024!",
+    "Jekorn12@gmail.com": "JennyRamp2026!",
 }
 
 # Prefixes that don't require authentication

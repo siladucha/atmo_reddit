@@ -896,33 +896,107 @@ def scan_opportunities(
                     elif isinstance(item, str):
                         hobby_sub_names.add(item.lower().removeprefix("r/"))
 
+        # Fallback to default safe subs if nothing configured
+        if not hobby_sub_names:
+            from app.services.sanitize import DEFAULT_PHASE1_HOBBY_SUBREDDITS
+            hobby_sub_names = {s.lower() for s in DEFAULT_PHASE1_HOBBY_SUBREDDITS}
+
         if hobby_sub_names:
             from sqlalchemy import func as sa_func, or_
             from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+
+            # --- Primary query: fresh unused posts (7 days) ---
+            # Round-robin across subreddits to prevent one heavily-scraped sub
+            # from monopolizing all opportunity slots (e.g., worldcup with 50
+            # fresh posts drowning out Metal with 10).
             hobby_freshness_cutoff = _dt.now(_tz.utc) - _td(days=7)
-            hobby_posts = (
-                db.query(HobbySubreddit)
-                .filter(
+            _MAX_HOBBY_POSTS = 30
+            _per_sub_limit = max(2, _MAX_HOBBY_POSTS // max(len(hobby_sub_names), 1))
+
+            hobby_posts = []
+            for _sub_name in hobby_sub_names:
+                _sub_posts = (
+                    db.query(HobbySubreddit)
+                    .filter(
+                        HobbySubreddit.avatar_username == avatar.reddit_username,
+                        sa_func.lower(HobbySubreddit.subreddit) == _sub_name,
+                        HobbySubreddit.status == "new",  # fresh posts not yet used
+                        HobbySubreddit.ai_comment.is_(None),
+                        HobbySubreddit.post_body.isnot(None),
+                        # Freshness: only posts from last 7 days
+                        HobbySubreddit.created_at >= hobby_freshness_cutoff,
+                        # Filter out image/video/link posts - LLM cant see media,
+                        # comments on image posts often get locked, and text-only
+                        # replies to photo posts look out of place.
+                        or_(
+                            HobbySubreddit.url.is_(None),
+                            HobbySubreddit.url == "",
+                            HobbySubreddit.url.like("%reddit.com%"),
+                        ),
+                    )
+                    .order_by(HobbySubreddit.scraped_at.desc())
+                    .limit(_per_sub_limit)
+                    .all()
+                )
+                hobby_posts.extend(_sub_posts)
+
+            # Cap total and shuffle for diversity (avoid all from first sub in list)
+            import random as _rnd
+            _rnd.shuffle(hobby_posts)
+            hobby_posts = hobby_posts[:_MAX_HOBBY_POSTS]
+
+            # --- Archive fallback: if no fresh unused posts, use ANY post from archive ---
+            # There are always posts in the archive (scraped yesterday, last week, etc).
+            # Avatar will write a different comment to an existing thread — perfectly fine
+            # for hobby engagement. The thread still exists on Reddit.
+            # CRITICAL: exclude posts avatar has EVER drafted for (any status) — no repeats.
+            _fallback_tier_used = 0
+
+            if not hobby_posts:
+                # Gather ALL hobby_post_ids this avatar has ever had a draft for
+                # (broader than existing_hobby_ids which only checks pending/approved/posted)
+                from app.models.comment_draft import CommentDraft
+                _all_drafted_hobby_ids = {
+                    row[0] for row in
+                    db.query(CommentDraft.hobby_post_id)
+                    .filter(
+                        CommentDraft.avatar_id == avatar.id,
+                        CommentDraft.hobby_post_id.isnot(None),
+                    )
+                    .all()
+                }
+
+                _archive_filters = [
                     HobbySubreddit.avatar_username == avatar.reddit_username,
                     sa_func.lower(HobbySubreddit.subreddit).in_(hobby_sub_names),
-                    HobbySubreddit.status == "new",  # fresh posts not yet used
-                    HobbySubreddit.ai_comment.is_(None),
                     HobbySubreddit.post_body.isnot(None),
-                    # Freshness: only posts from last 7 days
-                    HobbySubreddit.created_at >= hobby_freshness_cutoff,
-                    # Filter out image/video/link posts - LLM cant see media,
-                    # comments on image posts often get locked, and text-only
-                    # replies to photo posts look out of place.
+                    sa_func.length(HobbySubreddit.post_body) > 20,
                     or_(
                         HobbySubreddit.url.is_(None),
                         HobbySubreddit.url == "",
                         HobbySubreddit.url.like("%reddit.com%"),
                     ),
+                ]
+                # Exclude posts avatar already drafted for (no repeats ever)
+                if _all_drafted_hobby_ids:
+                    _archive_filters.append(
+                        HobbySubreddit.id.notin_(_all_drafted_hobby_ids)
+                    )
+
+                hobby_posts = (
+                    db.query(HobbySubreddit)
+                    .filter(*_archive_filters)
+                    .order_by(HobbySubreddit.scraped_at.desc())
+                    .limit(10)
+                    .all()
                 )
-                .order_by(HobbySubreddit.scraped_at.desc())
-                .limit(30)
-                .all()
-            )
+                if hobby_posts:
+                    _fallback_tier_used = 1
+                    logger.info(
+                        "scan_opportunities ARCHIVE FALLBACK: avatar=%s using %d "
+                        "previously-scraped posts (no fresh unused, %d posts excluded as already drafted)",
+                        avatar.reddit_username, len(hobby_posts), len(_all_drafted_hobby_ids),
+                    )
 
             for hp in hobby_posts:
                 if hp.id in existing_hobby_ids:
@@ -932,7 +1006,6 @@ def scan_opportunities(
                 karma_avg = _get_subreddit_karma_avg(db, avatar.id, subreddit_name)
 
                 # For hobby posts, use simpler scoring (no ThreadScore)
-                # Create a lightweight proxy for thread-like scoring
                 vis = _clamp(60)  # Moderate baseline visibility for hobby posts
                 comp = _clamp(70)  # Usually less competition in hobby subs
                 trust = _clamp(50)  # Moderate trust potential
@@ -940,6 +1013,10 @@ def scan_opportunities(
                     min(100, 15 + (karma_avg / 2.0) * 10 + (hp.post_ups or 0) * 0.5)
                 )
                 strat = _clamp(30) if avatar.warming_phase <= 1 else _clamp(15)
+
+                # Archive fallback posts get slightly lower priority than fresh ones
+                if _fallback_tier_used == 1:
+                    vis = _clamp(45)
 
                 scores_dict = {
                     "visibility": vis,

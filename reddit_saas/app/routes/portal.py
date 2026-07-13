@@ -44,8 +44,15 @@ def _check_trial_not_expired(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Dependency that blocks POST actions for expired trial clients."""
+    """Dependency that blocks POST/mutating actions for expired trial clients.
+
+    GET requests are allowed through — the portal renders with a blur overlay
+    and upgrade popup instead of blocking access entirely.
+    """
     if not user.client_id:
+        return
+    # Allow GET requests (read-only browsing with blur overlay)
+    if request.method == "GET":
         return
     client = db.query(Client).filter(Client.id == user.client_id).first()
     if client and is_trial_expired(client):
@@ -190,16 +197,20 @@ def _portal_render(
     """Render a client portal template with sidebar context."""
     ctx = _get_sidebar_context(client_id, db)
 
-    # Trial expiration enforcement: block access if trial > 14 days
+    # Trial expiration: allow browsing but flag for blur overlay
     client_obj = db.query(Client).filter(Client.id == client_id).first()
+    trial_expired = False
     if client_obj and client_obj.plan_type == "trial":
         days_since_creation = (datetime.now(timezone.utc) - client_obj.created_at).days if client_obj.created_at else 0
         if days_since_creation > 14:
-            return templates.TemplateResponse(
-                name="client/trial_expired.html",
-                context={"request": request, "client_id": str(client_id), "client_name": client_obj.client_name or ""},
-                request=request,
-            )
+            trial_expired = True
+    ctx["trial_expired"] = trial_expired
+    # Sales calendar URL for expired trial CTA
+    if trial_expired:
+        from app.services.settings import get_setting
+        ctx["sales_calendar_url"] = get_setting(db, "sales_calendar_url") or ""
+    else:
+        ctx["sales_calendar_url"] = ""
     ctx["request"] = request
     ctx["active_page"] = active_page
 
@@ -957,9 +968,9 @@ def portal_settings(
     ) or 0
 
     # 7. Plan limit for subreddits
-    plan_limits = {"seed": 3, "starter": 8, "growth": 15, "scale": 999}
+    plan_limits = {"trial": 1, "seed": 2, "starter": 4, "growth": 8, "scale": 999}
     plan_type = client_obj.plan_type if client_obj else "starter"
-    plan_limit = plan_limits.get(plan_type, 8)
+    plan_limit = plan_limits.get(plan_type, 4)
 
     # 8. Current subreddit count
     current_subreddit_count = len(assignments)
@@ -1206,9 +1217,9 @@ def settings_subreddit_request(
     subreddit_name = subreddit_name.strip()
 
     # Plan limit check
-    plan_limits = {"seed": 3, "starter": 8, "growth": 15, "scale": 999}
+    plan_limits = {"trial": 1, "seed": 2, "starter": 4, "growth": 8, "scale": 999}
     plan_type = client_obj.plan_type if client_obj else "starter"
-    plan_limit = plan_limits.get(plan_type, 8)
+    plan_limit = plan_limits.get(plan_type, 4)
 
     assignments = (
         db.query(ClientSubredditAssignment)
@@ -3956,7 +3967,7 @@ def portal_billing(
 
     # Plan limits (approximate)
     plan_limits = {
-        "trial": {"avatars": 1, "comments": 30},
+        "trial": {"avatars": 0, "comments": 5},
         "seed": {"avatars": 1, "comments": 30},
         "starter": {"avatars": 3, "comments": 60},
         "growth": {"avatars": 7, "comments": 150},

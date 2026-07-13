@@ -327,6 +327,14 @@ body {
   overflow: hidden;
 }
 
+/* EPG slot card (informational, no actions) */
+.task-card--epg { opacity: 0.85; }
+.task-card__status {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 /* Done card (muted) */
 .task-card--done {
   opacity: 0.7;

@@ -89,6 +89,10 @@ beat_app.conf.update(
             "task": "build_and_generate_epg_all_avatars",
             "schedule": crontab(hour=8, minute=15),
         },
+        "epg-ensure-daily-minimum": {
+            "task": "ensure_daily_epg_minimum",
+            "schedule": crontab(hour=9, minute=0),
+        },
         "epg-topup-afternoon": {
             "task": "epg_topup_underfilled_avatars",
             "schedule": crontab(hour=14, minute=15),

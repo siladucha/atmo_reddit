@@ -15,13 +15,18 @@ SBM is the compass for the Meta-loop: architectural tension = SBM property under
 
 **Statement:** For every active client with ≥1 healthy avatar, `drafts_generated(7d) > 0`.
 
+**Stronger invariant (July 10, 2026):** For every active avatar with budget > 0, `epg_slots_today ≥ 1`. Enforced daily.
+
 **Violation means:** System is dead for that client. Pipeline not producing value.
 
-**Enforcement:** Automated (scheduled)
+**Enforcement:** Automated (scheduled) — STRENGTHENED July 10, 2026
 - Detector: `alert_aggregation.py` — "paying clients with 0 posts in 7d"
 - Signal collector checks daily
+- **Daily EPG Minimum Enforcement** (`ensure_daily_epg_minimum`, 09:00): checks every avatar for ≥1 slot today, retries with archive fallback + fresh scrape if 0, alerts operator if still 0 after retry
+- **Archive Fallback** in `scan_opportunities()`: if no fresh unused hobby posts, uses entire post archive (excluding previously-drafted posts). Guarantees opportunities always exist.
+- See `pipeline_safety_architecture.md` → "Daily EPG Minimum Guarantee" for full spec.
 
-**Gap:** Alert is advisory. No escalation path if ignored >48h. Need: auto-escalation (notify partner after 48h, freeze client pipeline after 72h to prevent silent death).
+**Gap:** ~~Alert is advisory. No escalation path if ignored >48h.~~ Partially closed (July 10, 2026): enforcement task auto-retries before alerting. Remaining: auto-escalation to partner after 48h of repeated failures.
 
 ---
 

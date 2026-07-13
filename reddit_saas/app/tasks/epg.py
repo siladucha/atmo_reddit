@@ -448,3 +448,217 @@ def epg_topup_underfilled_avatars():
         return {"status": "error", "error": str(e)}
     finally:
         db.close()
+
+
+@shared_task(name="ensure_daily_epg_minimum")
+def ensure_daily_epg_minimum():
+    """Enforcement: guarantee every active avatar has ≥1 EPG slot today.
+
+    Runs at 09:00 (45 min after morning EPG build at 08:15).
+    For each avatar with 0 generated/approved/posted slots today:
+    1. Trigger hobby scrape (fresh content supply)
+    2. Attempt build_portfolio with topup_remaining=budget
+    3. If still 0 — emit activity event + alert (operator must investigate)
+
+    This is NOT a retry of the morning run — it's an enforcement mechanism.
+    If the morning run succeeded (avatar has slots), this task does nothing.
+    If the morning run produced zero-day, this gives it a second chance with
+    fresh scraped content, then alerts if still impossible.
+
+    The invariant being enforced:
+        ∀ active avatar with budget > 0: EPG_slots_today ≥ 1
+
+    Gated by: pipeline_enabled, epg2_enabled.
+    """
+    from app.models.avatar import Avatar
+    from app.models.client import Client
+    from app.models.epg_slot import EPGSlot
+    from app.services.epg_executor import generate_all_planned_slots
+    from app.services.portfolio_manager import build_portfolio, AttentionBudget
+    from app.services.settings import get_setting
+    from sqlalchemy import func as sa_func
+
+    db = SessionLocal()
+    try:
+        # Gate checks
+        pipeline_enabled = get_setting(db, "pipeline_enabled")
+        if pipeline_enabled in ("false", "False", "0"):
+            logger.info("ensure_daily_epg_minimum: pipeline_enabled=false, skipping")
+            return {"status": "skipped", "reason": "pipeline_disabled"}
+
+        epg2_enabled = get_setting(db, "epg2_enabled").lower() in ("true", "1")
+        if not epg2_enabled:
+            logger.info("ensure_daily_epg_minimum: epg2 disabled, skipping (legacy EPG has no guarantee)")
+            return {"status": "skipped", "reason": "epg2_disabled"}
+
+        today = date.today()
+
+        # Get all avatars that SHOULD have EPG today
+        avatars = (
+            db.query(Avatar)
+            .filter(
+                Avatar.active.is_(True),
+                Avatar.is_frozen.is_(False),
+                Avatar.pool != "mentor",
+                Avatar.health_status.notin_(("shadowbanned", "suspended")),
+            )
+            .all()
+        )
+
+        # Find avatars with zero active slots today
+        starving_avatars = []
+        for avatar in avatars:
+            budget = AttentionBudget.from_avatar(avatar)
+            if budget.max_total_actions <= 0:
+                continue  # CQS=lowest or mentor — legitimately 0 budget
+
+            active_slots = (
+                db.query(sa_func.count(EPGSlot.id))
+                .filter(
+                    EPGSlot.avatar_id == avatar.id,
+                    EPGSlot.plan_date == today,
+                    EPGSlot.status.in_(["planned", "generated", "approved", "posted"]),
+                )
+                .scalar() or 0
+            )
+
+            if active_slots == 0:
+                starving_avatars.append(avatar)
+
+        if not starving_avatars:
+            logger.info("ensure_daily_epg_minimum: all %d avatars have EPG slots today ✓", len(avatars))
+            return {"status": "ok", "all_covered": len(avatars)}
+
+        logger.warning(
+            "ensure_daily_epg_minimum: %d/%d avatars have 0 slots today — attempting recovery",
+            len(starving_avatars), len(avatars),
+        )
+
+        results = {"recovered": 0, "still_starving": 0, "errors": 0}
+
+        for avatar in starving_avatars:
+            try:
+                from app.services.distributed_lock import DistributedLock
+                from app.services.ai import reset_task_call_counter
+
+                # Step 1: Force hobby scrape for this avatar (fresh supply)
+                try:
+                    from app.tasks.scraping import scrape_hobby_subreddits
+                    scrape_hobby_subreddits(str(avatar.id))
+                    # Refresh session to see new hobby posts
+                    db.expire_all()
+                except Exception as scrape_err:
+                    logger.warning(
+                        "ensure_daily_epg_minimum: scrape failed for %s: %s",
+                        avatar.reddit_username, str(scrape_err)[:100],
+                    )
+
+                # Step 2: Attempt EPG build (uses topup path to bypass dedup guard)
+                epg_lock = DistributedLock(
+                    key=f"epg_build_lock:{avatar.id}",
+                    ttl=600,
+                )
+                if not epg_lock.acquire():
+                    logger.info(
+                        "ensure_daily_epg_minimum: avatar=%s lock held, skip",
+                        avatar.reddit_username,
+                    )
+                    results["still_starving"] += 1
+                    continue
+
+                try:
+                    reset_task_call_counter()
+
+                    client = None
+                    if avatar.client_ids:
+                        client = (
+                            db.query(Client)
+                            .filter(Client.id == uuid.UUID(avatar.client_ids[0]))
+                            .first()
+                        )
+
+                    if client and not client.is_active:
+                        results["still_starving"] += 1
+                        continue
+
+                    if client:
+                        from app.services.trial_guard import is_trial_expired
+                        if is_trial_expired(client):
+                            results["still_starving"] += 1
+                            continue
+
+                    budget = AttentionBudget.from_avatar(avatar, client)
+                    epg = build_portfolio(db, avatar, client, topup_remaining=budget.max_total_actions)
+
+                    if epg.status in ("frozen", "excluded", "budget_exhausted"):
+                        results["still_starving"] += 1
+                        continue
+
+                    planned_count = len(epg.hobby_slots) + len(epg.business_slots)
+
+                    if planned_count > 0:
+                        # Generate comments for new slots
+                        generated = generate_all_planned_slots(db, avatar.id)
+                        if generated > 0:
+                            results["recovered"] += 1
+                            logger.info(
+                                "ensure_daily_epg_minimum: RECOVERED avatar=%s generated=%d",
+                                avatar.reddit_username, generated,
+                            )
+                        else:
+                            results["still_starving"] += 1
+                    else:
+                        results["still_starving"] += 1
+                finally:
+                    epg_lock.release()
+
+            except Exception as e:
+                logger.error(
+                    "ensure_daily_epg_minimum: failed for %s: %s",
+                    avatar.reddit_username, str(e)[:200],
+                    exc_info=True,
+                )
+                results["errors"] += 1
+
+        # Step 3: Alert for avatars still without EPG after recovery attempt
+        if results["still_starving"] > 0:
+            logger.warning(
+                "🔴 ensure_daily_epg_minimum: %d avatars STILL have 0 EPG slots after recovery attempt",
+                results["still_starving"],
+            )
+            # Emit activity event for operator visibility
+            try:
+                from app.services.transparency import record_activity_event
+                starving_names = [
+                    a.reddit_username for a in starving_avatars
+                    if a.reddit_username  # just in case
+                ][:10]  # cap at 10 for log readability
+                record_activity_event(
+                    db,
+                    event_type="system",
+                    message=(
+                        f"⚠️ EPG daily minimum NOT met: {results['still_starving']} avatars "
+                        f"have 0 slots today after recovery. Investigate: {', '.join(starving_names)}"
+                    ),
+                    client_id=None,
+                    metadata={
+                        "starving_count": results["still_starving"],
+                        "recovered_count": results["recovered"],
+                        "avatars": starving_names,
+                    },
+                )
+                db.commit()
+            except Exception:
+                pass
+
+        logger.info(
+            "ensure_daily_epg_minimum complete: recovered=%d still_starving=%d errors=%d",
+            results["recovered"], results["still_starving"], results["errors"],
+        )
+        return results
+
+    except Exception as e:
+        logger.error("ensure_daily_epg_minimum failed: %s", e, exc_info=True)
+        return {"status": "error", "error": str(e)}
+    finally:
+        db.close()

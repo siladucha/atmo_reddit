@@ -397,12 +397,43 @@ async function fetchDashboardStats() {
     if (!resp.ok) return;
     const data = await resp.json();
 
-    // Plan = EPG slots today (from dashboard)
+    // Plan = EPG slots today — show only active (not skipped)
     const planEl = document.getElementById('stat-plan');
-    if (planEl) planEl.textContent = data.total_planned || 0;
+    if (planEl) {
+      const summary = data.epg_summary;
+      if (summary) {
+        planEl.textContent = summary.active + summary.posted;
+      } else {
+        planEl.textContent = data.total_planned || 0;
+      }
+    }
 
     // Posted = from dashboard (includes email-posted + extension-posted)
     document.getElementById('stat-posted').textContent = data.stats?.posts_today || 0;
+
+    // Render EPG slots in scheduled-list if no execution tasks shown there
+    const scheduledList = document.getElementById('scheduled-list');
+    const epgSlots = data.epg || [];
+    const activeSlots = epgSlots.filter(s => s.status !== 'skipped' && s.status !== 'posted');
+    if (scheduledList && activeSlots.length > 0 && scheduledList.querySelector('.empty-text')) {
+      scheduledList.innerHTML = activeSlots.map(s => {
+        const time = s.scheduled_at ? formatTime(s.scheduled_at) : '';
+        const sub = s.subreddit || '';
+        const statusLabel = s.status === 'planned' ? '⏳ generating'
+          : s.status === 'generated' ? '📝 needs review'
+          : s.status === 'approved' ? '✓ ready'
+          : s.status;
+        return `<div class="task-card task-card--epg">
+          <div class="task-card__row">
+            <div class="task-card__meta">
+              ${time ? `<span class="task-card__time">${time}</span>` : ''}
+              <span class="task-card__sub">r/${esc(sub)}</span>
+            </div>
+            <span class="task-card__status">${statusLabel}</span>
+          </div>
+        </div>`;
+      }).join('');
+    }
   } catch {}
 }
 

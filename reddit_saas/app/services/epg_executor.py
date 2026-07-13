@@ -100,26 +100,58 @@ def _generate_hobby_slot(db: Session, slot: EPGSlot, avatar: Avatar) -> CommentD
 
     try:
         voice = avatar.voice_profile_md or "Casual, helpful community member"
-        system_prompt = f"""You are writing a Reddit comment as a regular community member.
-Your voice: {voice}
 
-Rules:
-- Be SHORT (20-60 words, max 80)
-- Be genuine and helpful — this is a hobby subreddit
-- No brand mentions, no marketing, no self-promotion
-- Match the tone of the subreddit
-- Never use em-dashes (—)
-- IMPORTANT: Output ONLY valid JSON, no extra text
+        # Build previous comments section for anti-repetition
+        prev_section = ""
+        if prev_comments:
+            prev_section = "\n".join(f"- {c[:100]}" for c in prev_comments[:5])
 
-Previous comments (avoid repetition):
-{chr(10).join(f'- {c[:80]}' for c in prev_comments[:5])}
+        system_prompt = f"""# Hobby & Karma Comment Writer
+
+**Purpose:** Generate a short, engaging Reddit comment in a hobby subreddit. The single goal is karma: be the comment people upvote, reply to, and remember. You're a regular person participating in a community you enjoy.
+
+## Voice Profile
+{voice[:500]}
+
+## Rules (NON-NEGOTIABLE)
+
+1. **5-60 words** (hard max 80). If over 80, rewrite with a shorter idea.
+2. **Sound like a person typing on their phone.** Not a content creator, not AI.
+3. **One paragraph only.** No formatting, no bullets, no bold, no signatures.
+4. **Connect to specific details** in the post. Generic comments that work on any thread = fail.
+5. **No em-dashes (—).** Use commas, parentheses, or split the sentence.
+6. **No brand/product mentions.** Zero tolerance.
+7. **No "Th" sentence starters** (The, This, That, There, They). Rephrase.
+8. **No gerund openers** (Trying, Looking, Getting). Anchor to a subject.
+9. **Vary openers.** Don't start with "I [verb]..." every time.
+10. **NEVER use filler closers** like "Respect for the analysis", "Great post", "Thanks for sharing". These are bot signatures.
+11. **NEVER repeat a phrase** you used in a previous comment.
+
+## Engagement Angles (pick ONE)
+
+- **sharp_take** — opinionated observation nobody mentioned
+- **yeah_and** — relatable agreement with a twist
+- **useful_drop** — helpful tip delivered casually
+- **micro_story** — ultra-short personal anecdote (specific moment, not narrative)
+- **reality_check** — casual pushback on something off
+- **question** — genuine question that sparks discussion
+
+## Tone
+
+Match the thread energy. Be casual, specific, concise, genuine. Never be a guru, teacher, or marketer. You're a casual participant, not an authority.
+
+## Previous Comments (DO NOT repeat patterns or phrases from these):
+{prev_section if prev_section else "(none yet)"}
+
+## Output
 
 Respond with a JSON object: {{"comment": "your comment text here"}}"""
 
         user_prompt = f"""Subreddit: r/{hobby_post.subreddit}
 Post title: {hobby_post.post_title}
 Post body: {(hobby_post.post_body or '')[:500]}
-Upvotes: {hobby_post.post_ups or 0}"""
+Upvotes: {hobby_post.post_ups or 0}
+{('Top comments: ' + hobby_post.comments[:1500]) if hobby_post.comments else ''}"""
 
         gen_model = get_config("llm_scoring_model") or get_config("llm_generation_model")
 
@@ -638,7 +670,10 @@ def _log_slot_generated(db: Session, slot: EPGSlot, avatar: Avatar, subreddit: s
         pass  # Non-critical — don't fail generation on audit error
 
 def _dispatch_email_task_if_enabled(db, slot) -> None:
-    """Create an execution task if email_tasks_enabled=true.
+    """Create an execution task for approved slot.
+
+    For email delivery: gated by email_tasks_enabled setting.
+    For extension delivery: always creates task (extension polls independently).
 
     The task is created with status='generated' but NOT delivered immediately.
     A separate Beat task (dispatch_due_email_tasks, every 5 min) handles actual
@@ -651,8 +686,24 @@ def _dispatch_email_task_if_enabled(db, slot) -> None:
     """
     try:
         from app.services.settings import get_setting
-        if get_setting(db, "email_tasks_enabled") != "true":
-            return
+
+        # Determine avatar's delivery channel
+        delivery_channel = "email"
+        if slot.avatar:
+            delivery_channel = getattr(slot.avatar, "delivery_channel", "email") or "email"
+        else:
+            from app.models.avatar import Avatar
+            avatar_obj = db.query(Avatar).filter(Avatar.id == slot.avatar_id).first()
+            if avatar_obj:
+                delivery_channel = getattr(avatar_obj, "delivery_channel", "email") or "email"
+
+        # Extension channel: always create task (extension polls for it)
+        # Email channel: gated by email_tasks_enabled setting
+        if delivery_channel == "email":
+            if get_setting(db, "email_tasks_enabled") != "true":
+                return
+        # "both" channel: create task regardless (extension can pick it up;
+        # email delivery is separately gated in dispatch_due_email_tasks)
 
         from app.services.execution_tasks import create_execution_task
         task = create_execution_task(db, slot.id)

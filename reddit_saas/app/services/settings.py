@@ -37,7 +37,7 @@ DEFAULTS: dict[str, dict] = {
         "group": "auth",
     },
     "admin_email": {
-        "value": "max@admin.com",
+        "value": "max.breger@gmail.com",
         "secret": False,
         "desc": "Default admin email address",
         "group": "auth",
@@ -193,6 +193,12 @@ DEFAULTS: dict[str, dict] = {
         "value": "false",
         "secret": False,
         "desc": "When true, every LLM stage renders the prompt for manual paste-back instead of calling the API",
+        "group": "app",
+    },
+    "sales_calendar_url": {
+        "value": "",
+        "secret": False,
+        "desc": "Sales calendar/booking URL shown to expired trial users (e.g. Calendly link). Falls back to mailto if empty.",
         "group": "app",
     },
     # Scraping Queue

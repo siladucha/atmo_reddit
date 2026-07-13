@@ -1030,11 +1030,12 @@ async def get_extension_dashboard(
 
     # ── Today's EPG ────────────────────────────────────────────────────────
 
+    today_date = today_start.date()
     epg_slots = (
         db.query(EPGSlot)
         .filter(
             EPGSlot.avatar_id == avatar.id,
-            EPGSlot.plan_date >= today_start.date(),
+            EPGSlot.plan_date == today_date,
         )
         .order_by(EPGSlot.scheduled_at.asc())
         .limit(15)
@@ -1052,8 +1053,15 @@ async def get_extension_dashboard(
         for slot in epg_slots
     ]
 
-    # Plan = total slots today (including skipped)
-    total_planned = len(epg_slots)
+    # EPG summary — breakdown by status for clear UI
+    epg_summary = {
+        "total": len(epg_slots),
+        "active": sum(1 for s in epg_slots if s.status in ("planned", "generated", "approved")),
+        "posted": sum(1 for s in epg_slots if s.status == "posted"),
+        "skipped": sum(1 for s in epg_slots if s.status == "skipped"),
+    }
+    # Legacy field (total active = not skipped) — what user expects "Plan" to mean
+    total_planned = epg_summary["active"] + epg_summary["posted"]
 
     # ── Pending Drafts (to approve) ───────────────────────────────────────
 
@@ -1093,6 +1101,7 @@ async def get_extension_dashboard(
     return {
         "stats": stats,
         "total_planned": total_planned,
+        "epg_summary": epg_summary,
         "epg": epg_list,
         "pending_drafts": drafts_list,
         "links": links,
@@ -1167,7 +1176,7 @@ async def review_draft(
     not just an executor. When a draft is approved here:
     1. Draft status → approved
     2. EPG slot status → approved
-    3. ExecutionTask is created (if email_tasks_enabled)
+    3. ExecutionTask is created (extension channel: always; email channel: if email_tasks_enabled)
     4. Extension will see the task in next /tasks poll
 
     Supports optional text edit before approval (edit + approve in one call).

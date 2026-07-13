@@ -804,7 +804,7 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
                         )
             except Exception as e:
                 logger.warning("Failed to check subreddit bans in hobby: %s", str(e)[:100])
-            if not hobby_sub_names and avatar.warming_phase == 1:
+            if not hobby_sub_names and avatar.warming_phase <= 1:
                 from app.services.sanitize import DEFAULT_PHASE1_HOBBY_SUBREDDITS
                 hobby_sub_names = list(DEFAULT_PHASE1_HOBBY_SUBREDDITS)
 
