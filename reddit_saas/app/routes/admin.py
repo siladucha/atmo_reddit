@@ -36,7 +36,7 @@ from app.services.metrics_collector import (
     gauge_color,
     get_metrics_collector,
 )
-from app.version import __version__ as app_version
+from app.version import __version__ as app_version, __deployed_at__
 from app.config import get_settings as _get_settings
 from app.logging_config import get_logger
 
@@ -52,6 +52,7 @@ templates.env.cache = {}
 templates.env.globals["dry_run_enabled"] = is_dry_run_enabled_global
 # Expose version and posting status to all admin templates.
 templates.env.globals["app_version"] = app_version
+templates.env.globals["deployed_at"] = __deployed_at__
 templates.env.globals["posting_disabled"] = lambda: _get_settings().posting_disabled
 templates.env.globals["app_env"] = _get_settings().app_env
 

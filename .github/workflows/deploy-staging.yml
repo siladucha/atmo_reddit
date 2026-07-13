@@ -73,6 +73,8 @@ jobs:
 
       - name: rsync code
         run: |
+          # Write deploy timestamp before syncing
+          date -u '+%Y-%m-%d %H:%M UTC' > ./reddit_saas/DEPLOYED_AT
           rsync -avz --delete \
             --exclude='.venv/' \
             --exclude='__pycache__/' \
