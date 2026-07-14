@@ -420,6 +420,76 @@ class EPGResult:
         }
 
 
+def get_epg_status(db: Session, avatar: Avatar, client: Optional[Client] = None) -> EPGResult:
+    """Read-only: get current EPG status for display. Does NOT create or delete slots.
+
+    Use this for admin detail pages, HTMX partials, and any view-only context.
+    Never call build_daily_epg or build_portfolio from GET routes.
+
+    Returns EPGResult populated from existing EPGSlot records.
+    """
+    from app.services.portfolio_manager import AttentionBudget
+
+    result = EPGResult(avatar)
+    today = date.today()
+
+    # Budget from EPG 2.0 AttentionBudget (authoritative source)
+    budget = AttentionBudget.from_avatar(avatar, client)
+    result.daily_budget = budget.max_total_actions
+
+    # Count used today (generated/approved/posted slots)
+    from app.services.epg_executor import get_budget_used_today
+    result.used_today = get_budget_used_today(db, avatar.id, today)
+    result.remaining = max(0, result.daily_budget - result.used_today)
+
+    # Load existing slots for today
+    existing_slots = (
+        db.query(EPGSlot)
+        .filter(
+            EPGSlot.avatar_id == avatar.id,
+            EPGSlot.plan_date == today,
+        )
+        .order_by(EPGSlot.scheduled_at.asc().nullslast())
+        .all()
+    )
+
+    for slot in existing_slots:
+        slot_dict = {
+            "slot_id": str(slot.id),
+            "subreddit": slot.subreddit,
+            "title": slot.thread_title,
+            "ups": slot.thread_ups or 0,
+            "scheduled_at": slot.scheduled_at.isoformat() if slot.scheduled_at else None,
+            "created_at": slot.created_at.isoformat() if slot.created_at else None,
+            "status": slot.status,
+            "draft_id": str(slot.draft_id) if slot.draft_id else None,
+            "skip_reason": slot.skip_reason,
+        }
+        if slot.slot_type == "hobby":
+            slot_dict["hobby_post_id"] = str(slot.hobby_post_id) if slot.hobby_post_id else None
+            slot_dict["post_id"] = None
+            slot_dict["comment_type"] = "hobby"
+            result.hobby_slots.append(slot_dict)
+        else:
+            slot_dict["thread_id"] = str(slot.thread_id) if slot.thread_id else None
+            slot_dict["comment_type"] = "professional"
+            result.business_slots.append(slot_dict)
+
+    # Set built_at from latest slot created_at
+    if existing_slots:
+        latest_created = max(
+            (s.created_at for s in existing_slots if s.created_at), default=None
+        )
+        if latest_created:
+            result.built_at = latest_created.strftime("%H:%M")
+
+    if not existing_slots:
+        result.status = "no_content"
+        result.message = "No EPG slots for today yet"
+
+    return result
+
+
 def build_daily_epg(
     db: Session,
     avatar: Avatar,

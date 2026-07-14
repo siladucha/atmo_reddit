@@ -37,7 +37,7 @@ logger = get_logger(__name__)
 # --- Phase Policy Constants ---
 MAX_COMMENTS_PER_DAY_PHASE1 = 3
 MAX_COMMENTS_PER_DAY_PHASE2 = 7   # Was 10; reduced per R12.3 for safety margin
-MAX_COMMENTS_PER_DAY_PHASE3 = 18  # TODO(pipeline-v2): replace with BudgetEngine.calculate_daily_limit()
+MAX_COMMENTS_PER_DAY_PHASE3 = 15  # Aligned with EPG 2.0 AttentionBudget (12 comments + 3 posts = 15 total)
 MAX_BRAND_RATIO = 0.30             # TODO(pipeline-v2): move to system_settings "max_brand_ratio_percent"
 BRAND_RAMP_UP_EARLY_MAX = 1
 BRAND_RAMP_UP_MID_RATIO = 0.10

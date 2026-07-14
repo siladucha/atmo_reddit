@@ -3381,12 +3381,12 @@ def admin_avatar_detail(
 
     today = compute_today_recommendation(db, avatar, health, pro_pending=pro_pending)
 
-    # EPG — daily publishing program
-    from app.services.epg import build_daily_epg
+    # EPG — daily publishing program (read-only: never create slots from GET page)
+    from app.services.epg import get_epg_status
     epg_client = None
     if avatar.client_ids:
         epg_client = db.query(Client).filter(Client.id == uuid.UUID(avatar.client_ids[0])).first()
-    epg = build_daily_epg(db, avatar, epg_client)
+    epg = get_epg_status(db, avatar, epg_client)
 
     return templates.TemplateResponse(
         name="admin_avatar_detail.html",
@@ -3521,18 +3521,18 @@ def admin_avatar_epg_partial(
     db: Session = Depends(get_db),
 ):
     """HTMX partial: show today's EPG for an avatar."""
-    from app.services.epg import build_daily_epg
+    from app.services.epg import get_epg_status
 
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
         return HTMLResponse("<div class='text-red-400 text-xs'>Avatar not found</div>", status_code=404)
 
-    # Get client for keyword matching (Phase 2-3)
+    # Get client for budget calculation
     client = None
     if avatar.client_ids:
         client = db.query(Client).filter(Client.id == avatar.client_ids[0]).first()
 
-    epg = build_daily_epg(db, avatar, client)
+    epg = get_epg_status(db, avatar, client)
 
     return templates.TemplateResponse(
         name="partials/avatar_epg.html",
@@ -3548,11 +3548,15 @@ def admin_avatar_build_epg(
     current_user: User = Depends(require_avatar_admin),
     db: Session = Depends(get_db),
 ):
-    """Build EPG and generate comments for an avatar (manual trigger)."""
+    """Build EPG and generate comments for an avatar (manual trigger).
+
+    Respects epg2_enabled flag: uses build_portfolio (EPG 2.0) when enabled,
+    falls back to legacy build_daily_epg otherwise.
+    """
     import logging
     logger = get_logger(__name__)
 
-    from app.services.epg import build_daily_epg
+    from app.services.settings import get_setting
 
     avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
     if not avatar:
@@ -3562,23 +3566,40 @@ def admin_avatar_build_epg(
     if avatar.client_ids:
         client = db.query(Client).filter(Client.id == avatar.client_ids[0]).first()
 
-    epg = build_daily_epg(db, avatar, client)
+    epg2_enabled = get_setting(db, "epg2_enabled").lower() in ("true", "1")
 
-    # Generate hobby comments for EPG slots
-    if epg.hobby_slots:
-        from app.tasks.ai_pipeline import generate_hobby_comments
-        try:
-            generate_hobby_comments.delay(str(avatar.id), max_comments=len(epg.hobby_slots), triggered_by="manual")
-        except Exception as e:
-            logger.error(f"Failed to dispatch hobby generation for {avatar.reddit_username}: {e}")
+    if epg2_enabled:
+        from app.services.portfolio_manager import build_portfolio
+        from app.services.epg_executor import generate_all_planned_slots
 
-    # Generate professional comments for business slots (Phase 2-3)
-    if epg.business_slots and client:
-        from app.tasks.ai_pipeline import generate_comments
-        try:
-            generate_comments.delay(str(client.id), max_comments=len(epg.business_slots), triggered_by="manual")
-        except Exception as e:
-            logger.error(f"Failed to dispatch pro generation for {avatar.reddit_username}: {e}")
+        epg = build_portfolio(db, avatar, client)
+
+        # Generate comments for planned slots (same as Beat task does)
+        if epg.status == "ok" and epg.total_slots > 0:
+            generated = generate_all_planned_slots(db, avatar.id)
+            logger.info(
+                "admin_avatar_build_epg (EPG 2.0): avatar=%s status=%s slots=%d generated=%d",
+                avatar.reddit_username, epg.status, epg.total_slots, generated,
+            )
+    else:
+        from app.services.epg import build_daily_epg
+        epg = build_daily_epg(db, avatar, client)
+
+        # Generate hobby comments for EPG slots
+        if epg.hobby_slots:
+            from app.tasks.ai_pipeline import generate_hobby_comments
+            try:
+                generate_hobby_comments.delay(str(avatar.id), max_comments=len(epg.hobby_slots), triggered_by="manual")
+            except Exception as e:
+                logger.error(f"Failed to dispatch hobby generation for {avatar.reddit_username}: {e}")
+
+        # Generate professional comments for business slots (Phase 2-3)
+        if epg.business_slots and client:
+            from app.tasks.ai_pipeline import generate_comments
+            try:
+                generate_comments.delay(str(client.id), max_comments=len(epg.business_slots), triggered_by="manual")
+            except Exception as e:
+                logger.error(f"Failed to dispatch pro generation for {avatar.reddit_username}: {e}")
 
     audit_service.log_action(
         db=db,
@@ -3586,7 +3607,12 @@ def admin_avatar_build_epg(
         action="build_epg",
         entity_type="avatar",
         entity_id=avatar_id,
-        details={"status": epg.status, "hobby_slots": len(epg.hobby_slots), "business_slots": len(epg.business_slots)},
+        details={
+            "status": epg.status,
+            "hobby_slots": len(epg.hobby_slots),
+            "business_slots": len(epg.business_slots),
+            "epg2_enabled": epg2_enabled,
+        },
     )
 
     return templates.TemplateResponse(
