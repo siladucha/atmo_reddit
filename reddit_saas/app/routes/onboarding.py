@@ -1331,7 +1331,7 @@ def trial_signup(
     email: str = Form(...),
     password: str = Form(...),
     full_name: str = Form(""),
-    company_name: str = Form(""),
+    company_website: str = Form(""),
     gotcha: str = Form(""),
 ):
     """Create a free trial account: User + Client (trial plan) → redirect to wizard."""
@@ -1358,11 +1358,24 @@ def trial_signup(
         _tmpl = _env.get_template("onboarding/trial_signup.html")
         return HTMLResponse(content=_tmpl.render(request=request, error="This email is already registered. Please sign in."))
 
+    # Derive company name from website URL or email
+    website_url = company_website.strip()
+    if website_url:
+        from app.services.onboarding.website_scraper import _derive_company_name
+        domain = website_url.replace("https://", "").replace("http://", "").split("/")[0]
+        derived_name = _derive_company_name(domain)
+    else:
+        derived_name = ""
+        domain = ""
+
+    client_name = derived_name or email.split("@")[0]
+
     # Create trial client
     from datetime import timedelta
     trial_client = Client(
-        client_name=company_name.strip() or email.split("@")[0],
-        brand_name=company_name.strip() or email.split("@")[0],
+        client_name=client_name,
+        brand_name=client_name,
+        brand_domain=website_url if website_url else None,
         plan_type="trial",
         max_avatars=1,
         max_comments_per_month=5,  # One-time burst, not daily drip (Tzvi July 10)
