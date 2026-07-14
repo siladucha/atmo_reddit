@@ -176,13 +176,24 @@ function renderDraftCard(draft) {
   const title = truncate(draft.thread_title || '', 50);
   const text = truncate(draft.text_preview || '', 120);
   const time = draft.created_at ? formatTime(draft.created_at) : '';
+  const threadUrl = draft.thread_url || '';
+
+  // Build clickable link for subreddit + title
+  const subHtml = threadUrl
+    ? `<a href="${esc(threadUrl)}" target="_blank" class="task-card__sub task-card__link">r/${esc(sub)}</a>`
+    : `<span class="task-card__sub">r/${esc(sub)}</span>`;
+  const titleHtml = title
+    ? (threadUrl
+      ? `<a href="${esc(threadUrl)}" target="_blank" class="task-card__title task-card__link">${esc(title)}</a>`
+      : `<span class="task-card__title">${esc(title)}</span>`)
+    : '';
 
   return `
     <div class="task-card task-card--draft" data-draft-id="${draft.id}">
       <div class="task-card__row">
         <div class="task-card__meta">
-          <span class="task-card__sub">r/${esc(sub)}</span>
-          ${title ? `<span class="task-card__title">${esc(title)}</span>` : ''}
+          ${subHtml}
+          ${titleHtml}
           ${time ? `<span class="task-card__time">${time}</span>` : ''}
         </div>
         <div class="task-card__actions">
@@ -444,6 +455,7 @@ function renderPendingCard(task) {
   const sub = task.subreddit || '';
   const text = truncate(task.comment_text || '', 100);
   const avatar = task.avatar_username ? `u/${task.avatar_username}` : '';
+  const threadUrl = task.thread_url || '';
 
   // Check if task is overdue (scheduled_at in the past)
   let overdue = false;
@@ -455,12 +467,17 @@ function renderPendingCard(task) {
   const timeClass = overdue ? 'task-card__time task-card__time--overdue' : 'task-card__time';
   const overdueLabel = overdue ? ' ⚠️' : '';
 
+  // Build clickable subreddit link
+  const subHtml = threadUrl
+    ? `<a href="${esc(threadUrl)}" target="_blank" class="task-card__sub task-card__link">r/${esc(sub)}</a>`
+    : `<span class="task-card__sub">r/${esc(sub)}</span>`;
+
   return `
     <div class="task-card" data-id="${task.task_id}">
       <div class="task-card__row">
         <div class="task-card__meta">
           <span class="${timeClass}">${time}${overdueLabel}</span>
-          <span class="task-card__sub">r/${esc(sub)}</span>
+          ${subHtml}
           ${avatar ? `<span class="task-card__avatar">${esc(avatar)}</span>` : ''}
         </div>
         <div class="task-card__actions">
@@ -486,13 +503,18 @@ function renderScheduledCard(task) {
   const sub = task.subreddit || '';
   const text = truncate(task.comment_text || '', 80);
   const status = task.status === 'executing' ? '⏳' : '🕐';
+  const threadUrl = task.thread_url || '';
+
+  const subHtml = threadUrl
+    ? `<a href="${esc(threadUrl)}" target="_blank" class="task-card__sub task-card__link">r/${esc(sub)}</a>`
+    : `<span class="task-card__sub">r/${esc(sub)}</span>`;
 
   return `
     <div class="task-card task-card--scheduled" data-id="${task.task_id}">
       <div class="task-card__row">
         <div class="task-card__meta">
           <span class="task-card__time">${status} ${time}</span>
-          <span class="task-card__sub">r/${esc(sub)}</span>
+          ${subHtml}
         </div>
         <div class="task-card__actions">
           <button class="btn-sm btn-sm--skip" data-action="cancel-scheduled" data-id="${task.task_id}" title="Cancel this task">✗</button>

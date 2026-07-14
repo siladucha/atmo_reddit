@@ -311,6 +311,15 @@ body {
   color: var(--accent);
 }
 
+.task-card__link {
+  text-decoration: none;
+  cursor: pointer;
+}
+.task-card__link:hover {
+  text-decoration: underline;
+  opacity: 0.85;
+}
+
 .task-card__actions {
   display: flex;
   gap: 4px;

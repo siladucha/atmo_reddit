@@ -1077,17 +1077,35 @@ async def get_extension_dashboard(
     )
 
     client_id = avatar.client_ids[0] if avatar.client_ids else None
-    drafts_list = [
-        {
+    drafts_list = []
+    for draft in pending_drafts:
+        # Resolve subreddit + thread URL from either professional thread or hobby post
+        sub = ""
+        thread_title = ""
+        thread_url = ""
+        if draft.thread:
+            sub = draft.thread.subreddit or ""
+            thread_title = draft.thread.post_title or ""
+            # Build Reddit URL from subreddit + native id
+            if draft.thread.reddit_native_id and sub:
+                thread_url = f"https://www.reddit.com/r/{sub}/comments/{draft.thread.reddit_native_id}/"
+        elif draft.hobby_post:
+            sub = draft.hobby_post.subreddit or ""
+            thread_title = draft.hobby_post.post_title or ""
+            if draft.hobby_post.permalink:
+                thread_url = f"https://www.reddit.com{draft.hobby_post.permalink}" if draft.hobby_post.permalink.startswith("/") else draft.hobby_post.permalink
+            elif draft.hobby_post.post_id and sub:
+                thread_url = f"https://www.reddit.com/r/{sub}/comments/{draft.hobby_post.post_id}/"
+
+        drafts_list.append({
             "id": str(draft.id),
-            "subreddit": (draft.thread.subreddit if draft.thread else "") or "",
-            "thread_title": (draft.thread.post_title if draft.thread else "") or "",
+            "subreddit": sub,
+            "thread_title": thread_title,
+            "thread_url": thread_url,
             "text_preview": (draft.edited_draft or draft.ai_draft or "")[:120],
             "created_at": draft.created_at.isoformat() if draft.created_at else None,
             "approve_url": f"https://gorampit.com/clients/{client_id}/review" if client_id else None,
-        }
-        for draft in pending_drafts
-    ]
+        })
 
     # ── Links ─────────────────────────────────────────────────────────────
 
