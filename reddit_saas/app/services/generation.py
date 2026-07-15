@@ -793,6 +793,16 @@ def generate_comment(
     raw_comment = data.get("comment", "")
     sanitized_comment = sanitize_for_reddit(raw_comment)
 
+    # --- Quality gate: reject garbage before it enters review queue ---
+    from app.services.draft_quality_gate import validate_draft_text
+    qr = validate_draft_text(sanitized_comment, previous_comments)
+    if not qr.ok:
+        logger.warning(
+            "Professional draft REJECTED by quality gate: avatar=%s thread=%s reason=%s text=%s",
+            avatar.reddit_username, thread.post_title[:40], qr.reason, repr(sanitized_comment[:80]),
+        )
+        raise RuntimeError(f"Quality gate rejected: {qr.reason}")
+
     # Create draft with learning provenance metadata
     draft = CommentDraft(
         thread_id=thread.id,
