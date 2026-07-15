@@ -122,10 +122,10 @@ class TelegramBotService:
         return False
 
     async def set_my_commands(self, commands: list[dict[str, str]]) -> bool:
-        """Set bot command menu. commands = [{"command": "/help", "description": "..."}]."""
-        data = {"commands": commands}
+        """Set bot command menu. commands = [{"command": "help", "description": "..."}]."""
         import json
-        result = await self._post_json("setMyCommands", {"commands": json.dumps(commands)})
+        data = {"commands": json.dumps(commands)}
+        result = await self._post("setMyCommands", data)
         return result is not None
 
     async def delete_webhook(self) -> bool:

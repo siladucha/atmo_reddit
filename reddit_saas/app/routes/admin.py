@@ -230,7 +230,7 @@ _PIPELINE_ACTIONS = {"scrape", "score", "generate", "full-pipeline"}
 def _trigger_client_pipeline(action: str, client_id: uuid.UUID) -> str:
     """Dispatch a Celery pipeline task for a single client. Returns task id."""
     from app.tasks.scraping import scrape_professional_subreddits
-    from app.tasks.ai_pipeline import score_threads, generate_comments
+    from app.tasks.ai_pipeline import score_threads, generate_comments, generate_posts
 
     cid = str(client_id)
     if action == "scrape":
@@ -239,6 +239,8 @@ def _trigger_client_pipeline(action: str, client_id: uuid.UUID) -> str:
         return score_threads.delay(cid, triggered_by="manual").id
     if action == "generate":
         return generate_comments.delay(cid, triggered_by="manual").id
+    if action == "posts":
+        return generate_posts.delay(cid, max_posts=3, triggered_by="manual").id
     if action == "full-pipeline":
         chain = (
             scrape_professional_subreddits.si(cid)
@@ -10576,6 +10578,33 @@ def admin_profile_telegram_connect(
     if not current_user.telegram_notifications_level:
         current_user.telegram_notifications_level = "critical"
     db.commit()
+
+    # Point #12: Send confirmation message via bot
+    try:
+        from app.services.telegram.bot_service import get_bot_service
+        import asyncio
+
+        bot = get_bot_service()
+        if bot:
+            level = current_user.telegram_notifications_level or "critical"
+            level_labels = {"all": "📢 All", "warning": "⚠️ Warning + Critical", "critical": "🔴 Critical only", "off": "🔇 Off"}
+            confirm_msg = (
+                f"✅ <b>Telegram connected!</b>\n\n"
+                f"Account: {current_user.email}\n"
+                f"Notification level: {level_labels.get(level, level)}\n\n"
+                f"Use /help to see available commands.\n"
+                f"Use /settings to change notification level."
+            )
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.ensure_future(bot.send_message(chat_id, confirm_msg))
+                else:
+                    loop.run_until_complete(bot.send_message(chat_id, confirm_msg))
+            except RuntimeError:
+                asyncio.run(bot.send_message(chat_id, confirm_msg))
+    except Exception:
+        pass  # Non-critical — don't fail the connect action
 
     return RedirectResponse(url="/admin/profile?msg=Telegram+connected!", status_code=303)
 

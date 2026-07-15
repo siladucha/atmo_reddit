@@ -130,7 +130,7 @@
     </div>
 
     <!-- What you'll receive -->
-    <div class="surface p-6">
+    <div class="surface p-6 mb-6">
         <h2 class="text-base font-semibold text-white mb-3">What triggers notifications</h2>
         <div class="space-y-2 text-sm">
             <div class="flex items-center gap-3 text-gray-300">
@@ -157,6 +157,44 @@
                 <span class="text-blue-400">ℹ️</span>
                 <span>Daily summary, pipeline completion (only with "All" level)</span>
             </div>
+        </div>
+    </div>
+
+    <!-- Bot commands -->
+    <div class="surface p-6">
+        <h2 class="text-base font-semibold text-white mb-3">Bot commands</h2>
+        <p class="text-xs text-gray-500 mb-3">Available in Telegram after connecting:</p>
+        <div class="space-y-2 text-sm font-mono">
+            <div class="flex items-start gap-3 text-gray-300">
+                <code class="text-indigo-300 flex-shrink-0">/pending</code>
+                <span class="text-gray-400">— Show drafts waiting for your review (with approve/skip/edit buttons)</span>
+            </div>
+            <div class="flex items-start gap-3 text-gray-300">
+                <code class="text-indigo-300 flex-shrink-0">/approve_all</code>
+                <span class="text-gray-400">— Approve all pending drafts for an avatar</span>
+            </div>
+            <div class="flex items-start gap-3 text-gray-300">
+                <code class="text-indigo-300 flex-shrink-0">/status</code>
+                <span class="text-gray-400">— Account info + system overview</span>
+            </div>
+            {% if user.role in ('owner', 'partner') %}
+            <div class="flex items-start gap-3 text-gray-300">
+                <code class="text-indigo-300 flex-shrink-0">/costs</code>
+                <span class="text-gray-400">— AI spend today</span>
+            </div>
+            <div class="flex items-start gap-3 text-gray-300">
+                <code class="text-indigo-300 flex-shrink-0">/avatars</code>
+                <span class="text-gray-400">— Avatar fleet status</span>
+            </div>
+            <div class="flex items-start gap-3 text-gray-300">
+                <code class="text-indigo-300 flex-shrink-0">/errors</code>
+                <span class="text-gray-400">— Pipeline errors in last 24h</span>
+            </div>
+            <div class="flex items-start gap-3 text-gray-300">
+                <code class="text-indigo-300 flex-shrink-0">/pipelines</code>
+                <span class="text-gray-400">— Latest pipeline run status</span>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>

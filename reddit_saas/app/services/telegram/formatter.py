@@ -139,10 +139,11 @@ class DraftCardFormatter:
         """Format the edit prompt message showing full draft text."""
         escaped = html.escape(full_text)
         return (
-            f"✏️ <b>Edit this draft</b>\n\n"
+            f"✏️ <b>Edit mode</b>\n\n"
             f"<code>{escaped}</code>\n\n"
-            f"💡 Send your corrections or guidance as a <b>reply</b> to this message — "
-            f"the AI will regenerate the draft based on your input."
+            f"💡 Reply to this message with your corrections or guidance — "
+            f"the AI will regenerate the draft.\n\n"
+            f"Type /cancel to abort editing."
         )
 
     def format_regenerated(self, new_text: str, callback_ids: dict[str, str]) -> tuple[str, dict]:

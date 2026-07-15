@@ -347,6 +347,11 @@ class TelegramDraftReview:
         except (json.JSONDecodeError, TypeError):
             return None
 
+    def cancel_edit_session(self, chat_id: str, message_id: int) -> None:
+        """Cancel an active edit session (user sent /cancel)."""
+        session_key = f"{_EDIT_SESSION_PREFIX}{chat_id}:{message_id}"
+        self._redis.delete(session_key)
+
     def process_edit_reply(self, db: Session, user, draft_id: str, guidance_text: str) -> dict:
         """Regenerate draft via LLM with user guidance. Returns new text or error."""
         from app.models.comment_draft import CommentDraft
@@ -504,11 +509,11 @@ Regenerate the comment incorporating the user's feedback. Keep the same voice an
                 continue
 
             # Check role allows review
-            if user.role not in ("owner", "partner", "client_admin", "client_manager"):
+            if user.role not in ("owner", "partner", "client_admin", "client_manager", "avatar_manager", "qa"):
                 continue
 
             # Check access to this client
-            if user.role in ("owner", "partner"):
+            if user.role in ("owner", "partner", "avatar_manager", "qa"):
                 eligible.append(user)
             elif str(user.client_id) == str(client_id):
                 eligible.append(user)
@@ -552,11 +557,11 @@ def _user_can_review_draft(db: Session, user, draft) -> bool:
     """Check if user has review access to this draft's client (P7 enforcement).
 
     Rules:
-    - owner, partner → access to ALL clients
+    - owner, partner, avatar_manager, qa → access to ALL clients
     - client_admin, client_manager → access only to their assigned client(s)
     - Other roles → no access
     """
-    if user.role in ("owner", "partner"):
+    if user.role in ("owner", "partner", "avatar_manager", "qa"):
         return True
     if user.role in ("client_admin", "client_manager"):
         if str(user.client_id) == str(draft.client_id):
@@ -576,7 +581,7 @@ def _user_can_review_draft(db: Session, user, draft) -> bool:
 
 def _get_accessible_client_ids(db: Session, user) -> list[str]:
     """Get all client IDs this user can access."""
-    if user.role in ("owner", "partner"):
+    if user.role in ("owner", "partner", "avatar_manager", "qa"):
         from app.models.client import Client
         clients = db.query(Client.id).filter(Client.is_active.is_(True)).all()
         return [str(c.id) for c in clients]
