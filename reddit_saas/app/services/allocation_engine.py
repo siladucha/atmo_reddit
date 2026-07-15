@@ -470,254 +470,133 @@ def allocate_portfolio(
     allocation: "PortfolioAllocation",
     avatar: "Avatar",
 ) -> AllocationResult:
-    """Allocate budget across categories using greedy optimization.
+    """Allocate budget across opportunities using simple top-N selection.
 
-    Algorithm:
-    1. Assign each opportunity to its best-matching category
-    2. For each category (by allocation %), pick top opportunities
-       by risk-adjusted return (composite / risk_score)
-    3. Enforce diversification: no single subreddit > 40% of actions
-    4. Reallocate empty categories proportionally to others
-    5. Apply timing via deterministic spacing across active hours
-    6. Compute Shannon entropy diversification metric
+    Algorithm (simplified from over-engineered category-based):
+    1. Sort all opportunities by composite_score descending
+    2. Select top N (= max_total_actions), respecting max_comments/max_posts
+    3. Enforce subreddit diversification (no single sub > 40% or absolute cap 2)
+    4. Assign timing across active hours
+    5. Compute diversification metric
+
+    The category-based allocation was causing 89-96% rejection rates because
+    opportunities clustered in one category with minimal budget allocation.
+    Simple top-N by quality fills budget correctly.
 
     Args:
-        opportunities: List of Opportunity objects (already filtered by risk threshold).
+        opportunities: List of Opportunity objects (already filtered by risk).
         risk_assessments: Dict mapping opportunity.id → RiskAssessment.
         expected_returns: Dict mapping opportunity.id → ExpectedReturn.
         budget: AttentionBudget with max_total_actions, max_comments, max_posts.
-        allocation: PortfolioAllocation with categories dict (category → percentage).
-        avatar: Avatar for category assignment and timing.
+        allocation: PortfolioAllocation (preserved for interface compat, categories stored in decision_record).
+        avatar: Avatar for timing and slot_type determination.
 
     Returns:
-        AllocationResult with selected actions, rejected, budget info,
-        diversification score, and reallocation log.
+        AllocationResult with selected actions, rejected, and diversification info.
     """
     result = AllocationResult()
     max_total = budget.max_total_actions
 
     if max_total <= 0 or not opportunities:
-        # Nothing to allocate
-        for cat in allocation.categories:
-            result.budget_consumed[cat] = 0
-            result.budget_remaining[cat] = 0
         if not opportunities:
             result.reallocation_log.append("No viable opportunities provided")
         else:
             result.reallocation_log.append("Budget is zero — no actions allowed")
         return result
 
-    # Step 1: Assign opportunities to categories and compute risk-adjusted return
-    categorized: dict[str, list[tuple[object, float]]] = {
-        cat: [] for cat in allocation.categories
-    }
-
+    # Step 1: Sort by composite_score descending (best opportunities first)
+    scored_opps = []
     for opp in opportunities:
         opp_id = opp.id
         risk = risk_assessments.get(opp_id)
         ret = expected_returns.get(opp_id)
-
         if risk is None or ret is None:
             result.rejected.append((opp, "missing_risk_or_return_data"))
             continue
+        scored_opps.append((opp, risk, ret))
 
-        category = _assign_category(opp, avatar)
+    # Sort by composite_score (opportunity's own score), falling back to risk-adjusted return
+    scored_opps.sort(
+        key=lambda x: (x[0].composite_score or 0, _compute_risk_adjusted_return(x[2], x[1])),
+        reverse=True,
+    )
 
-        # If the category isn't in the allocation, assign to the closest match
-        if category not in categorized:
-            # Default to "primary" as fallback
-            category = "primary" if "primary" in categorized else next(iter(categorized))
-
-        risk_adjusted = _compute_risk_adjusted_return(ret, risk)
-        categorized[category].append((opp, risk_adjusted))
-
-    # Sort each category by risk-adjusted return descending
-    for cat in categorized:
-        categorized[cat].sort(key=lambda x: x[1], reverse=True)
-
-    # Step 2: Compute slots per category from budget allocation
-    slots_per_category: dict[str, int] = {}
-    total_allocated = 0
-
-    for cat, percentage in allocation.categories.items():
-        slots = math.floor(max_total * percentage / 100)
-        slots_per_category[cat] = slots
-        total_allocated += slots
-
-    # Distribute remaining slots (due to floor rounding) to highest-percentage categories
-    remaining_from_floor = max_total - total_allocated
-    if remaining_from_floor > 0:
-        sorted_cats = sorted(allocation.categories.items(), key=lambda x: x[1], reverse=True)
-        for i in range(remaining_from_floor):
-            cat = sorted_cats[i % len(sorted_cats)][0]
-            slots_per_category[cat] += 1
-
-    # Step 3: Identify empty categories and reallocate
-    empty_categories: list[str] = []
-    slots_to_redistribute = 0
-
-    for cat, slots in slots_per_category.items():
-        if not categorized.get(cat):
-            # No viable opportunities in this category
-            empty_categories.append(cat)
-            slots_to_redistribute += slots
-            slots_per_category[cat] = 0
-
-    if empty_categories and slots_to_redistribute > 0:
-        # Find non-empty categories with viable opportunities
-        viable_cats = [
-            cat for cat in slots_per_category
-            if cat not in empty_categories and categorized.get(cat)
-        ]
-
-        if viable_cats:
-            # Distribute proportionally based on their original allocation percentages
-            viable_total_pct = sum(allocation.categories.get(cat, 0) for cat in viable_cats)
-
-            if viable_total_pct > 0:
-                distributed = 0
-                for i, cat in enumerate(viable_cats):
-                    cat_pct = allocation.categories.get(cat, 0)
-                    share = math.floor(slots_to_redistribute * cat_pct / viable_total_pct)
-                    slots_per_category[cat] += share
-                    distributed += share
-
-                # Remainder goes to first viable category
-                remainder = slots_to_redistribute - distributed
-                if remainder > 0:
-                    slots_per_category[viable_cats[0]] += remainder
-            else:
-                # Equal distribution
-                per_cat = slots_to_redistribute // len(viable_cats)
-                remainder = slots_to_redistribute % len(viable_cats)
-                for i, cat in enumerate(viable_cats):
-                    slots_per_category[cat] += per_cat + (1 if i < remainder else 0)
-
-            result.reallocation_log.append(
-                f"Empty categories {empty_categories} had {slots_to_redistribute} slots "
-                f"redistributed to {viable_cats}"
-            )
-        else:
-            result.reallocation_log.append(
-                f"Empty categories {empty_categories} could not be redistributed — "
-                "no viable alternatives"
-            )
-
-    # Step 4: Greedy selection within each category
+    # Step 2: Select top-N respecting comment/post limits
     selected_actions: list[SelectedAction] = []
-    all_selected_opp_ids: set[uuid.UUID] = set()
+    comments_count = 0
+    posts_count = 0
 
-    for cat, max_slots in slots_per_category.items():
-        if max_slots <= 0:
-            continue
+    for opp, risk, ret in scored_opps:
+        if len(selected_actions) >= max_total:
+            break
 
-        candidates = categorized.get(cat, [])
-        filled = 0
+        # Determine slot type based on source
+        is_hobby = opp.hobby_post_id is not None
+        is_post = getattr(opp, 'opportunity_type', 'comment') == 'post'
 
-        for opp, risk_adj in candidates:
-            if filled >= max_slots:
-                break
-            if opp.id in all_selected_opp_ids:
-                continue  # Already selected in another category
+        if is_post:
+            if posts_count >= budget.max_posts:
+                result.rejected.append((opp, "max_posts_exceeded"))
+                continue
+            posts_count += 1
+            slot_type = "professional"
+        else:
+            if comments_count >= budget.max_comments:
+                result.rejected.append((opp, "max_comments_exceeded"))
+                continue
+            comments_count += 1
+            slot_type = "hobby" if is_hobby or avatar.warming_phase <= 1 else "professional"
 
-            risk = risk_assessments[opp.id]
-            ret = expected_returns[opp.id]
-            slot_type = _determine_slot_type(cat, avatar)
+        # Determine category for record-keeping (cosmetic, doesn't affect selection)
+        category = "primary"
+        if is_hobby:
+            category = "community"
+        elif slot_type == "professional":
+            category = "secondary"
 
-            action = SelectedAction(
-                opportunity=opp,
-                risk_assessment=risk,
-                expected_return=ret,
-                category=cat,
-                scheduled_at=None,
-                slot_type=slot_type,
-            )
-            selected_actions.append(action)
-            all_selected_opp_ids.add(opp.id)
-            filled += 1
-
-    # Step 5: Enforce budget hard ceiling
-    # Enforce max_total_actions
-    if len(selected_actions) > max_total:
-        # Sort all by risk-adjusted return, keep top N
-        selected_actions.sort(
-            key=lambda a: _compute_risk_adjusted_return(a.expected_return, a.risk_assessment),
-            reverse=True,
+        action = SelectedAction(
+            opportunity=opp,
+            risk_assessment=risk,
+            expected_return=ret,
+            category=category,
+            scheduled_at=None,
+            slot_type=slot_type,
         )
-        excess = selected_actions[max_total:]
-        selected_actions = selected_actions[:max_total]
-        for action in excess:
-            result.rejected.append(
-                (action.opportunity, "budget_ceiling_exceeded")
-            )
+        selected_actions.append(action)
 
-    # Enforce max_comments and max_posts limits
-    comments_count = sum(1 for a in selected_actions if a.opportunity.opportunity_type in ("comment", "reply"))
-    posts_count = sum(1 for a in selected_actions if a.opportunity.opportunity_type == "post")
+    # Mark remaining as rejected
+    selected_ids = {a.opportunity.id for a in selected_actions}
+    for opp, risk, ret in scored_opps:
+        if opp.id not in selected_ids:
+            already_rejected = any(r[0].id == opp.id for r in result.rejected if hasattr(r[0], 'id'))
+            if not already_rejected:
+                result.rejected.append((opp, "below_budget_cutoff"))
 
-    if comments_count > budget.max_comments:
-        # Remove lowest risk-adjusted-return comment actions
-        comment_actions = [a for a in selected_actions if a.opportunity.opportunity_type in ("comment", "reply")]
-        comment_actions.sort(
-            key=lambda a: _compute_risk_adjusted_return(a.expected_return, a.risk_assessment)
-        )
-        excess_count = comments_count - budget.max_comments
-        for i in range(excess_count):
-            action_to_drop = comment_actions[i]
-            selected_actions.remove(action_to_drop)
-            result.rejected.append(
-                (action_to_drop.opportunity, "max_comments_exceeded")
-            )
-
-    if posts_count > budget.max_posts:
-        post_actions = [a for a in selected_actions if a.opportunity.opportunity_type == "post"]
-        post_actions.sort(
-            key=lambda a: _compute_risk_adjusted_return(a.expected_return, a.risk_assessment)
-        )
-        excess_count = posts_count - budget.max_posts
-        for i in range(excess_count):
-            action_to_drop = post_actions[i]
-            selected_actions.remove(action_to_drop)
-            result.rejected.append(
-                (action_to_drop.opportunity, "max_posts_exceeded")
-            )
-
-    # Step 6: Enforce diversification (subreddit cap)
+    # Step 3: Enforce diversification (subreddit cap)
     selected_actions, cap_rejected = enforce_subreddit_cap(selected_actions)
     result.rejected.extend(cap_rejected)
 
-    # Step 7: Assign timing
+    # Step 4: Assign timing
     selected_actions = _assign_timing(selected_actions, avatar)
 
-    # Step 8: Compute diversification score
+    # Step 5: Compute diversification score
     result.diversification_score = compute_diversification(selected_actions)
 
-    # Step 9: Build budget consumption/remaining info
+    # Step 6: Build budget info (simplified — no per-category breakdown)
     for cat in allocation.categories:
         consumed = sum(1 for a in selected_actions if a.category == cat)
         result.budget_consumed[cat] = consumed
-        result.budget_remaining[cat] = max(0, slots_per_category.get(cat, 0) - consumed)
-
-    # Step 10: Mark remaining opportunities as rejected
-    for cat, candidates in categorized.items():
-        for opp, _ in candidates:
-            if opp.id not in all_selected_opp_ids:
-                # Check if already in rejected list
-                already_rejected = any(r[0].id == opp.id for r in result.rejected if hasattr(r[0], 'id'))
-                if not already_rejected:
-                    result.rejected.append(
-                        (opp, f"not_selected: lower risk-adjusted return in category '{cat}'")
-                    )
+        result.budget_remaining[cat] = 0
 
     result.selected = selected_actions
 
     logger.info(
-        "Portfolio allocation complete: %d selected, %d rejected, "
-        "diversification=%.3f, categories=%s",
-        len(selected_actions),
+        "Portfolio allocation complete: %d selected (comments=%d, posts=%d), "
+        "%d rejected, diversification=%.3f, budget=%d",
+        len(selected_actions), comments_count, posts_count,
         len(result.rejected),
         result.diversification_score,
-        {cat: result.budget_consumed.get(cat, 0) for cat in allocation.categories},
+        max_total,
     )
 
     return result

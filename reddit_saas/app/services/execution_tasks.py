@@ -236,6 +236,140 @@ def create_execution_task(
 
 
 # ---------------------------------------------------------------------------
+# Post Draft Execution Task Creation
+# ---------------------------------------------------------------------------
+
+def create_post_execution_task(
+    db: Session,
+    post_draft_id: uuid.UUID,
+) -> ExecutionTask | None:
+    """Create an ExecutionTask from an approved PostDraft.
+
+    Unlike comment tasks which are tied to EPG slots, post tasks are created
+    directly from approved PostDraft records. The execution task delivers
+    the post title + body to the executor for submission to Reddit.
+
+    Idempotent: if task already exists for this post_draft (by thread_url match),
+    returns None without error.
+
+    Returns:
+        ExecutionTask on success, None if draft not found/not approved or executor not configured.
+    """
+    from app.models.post_draft import PostDraft
+    from app.models.avatar import Avatar
+
+    draft = db.query(PostDraft).filter(PostDraft.id == post_draft_id).first()
+    if not draft:
+        logger.warning("PostDraft not found: %s", post_draft_id)
+        return None
+
+    if draft.status != "approved":
+        logger.warning("PostDraft %s not approved (status=%s)", post_draft_id, draft.status)
+        return None
+
+    # Check for existing task (idempotency by subreddit + avatar + title)
+    existing = (
+        db.query(ExecutionTask)
+        .filter(
+            ExecutionTask.avatar_id == draft.avatar_id,
+            ExecutionTask.task_type == "post",
+            ExecutionTask.thread_title == (draft.edited_title or draft.ai_title or ""),
+            ExecutionTask.status.notin_(["cancelled", "expired", "failed"]),
+        )
+        .first()
+    )
+    if existing:
+        logger.debug("Post execution task already exists for draft %s: %s", post_draft_id, existing.task_code)
+        return existing
+
+    # Load avatar
+    avatar = db.query(Avatar).filter(Avatar.id == draft.avatar_id).first()
+    if not avatar:
+        logger.warning("Avatar not found for PostDraft %s", post_draft_id)
+        return None
+
+    # Resolve executor contact
+    delivery_channel = getattr(avatar, "delivery_channel", "email") or "email"
+    executor_contact = None
+
+    if delivery_channel == "extension":
+        executor_contact = avatar.reddit_username
+    elif avatar.executor_email and avatar.executor_email_verified:
+        executor_contact = avatar.executor_email
+    else:
+        reason = "no executor email" if not avatar.executor_email else "executor email not verified"
+        logger.warning(
+            "Skipping post task for draft %s: %s (avatar=%s)",
+            post_draft_id, reason, avatar.reddit_username,
+        )
+        return None
+
+    # Resolve client name
+    client_name = ""
+    if draft.client_id:
+        from app.models.client import Client
+        client = db.query(Client).filter(Client.id == draft.client_id).first()
+        client_name = client.client_name if client else ""
+
+    # Build task content
+    title = draft.edited_title or draft.ai_title or ""
+    body = draft.edited_body or draft.ai_body or ""
+    generated_text = f"TITLE: {title}\n\n---\n\nBODY:\n{body}"
+    thread_url = f"https://old.reddit.com/r/{draft.subreddit}/submit"
+
+    # Compute deadline
+    deadline_hours = get_setting_int(db, "email_tasks_deadline_hours", default=4)
+    deadline = datetime.now(timezone.utc) + timedelta(hours=deadline_hours)
+
+    # Scheduled_at = 30 min from now (give executor time to see it)
+    scheduled_at = datetime.now(timezone.utc) + timedelta(minutes=30)
+
+    task = ExecutionTask(
+        id=uuid.uuid4(),
+        task_code=generate_task_code(db),
+        executor_token=uuid.uuid4(),
+        epg_slot_id=None,  # Posts are not EPG-slot-linked
+        draft_id=None,  # draft_id FK is for CommentDraft, not PostDraft
+        avatar_id=avatar.id,
+        client_id=draft.client_id,
+        thread_id=None,
+        executor_contact=executor_contact,
+        executor_type="admin",
+        delivery_channel=delivery_channel,
+        task_type="post",
+        subreddit=draft.subreddit,
+        thread_url=thread_url,
+        thread_title=title,
+        avatar_username=avatar.reddit_username,
+        client_name=client_name,
+        generated_text=generated_text,
+        scheduled_at=scheduled_at,
+        deadline=deadline,
+        status="generated",
+        status_history=[{"status": "generated", "at": datetime.now(timezone.utc).isoformat(), "by": "system"}],
+        delivery_count=0,
+    )
+
+    # Extension channel setup
+    if delivery_channel in ("extension", "both"):
+        task.task_lifecycle_status = "CREATED"
+        task.idempotency_key = str(uuid.uuid4())
+        task.priority = "content"
+        task.posting_strategy = "old_reddit"
+
+    try:
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+        logger.info("Created post execution task: %s for PostDraft %s (r/%s)", task.task_code, post_draft_id, draft.subreddit)
+        return task
+    except IntegrityError:
+        db.rollback()
+        logger.warning("Duplicate post execution task for draft %s", post_draft_id)
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Delivery
 # ---------------------------------------------------------------------------
 

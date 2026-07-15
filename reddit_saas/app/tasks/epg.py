@@ -340,29 +340,43 @@ def epg_topup_underfilled_avatars():
                     results["skipped"] += 1
                     continue
 
-                # Count how many non-skipped slots were successfully created today
-                # (generated/approved/posted = real slots taking up budget)
-                active_slots_today = (
-                    db.query(sa_func.count(EPGSlot.id))
-                    .filter(
-                        EPGSlot.avatar_id == avatar.id,
-                        EPGSlot.plan_date == today,
-                        EPGSlot.status.in_(["planned", "generated", "approved", "posted"]),
-                    )
-                    .scalar() or 0
-                )
+                # Count total budget used today (EPG comment slots + PostDrafts)
+                from app.services.epg_executor import get_budget_used_today
+                total_used_today = get_budget_used_today(db, avatar.id, today)
 
-                remaining = daily_limit - active_slots_today
+                remaining = daily_limit - total_used_today
 
                 if remaining <= 0:
                     # Budget fully filled from morning run
                     results["skipped"] += 1
                     continue
 
+                # Guard: check total slot count (ALL statuses including skipped).
+                # If we already created >= daily_limit slots and they all failed generation,
+                # creating more won't help — the issue is generation, not opportunity supply.
+                total_slots_all_statuses = (
+                    db.query(sa_func.count(EPGSlot.id))
+                    .filter(
+                        EPGSlot.avatar_id == avatar.id,
+                        EPGSlot.plan_date == today,
+                    )
+                    .scalar() or 0
+                )
+
+                if total_slots_all_statuses >= daily_limit:
+                    logger.info(
+                        "epg_topup: avatar=%s has %d total slots today (budget=%d), "
+                        "successful=%d. Skipping — generation issues, not supply.",
+                        avatar.reddit_username, total_slots_all_statuses,
+                        daily_limit, total_used_today,
+                    )
+                    results["skipped"] += 1
+                    continue
+
                 # This avatar has unfilled budget — run portfolio build for the gap
                 logger.info(
-                    "epg_topup: avatar=%s has %d/%d slots, filling %d more",
-                    avatar.reddit_username, active_slots_today, daily_limit, remaining,
+                    "epg_topup: avatar=%s used=%d/%d, filling %d more",
+                    avatar.reddit_username, total_used_today, daily_limit, remaining,
                 )
 
                 from app.services.distributed_lock import DistributedLock
@@ -512,18 +526,35 @@ def ensure_daily_epg_minimum():
             if budget.max_total_actions <= 0:
                 continue  # CQS=lowest or mentor — legitimately 0 budget
 
-            active_slots = (
+            # Use unified budget counter (EPG slots + PostDrafts)
+            from app.services.epg_executor import get_budget_used_today
+            total_used = get_budget_used_today(db, avatar.id, today)
+
+            if total_used > 0:
+                continue  # Has successful slots — not starving
+
+            # Check if slots were already attempted but all failed generation.
+            # If total slots (any status) >= budget, the problem is generation,
+            # not lack of opportunity. Don't create more — won't help.
+            total_slots_any_status = (
                 db.query(sa_func.count(EPGSlot.id))
                 .filter(
                     EPGSlot.avatar_id == avatar.id,
                     EPGSlot.plan_date == today,
-                    EPGSlot.status.in_(["planned", "generated", "approved", "posted"]),
                 )
                 .scalar() or 0
             )
 
-            if active_slots == 0:
-                starving_avatars.append(avatar)
+            if total_slots_any_status >= budget.max_total_actions:
+                logger.info(
+                    "ensure_daily_epg_minimum: avatar=%s has %d slots (all failed), "
+                    "budget=%d. Generation issue — not retrying.",
+                    avatar.reddit_username, total_slots_any_status,
+                    budget.max_total_actions,
+                )
+                continue  # Already attempted enough — generation is broken
+
+            starving_avatars.append(avatar)
 
         if not starving_avatars:
             logger.info("ensure_daily_epg_minimum: all %d avatars have EPG slots today ✓", len(avatars))
@@ -588,7 +619,18 @@ def ensure_daily_epg_minimum():
                             continue
 
                     budget = AttentionBudget.from_avatar(avatar, client)
-                    epg = build_portfolio(db, avatar, client, topup_remaining=budget.max_total_actions)
+
+                    # Subtract already-used budget (slots generated earlier today)
+                    from app.services.epg_executor import get_budget_used_today as _get_used
+                    already_used = _get_used(db, avatar.id, today)
+                    topup_amount = max(0, budget.max_total_actions - already_used)
+
+                    if topup_amount <= 0:
+                        # Budget was filled between our check and this point (race)
+                        results["still_starving"] += 1
+                        continue
+
+                    epg = build_portfolio(db, avatar, client, topup_remaining=topup_amount)
 
                     if epg.status in ("frozen", "excluded", "budget_exhausted"):
                         results["still_starving"] += 1

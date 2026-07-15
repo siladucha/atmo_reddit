@@ -21,6 +21,7 @@
 
 import { executeTask } from './executor.js';
 import { executeTaskOldReddit } from './executor-old-reddit.js';
+import { executePostOldReddit } from './executor-post.js';
 import { getQueue, saveQueue } from './queue.js';
 import { recordFailureAndDecide, resetRetryState } from './retry-engine.js';
 import { recordSuccess, recordFailure, getHealthState } from './health-monitor.js';
@@ -268,10 +269,12 @@ async function _doTick() {
 // ─── Strategy-Based Task Execution Router ──────────────────────────────────
 
 /**
- * Route a task to the correct executor module based on its posting_strategy field.
+ * Route a task to the correct executor module based on its posting_strategy field
+ * and task_type.
  *
  * DEFAULT: old_reddit (most reliable — plain textarea, no Shadow DOM, no reCAPTCHA).
  *
+ * - task_type === 'post' → executePostOldReddit() (submit page form fill)
  * - 'old_reddit' or null/undefined → executeTaskOldReddit() (textarea + .save button via old.reddit.com)
  * - 'new_reddit_debugger' → executeTask() (chrome.debugger trusted clicks — only for A/B test)
  *
@@ -285,7 +288,11 @@ async function _executeDueTask(task, tabId) {
   const strategy = task.posting_strategy || 'old_reddit';
 
   let result;
-  if (strategy === 'new_reddit_debugger') {
+
+  // Post submission uses dedicated executor regardless of strategy
+  if (task.task_type === 'post') {
+    result = await executePostOldReddit(task, tabId);
+  } else if (strategy === 'new_reddit_debugger') {
     result = await executeTask(task, tabId);
   } else {
     // Default: old_reddit (most reliable path)

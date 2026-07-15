@@ -902,6 +902,7 @@ class PhaseEvaluator:
         Triggers checked:
         - Shadowban detected → demote to Phase 0, reason "shadowban_detected"
         - CQS lowest (Phase 2+) → demote to Phase 0, reason "cqs_lowest"
+        - Phase ceiling violation → demote to highest eligible, reason "phase_ceiling_violated"
         - Survival rate < 70% (7-day window) → demote to Phase 0, reason "low_survival_rate"
         - Karma drop (avg reddit_score < -2 over 14-day window) → demote by 1, reason "karma_drop"
 
@@ -929,6 +930,12 @@ class PhaseEvaluator:
         if current_phase >= 2 and getattr(avatar, "cqs_level", None) == "lowest":
             return (True, demotion_floor, "cqs_lowest")
 
+        # Check phase ceiling — avatar in Phase N but doesn't meet minimum criteria
+        # Catches manual phase overrides without justification (karma/age too low)
+        ceiling_target = self._validate_phase_ceiling(db, avatar)
+        if ceiling_target is not None and ceiling_target < current_phase:
+            return (True, max(demotion_floor, ceiling_target), "phase_ceiling_violated")
+
         # Check survival rate < 70% over 7-day window — demote to floor
         survival_rate = self.compute_comment_survival_rate(
             db, avatar, _DEMOTION_WINDOW_DAYS
@@ -947,6 +954,52 @@ class PhaseEvaluator:
             return (True, target_phase, f"karma_drop (avg_score={avg_score:.2f})")
 
         return (False, current_phase, None)
+
+    def _validate_phase_ceiling(self, db: Session, avatar: Avatar) -> int | None:
+        """Validate that avatar meets minimum criteria for its current phase.
+
+        If avatar is in Phase N but doesn't meet the ENTRY criteria for Phase N
+        (karma + age), it was likely set there manually without justification.
+        Returns the highest phase the avatar legitimately qualifies for,
+        or None if current phase is valid.
+
+        Uses relaxed criteria (karma + age only, not activity/survival) to avoid
+        demoting avatars that earned their phase but had a quiet period.
+
+        Phase 3: needs karma >= 500 AND age >= 150 days
+        Phase 2: needs karma >= 100 AND age >= 60 days
+        Phase 1: always valid (lowest operational phase)
+        """
+        current_phase = avatar.warming_phase
+        if current_phase <= 1:
+            return None  # Phase 0-1 always valid
+
+        # Calculate account age
+        if avatar.reddit_account_created:
+            account_created = avatar.reddit_account_created
+        else:
+            account_created = avatar.created_at
+
+        now = datetime.now(timezone.utc)
+        age_days = (now - account_created).days
+        karma = (avatar.reddit_karma_comment or 0) + (avatar.reddit_karma_post or 0)
+
+        # Phase 3 minimum: karma >= 500, age >= 150 days
+        if current_phase >= 3:
+            if karma >= 500 and age_days >= 150:
+                return None  # Valid
+            # Check if meets Phase 2 criteria
+            if karma >= 100 and age_days >= 60:
+                return 2
+            return 1
+
+        # Phase 2 minimum: karma >= 100, age >= 60 days
+        if current_phase >= 2:
+            if karma >= 100 and age_days >= 60:
+                return None  # Valid
+            return 1
+
+        return None
 
     def _check_phase0_graduation(
         self, db: Session, avatar: Avatar

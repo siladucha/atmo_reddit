@@ -340,3 +340,68 @@ def _cancel_task_as_locked(db, task, reason: str):
             slot.status = "skipped"
             slot.skip_reason = f"thread_locked: {reason}"
             db.commit()
+
+
+@shared_task(name="dispatch_approved_post_drafts")
+def dispatch_approved_post_drafts():
+    """Create execution tasks for approved PostDrafts that don't yet have tasks.
+
+    Runs every 5 min (same cadence as dispatch_due_email_tasks).
+    Finds approved PostDrafts without a corresponding ExecutionTask and creates one.
+    The execution task is then picked up by the standard dispatch pipeline
+    (email or extension, depending on avatar delivery_channel).
+    """
+    from datetime import datetime, timezone
+    from app.models.post_draft import PostDraft
+    from app.models.execution_task import ExecutionTask
+    from app.services.execution_tasks import create_post_execution_task
+
+    db = SessionLocal()
+    try:
+        # Find approved post drafts that don't have execution tasks yet
+        # We identify "no task" by checking ExecutionTask table for matching
+        # avatar_id + task_type="post" + thread_title match
+        approved_drafts = (
+            db.query(PostDraft)
+            .filter(
+                PostDraft.status == "approved",
+                PostDraft.posted_at.is_(None),  # Not yet posted
+            )
+            .order_by(PostDraft.created_at.asc())
+            .limit(20)  # Process in batches
+            .all()
+        )
+
+        if not approved_drafts:
+            return {"created": 0}
+
+        created = 0
+        skipped = 0
+
+        for draft in approved_drafts:
+            try:
+                task = create_post_execution_task(db, draft.id)
+                if task:
+                    created += 1
+                else:
+                    skipped += 1
+            except Exception as e:
+                logger.warning(
+                    "Failed to create post execution task for draft %s: %s",
+                    draft.id, str(e)[:100],
+                )
+                skipped += 1
+
+        if created > 0:
+            logger.info(
+                "dispatch_approved_post_drafts: created=%d skipped=%d total=%d",
+                created, skipped, len(approved_drafts),
+            )
+
+        return {"created": created, "skipped": skipped}
+
+    except Exception as e:
+        logger.error("dispatch_approved_post_drafts failed: %s", e, exc_info=True)
+        return {"error": str(e)}
+    finally:
+        db.close()

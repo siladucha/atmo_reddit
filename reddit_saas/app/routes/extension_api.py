@@ -391,6 +391,56 @@ async def post_report(
         "reported_at": datetime.now(timezone.utc).isoformat(),
     }
 
+    # If task_completed with permalink → mark linked drafts as posted
+    if body.result_type == "task_completed" and body.status == "posted" and body.permalink:
+        now = datetime.now(timezone.utc)
+        task.status = "verified"
+        task.verified_at = now
+        task.submitted_url = body.permalink
+
+        # Update CommentDraft if linked
+        if task.draft_id:
+            from app.models.comment_draft import CommentDraft
+            draft = db.query(CommentDraft).filter(CommentDraft.id == task.draft_id).first()
+            if draft and draft.status in ("approved", "pending"):
+                draft.status = "posted"
+                draft.posted_at = now
+                draft.reddit_comment_url = body.permalink
+                draft.posted_by = task.avatar_username
+                draft.posted_source = "extension"
+
+        # Update PostDraft if this is a post task
+        if task.task_type == "post" and task.avatar_id:
+            from app.models.post_draft import PostDraft
+            # Find matching approved PostDraft by avatar + title
+            post_draft = (
+                db.query(PostDraft)
+                .filter(
+                    PostDraft.avatar_id == task.avatar_id,
+                    PostDraft.status == "approved",
+                    PostDraft.subreddit == task.subreddit,
+                )
+                .order_by(PostDraft.created_at.desc())
+                .first()
+            )
+            if post_draft:
+                post_draft.status = "posted"
+                post_draft.posted_at = now
+                # Extract reddit native id from permalink if possible
+                # Format: https://www.reddit.com/r/{sub}/comments/{id}/{slug}/
+                import re
+                id_match = re.search(r'/comments/([a-z0-9]+)/', body.permalink)
+                if id_match:
+                    post_draft.reddit_native_id = id_match.group(1)
+
+        # Update EPG slot if linked
+        if task.epg_slot_id:
+            from app.models.epg_slot import EPGSlot
+            slot = db.query(EPGSlot).filter(EPGSlot.id == task.epg_slot_id).first()
+            if slot and slot.status != "posted":
+                slot.status = "posted"
+                slot.posted_at = now
+
     db.commit()
 
     return {"status": "accepted", "task_id": str(task.id)}

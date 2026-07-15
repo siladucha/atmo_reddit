@@ -80,6 +80,13 @@ def _generate_hobby_slot(db: Session, slot: EPGSlot, avatar: Avatar) -> CommentD
         _skip_slot(db, slot, "image_only_post_no_text")
         return None
 
+    # Skip hot threads — Match Threads, viral posts with thousands of upvotes
+    # are dangerous for low-karma accounts (buried, removed, zero value)
+    from app.services.draft_quality_gate import is_hot_thread_for_hobby
+    if is_hot_thread_for_hobby(hobby_post.post_ups):
+        _skip_slot(db, slot, f"hot_thread:{hobby_post.post_ups}_ups")
+        return None
+
     # Already generated?
     if hobby_post.ai_comment:
         _skip_slot(db, slot, "hobby_already_generated")
@@ -174,6 +181,17 @@ Upvotes: {hobby_post.post_ups or 0}
 
         data = result.get("data", {})
         comment_text = data.get("comment", result.get("content", ""))
+
+        # --- Quality gate: reject garbage before it reaches review queue ---
+        from app.services.draft_quality_gate import validate_draft_text
+        qr = validate_draft_text(comment_text, prev_comments)
+        if not qr.ok:
+            logger.warning(
+                "EPG hobby draft REJECTED by quality gate: avatar=%s sub=r/%s reason=%s text=%s",
+                avatar.reddit_username, hobby_post.subreddit, qr.reason, repr(comment_text[:80]),
+            )
+            _skip_slot(db, slot, f"quality_gate:{qr.reason}")
+            return None
 
         # Save to hobby post
         hobby_post.ai_comment = comment_text
@@ -468,27 +486,24 @@ def sync_slot_status(db: Session, draft_id: uuid.UUID, new_status: str) -> None:
 
 
 def get_budget_used_today(db: Session, avatar_id: uuid.UUID, plan_date: date | None = None) -> int:
-    """Count slots that consumed budget today.
+    """Count slots that consumed budget today (comments + posts combined).
 
     Budget is consumed by:
-    - generated, approved, posted — successful generation
-    - skipped WITH draft_id — generation succeeded but posting failed (still counts as slot used)
-    - skipped WITHOUT draft_id but with generation_error — a failed LLM attempt (counts to prevent infinite retry loops)
+    - EPG slots: generated, approved, posted — successful generation
+    - EPG slots: skipped WITH draft_id — generation succeeded but posting failed
+    - PostDrafts: created today (pending/approved/posted) — post generation counts toward daily total
 
-    Only 'planned' slots are free (not yet attempted).
+    Only 'planned' EPG slots are free (not yet attempted).
     """
     from sqlalchemy import func as sa_func
 
     if plan_date is None:
         plan_date = date.today()
 
-    # Count slots that actually consumed budget:
-    # - generated/approved/posted = successful generation
-    # - skipped WITH draft_id = generation succeeded, posting failed
-    # Skipped WITHOUT draft_id = never generated, does NOT consume budget
+    # Count EPG slots that consumed budget
     from sqlalchemy import or_, and_
 
-    count = (
+    comment_count = (
         db.query(sa_func.count(EPGSlot.id))
         .filter(
             EPGSlot.avatar_id == avatar_id,
@@ -499,8 +514,27 @@ def get_budget_used_today(db: Session, avatar_id: uuid.UUID, plan_date: date | N
             ),
         )
         .scalar()
-    )
-    return count or 0
+    ) or 0
+
+    # Count PostDrafts created today (non-rejected) as consumed post budget
+    from app.models.post_draft import PostDraft
+    from datetime import datetime, timezone as tz
+
+    today_start = datetime.combine(plan_date, datetime.min.time()).replace(tzinfo=tz.utc)
+    today_end = datetime.combine(plan_date, datetime.max.time()).replace(tzinfo=tz.utc)
+
+    post_count = (
+        db.query(sa_func.count(PostDraft.id))
+        .filter(
+            PostDraft.avatar_id == avatar_id,
+            PostDraft.created_at >= today_start,
+            PostDraft.created_at <= today_end,
+            PostDraft.status.notin_(["rejected"]),
+        )
+        .scalar()
+    ) or 0
+
+    return comment_count + post_count
 
 
 def _notify_drafts_pending(db: Session, client_id, avatar: Avatar, subreddit: str) -> None:

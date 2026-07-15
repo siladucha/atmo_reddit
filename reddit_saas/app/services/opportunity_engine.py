@@ -933,6 +933,12 @@ def scan_opportunities(
                             HobbySubreddit.url == "",
                             HobbySubreddit.url.like("%reddit.com%"),
                         ),
+                        # Hot thread filter: skip viral/match threads (dangerous
+                        # for low-karma accounts — comments get buried/removed)
+                        or_(
+                            HobbySubreddit.post_ups.is_(None),
+                            HobbySubreddit.post_ups < 500,
+                        ),
                     )
                     .order_by(HobbySubreddit.scraped_at.desc())
                     .limit(_per_sub_limit)
@@ -974,6 +980,11 @@ def scan_opportunities(
                         HobbySubreddit.url.is_(None),
                         HobbySubreddit.url == "",
                         HobbySubreddit.url.like("%reddit.com%"),
+                    ),
+                    # Hot thread filter in archive too
+                    or_(
+                        HobbySubreddit.post_ups.is_(None),
+                        HobbySubreddit.post_ups < 500,
                     ),
                 ]
                 # Exclude posts avatar already drafted for (no repeats ever)

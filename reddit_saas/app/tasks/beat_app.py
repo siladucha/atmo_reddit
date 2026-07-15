@@ -81,6 +81,10 @@ beat_app.conf.update(
             "task": "dispatch_due_email_tasks",
             "schedule": 300.0,
         },
+        "dispatch-approved-post-drafts": {
+            "task": "dispatch_approved_post_drafts",
+            "schedule": 300.0,
+        },
         "cqs-check-tasks-daily": {
             "task": "generate_cqs_check_tasks_all_avatars",
             "schedule": crontab(hour=7, minute=0),
@@ -92,6 +96,10 @@ beat_app.conf.update(
         "epg-ensure-daily-minimum": {
             "task": "ensure_daily_epg_minimum",
             "schedule": crontab(hour=9, minute=0),
+        },
+        "generate-posts-daily": {
+            "task": "generate_posts_all_clients",
+            "schedule": crontab(hour=10, minute=0),
         },
         "epg-topup-afternoon": {
             "task": "epg_topup_underfilled_avatars",

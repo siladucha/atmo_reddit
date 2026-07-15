@@ -883,6 +883,15 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
             generated = 0
             for post in posts:
                 try:
+                    # Hot thread filter: skip viral/match threads (dangerous for low-karma)
+                    from app.services.draft_quality_gate import is_hot_thread_for_hobby
+                    if is_hot_thread_for_hobby(getattr(post, 'post_ups', None)):
+                        logger.info(
+                            "Hobby post SKIPPED (hot thread %s ups): avatar=%s sub=r/%s",
+                            post.post_ups, avatar.reddit_username, post.subreddit,
+                        )
+                        continue
+
                     # Phase 0 (Incubation) uses ultra-simple newcomer prompt
                     from app.services.settings import get_setting
                     incubation_enabled = get_setting(db, "incubation_phase_enabled") == "true"
@@ -949,6 +958,16 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
                         comment_text = parsed.get("comment", content)
                     except (json_mod.JSONDecodeError, TypeError):
                         comment_text = content
+
+                    # --- Quality gate: reject garbage before it reaches review queue ---
+                    from app.services.draft_quality_gate import validate_draft_text
+                    qr = validate_draft_text(comment_text, previous_comments)
+                    if not qr.ok:
+                        logger.warning(
+                            "Hobby draft REJECTED by quality gate: avatar=%s sub=r/%s reason=%s text=%s",
+                            avatar.reddit_username, post.subreddit, qr.reason, repr(comment_text[:80]),
+                        )
+                        continue  # skip this post, try next one
 
                     post.ai_comment = comment_text
                     post.status = "pending"
@@ -1251,42 +1270,81 @@ def generate_posts(self, client_id: str, max_posts: int = 3, triggered_by: str =
                 )
                 return 0
 
-            # Limit generation to not exceed queue cap
-            posts_to_generate = min(max_posts, 5 - pending_count)
+            # Per-avatar budget-aware post generation:
+            # Each avatar has max_posts from AttentionBudget (Phase 2=2, Phase 3=3).
+            # Subtract posts already created today for this avatar.
+            # Also respect the total daily actions limit (comments + posts combined).
+            from app.services.portfolio_manager import AttentionBudget
+            from app.services.epg_executor import get_budget_used_today
+            from datetime import date as _date_type, datetime as _dt, timezone as _tz
+
+            today = _date_type.today()
+            today_start = _dt.combine(today, _dt.min.time()).replace(tzinfo=_tz.utc)
+            today_end = _dt.combine(today, _dt.max.time()).replace(tzinfo=_tz.utc)
 
             generated = 0
-            for i in range(posts_to_generate):
+            for avatar in client_avatars:
                 try:
-                    # Round-robin avatar selection
-                    avatar = client_avatars[i % len(client_avatars)]
+                    budget = AttentionBudget.from_avatar(avatar, client)
 
-                    # Pick subreddit (prefer business subs the avatar has karma in)
-                    target_sub = _select_post_subreddit(
-                        db, avatar, subreddit_names, client_id
-                    )
-                    if not target_sub:
+                    # Skip if no post budget for this avatar
+                    if budget.max_posts <= 0:
                         continue
 
-                    # Step 1: Generate topic
-                    topic = generate_post_topic(
-                        db, client, avatar, target_sub, prev_titles
-                    )
+                    # Count posts already created today for this avatar
+                    posts_today = (
+                        db.query(func.count(PostDraft.id))
+                        .filter(
+                            PostDraft.avatar_id == avatar.id,
+                            PostDraft.created_at >= today_start,
+                            PostDraft.created_at <= today_end,
+                            PostDraft.status.notin_(["rejected"]),
+                        )
+                        .scalar()
+                    ) or 0
 
-                    # Step 2: Generate strategic brief
-                    brief = generate_post_brief(
-                        db, client, avatar, target_sub, topic
-                    )
+                    remaining_post_budget = budget.max_posts - posts_today
+                    if remaining_post_budget <= 0:
+                        continue
 
-                    # Step 3: Generate post
-                    draft = generate_post(
-                        db, client, avatar, target_sub, brief, prev_titles
-                    )
+                    # Also check total daily budget (comments + posts)
+                    total_used = get_budget_used_today(db, avatar.id, today)
+                    remaining_total = budget.max_total_actions - total_used
+                    if remaining_total <= 0:
+                        continue
 
-                    prev_titles.insert(0, draft.ai_title or "")
-                    generated += 1
+                    # Effective posts to generate for this avatar
+                    posts_for_avatar = min(remaining_post_budget, remaining_total, max_posts)
+
+                    for _ in range(posts_for_avatar):
+                        # Pick subreddit (prefer business subs the avatar has karma in)
+                        target_sub = _select_post_subreddit(
+                            db, avatar, subreddit_names, client_id
+                        )
+                        if not target_sub:
+                            break
+
+                        # Step 1: Generate topic
+                        topic = generate_post_topic(
+                            db, client, avatar, target_sub, prev_titles
+                        )
+
+                        # Step 2: Generate strategic brief
+                        brief = generate_post_brief(
+                            db, client, avatar, target_sub, topic
+                        )
+
+                        # Step 3: Generate post
+                        draft = generate_post(
+                            db, client, avatar, target_sub, brief, prev_titles
+                        )
+
+                        prev_titles.insert(0, draft.ai_title or "")
+                        generated += 1
 
                 except Exception as e:
-                    logger.error(f"Failed to generate post {i+1} for {client.client_name}: {e}")
+                    logger.error(f"Failed to generate post for avatar {avatar.reddit_username}: {e}")
+                    continue
                     continue
 
             logger.info(f"Generated {generated} post drafts for {client.client_name}")
@@ -1362,6 +1420,85 @@ def _select_post_subreddit(
         return scored_subs[0][0]
 
     return None
+
+
+@celery_app.task(name="generate_posts_all_clients")
+def generate_posts_all_clients():
+    """Generate post drafts for all active clients with Phase 2+ avatars.
+
+    Runs daily after EPG build (08:30). Creates original Reddit posts
+    (separate from comments) via the 3-stage pipeline:
+    topic → strategic brief → post writer.
+
+    Budget: Phase 2 = max 2 posts/day, Phase 3 = max 3 posts/day.
+    Only generates if pending post queue < 5 per client.
+    """
+    from app.services.settings import is_pipeline_enabled
+
+    db = SessionLocal()
+    try:
+        if not is_pipeline_enabled(db):
+            logger.info("generate_posts_all_clients: pipeline_enabled=false, skipping")
+            return {"status": "skipped", "reason": "pipeline_disabled"}
+
+        clients = (
+            db.query(Client)
+            .filter(Client.is_active.is_(True))
+            .all()
+        )
+
+        results = {"clients_processed": 0, "total_posts": 0, "errors": 0}
+
+        for client in clients:
+            try:
+                from app.services.trial_guard import is_trial_expired
+                if is_trial_expired(client):
+                    continue
+
+                # Check if client has Phase 2+ avatars
+                client_avatars = (
+                    db.query(Avatar)
+                    .filter(Avatar.active.is_(True))
+                    .all()
+                )
+                has_phase2 = any(
+                    a for a in client_avatars
+                    if a.client_ids and str(client.id) in a.client_ids
+                    and a.warming_phase >= 2
+                    and not a.is_frozen
+                    and a.health_status not in ("shadowbanned", "suspended")
+                )
+                if not has_phase2:
+                    continue
+
+                # Dispatch per-client task
+                generated = generate_posts.apply(
+                    args=[str(client.id)],
+                    kwargs={"max_posts": 2, "triggered_by": "scheduler"},
+                ).get(timeout=120)
+
+                results["clients_processed"] += 1
+                results["total_posts"] += (generated or 0)
+
+            except Exception as e:
+                logger.error(
+                    "generate_posts_all_clients: failed for client %s: %s",
+                    client.client_name, str(e)[:200],
+                )
+                results["errors"] += 1
+                continue
+
+        logger.info(
+            "generate_posts_all_clients complete: clients=%d posts=%d errors=%d",
+            results["clients_processed"], results["total_posts"], results["errors"],
+        )
+        return results
+
+    except Exception as e:
+        logger.error("generate_posts_all_clients failed: %s", e, exc_info=True)
+        return {"status": "error", "error": str(e)}
+    finally:
+        db.close()
 
 
 @celery_app.task(name="evaluate_all_avatar_phases")

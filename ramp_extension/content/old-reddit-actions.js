@@ -274,6 +274,106 @@
         return false;
       }
 
+      // ─── Post Submission Handlers (old.reddit.com/r/{sub}/submit) ───────────
+
+      case 'POST_SELECT_TEXT_TAB': {
+        // On old reddit submit page, ensure "text" tab is selected (not "link")
+        const textTab = document.querySelector('#text-field, .text-button, li.text a, [id="text"]');
+        if (textTab) {
+          textTab.click();
+        }
+        // Also check for the tabmenu
+        const tabMenu = document.querySelector('.tabmenu li');
+        if (tabMenu) {
+          const textLi = Array.from(document.querySelectorAll('.tabmenu li a'))
+            .find(a => a.textContent.trim().toLowerCase() === 'text');
+          if (textLi) textLi.click();
+        }
+        sendResponse({ success: true });
+        return false;
+      }
+
+      case 'POST_FILL_TITLE': {
+        const title = message.title;
+        if (!title) {
+          sendResponse({ success: false, error: 'No title provided' });
+          return false;
+        }
+
+        // Old reddit submit: input[name="title"] or textarea[name="title"]
+        const titleInput = document.querySelector(
+          'input[name="title"], textarea[name="title"], #title-field textarea'
+        );
+        if (!titleInput) {
+          sendResponse({ success: false, error: 'Title input not found on submit page' });
+          return false;
+        }
+
+        titleInput.value = title;
+        titleInput.dispatchEvent(new Event('input', { bubbles: true }));
+        titleInput.dispatchEvent(new Event('change', { bubbles: true }));
+        titleInput.focus();
+
+        sendResponse({ success: titleInput.value.length > 0 });
+        return false;
+      }
+
+      case 'POST_FILL_BODY': {
+        const body = message.body || '';
+
+        // Old reddit submit: textarea[name="text"] in the self-text form
+        const bodyTextarea = document.querySelector(
+          'textarea[name="text"], #text-field textarea, .usertext-edit textarea'
+        );
+        if (!bodyTextarea) {
+          // Body might be optional for some post types, don't fail
+          sendResponse({ success: true, note: 'No body textarea found (may be link post mode)' });
+          return false;
+        }
+
+        bodyTextarea.value = body;
+        bodyTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+        bodyTextarea.dispatchEvent(new Event('change', { bubbles: true }));
+        bodyTextarea.focus();
+
+        sendResponse({ success: true });
+        return false;
+      }
+
+      case 'POST_SUBMIT': {
+        // Click submit button on the submit form
+        const submitBtn = document.querySelector(
+          '#newlink [type="submit"], #newlink-submit-button, ' +
+          'button[name="submit"], .submit button[type="submit"], ' +
+          '#newlink .btn[type="submit"]'
+        );
+        if (!submitBtn) {
+          sendResponse({ success: false, error: 'Submit button not found on submit page' });
+          return false;
+        }
+
+        submitBtn.click();
+        sendResponse({ success: true });
+        return false;
+      }
+
+      case 'POST_CHECK_ERRORS': {
+        // Check for error messages on submit page after failed submission
+        const errorEl = document.querySelector(
+          '.error, .status-msg.error, .field-error, .submit-page .error'
+        );
+        const ratelimit = document.querySelector('.ratelimit');
+        
+        let error = null;
+        if (errorEl) {
+          error = errorEl.textContent.trim();
+        } else if (ratelimit) {
+          error = 'Rate limited: ' + ratelimit.textContent.trim();
+        }
+        sendResponse({ error });
+        return false;
+      }
+
       default:
         return false;
     }
