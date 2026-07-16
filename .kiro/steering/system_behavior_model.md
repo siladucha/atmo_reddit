@@ -71,6 +71,19 @@ SBM is the compass for the Meta-loop: architectural tension = SBM property under
 
 **Gap:** None for runaway protection. Fully enforced. Maximum possible damage from any runaway loop: ~$5 (10-min window before circuit breaker trips). Remaining: no per-client daily cost cap (client-level budget controls not yet implemented — spec exists).
 
+**Provider Budget Multi-Channel Alerting (July 15, 2026):**
+- `check_provider_budgets` Celery task — every 4h (03:45, 07:45, 11:45, 15:45, 19:45, 23:45)
+- Checks MTD spend per provider against configured budget (default: Anthropic $50, Gemini $300, Perplexity $50, OpenAI $50)
+- Thresholds: 70% = warning (high), 95% = critical (near-exhaustion)
+- **Delivery channels (3):**
+  - Telegram push to owner + partner (via `notify_ops()`)
+  - Email to owner + partner users (via Brevo)
+  - Admin bell (Redis PubSub → dashboard badge)
+- **Partner dashboard** now shows system alerts bar (critical + high severity) — same visibility as owner
+- **Cooldown:** Redis key per alert type, 12h TTL. Same alert not re-sent within 12 hours.
+- **Settings:** `provider_budget_anthropic_usd`, `provider_budget_gemini_usd`, `provider_budget_perplexity_usd`, `provider_budget_openai_usd`, `provider_budget_alert_threshold_pct` (70), `provider_budget_block_threshold_pct` (95)
+- **Prevents:** Repeat of July 7 incident (Anthropic credits exhausted silently, generation dead for hours)
+
 **Verification (July 7, 2026):** Full audit confirmed 38 `call_llm` sites = 38 `log_ai_usage` calls. Zero cost leakage. `cost_usd` populated on every record via `litellm.completion_cost()` primary + `MODEL_COSTS` fallback (17 models). No direct `litellm.completion()` bypass in service code.
 
 **Cost Optimization Phase 2 (July 9, 2026):** 6 measures to reduce $/avatar/month:

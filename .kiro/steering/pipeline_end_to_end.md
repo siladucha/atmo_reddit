@@ -184,6 +184,7 @@ Each stage operates on specific schedules, with independent failure modes and sa
 | **Client Email Notifications** | Mon 08:00 + Sun 19:00 + on-event | Visibility digest (client), phase milestone (client), health alert (client), system health (owner), business summary (partner) |
 | **A/B Test Metrics** | Mon 02:30 | Collect weekly experiment metrics + generate statistical reports |
 | **A/B Test Duration** | Daily 07:00 | Alert when experiments reach planned duration |
+| **Provider Budget Check** | Every 4h at :45 | Check provider spend vs budget → Telegram + email + bell alert at 70%/95% |
 | **EPG Daily Minimum Enforcement** | Daily 09:00 | Guarantee every active avatar has ≥1 EPG slot today; retry with archive fallback if 0 |
 
 ---

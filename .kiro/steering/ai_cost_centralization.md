@@ -97,19 +97,28 @@ Any new service that calls an LLM must:
 3. `cost_usd` field MUST be populated (not NULL, not 0) — `log_ai_usage()` calculates from `MODEL_COSTS` dict
 4. New models added to any service → MUST also be added to `MODEL_COSTS` in `ai.py`
 
-**Provider Budget Monitoring (NEW — July 7, 2026):**
+**Provider Budget Monitoring (July 7 → IMPLEMENTED July 15, 2026):**
 
 | Provider | Monthly Limit | Alert Threshold | Where to Check |
 |----------|--------------|-----------------|----------------|
 | Anthropic | $50 | Alert at $35 (70%) | console.anthropic.com |
-| Google (Gemini) | Free tier / $300 credits | Alert at $200 | console.cloud.google.com |
-| Perplexity | Pay-per-use (no limit) | Alert at $10/day | perplexity.ai/settings |
-| OpenAI | TBD (key not active) | — | platform.openai.com |
+| Google (Gemini) | Free tier / $300 credits | Alert at $210 (70%) | console.cloud.google.com |
+| Perplexity | $50 (configurable) | Alert at $35 (70%) | perplexity.ai/settings |
+| OpenAI | $50 (configurable) | — | platform.openai.com |
 
-**Required: Daily spend tracking alert.**
-`signal_collector` should compare `SUM(cost_usd) WHERE created_at >= month_start` against provider limits.
-If spend > 70% of any provider limit → `notify_ops(level="warning", category="cost_budget")`.
-If spend > 90% → `notify_ops(level="critical", category="cost_budget")`.
+**Implementation (July 15, 2026):**
+- `app/tasks/provider_budget_check.py` → `check_provider_budgets` Celery task
+- Schedule: every 4h (03:45, 07:45, 11:45, 15:45, 19:45, 23:45) via beat_app.py
+- Detection: `_get_provider_budget_alerts()` from alert_aggregation.py
+- Delivery: 3 channels simultaneously:
+  1. **Telegram** — `notify_ops(level, title, body, category="cost_alert")` → pushes to owner/partner phones
+  2. **Email** — Brevo to all owner + partner users (HTML + plaintext)
+  3. **Admin bell** — Redis PubSub `notifications:ops` channel
+- Cooldown: Redis key `ramp:provider_budget_alert:{type}:{severity}` with 12h TTL (no spam)
+- Partner dashboard now shows alerts bar (same as owner)
+- DB settings: `provider_budget_*_usd` (per provider), `provider_budget_alert_threshold_pct` (70), `provider_budget_block_threshold_pct` (95)
+
+**Prevents:** Repeat of July 7 incident where Anthropic credits exhausted silently. Now: Telegram push + email at 70% ($35/$50), critical at 95% ($47.50/$50).
 
 **LITELLM_API_KEY usage (current — July 7, 2026):**
 - Single Anthropic key (`sk-ant-...`) set as `LITELLM_API_KEY` in Docker `.env`

@@ -392,6 +392,7 @@ reddit_saas/
 │   │   ├── onboarding.py      # Onboarding stall detection
 │   │   ├── ab_test.py         # A/B test metric collection + duration checks
 │   │   ├── weekly_emails.py  # Weekly system health (owner) + business summary (partner) emails
+│   │   ├── provider_budget_check.py # Provider budget alerts: Telegram + email + bell (every 4h)
 │   │   ├── beat_app.py       # Lightweight Celery app for Beat (schedule only, no task imports, ~25 MB)
 │   │   └── worker.py          # Celery worker configuration (31 task modules, no schedule)
 │   ├── templates/             # Jinja2 templates (70+ pages + 120+ partials)
@@ -724,6 +725,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 | every 4h at :45 | `snapshot_comment_outcomes` | Karma/deletion snapshots |
 | 01:00 | `compute_daily_performance_metrics` | Aggregate yesterday's avatar metrics |
 | 01:05 | `run_cost_reconciliation` | Compare expected (tokens×rates) vs logged cost_usd, alert on >5% drift |
+| every 4h at :45 | `check_provider_budgets` | Provider budget alert: Telegram + email + bell at 70%/95% thresholds |
 | 01:30 | `archive_old_decision_records` | Prune records > 90 days |
 | 02:00 | `run_feedback_loop_all` | Outcome analysis → EPG model correction |
 | 02:30 | `classify_expired_trials` | Trial failure classification |

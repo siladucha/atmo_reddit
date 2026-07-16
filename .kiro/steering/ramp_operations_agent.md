@@ -153,6 +153,7 @@ Phase 1A+1B ✅ COMPLETE. Silent death is no longer possible — operator gets T
 | 2026-07-02 | **Phase 1A DEPLOYED** | External watchdog (bash+systemd) + PG backup. Tested: kill all containers → auto-recovery ≤60s. Risk R-INFRA-001/002 → mitigated. |
 | 2026-07-03 | **Phase 1B DEPLOYED** | Telegram bot token configured. Alerts now push to Max's phone. Tested: kill Beat → 🔴 alert received → ✅ recovered. |
 | 2026-07-07 | **Beat memory leak RESOLVED** | Root cause: `include=[]` loaded 31 heavy modules into Beat (unnecessary). Fix: separate lightweight `beat_app.py`. Stable 25 MB. Risk R-INFRA-002 → `resolved`. Deploy grace period added to watchdog + deploy.sh. |
+| 2026-07-15 | **Provider Budget Multi-Channel Alerting DEPLOYED** | `check_provider_budgets` Celery task every 4h. 3 channels: Telegram push, email (owner+partner), admin bell. Partner dashboard now shows system alerts bar. Redis cooldown 12h. Prevents R-AI-008 (silent credit exhaustion). |
 
 ## Related Documentation
 

@@ -28,7 +28,9 @@ Shows: system alerts bar → top metrics → pipeline summary → topology → k
 
 ### Partner Dashboard
 
-Shows: business KPIs (MRR, paying, trials, AI spend, margin) → attention items → client health table → trial funnel → cost & revenue.
+Shows: **system alerts bar** (critical + high) → business KPIs (MRR, paying, trials, AI spend, margin) → attention items → client health table → trial funnel → cost & revenue.
+
+**System alerts (July 15, 2026):** Partner now sees the same system alerts as owner (critical + high severity only). Powered by `get_system_alerts(db)` from `alert_aggregation.py`. Includes provider budget alerts, pipeline dead, frozen avatars, etc.
 
 **Business metrics** powered by `app/services/business_metrics.py`:
 - `get_business_metrics()` — MRR (plan × list price), active counts, AI spend, margin
@@ -74,7 +76,7 @@ Shows: trial countdown → onboarding progress bar (step X/6) → "what's happen
 |---------|---------|---------|
 | `services/operations_dashboard.py` | Pipeline metrics, client cards, freshness, schedule | Owner dashboard |
 | `services/business_metrics.py` | MRR, client health, trial funnel, attention items | Partner dashboard |
-| `services/alert_aggregation.py` | System alerts (worker, kill switches, frozen, stale) | Owner dashboard |
+| `services/alert_aggregation.py` | System alerts (worker, kill switches, frozen, stale, provider budget) | Owner + Partner dashboard |
 | `services/daily_review/signal_collector.py` | Health signals, changes, cost snapshot (immutable) | Daily Review |
 | `services/daily_review/cost_governor.py` | Agent LLM budget enforcement ($1/day cap) | Daily Review |
 
