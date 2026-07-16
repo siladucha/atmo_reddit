@@ -41,11 +41,11 @@ def check_quality(client: Client, db: Session | None = None) -> dict:
     if not client.icp_profiles or len(client.icp_profiles.strip()) < 20:
         missing.append("icp_profiles")
 
-    # Keywords: at least 3 total
+    # Keywords: warn if fewer than 3 (non-blocking — client can add later)
     keywords = client.keywords or {}
     total_keywords = sum(len(v) for v in keywords.values() if isinstance(v, list))
     if total_keywords < 3:
-        missing.append("keywords (minimum 3)")
+        warnings.append("keywords (recommend at least 3 for better results)")
 
     # Subreddits: verify at least 1 active subreddit exists via DB query
     if db is not None:

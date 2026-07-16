@@ -22,7 +22,7 @@
                     hx-target="#profile-card"
                     hx-swap="innerHTML"
                     hx-indicator="#scrape-loading"
-                    hx-on::after-request="this.disabled=true;this.textContent='✓ Analyzed';this.style.opacity='0.4'"
+                    hx-on::after-request="if(event.detail.successful && !event.detail.target.innerHTML.includes('couldn')) {this.disabled=true;this.textContent='✓ Analyzed';this.style.opacity='0.4';} else if(event.detail.target.innerHTML.includes('couldn')) {this.textContent='Retry';this.disabled=false;this.style.opacity='1';}"
                     class="btn-primary" style="padding:10px 20px;white-space:nowrap;"
                     {% if client.company_profile %}disabled style="padding:10px 20px;white-space:nowrap;opacity:0.4;cursor:not-allowed;"{% endif %}>
                 {% if client.company_profile %}✓ Analyzed{% else %}Analyze{% endif %}

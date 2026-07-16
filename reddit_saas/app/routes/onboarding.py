@@ -164,8 +164,8 @@ async def step1_scrape(
     """HTMX: Scrape URL and return profile card partial. One-time only."""
     client = _get_client_for_onboarding(user, db)
 
-    # One-time guard: if already analyzed, don't burn another LLM call
-    if client.company_profile and len(client.company_profile) > 50:
+    # One-time guard: if already analyzed with SAME url, don't burn another LLM call
+    if client.company_profile and len(client.company_profile) > 50 and client.brand_domain == url.strip():
         return HTMLResponse("")  # no-op, form already has data from DB
 
     if not url.strip():
