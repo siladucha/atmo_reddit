@@ -31,8 +31,6 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/admin/ab-tests", tags=["admin-ab-tests"])
 templates = Jinja2Templates(directory="app/templates")
-# Workaround: set cache size to avoid stale template issues
-templates.env.auto_reload = True
 
 
 # ---------------------------------------------------------------------------
@@ -76,8 +74,9 @@ async def list_experiments(
         })
 
     return templates.TemplateResponse(
-        "admin_ab_tests.html",
-        {"request": request, "experiments": enriched},
+        request=request,
+        name="admin_ab_tests.html",
+        context={"experiments": enriched},
     )
 
 
@@ -93,8 +92,8 @@ async def new_experiment_form(
 ):
     """Render the create experiment form."""
     return templates.TemplateResponse(
-        "admin_ab_test_new.html",
-        {"request": request},
+        request=request,
+        name="admin_ab_test_new.html",
     )
 
 
@@ -136,8 +135,9 @@ async def create_experiment(
         )
     except ValueError as e:
         return templates.TemplateResponse(
-            "admin_ab_test_new.html",
-            {"request": request, "error": str(e)},
+            request=request,
+            name="admin_ab_test_new.html",
+            context={"error": str(e)},
             status_code=400,
         )
 
@@ -211,9 +211,9 @@ async def experiment_detail(
     )
 
     return templates.TemplateResponse(
-        "admin_ab_test_detail.html",
-        {
-            "request": request,
+        request=request,
+        name="admin_ab_test_detail.html",
+        context={
             "experiment": experiment,
             "groups": groups,
             "assignments_by_group": assignments_by_group,
@@ -419,8 +419,9 @@ async def get_weekly_report(
     )
 
     return templates.TemplateResponse(
-        "partials/ab_test_report.html",
-        {"request": request, "report": report, "week_number": week_number},
+        request=request,
+        name="partials/ab_test_report.html",
+        context={"report": report, "week_number": week_number},
     )
 
 
@@ -464,9 +465,9 @@ async def get_metrics_dashboard(
     )
 
     return templates.TemplateResponse(
-        "partials/ab_test_metrics.html",
-        {
-            "request": request,
+        request=request,
+        name="partials/ab_test_metrics.html",
+        context={
             "experiment": experiment,
             "groups": groups,
             "chart_data": chart_data,
