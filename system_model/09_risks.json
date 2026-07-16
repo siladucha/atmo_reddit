@@ -3,7 +3,7 @@
     "domain": "risk_registry",
     "version": "3.2.0",
     "description": "Complete risk registry for RAMP system. Unified from code analysis, steering docs, production incidents (June 24-July 4, 2026), fleet PRAW audit (June 27), Reddit platform intelligence, Forecast & Reporting Layer design (July 2), Extension v3 old_reddit migration (July 4), and A/B Test Framework deployment (July 4). Designed for consumption by RAMP AI agent and human analysts.",
-    "last_updated": "2026-07-07",
+    "last_updated": "2026-07-15",
     "authors": [
       "Kiro (AI agent — code analysis, steering doc cross-reference)",
       "Max Breger (production incident report, ban detection design)",
@@ -1627,6 +1627,25 @@
       "status": "fixed",
       "detected_date": "2026-07-02",
       "fixed_date": "2026-07-02"
+    },
+    {
+      "id": "R-AI-010",
+      "group": "AI",
+      "title": "Silent Provider Credit Exhaustion — Generation Dead Without Alert",
+      "description": "Provider monthly budget ($50 Anthropic) can be silently exhausted. All Claude calls fail, generation fallback fails, pipeline produces 0 drafts. No push notification existed — only visible if operator checks dashboard manually. Incident July 7, 2026: Anthropic credits hit $0, generation dead for hours.",
+      "impact": "Pipeline fully stopped for all clients. Zero drafts generated. SLA breach. No operator notification until manual dashboard check.",
+      "likelihood": "Low (now mitigated)",
+      "escalation": "HIGH",
+      "source": "Production incident July 7, 2026. Anthropic $50/mo limit exhausted by Claude Sonnet generation + GEO web search.",
+      "related_gaps": [],
+      "related_risks": [
+        "R-AI-007",
+        "R-AI-009"
+      ],
+      "mitigation": "IMPLEMENTED (July 15, 2026): check_provider_budgets Celery task every 4h. 3-channel delivery: Telegram push (owner+partner), email (Brevo to owner+partner), admin bell (Redis PubSub). Alerts at 70% (warning) and 95% (critical). Redis cooldown 12h per alert type. Partner dashboard now shows system alerts bar. Settings configurable per provider via /admin/settings.",
+      "status": "mitigated",
+      "detected_date": "2026-07-07",
+      "mitigated_date": "2026-07-15"
     },
     {
       "id": "R-PLATFORM-013",

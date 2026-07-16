@@ -40,6 +40,7 @@ celery_app = Celery(
         "app.tasks.ab_test",
         "app.tasks.draft_expiry",
         "app.tasks.cost_reconciliation",
+        "app.tasks.provider_budget_check",
         "app.tasks.weekly_emails",
     ],
 )

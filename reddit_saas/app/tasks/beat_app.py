@@ -189,6 +189,10 @@ beat_app.conf.update(
             "task": "run_cost_reconciliation",
             "schedule": crontab(hour=1, minute=5),
         },
+        "provider-budget-check-4h": {
+            "task": "check_provider_budgets",
+            "schedule": crontab(hour="3,7,11,15,19,23", minute=45),
+        },
         "generate-weekly-reports": {
             "task": "generate_weekly_reports_all_clients",
             "schedule": crontab(hour=8, minute=0, day_of_week=1),

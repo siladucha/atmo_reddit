@@ -127,11 +127,13 @@ def admin_dashboard(
             get_trial_funnel,
             get_attention_items,
         )
+        from app.services.alert_aggregation import get_system_alerts
 
         biz = get_business_metrics(db)
         client_health = get_client_health_table(db)
         funnel = get_trial_funnel(db)
         attention_items = get_attention_items(db)
+        system_alerts = get_system_alerts(db)
 
         return templates.TemplateResponse(
             name="admin_dashboard_partner.html",
@@ -142,6 +144,7 @@ def admin_dashboard(
                 "client_health": client_health,
                 "funnel": funnel,
                 "attention_items": attention_items,
+                "system_alerts": system_alerts,
             },
             request=request,
         )

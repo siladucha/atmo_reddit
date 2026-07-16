@@ -17,6 +17,30 @@
     {% endset %}
     {% include "partials/page_guide.html" %}
 
+    <!-- System Alerts Bar (critical + high only) -->
+    {% if system_alerts %}
+    {% set critical_alerts = system_alerts | selectattr("severity", "equalto", "critical") | list %}
+    {% set high_alerts = system_alerts | selectattr("severity", "equalto", "high") | list %}
+    {% if critical_alerts or high_alerts %}
+    <div class="{% if critical_alerts %}bg-red-900/20 border-red-700/50{% else %}bg-amber-900/20 border-amber-700/50{% endif %} border rounded-lg px-4 py-3 mb-6">
+        <div class="flex items-start gap-3">
+            <span class="text-lg mt-0.5">{% if critical_alerts %}🔴{% else %}🟠{% endif %}</span>
+            <div class="flex-1">
+                <div class="text-sm font-medium {% if critical_alerts %}text-red-300{% else %}text-amber-300{% endif %} mb-1">System Alerts ({{ (critical_alerts + high_alerts) | length }})</div>
+                <div class="space-y-1">
+                    {% for alert in (critical_alerts + high_alerts)[:6] %}
+                    <a href="{{ alert.link }}" class="flex items-center gap-2 text-sm text-gray-300 hover:text-white transition-colors">
+                        <span>{{ alert.icon }}</span>
+                        <span>{{ alert.message }}</span>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
     <!-- Business KPIs -->
     <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <div class="bg-dark-steel rounded-lg p-5 border border-slate-700">
