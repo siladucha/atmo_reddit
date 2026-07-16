@@ -149,6 +149,15 @@ jobs:
             --exclude='.pytest_cache/' \
             ./reddit_saas/ production:/app/
 
+      - name: rsync marketing site
+        run: |
+          rsync -avz --delete \
+            --exclude='__pycache__/' \
+            --exclude='*.pyc' \
+            --exclude='.DS_Store' \
+            --exclude='.venv/' \
+            ./marketing_site/ production:/marketing_site/
+
       - name: Stop Celery gracefully
         run: |
           ssh production "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml stop celery celery-fast celery-beat" || true

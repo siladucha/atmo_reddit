@@ -94,6 +94,15 @@ jobs:
           # Use staging-specific nginx config (correct SSL cert path)
           ssh staging "cp /app/nginx/nginx.staging.conf /app/nginx/nginx.conf"
 
+      - name: rsync marketing site
+        run: |
+          rsync -avz --delete \
+            --exclude='__pycache__/' \
+            --exclude='*.pyc' \
+            --exclude='.DS_Store' \
+            --exclude='.venv/' \
+            ./marketing_site/ staging:/marketing_site/
+
       - name: Stop Celery gracefully
         run: |
           ssh staging "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml stop celery celery-fast celery-beat" || true
@@ -145,14 +154,17 @@ jobs:
           login=$(curl -sf -o /dev/null -w '%{http_code}' "https://staging.gorampit.com/login" || echo "000")
           admin=$(curl -sf -o /dev/null -w '%{http_code}' "https://staging.gorampit.com/admin/" || echo "000")
           sse=$(curl -sf -o /dev/null -w '%{http_code}' "https://staging.gorampit.com/api/sse/notifications" || echo "000")
+          terms=$(curl -sf -o /dev/null -w '%{http_code}' "https://staging.gorampit.com/terms" || echo "000")
 
           echo "  /login → $login"
           echo "  /admin/ → $admin"
           echo "  /api/sse/notifications → $sse"
+          echo "  /terms → $terms"
 
           [ "$login" = "200" ] || { echo "❌ /login failed"; exit 1; }
           [[ "$admin" =~ ^30[2-3]$ ]] || { echo "❌ /admin/ should redirect (302/303)"; exit 1; }
           [[ "$sse" =~ ^(401|302|303)$ ]] || { echo "❌ SSE should be 401 or redirect"; exit 1; }
+          [ "$terms" = "200" ] || { echo "❌ /terms failed"; exit 1; }
 
           echo "✅ All smoke tests passed"
 
