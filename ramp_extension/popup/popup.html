@@ -8,103 +8,82 @@
 </head>
 <body>
 <div class="popup">
-  <!-- Header: minimal — just status -->
+  <!-- Header: account + status -->
   <header class="popup__header">
     <div class="popup__brand">
       <span class="popup__logo">RAMP</span>
       <span class="popup__account" id="account-name">u/...</span>
     </div>
     <div class="popup__status">
-      <span class="popup__status-dot popup__status-dot--connected" id="status-dot"></span>
-      <span class="popup__status-text" id="status-text">Connected</span>
+      <span class="popup__status-dot" id="status-dot"></span>
+      <span class="popup__status-text" id="status-text">—</span>
     </div>
   </header>
 
   <main class="popup__main">
-    <!-- Update Available Banner -->
-    <div class="alert alert--update" id="update-banner" style="display: none;">
+    <!-- Alerts -->
+    <div class="alert alert--update" id="update-banner" style="display:none;">
       ⬆️ Update available (v<span id="update-version"></span>)
       <a href="#" id="update-link" target="_blank" class="alert__action">Download</a>
     </div>
-
-    <!-- Health Warning (only when broken) -->
-    <div class="alert alert--error" id="health-warning" style="display: none;">
-      ⚠️ Reddit changed something — auto-posting paused. Tasks will go via email.
+    <div class="alert alert--error" id="health-warning" style="display:none;">
+      ⚠️ Reddit DOM changed — auto-posting paused.
+    </div>
+    <div class="alert alert--maintenance" id="maintenance-warning" style="display:none;">
+      🔄 Server updating. Tasks resume shortly.
     </div>
 
-    <!-- Server Maintenance Banner (during deploy) -->
-    <div class="alert alert--maintenance" id="maintenance-warning" style="display: none;">
-      🔄 Server is updating. Tasks will resume in a few minutes.
-    </div>
+    <!-- Section 1: NEEDS APPROVAL (primary action) -->
+    <section class="section" id="approval-section" style="display:none;">
+      <div class="section__header">
+        <h3>Needs Approval <span class="badge badge--orange" id="pending-count">0</span></h3>
+        <button class="btn-primary" id="btn-approve-all">Approve All</button>
+      </div>
+      <div id="pending-list" class="task-list"></div>
+    </section>
 
-    <!-- Section 0: DRAFT REVIEW — pending drafts to approve/reject before they become tasks -->
-    <section class="section" id="review-section" style="display: none;">
-      <div class="section-header">
-        <h3>📝 Review Drafts <span class="badge badge--review" id="review-count">0</span></h3>
+    <!-- Section 1b: DRAFT REVIEW -->
+    <section class="section" id="review-section" style="display:none;">
+      <div class="section__header">
+        <h3>Review Drafts <span class="badge badge--orange" id="review-count">0</span></h3>
         <button class="btn-primary" id="btn-approve-all-drafts">Approve All</button>
       </div>
       <div id="review-list" class="task-list"></div>
     </section>
 
-    <!-- Section 1: ACTION REQUIRED — tasks to approve -->
-    <section class="section" id="action-section">
-      <div class="section-header">
-        <h3>🔔 Needs Approval <span class="badge" id="pending-count">0</span></h3>
-        <button class="btn-primary" id="btn-approve-all" style="display: none;">Approve All</button>
-      </div>
-      <div id="pending-list" class="task-list">
-        <p class="empty-text">Nothing to approve — you're all set 👍</p>
-      </div>
-    </section>
-
-    <!-- Section 2: TODAY'S SCHEDULE — what's planned -->
-    <section class="section" id="status-section">
-      <div class="section-header">
-        <h3>📅 Today's Schedule</h3>
-      </div>
-      <div class="today-stats">
-        <div class="today-stat">
-          <span class="today-stat__value" id="stat-plan">0</span>
-          <span class="today-stat__label">Plan</span>
-        </div>
-        <div class="today-stat">
-          <span class="today-stat__value today-stat__value--ok" id="stat-posted">0</span>
-          <span class="today-stat__label">Posted</span>
-        </div>
-        <div class="today-stat">
-          <span class="today-stat__value" id="stat-queued">0</span>
-          <span class="today-stat__label">Waiting</span>
-        </div>
-        <div class="today-stat">
-          <span class="today-stat__value" id="stat-failed">0</span>
-          <span class="today-stat__label">Missed</span>
-        </div>
-      </div>
-      <div id="scheduled-list" class="task-list">
-        <p class="empty-text">No tasks scheduled yet</p>
-      </div>
-    </section>
-
-    <!-- Section 3: DONE — completed tasks (collapsed if 0) -->
-    <section class="section" id="done-section" style="display: none;">
-      <div class="section-header">
-        <h3>✅ Done</h3>
-      </div>
-      <div id="done-list" class="task-list"></div>
-    </section>
-
-    <!-- Section 4: FAILED — only if there are failures -->
-    <section class="section" id="failed-section" style="display: none;">
-      <div class="section-header">
-        <h3>⚠️ Failed</h3>
+    <!-- Section 2: FAILED (problems) -->
+    <section class="section" id="failed-section" style="display:none;">
+      <div class="section__header">
+        <h3 class="section__title--red">Failed</h3>
       </div>
       <div id="failed-list" class="task-list"></div>
     </section>
+
+    <!-- Section 3: TODAY (schedule + stats) -->
+    <section class="section" id="today-section">
+      <div class="section__header">
+        <h3>Today</h3>
+        <div class="today-stats" id="today-stats">
+          <span class="stat stat--green" id="stat-done">0 done</span>
+          <span class="stat" id="stat-remaining">0 remaining</span>
+        </div>
+      </div>
+      <div id="scheduled-list" class="task-list">
+        <p class="empty-text" id="empty-state">Nothing scheduled today.</p>
+      </div>
+    </section>
+
+    <!-- Section 4: DONE (collapsed) -->
+    <section class="section" id="done-section" style="display:none;">
+      <details class="done-details">
+        <summary class="done-summary">Completed today</summary>
+        <div id="done-list" class="task-list"></div>
+      </details>
+    </section>
   </main>
 
-  <!-- Footer: minimal -->
   <footer class="popup__footer">
-    <span class="footer-updated" id="last-updated">—</span>
+    <span id="last-updated">—</span>
   </footer>
 </div>
 <script src="popup.js" type="module"></script>

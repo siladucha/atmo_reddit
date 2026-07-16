@@ -274,13 +274,20 @@ async def get_tasks(
         for task in tasks
     ]
 
-    # Also include today's full history for THIS avatar (all statuses)
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    # Also include today's full history for THIS avatar (extension channel only).
+    # Use Israel timezone for "today" boundary (system operates in Asia/Jerusalem).
+    from zoneinfo import ZoneInfo as _ZI
+    _israel_tz = _ZI("Asia/Jerusalem")
+    _now_israel = datetime.now(_israel_tz)
+    today_start = _now_israel.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+
     today_all = (
         db.query(ExecutionTask)
         .filter(
             ExecutionTask.avatar_username == node.active_reddit_username,
             ExecutionTask.created_at >= today_start,
+            # Only show extension-relevant tasks (not email-only)
+            ExecutionTask.delivery_channel.in_(["extension", "both"]),
         )
         .order_by(ExecutionTask.scheduled_at.asc().nullslast())
         .limit(50)
@@ -299,7 +306,8 @@ async def get_tasks(
             "scheduled_at": t.scheduled_at.isoformat() if t.scheduled_at else None,
             "status": t.status,
             "lifecycle": t.task_lifecycle_status,
-            "permalink": None,  # TODO: extract from report
+            "permalink": (t.verification_result or {}).get("permalink") if t.verification_result else None,
+            "completed_at": (t.verification_result or {}).get("posted_at") or (t.verified_at.isoformat() if t.verified_at else None),
             "has_epg_slot": t.epg_slot_id is not None,
         }
         for t in today_all
