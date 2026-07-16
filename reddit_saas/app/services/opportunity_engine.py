@@ -43,6 +43,34 @@ def _clamp(value: int | float) -> int:
     return max(0, min(100, int(round(value))))
 
 
+import re as _re
+
+# Any URL in post body means LLM lacks full context:
+# - Images: LLM can't see them
+# - Videos: LLM can't watch them
+# - External links: LLM can't follow them
+# - Reddit links: LLM can't read the linked thread
+# Pure text posts are the only ones where LLM has complete information.
+_ANY_URL_PATTERN = _re.compile(r'https?://[^\s)>\]]+')
+
+
+def _has_embedded_images(post_body: str | None) -> bool:
+    """Check if post body contains any URLs (images, videos, links).
+
+    Any URL in body = incomplete context for LLM:
+    - Images/videos: LLM can't see visual content
+    - External links: LLM can't follow and read the target
+    - Reddit links: LLM can't read the referenced thread
+
+    Only pure text posts give LLM complete context to write a relevant comment.
+
+    Returns True if any URL is found in the body → post should be skipped.
+    """
+    if not post_body:
+        return False
+    return bool(_ANY_URL_PATTERN.search(post_body))
+
+
 def _get_thread_age_hours(thread: "RedditThread") -> float:
     """Compute thread age in hours from reddit_created_at or created_at.
 
@@ -951,6 +979,16 @@ def scan_opportunities(
             _rnd.shuffle(hobby_posts)
             hobby_posts = hobby_posts[:_MAX_HOBBY_POSTS]
 
+            # --- Filter out image-heavy posts (self-text with embedded images) ---
+            # Reddit allows embedding images in self-text posts. The URL passes our
+            # url filter (points to reddit.com/comments/...) but the body contains
+            # embedded images that LLM cannot see. Commenting on partial context
+            # produces off-topic replies. Skip any post with image embeds in body.
+            hobby_posts = [
+                p for p in hobby_posts
+                if not _has_embedded_images(p.post_body)
+            ]
+
             # --- Archive fallback: if no fresh unused posts, use ANY post from archive ---
             # There are always posts in the archive (scraped yesterday, last week, etc).
             # Avatar will write a different comment to an existing thread — perfectly fine
@@ -1012,6 +1050,11 @@ def scan_opportunities(
                 import random as _rnd_arch
                 _rnd_arch.shuffle(hobby_posts)
                 hobby_posts = hobby_posts[:10]
+                # Filter embedded images in archive too
+                hobby_posts = [
+                    p for p in hobby_posts
+                    if not _has_embedded_images(p.post_body)
+                ]
                 if hobby_posts:
                     _fallback_tier_used = 1
                     logger.info(
