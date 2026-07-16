@@ -164,13 +164,13 @@ class TestAvatarAccessibility:
         avatar = _make_avatar(db, client_ids=[])
         thread = _make_thread(db)
 
-        # Mock LLM to return valid response
+        # Mock LLM to return valid response (must be long enough to pass quality gate)
         mock_llm.return_value = {
             "data": {
-                "comment": "test comment",
+                "comment": "This is a sufficiently long test comment that will pass the quality gate minimum character requirement for generated comments in the pipeline.",
                 "comment_to": "post",
                 "location_depth": 0,
-                "location_reasoning": "test",
+                "location_reasoning": "Responding directly to the original post with relevant insight.",
                 "comment_approach": "reframe_drop",
                 "strategic_angle": "reframe",
             },
