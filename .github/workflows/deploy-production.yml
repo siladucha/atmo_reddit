@@ -172,11 +172,11 @@ jobs:
 
       - name: Build Docker images
         run: |
-          ssh production "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml build"
+          ssh production "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache"
 
       - name: Restart services
         run: |
-          ssh production "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps app celery celery-fast celery-beat nginx marketing"
+          ssh production "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml stop app nginx marketing && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps app celery celery-fast celery-beat nginx marketing"
 
       # Alembic migrations run automatically in entrypoint.sh on app container start.
       # Verify they completed successfully.
