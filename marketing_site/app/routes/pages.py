@@ -46,6 +46,11 @@ async def thank_you(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request=request, name="marketing_thank_you.html")
 
 
+@router.get("/terms", response_class=HTMLResponse)
+async def terms(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(request=request, name="marketing_terms.html")
+
+
 # SEO & crawler control
 @router.get("/robots.txt", response_class=PlainTextResponse)
 async def robots_txt():
@@ -61,6 +66,7 @@ Allow: /intelligence-report
 Allow: /whats-coming
 Allow: /trial
 Allow: /thank-you
+Allow: /terms
 
 # Internal application routes — not for indexing
 Disallow: /admin
@@ -161,6 +167,7 @@ async def sitemap_xml():
   <url><loc>https://gorampit.com/intelligence-report</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://gorampit.com/whats-coming</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
   <url><loc>https://gorampit.com/trial</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://gorampit.com/terms</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
 </urlset>
 """,
         media_type="application/xml",
