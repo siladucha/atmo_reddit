@@ -64,18 +64,21 @@ class TestQualityGate:
         assert result["can_activate"] is False
         assert "icp_profiles" in result["missing"]
 
-    def test_quality_gate_blocks_insufficient_keywords(self):
+    def test_quality_gate_warns_insufficient_keywords(self):
         from app.services.onboarding.quality_gate import check_quality
         client = self._make_client(keywords={"high": ["one"]})
         result = check_quality(client)
-        assert result["can_activate"] is False
-        assert "keywords (minimum 3)" in result["missing"]
+        # Keywords < 3 is now a warning, not a blocker
+        assert result["can_activate"] is True
+        assert any("keywords" in w for w in result["warnings"])
 
-    def test_quality_gate_blocks_empty_keywords(self):
+    def test_quality_gate_warns_empty_keywords(self):
         from app.services.onboarding.quality_gate import check_quality
         client = self._make_client(keywords={})
         result = check_quality(client)
-        assert result["can_activate"] is False
+        # Empty keywords is a warning, not a blocker
+        assert result["can_activate"] is True
+        assert any("keywords" in w for w in result["warnings"])
 
     def test_quality_gate_warns_on_missing_optional_fields(self):
         from app.services.onboarding.quality_gate import check_quality
