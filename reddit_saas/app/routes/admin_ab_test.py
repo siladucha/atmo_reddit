@@ -31,8 +31,8 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/admin/ab-tests", tags=["admin-ab-tests"])
 templates = Jinja2Templates(directory="app/templates")
-# Disable Jinja2 bytecode cache to avoid "unhashable type: dict" errors
-templates.env.cache = {}
+# Workaround: set cache size to avoid stale template issues
+templates.env.auto_reload = True
 
 
 # ---------------------------------------------------------------------------
