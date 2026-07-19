@@ -145,14 +145,14 @@ class TestBillingPage:
             app.dependency_overrides.clear()
 
     def test_billing_has_see_plans_button(self, db):
-        """Billing page has 'see available plans' button."""
+        """Billing page has upgrade options section."""
         client_obj = _make_client(db, plan_type="starter")
         user = _make_user(db, UserRole.client_admin, client_id=client_obj.id)
         tc = _authenticated_client(db, user)
         try:
             resp = tc.get(f"/clients/{client_obj.id}/billing", follow_redirects=True)
             assert resp.status_code == 200
-            assert "see available plans" in resp.text
+            assert "Available Upgrades" in resp.text
         finally:
             app.dependency_overrides.clear()
 
