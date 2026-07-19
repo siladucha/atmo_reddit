@@ -383,7 +383,7 @@ class TestLearningLoopEndToEnd:
         thread_id = uuid.uuid4()
 
         mock_llm_response = {
-            "content": '{"comment": "just use a proper EASM tool", '
+            "content": '{"comment": "Honestly for EASM I would look at CensysASM or Detectify — both handle continuous monitoring of your external attack surface without drowning you in false positives like some of the open-source options do.", '
             '"comment_to": "post", "location_depth": 0, '
             '"location_reasoning": "direct reply", '
             '"comment_approach": "drive_by", '
@@ -394,7 +394,7 @@ class TestLearningLoopEndToEnd:
             "duration_ms": 1500,
             "model": "anthropic/claude-sonnet-4-20250514",
             "data": {
-                "comment": "just use a proper EASM tool",
+                "comment": "Honestly for EASM I would look at CensysASM or Detectify — both handle continuous monitoring of your external attack surface without drowning you in false positives like some of the open-source options do.",
                 "comment_to": "post",
                 "location_depth": 0,
                 "location_reasoning": "direct reply",

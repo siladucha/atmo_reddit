@@ -228,7 +228,7 @@ def test_property_11_generation_provenance_storage(
     # Mock LLM response
     mock_llm_response = {
         "data": {
-            "comment": "test generated comment",
+            "comment": "From my experience running vulnerability scans across multiple environments, the key is setting up proper baseline configurations before you even start the assessment workflow.",
             "comment_to": "post",
             "location_depth": 0,
             "location_reasoning": "top level",
