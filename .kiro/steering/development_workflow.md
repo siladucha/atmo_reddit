@@ -17,206 +17,126 @@
 
 ---
 
-## Git Flow — Artifact Promotion Model
+## Git Flow — Two-Branch Promotion Model
 
 ```
 feature/xyz (local Mac)
     ↓ push to origin
     ↓ CI runs (tests + imports + alembic)
-    ↓ PR → develop
-    ↓ merge
-develop
-    ↓ CI builds Docker image artifact (SHA-tagged)
-    ↓ Auto-deploy to staging (same artifact)
-staging.gorampit.com (167.172.191.42)
-    ↓ Verify (smoke test, 2 min)
+    ↓ merge → staging
+staging (staging.gorampit.com, 167.172.191.42)
+    ↓ CI + auto-deploy to staging server
+    ↓ Verify (smoke test, manual check)
     ↓ Operator approves
-    ↓ git tag v1.2.0 && git push origin v1.2.0
-    ↓ CI deploys SAME artifact to production
-production gorampit.com (161.35.27.165)
+    ↓ merge staging → main (fast-forward or PR)
+main (gorampit.com, 161.35.27.165)
+    ↓ CI + auto-deploy to production (with auto-rollback)
 ```
 
-### Core Principle: What Was Tested = What Gets Deployed
+### Core Principles
 
-Production NEVER rebuilds code. It receives the exact Docker image that was already verified on staging. This eliminates "works on staging, breaks on prod" class of bugs.
+1. **All work happens on feature branches.** Never commit directly to `main` or `staging`.
+2. **staging ≤ main.** Staging cannot be ahead of production (unless hotfix in progress). Both branches must be at the same commit, or main is ahead (has changes staging hasn't received yet — which shouldn't happen in normal flow).
+3. **Flow is one-directional:** `feature/* → staging → main`. No cherry-picks backwards.
+4. **Deploy = merge.** Push to `staging` triggers staging deploy. Push to `main` triggers production deploy.
 
 ### Branch Rules
 
-- `develop` = staging-ready code. Auto-deploys to staging on every merge.
-- `main` = production mirror. Updated only when release tag is created (fast-forward from develop).
-- `feature/*` = active development (may be broken). Always branches from `develop`.
-- Direct push to `develop` → allowed for hotfixes only (must pass CI).
-- No force-push to `develop` or `main`.
-- **🚫 Working on `main` branch is FORBIDDEN.** Never commit, develop, or make changes directly on `main`. Always create a feature branch or work on `develop`. If you find yourself on `main`, switch to a feature branch before making any changes.
+- `main` = production. Push triggers CI → deploy to prod. Protected.
+- `staging` = staging environment. Push triggers CI → deploy to staging. Pre-production verification.
+- `feature/*` = active development. Always branch from `staging` (which equals `main` in steady state).
+- **🚫 Working directly on `main` or `staging` is FORBIDDEN.** Never commit, develop, or make changes on these branches. Always use a feature branch.
+- No force-push to `staging` or `main`.
+- Direct push to `staging` allowed ONLY for CI-verified hotfixes (must still be a merge, not direct commit).
 
-### Release Flow
+### Normal Flow
 
 ```bash
-# After staging verification passes:
-git checkout develop
-git pull origin develop
-git tag v0.4.1
-git push origin v0.4.1
+# 1. Create feature branch (from staging, which = main)
+git checkout staging && git pull
+git checkout -b feature/my-change
 
-# CI sees tag → deploys same artifact to production
-# Then update main to match:
-git checkout main
-git merge develop --ff-only
+# 2. Work, commit, push
+git add . && git commit -m "feat: ..."
+git push -u origin feature/my-change
+
+# 3. CI runs on push (tests must pass)
+
+# 4. Merge to staging (triggers staging deploy)
+git checkout staging && git pull
+git merge feature/my-change
+git push origin staging
+# → CI passes → deploy-staging.yml runs → verify on staging.gorampit.com
+
+# 5. After staging verification — merge to main (triggers prod deploy)
+git checkout main && git pull
+git merge staging --ff-only
 git push origin main
+# → CI passes → deploy-production.yml runs → verify on gorampit.com
+
+# 6. Cleanup
+git branch -d feature/my-change
+git push origin --delete feature/my-change
 ```
+
+### Hotfix Flow (production emergency)
+
+```bash
+git checkout main && git pull
+git checkout -b hotfix/critical-fix
+# fix, commit
+git push -u origin hotfix/critical-fix
+# CI passes
+git checkout main && git merge hotfix/critical-fix && git push origin main
+# → prod deploy
+# Then sync staging:
+git checkout staging && git merge main && git push origin staging
+```
+
+### Invariants
+
+- After every prod deploy: `staging` and `main` point to the same commit.
+- Feature branches are short-lived (hours/days, not weeks).
+- If `staging` is ahead of `main`, it means code is being verified before prod. This is normal. But `staging` should never STAY ahead indefinitely — either merge to main or revert.
 
 ---
 
 ## CI Pipeline (GitHub Actions)
 
-### Phase 1 — Minimal Gate (implement NOW)
+### Current State: FULLY IMPLEMENTED ✅
 
-**Goal:** Catch import errors, broken modules, missing templates BEFORE merge.
+Three workflow files in `.github/workflows/`:
 
-```yaml
-# .github/workflows/ci.yml
-name: CI
-on:
-  push:
-    branches: ['**']
-  pull_request:
-    branches: [main]
+| File | Trigger | What It Does |
+|------|---------|--------------|
+| `ci.yml` | Push to any branch (except staging/main), PR to staging/main, called by deploy workflows | Tests + imports + alembic check |
+| `deploy-staging.yml` | Push to `staging` | CI gate → rsync → build → restart → health check → smoke tests → data integrity |
+| `deploy-production.yml` | Push to `main` | CI gate → pre-deploy backup → rsync → build → restart → health check → auto-rollback on failure → smoke tests → SSL check → DB integrity |
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    services:
-      postgres:
-        image: pgvector/pgvector:pg16
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: reddit_saas
-          POSTGRES_USER: reddit_saas_user
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd="pg_isready -U reddit_saas_user -d reddit_saas"
-          --health-interval=5s
-          --health-timeout=5s
-          --health-retries=6
-      redis:
-        image: redis:7
-        ports: ['6379:6379']
-        options: >-
-          --health-cmd="redis-cli ping"
-          --health-interval=5s
-          --health-timeout=5s
-          --health-retries=6
+### CI checks (ci.yml):
+1. Postgres 16 + Redis 7 ephemeral services
+2. `pip install -e ".[dev]" fakeredis pytest-timeout`
+3. Import verification: `from app.models import *; from app.main import app`
+4. Alembic single head check
+5. Full test suite: `pytest tests/ -x -q --timeout=30 --ignore=tests/test_geo_monitoring.py -k "not hypothesis"`
 
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: pip-${{ hashFiles('reddit_saas/pyproject.toml') }}
-          restore-keys: pip-
-
-      - name: Install
-        working-directory: reddit_saas
-        run: pip install -e ".[dev]" fakeredis pytest-timeout
-
-      - name: Verify imports
-        working-directory: reddit_saas
-        run: python -c "from app.models import *; from app.main import app; print('OK')"
-
-      - name: Alembic single head
-        working-directory: reddit_saas
-        env:
-          DATABASE_URL: postgresql://reddit_saas_user:postgres@localhost:5432/reddit_saas
-        run: |
-          heads=$(alembic heads 2>/dev/null | wc -l)
-          if [ "$heads" -ne 1 ]; then
-            echo "::error::Multiple Alembic heads detected"
-            exit 1
-          fi
-
-      - name: Run tests
-        working-directory: reddit_saas
-        env:
-          DATABASE_URL: postgresql://reddit_saas_user:postgres@localhost:5432/reddit_saas
-          REDIS_URL: redis://localhost:6379/0
-          ENVIRONMENT: test
-          SECRET_KEY: ci-test-key
-          TZ: Asia/Jerusalem
-        run: |
-          pytest tests/ -x -q \
-            --timeout=30 \
-            --ignore=tests/test_geo_monitoring.py \
-            -k "not hypothesis" \
-            --tb=short \
-            --junitxml=report.xml \
-            || true  # Phase 1: report failures but don't block yet
-
-      - name: Upload test report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-report
-          path: reddit_saas/report.xml
-```
-
-**Key decisions:**
-- `|| true` in Phase 1 — CI reports failures but doesn't block merge. Remove `|| true` when tests are stable (Phase 2).
-- No ruff lint yet — 500+ violations exist, fixing them is not a priority vs shipping.
-- hypothesis tests excluded — too slow for CI, run separately.
-- GEO monitoring tests excluded — hang due to mock isolation issues.
-- `pytest-timeout=30` — kills any test that hangs >30s.
-
-### Phase 2 — Hard Gate (after test cleanup)
-
-Remove `|| true`. CI blocks merge on test failure.
-
-**Trigger to enable Phase 2:** All tests pass in CI for 5 consecutive pushes.
-
-### Phase 3 — Lint + CD (after stabilization)
-
-Add:
-- `ruff check reddit_saas/ --select E,F,W` (errors + fatal only, not style)
-- Auto-deploy to staging on main merge
-- Auto-deploy to prod with manual approval (GitHub Environment)
+### Production deploy features:
+- Pre-deploy DB backup (pg_dump, verified >1MB)
+- Docker image tagged `:previous` before rebuild
+- Auto-rollback if health check fails 6× (restores `:previous` image)
+- SSL cert expiry check
+- Celery workers health verification
+- Database integrity check (FK violations, orphaned records)
 
 ---
 
-## Deploy Script Changes
+## Deploy Script (Legacy — Deprecated)
 
-`deploy.sh` must be updated to:
+`deploy.sh` is NO LONGER the primary deploy mechanism. Deploys happen via git push:
+- `git push origin staging` → GitHub Actions CI + deploy to staging
+- `git push origin main` → GitHub Actions CI + deploy to production (with auto-rollback)
 
-1. **Refuse direct deploy from feature branch** — must be on `main` or explicit `--force`
-2. **Run local test gate** before rsync (fast subset: imports + critical tests)
-3. **Deploy to staging first** when `./deploy.sh staging`
-4. **Deploy to prod** only via `./deploy.sh prod` (current `./deploy.sh app` renamed)
-
-### Immediate: Local test gate in deploy.sh
-
-```bash
-# Add to deploy.sh BEFORE rsync
-log "Running pre-deploy test gate..."
-cd reddit_saas
-python -c "from app.models import *; from app.main import app" || {
-    error "Import check failed — aborting deploy"
-    exit 1
-}
-pytest tests/ -x -q --timeout=30 \
-    --ignore=tests/test_geo_monitoring.py \
-    -k "not hypothesis" \
-    --tb=line 2>/dev/null || {
-    error "Tests failed — aborting deploy"
-    error "Run 'pytest tests/ -x' locally to see details"
-    exit 1
-}
-cd ..
-log "Test gate passed ✓"
-```
+`deploy.sh` kept as emergency fallback only (when GitHub Actions is broken).
 
 ---
 
@@ -230,12 +150,9 @@ log "Test gate passed ✓"
 - Smoke test UI (login, admin, portal)
 - Test with production-like data (DB sync from prod weekly)
 
-**Deploy to staging:**
-```bash
-./deploy.sh staging  # rsync + build + up on staging server
-```
+**Deploy:** Push to `staging` branch → GitHub Actions handles everything (CI → rsync → build → restart → health check → smoke tests → data integrity check).
 
-**Staging verification checklist (manual, 2 min):**
+**Staging verification checklist (automated by CI, but also manual 2 min):**
 1. `curl https://staging.gorampit.com/health` → 200 + correct version
 2. Open `/login` → page loads
 3. Open `/admin/` → redirects to login (auth works)
@@ -273,44 +190,42 @@ log "Test gate passed ✓"
 
 ## Migration Plan (Current → Target)
 
-| Step | What | Effort | Status |
-|------|------|--------|--------|
-| 1 | Create `.github/workflows/ci.yml` | 10 min | TODO |
-| 2 | Push current branch, see CI run | 5 min | TODO |
-| 3 | Full local test run + triage report | 1-2h | TODO |
-| 4 | Fix critical failures (import errors, fixture mismatches) | 2-4h | TODO |
-| 5 | Mark flaky/hanging tests with `pytest.mark.skip` | 30 min | TODO |
-| 6 | CI green on feature branch (with `\|\| true`) | — | TODO |
-| 7 | Remove `\|\| true` → CI blocks on failure | 1 min | TODO |
-| 8 | Add staging deploy to workflow | 30 min | TODO |
-| 9 | Add test gate to `deploy.sh` | 15 min | TODO |
-| 10 | Retire direct rsync-to-prod workflow | — | TODO |
+| Step | What | Status |
+|------|------|--------|
+| 1 | Create `.github/workflows/ci.yml` | ✅ DONE |
+| 2 | Create `.github/workflows/deploy-staging.yml` | ✅ DONE |
+| 3 | Create `.github/workflows/deploy-production.yml` | ✅ DONE |
+| 4 | CI runs on every push (hard gate — blocks merge) | ✅ DONE |
+| 5 | Staging auto-deploy on push to `staging` | ✅ DONE |
+| 6 | Production auto-deploy on push to `main` + auto-rollback | ✅ DONE |
+| 7 | SSH deploy key as GitHub Secret | ✅ DONE |
+| 8 | Retire direct rsync-to-prod workflow | ✅ DONE (deploy.sh kept as emergency fallback) |
+| 9 | Enforce feature branch discipline | ✅ In progress (this document) |
+| 10 | Add ruff lint to CI | TODO (after test stability) |
 
 ---
 
 ## What NOT To Do
 
-1. ❌ Don't add ruff formatting enforcement until tests are stable (one thing at a time)
-2. ❌ Don't rewrite deploy.sh completely — add gates incrementally
-3. ❌ Don't block all deploys on test failures in Phase 1 (informational first)
-4. ❌ Don't fix 100 tests at once — triage, skip broken, fix incrementally
-5. ❌ Don't set up CD (auto-deploy) until CI is reliably green for 2+ weeks
+1. ❌ Don't commit directly to `main` or `staging` — always use feature branch
+2. ❌ Don't keep feature branches alive for weeks — merge or abandon
+3. ❌ Don't let staging drift ahead of main — after staging verification, merge to main same day
+4. ❌ Don't force-push to `main` or `staging`
+5. ❌ Don't deploy via rsync manually unless GitHub Actions is broken (emergency only)
+6. ❌ Don't skip CI — if tests fail, fix them before merge
 
 ---
 
 ## Success Criteria
 
-**Phase 1 complete when:**
-- CI runs on every push (even if not blocking)
-- Test failures are visible in GitHub (not hidden on local machine)
-- deploy.sh refuses to deploy with broken imports
+**CI/CD fully operational:**
+- ✅ CI runs on every push (hard gate, blocks merge on failure)
+- ✅ Push to `staging` → auto-deploy to staging server
+- ✅ Push to `main` → auto-deploy to production with auto-rollback
+- ✅ Pre-deploy DB backup on every prod deploy
+- ✅ No more manual rsync deploys
 
-**Phase 2 complete when:**
-- CI blocks merge on test failure
-- 0 skipped tests remaining (all either pass or deleted)
-- Staging deploy happens before every prod deploy
-
-**Phase 3 complete when:**
-- `main` is always green
-- Prod deploy is one button (GitHub Actions deploy workflow)
-- No more rsync from local Mac
+**Branch discipline (enforced by this document + agent behavior):**
+- All work on feature branches
+- staging = main in steady state
+- Feature branches short-lived (same-day merge target)
