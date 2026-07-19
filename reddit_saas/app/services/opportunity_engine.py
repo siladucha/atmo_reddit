@@ -1111,6 +1111,62 @@ def scan_opportunities(
                 )
                 opportunities.append(opp)
 
+    # --- Source 3: Post Opportunities (Phase 2+ avatars only) ---
+    # Create 1-2 post opportunities per day for subreddits where avatar has enough karma.
+    # Posts don't need a thread_id — they're original content.
+    if avatar.warming_phase >= 2 and client:
+        try:
+            from app.models.subreddit import Subreddit as _SubModel
+            from app.models.subreddit import ClientSubredditAssignment as _CSA
+
+            # Get client's active professional subreddits
+            client_subs = (
+                db.query(_CSA)
+                .filter(
+                    _CSA.client_id == client.id,
+                    _CSA.is_active.is_(True),
+                )
+                .all()
+            )
+            post_sub_names = []
+            for csa in client_subs:
+                if csa.subreddit and csa.subreddit.subreddit_name:
+                    post_sub_names.append(csa.subreddit.subreddit_name.lower())
+
+            # Limit to 2 post opportunities max (budget is 2-3 posts/day)
+            import random
+            if post_sub_names:
+                random.shuffle(post_sub_names)
+                for psub in post_sub_names[:2]:
+                    opp = OpportunityData(
+                        thread_id=None,
+                        hobby_post_id=None,
+                        subreddit=psub,
+                        opportunity_type="post",
+                        thread_title="[original post]",
+                        thread_ups=0,
+                        thread_age_hours=0.0,
+                        comment_count=0,
+                        visibility=70,
+                        competition=40,
+                        trust_potential=60,
+                        karma_potential=50,
+                        risk=30,
+                        strategic_alignment=80,
+                        composite=65,
+                        thread_score_ref=None,
+                    )
+                    opportunities.append(opp)
+                    logger.info(
+                        "scan_opportunities: added post opportunity for avatar=%s in r/%s",
+                        avatar.reddit_username, psub,
+                    )
+        except Exception as e:
+            logger.warning(
+                "Failed to generate post opportunities for avatar=%s: %s",
+                avatar.reddit_username, str(e)[:100],
+            )
+
     # --- A/B Test: restrict subreddits to configured risk range if avatar in experiment ---
     try:
         from app.services.settings import get_setting

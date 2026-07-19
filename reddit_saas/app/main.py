@@ -17,6 +17,9 @@ from app.routes import admin, auth, dashboard, review, pipeline, avatars, avatar
 from app.routes.extension_api import router as extension_api_router
 from app.routes.extension_events import router as extension_events_router
 from app.routes.telegram_webhook import router as telegram_webhook_router
+from app.routes.stripe_checkout import router as stripe_checkout_router
+from app.routes.admin_llm_quality import router as admin_llm_quality_router
+from app.routes.stripe_webhook import router as stripe_webhook_router
 from app.routes import notifications as notifications_routes
 from app.routes import manual as manual_routes
 from app.services.metrics_collector import (
@@ -174,7 +177,10 @@ app.include_router(intelligence_report.router, tags=["intelligence-report"])
 app.include_router(admin_intelligence_report.router, tags=["admin-intelligence-report"])
 app.include_router(demo.router, tags=["demo"])
 app.include_router(admin_ab_test.router, tags=["admin-ab-tests"])
+app.include_router(admin_llm_quality_router, tags=["admin-llm-quality"])
 app.include_router(telegram_webhook_router, tags=["telegram"])
+app.include_router(stripe_checkout_router, tags=["stripe-billing"])
+app.include_router(stripe_webhook_router, tags=["stripe-webhook"])
 
 
 @app.get("/health")

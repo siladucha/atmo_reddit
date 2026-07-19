@@ -228,6 +228,24 @@ def generate_post_topic(
         subreddit_type=sub_type,
     )
 
+    # --- Inject daily vibe + tone context for subreddit awareness ---
+    vibe_section = ""
+    try:
+        from app.services.subreddit_vibe import get_vibe_context_for_prompt
+        vibe_section = get_vibe_context_for_prompt(db, subreddit) or ""
+    except Exception:
+        pass
+    try:
+        from app.services.emotional_profile import get_subreddit_tone_context
+        tone_section = get_subreddit_tone_context(db, subreddit) or ""
+        if tone_section:
+            vibe_section = (vibe_section + "\n\n" + tone_section) if vibe_section else tone_section
+    except Exception:
+        pass
+
+    if vibe_section:
+        prompt = prompt + "\n\n" + vibe_section
+
     messages = [
         {"role": "system", "content": prompt},
         {"role": "user", "content": f"Generate a topic for r/{subreddit}"},
@@ -278,6 +296,15 @@ def generate_post_brief(
         hill_i_die_on=avatar.hill_i_die_on or "",
         helpful_topics=avatar.helpful_mode_topics or "",
     )
+
+    # --- Inject daily vibe for subreddit awareness ---
+    try:
+        from app.services.subreddit_vibe import get_vibe_context_for_prompt
+        vibe_ctx = get_vibe_context_for_prompt(db, subreddit)
+        if vibe_ctx:
+            system_prompt = system_prompt + "\n\n" + vibe_ctx
+    except Exception:
+        pass
 
     messages = [
         {"role": "system", "content": system_prompt},
@@ -350,6 +377,15 @@ def generate_post(
         title_direction=title_direction_str,
         previous_posts=prev_text,
     )
+
+    # --- Inject daily vibe for subreddit awareness ---
+    try:
+        from app.services.subreddit_vibe import get_vibe_context_for_prompt
+        vibe_ctx = get_vibe_context_for_prompt(db, subreddit)
+        if vibe_ctx:
+            system_prompt = system_prompt + "\n\n" + vibe_ctx
+    except Exception:
+        pass
 
     messages = [
         {"role": "system", "content": system_prompt},

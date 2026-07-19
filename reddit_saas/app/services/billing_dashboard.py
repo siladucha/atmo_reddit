@@ -497,6 +497,7 @@ def get_operation_costs(db: Session, start: datetime, end: datetime) -> list[dic
         "subreddit_rule_extraction": "📏 Rule Extraction",
         "emotional_profile": "🎭 Emotional Profile",
         "emotional_compatibility": "🤝 Compatibility Scoring",
+        "subreddit_daily_vibe": "🌡️ Daily Vibe Analysis",
         "telegram_draft_edit": "📱 Telegram Draft Edit",
     }
 

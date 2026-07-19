@@ -44,10 +44,12 @@ def get_system_alerts(db: Session) -> list[Alert]:
     alerts += _get_pipeline_dead_alert(db)
     alerts += _get_frozen_avatar_alerts(db)
     alerts += _get_stale_scrape_alerts(db)
+    alerts += _get_generation_error_alerts(db)
     alerts += _get_expiring_trial_alerts(db)
     alerts += _get_zero_activity_alerts(db)
     alerts += _get_llm_spend_rate_alert(db)
     alerts += _get_provider_budget_alerts(db)
+    alerts += _get_llm_quality_alerts(db)
 
     alerts.sort(key=lambda a: a.severity_order)
     return alerts
@@ -243,6 +245,51 @@ def _get_stale_scrape_alerts(db: Session) -> list[Alert]:
         link="/admin/subreddits",
         icon="⏰",
     )]
+
+
+def _get_generation_error_alerts(db: Session) -> list[Alert]:
+    """Check for generation errors in the last 4 hours.
+
+    Fires when ≥3 generation_error events recorded in recent window.
+    This catches LLM failures, credit exhaustion, and model errors
+    that would otherwise go unnoticed until daily review.
+    """
+    now = datetime.now(timezone.utc)
+    four_hours_ago = now - timedelta(hours=4)
+
+    try:
+        gen_errors = (
+            db.query(sa_func.count(ActivityEvent.id))
+            .filter(
+                ActivityEvent.created_at >= four_hours_ago,
+                ActivityEvent.event_type == "generation_error",
+            )
+            .scalar()
+        ) or 0
+
+        if gen_errors == 0:
+            return []
+
+        if gen_errors >= 10:
+            return [Alert(
+                type="generation_errors",
+                severity="critical",
+                message=f"{gen_errors} generation errors in last 4h — pipeline likely broken",
+                link="/admin/daily-review",
+                icon="🔴",
+            )]
+        elif gen_errors >= 3:
+            return [Alert(
+                type="generation_errors",
+                severity="high",
+                message=f"{gen_errors} generation errors in last 4h",
+                link="/admin/daily-review",
+                icon="⚠️",
+            )]
+    except Exception:
+        pass
+
+    return []
 
 
 def _get_expiring_trial_alerts(db: Session) -> list[Alert]:
@@ -592,3 +639,42 @@ def get_provider_spend_summary(db: Session) -> dict[str, dict]:
         }
 
     return result
+
+
+def _get_llm_quality_alerts(db: Session) -> list[Alert]:
+    """Check for LLM quality degradation from recent quality snapshots."""
+    try:
+        from app.services.llm_quality_monitor import get_degradation_alerts
+
+        signals = get_degradation_alerts(db, hours=4)
+        if not signals:
+            return []
+
+        # Group by severity
+        critical = [s for s in signals if s.severity == "critical"]
+        high = [s for s in signals if s.severity == "high"]
+
+        alerts: list[Alert] = []
+
+        if critical:
+            models = list(set(f"{s.model.split('/')[-1]}" for s in critical))
+            alerts.append(Alert(
+                type="llm_quality_critical",
+                severity="critical",
+                message=f"LLM quality CRITICAL: {', '.join(models[:3])} severely degraded",
+                link="/admin/llm-quality",
+                icon="🧠",
+            ))
+        elif high:
+            models = list(set(f"{s.model.split('/')[-1]}" for s in high))
+            alerts.append(Alert(
+                type="llm_quality_degraded",
+                severity="high",
+                message=f"LLM quality degraded: {', '.join(models[:3])}",
+                link="/admin/llm-quality",
+                icon="⚠️",
+            ))
+
+        return alerts
+    except Exception:
+        return []

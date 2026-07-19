@@ -24,6 +24,10 @@ class AIUsageLog(Base):
     cost_usd: Mapped[Decimal] = mapped_column(Numeric(10, 6), default=0)
     duration_ms: Mapped[int] = mapped_column(Integer, default=0)
     triggered_by: Mapped[str | None] = mapped_column(String(100), nullable=True)  # scheduler | manual | orchestrator | api | test_run
+    # Quality tracking fields (lqm01 migration)
+    quality_outcome: Mapped[str | None] = mapped_column(String(30), nullable=True)  # success | empty | parse_error | timeout | error | fallback_used
+    retry_count: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
+    fallback_model: Mapped[str | None] = mapped_column(String(255), nullable=True)  # which model succeeded after fallback
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (

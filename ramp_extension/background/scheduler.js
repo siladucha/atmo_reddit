@@ -151,6 +151,29 @@ async function _doTick() {
   const now = Date.now();
   const MAX_TASK_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+  // 5.1 Day-boundary cleanup: remove completed/failed tasks from previous days
+  // Uses Israel timezone (system operates in Asia/Jerusalem)
+  const todayIsrael = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }));
+  todayIsrael.setHours(0, 0, 0, 0);
+  const todayStartMs = todayIsrael.getTime();
+
+  let cleanedCount = 0;
+  for (let i = queue.length - 1; i >= 0; i--) {
+    const t = queue[i];
+    if (t.status !== 'completed' && t.status !== 'failed') continue;
+    const completedAt = t.completed_at || t.failed_at || t.created_at;
+    if (!completedAt) continue;
+    const taskTime = new Date(completedAt).getTime();
+    if (taskTime < todayStartMs) {
+      queue.splice(i, 1);
+      cleanedCount++;
+    }
+  }
+  if (cleanedCount > 0) {
+    await saveQueue(queue);
+    console.log(`[RAMP Scheduler] Cleaned ${cleanedCount} completed/failed tasks from previous days`);
+  }
+
   // Filter approved tasks, auto-expire ones older than 24h
   const approvedTasks = [];
   let expiredCount = 0;
@@ -193,6 +216,20 @@ async function _doTick() {
       continue;
     }
 
+    // Reject tasks without scheduled_at — they should never be executed immediately.
+    // A missing scheduled_at means the backend didn't assign a time slot, which would
+    // cause burst posting (all tasks fire back-to-back with only 3-min gaps).
+    if (!task.scheduled_at) {
+      task.status = 'failed';
+      task.error_code = 'NO_SCHEDULED_TIME';
+      task.error_details = 'Task has no scheduled_at — cannot execute without time slot';
+      task.failed_at = new Date().toISOString();
+      console.warn(`[RAMP Scheduler] Task ${task.task_id} rejected — no scheduled_at`);
+      await saveQueue(queue);
+      await reportFailureToBackend(task, { error_code: 'NO_SCHEDULED_TIME', error_details: task.error_details });
+      continue;
+    }
+
     // Apply jitter to scheduled_at
     const jitteredTime = applyJitter(task.scheduled_at, task._jitter_offset);
 
@@ -200,7 +237,7 @@ async function _doTick() {
       // Safety: skip tasks that are overdue by more than 30 minutes.
       // Posting a burst of stale tasks after laptop wake = ban risk.
       const MAX_OVERDUE_MS = 30 * 60 * 1000; // 30 minutes
-      if (jitteredTime > 0 && (now - jitteredTime) > MAX_OVERDUE_MS) {
+      if ((now - jitteredTime) > MAX_OVERDUE_MS) {
         task.status = 'failed';
         task.error_code = 'WINDOW_MISSED';
         task.error_details = `Posting window missed by ${Math.round((now - jitteredTime) / 60000)} min (laptop sleep?)`;

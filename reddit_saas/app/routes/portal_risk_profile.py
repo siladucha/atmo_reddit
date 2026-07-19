@@ -222,27 +222,14 @@ def portal_subreddit_risk_profile(
         if assignment:
             effective_client_id = assignment.client_id
 
-    # Emotional profile (community tone) — from AvatarSubredditCompatibility or dedicated table
-    emotional_profile = None
-    try:
-        from sqlalchemy import text as sa_text
-        # Try dedicated emotional profiles table first
-        ep_row = db.execute(
-            sa_text("SELECT emotional_profile FROM subreddit_emotional_profiles WHERE subreddit_name = :name LIMIT 1"),
-            {"name": subreddit.subreddit_name},
-        ).fetchone()
-        if ep_row and ep_row[0]:
-            import json
-            ep_data = ep_row[0] if isinstance(ep_row[0], dict) else json.loads(ep_row[0])
-            emotional_profile = ep_data
-    except Exception:
-        db.rollback()
+    # Emotional profile (community tone) — stored as JSONB on subreddits table
+    emotional_profile = subreddit.emotional_profile if subreddit.emotional_profile else None
 
     # Community stats — basic subreddit info from scraped data
     community_stats = None
     try:
         from app.models.scrape_log import ScrapeLog
-        from sqlalchemy import func as sa_func
+        from sqlalchemy import func as sa_func, text as sa_text
 
         # Get average posts/day from last 30 days of scrape logs
         thirty_days_ago = now - timedelta(days=30)

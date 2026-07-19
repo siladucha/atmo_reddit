@@ -877,11 +877,12 @@ def add_subreddit(
     if not client.is_active:
         raise ValueError("Cannot add subreddit to inactive client")
 
-    # 1b. Plan limit check — subreddits
-    from app.services.plan_limits import check_subreddit_limit
-    allowed, limit_msg, _current, _limit = check_subreddit_limit(db, client_id)
-    if not allowed:
-        raise ValueError(limit_msg)
+    # 1b. Plan limit check — only for professional subreddits (hobby is unlimited)
+    if type == "professional":
+        from app.services.plan_limits import check_subreddit_limit
+        allowed, limit_msg, _current, _limit = check_subreddit_limit(db, client_id)
+        if not allowed:
+            raise ValueError(limit_msg)
 
     # 2. Get-or-create Subreddit record (case-insensitive lookup)
     subreddit = (
@@ -1726,6 +1727,7 @@ def get_ai_costs_by_operation(db: Session, days: int | None = None) -> list[dict
         "subreddit_rule_extraction": "Subreddit Intel",
         "emotional_profile": "Subreddit Intel",
         "emotional_compatibility": "Subreddit Intel",
+        "subreddit_daily_vibe": "Subreddit Intel",
         "telegram_draft_edit": "Telegram",
     }
 

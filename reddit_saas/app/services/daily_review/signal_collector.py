@@ -273,12 +273,16 @@ def _collect_error_signals(
     db: Session, now: datetime, since_24h: datetime, since_7d: datetime
 ) -> tuple[list[HealthSignal], list[ChangeSignal]]:
     """Count errors in activity events and detect frequency changes."""
+    _ERROR_EVENT_TYPES = [
+        "error", "task_failure", "pipeline_error", "generation_error",
+    ]
+
     # Errors in last 24h
     errors_24h = (
         db.query(sa_func.count(ActivityEvent.id))
         .filter(
             ActivityEvent.created_at >= since_24h,
-            ActivityEvent.event_type.in_(["error", "task_failure", "pipeline_error"]),
+            ActivityEvent.event_type.in_(_ERROR_EVENT_TYPES),
         )
         .scalar()
     ) or 0
@@ -293,7 +297,7 @@ def _collect_error_signals(
             .filter(
                 ActivityEvent.created_at >= day_start,
                 ActivityEvent.created_at < day_end,
-                ActivityEvent.event_type.in_(["error", "task_failure", "pipeline_error"]),
+                ActivityEvent.event_type.in_(_ERROR_EVENT_TYPES),
             )
             .scalar()
         ) or 0

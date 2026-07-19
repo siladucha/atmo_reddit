@@ -344,15 +344,7 @@
                     {% if avatar.delivery_channel == 'extension' %}Tasks auto-delivered to Chrome extension{% elif avatar.delivery_channel == 'email' %}Tasks sent via email to executor{% else %}Extension primary, email as fallback when offline{% endif %}
                 </span>
             </form>
-            <details style="margin-top:10px;">
-                <summary style="font-size:11px;color:var(--color-muted);cursor:pointer;">ℹ️ How it works</summary>
-                <div style="font-size:11px;color:var(--color-muted);margin-top:6px;line-height:1.5;">
-                    <strong>Extension</strong> — approved tasks are picked up by the Chrome extension and auto-posted through the executor's browser session. No email needed.<br>
-                    <strong>Email</strong> — posting instructions are sent to the executor's email ~30 min before scheduled time. Requires verified executor email.<br>
-                    <strong>Both</strong> — extension is tried first. If offline for 30+ min, system falls back to email.
-                </div>
-            </details>
-        </div>
+</div>
     </div>
 
     <!-- Recent Activity -->

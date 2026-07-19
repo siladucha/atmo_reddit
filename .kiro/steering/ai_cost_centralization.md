@@ -231,6 +231,22 @@ model = get_config("llm_generation_model")
 7. ✅ If operation is scheduled → set `ai_trigger_context.set("scheduler")` in the Celery task
 8. ✅ If new setting key needed → add to `DEFAULT_SETTINGS` in `settings.py`
 9. ✅ Test: after one call, verify row appears in `ai_usage_log` table
+10. ✅ Quality tracking is automatic — `call_llm()`/`call_llm_json()` emit `quality_outcome` in result, `log_ai_usage()` stores it. No manual action needed.
+
+## LLM Quality Monitoring (July 19, 2026)
+
+**Extension of centralization:** Every logged LLM call now also records quality metadata:
+- `quality_outcome`: success | empty | parse_error | timeout | error | fallback_used
+- `retry_count`: how many retries were needed (0 = first attempt succeeded)
+- `fallback_model`: if primary model failed, which model was originally requested
+
+**Quality monitoring is passive for callers** — they call `log_ai_usage(result=result)` as before. The result dict from `call_llm()`/`call_llm_json()` now includes `quality_outcome` and `fallback_used` fields that `log_ai_usage()` auto-ingests.
+
+**Degradation detection:** `check_llm_quality` Celery task (every 4h) compares current window vs 7-day baseline per model×operation. Alerts on: success rate drop >10pp, latency >2× baseline, fallback >20%, empty >15%.
+
+**Admin visibility:** `/admin/llm-quality` — per-model health table, per-operation table, degradation events.
+
+**Dashboard alerts:** `alert_aggregation.py` → `_get_llm_quality_alerts()` → owner/partner alert bar.
 
 ## Cost Model Reference (Updated July 8, 2026 — post-optimization)
 

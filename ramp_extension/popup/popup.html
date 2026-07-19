@@ -59,26 +59,18 @@
       <div id="failed-list" class="task-list"></div>
     </section>
 
-    <!-- Section 3: TODAY (schedule + stats) -->
+    <!-- Section 3: TODAY — full day timeline -->
     <section class="section" id="today-section">
       <div class="section__header">
-        <h3>Today</h3>
+        <h3>Today's Schedule</h3>
         <div class="today-stats" id="today-stats">
           <span class="stat stat--green" id="stat-done">0 done</span>
-          <span class="stat" id="stat-remaining">0 remaining</span>
+          <span class="stat" id="stat-remaining">0 left</span>
         </div>
       </div>
-      <div id="scheduled-list" class="task-list">
+      <div id="timeline-list" class="task-list">
         <p class="empty-text" id="empty-state">Nothing scheduled today.</p>
       </div>
-    </section>
-
-    <!-- Section 4: DONE (collapsed) -->
-    <section class="section" id="done-section" style="display:none;">
-      <details class="done-details">
-        <summary class="done-summary">Completed today</summary>
-        <div id="done-list" class="task-list"></div>
-      </details>
     </section>
   </main>
 

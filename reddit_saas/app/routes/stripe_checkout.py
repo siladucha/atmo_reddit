@@ -10,6 +10,7 @@ Auth: client_admin, client_manager, owner, partner (anyone who can manage billin
 
 from uuid import UUID
 
+import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse, HTMLResponse
 from sqlalchemy.orm import Session
@@ -70,8 +71,37 @@ def initiate_checkout(
         )
         db.commit()
     except ValueError as e:
-        logger.error("CHECKOUT_ERROR | client_id=%s | error=%s", client_id, str(e))
+        # Configuration errors (missing stripe_price_id, missing key, etc.)
+        logger.error("CHECKOUT_CONFIG_ERROR | client_id=%s | error=%s", client_id, str(e))
         raise HTTPException(status_code=400, detail=str(e))
+    except stripe.error.CardError as e:
+        # Card declined by Stripe (shouldn't happen at checkout creation, but defensive)
+        logger.warning("CHECKOUT_CARD_ERROR | client_id=%s | error=%s", client_id, str(e))
+        raise HTTPException(status_code=402, detail="Card was declined. Please try a different payment method.")
+    except stripe.error.RateLimitError:
+        logger.error("CHECKOUT_RATE_LIMIT | client_id=%s", client_id)
+        raise HTTPException(status_code=503, detail="Payment service is busy. Please try again in a moment.")
+    except stripe.error.InvalidRequestError as e:
+        # Invalid parameters sent to Stripe (bad price_id, etc.)
+        logger.error("CHECKOUT_INVALID_REQUEST | client_id=%s | error=%s", client_id, str(e))
+        raise HTTPException(status_code=400, detail="Payment configuration error. Please contact support.")
+    except stripe.error.AuthenticationError:
+        # API key is invalid
+        logger.critical("CHECKOUT_AUTH_ERROR | client_id=%s | Stripe API key invalid!", client_id)
+        raise HTTPException(status_code=500, detail="Payment service configuration error. Please contact support.")
+    except stripe.error.APIConnectionError:
+        # Network issue connecting to Stripe
+        logger.error("CHECKOUT_CONNECTION_ERROR | client_id=%s | Cannot reach Stripe API", client_id)
+        raise HTTPException(status_code=503, detail="Payment service temporarily unavailable. Please try again.")
+    except stripe.error.StripeError as e:
+        # Catch-all for other Stripe errors
+        logger.error("CHECKOUT_STRIPE_ERROR | client_id=%s | type=%s | error=%s", client_id, type(e).__name__, str(e))
+        raise HTTPException(status_code=500, detail="An error occurred with the payment service. Please try again.")
+    except Exception as e:
+        # Unexpected errors
+        logger.error("CHECKOUT_UNEXPECTED_ERROR | client_id=%s | error=%s", client_id, str(e))
+        db.rollback()
+        raise HTTPException(status_code=500, detail="An unexpected error occurred. Please try again or contact support.")
 
     return RedirectResponse(url=checkout_url, status_code=303)
 
@@ -85,14 +115,14 @@ def checkout_success(
 ):
     """Post-payment success page. Stripe redirects here after successful checkout."""
     client = db.query(Client).filter(Client.id == client_id).first()
+    plan_name = client.plan_type.title() if client and client.plan_type else "Active"
 
-    # Simple success page (can be templated later)
     return HTMLResponse(f"""
     <!DOCTYPE html>
     <html>
     <head>
         <title>Payment Successful — RAMP</title>
-        <meta http-equiv="refresh" content="3;url=/clients/{client_id}/billing">
+        <meta http-equiv="refresh" content="5;url=/clients/{client_id}/billing">
         <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-slate-900 min-h-screen flex items-center justify-center">
@@ -100,9 +130,9 @@ def checkout_success(
             <div class="text-5xl mb-4">✅</div>
             <h1 class="text-2xl font-semibold text-white mb-3">Payment Successful!</h1>
             <p class="text-gray-400 mb-4">
-                Your plan has been upgraded to <strong class="text-white">{client.plan_type.title() if client else 'Active'}</strong>.
+                Your plan has been upgraded to <strong class="text-white">{plan_name}</strong>.
             </p>
-            <p class="text-gray-500 text-sm">Redirecting to billing page...</p>
+            <p class="text-gray-500 text-sm">Redirecting to billing page in 5 seconds...</p>
             <a href="/clients/{client_id}/billing" class="mt-4 inline-block text-indigo-400 hover:text-indigo-300 text-sm">
                 Click here if not redirected
             </a>
@@ -110,3 +140,14 @@ def checkout_success(
     </body>
     </html>
     """)
+
+
+@router.get("/clients/{client_id}/checkout/cancel", response_class=HTMLResponse)
+def checkout_cancel(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """User cancelled the checkout. Redirect back to billing page."""
+    return RedirectResponse(url=f"/clients/{client_id}/billing", status_code=303)

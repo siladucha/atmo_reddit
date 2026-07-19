@@ -1,7 +1,7 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import String, Boolean, DateTime, Integer, Text, ForeignKey, Index, UniqueConstraint, func
+from sqlalchemy import Date, String, Boolean, DateTime, Integer, Text, ForeignKey, Index, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -44,11 +44,15 @@ class Subreddit(Base):
     # Risk profile flag
     is_high_risk: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
-    # Emotional Profile (behavioral/tone intelligence)
+    # Emotional Profile (behavioral/tone intelligence — weekly)
     emotional_profile: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     previous_emotional_profile: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     emotional_profile_analyzed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     emotional_profile_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Daily Vibe (current atmosphere — refreshed before EPG generation)
+    daily_vibe: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    daily_vibe_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     # Relationships
     assignments = relationship("ClientSubredditAssignment", back_populates="subreddit")

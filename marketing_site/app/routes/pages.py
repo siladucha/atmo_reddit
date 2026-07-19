@@ -36,9 +36,9 @@ async def whats_coming(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request=request, name="marketing_whats_coming.html")
 
 
-@router.get("/trial", response_class=HTMLResponse)
-async def trial(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(request=request, name="marketing_trial.html")
+@router.get("/trial")
+async def trial(request: Request):
+    return RedirectResponse(url="/onboard/trial", status_code=301)
 
 
 @router.get("/thank-you", response_class=HTMLResponse)

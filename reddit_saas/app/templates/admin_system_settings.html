@@ -40,7 +40,7 @@
     <!-- Bulk save status -->
     <div id="bulk-save-status" class="mb-4"></div>
 
-    {% set group_order = ['database', 'redis', 'auth', 'reddit_api', 'llm', 'scraping', 'scheduler', 'app', 'budget', 'health_check'] %}
+    {% set group_order = ['database', 'redis', 'auth', 'reddit_api', 'llm', 'scraping', 'scheduler', 'app', 'budget', 'billing', 'health_check'] %}
     {% set group_labels = {
         'database': 'Database',
         'redis': 'Redis',
@@ -51,6 +51,7 @@
         'scheduler': 'Scheduler',
         'app': 'App',
         'budget': 'Budget / Billing',
+        'billing': 'Stripe',
         'health_check': 'Health Check'
     } %}
     {% set group_icons = {

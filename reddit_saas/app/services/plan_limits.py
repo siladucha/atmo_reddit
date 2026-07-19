@@ -142,10 +142,10 @@ def get_plan_limits_for_client(db: Session, client_id: UUID) -> dict[str, int] |
 # ---------------------------------------------------------------------------
 
 def check_subreddit_limit(db: Session, client_id: UUID) -> tuple[bool, str, int, int]:
-    """Check if client can add another subreddit.
+    """Check if client can add another professional subreddit.
 
-    Counts only active professional assignments (hobby subs on avatar
-    don't count against plan limit).
+    Counts only active PROFESSIONAL assignments. Hobby subs are unlimited
+    and don't count against the plan limit.
     """
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
@@ -158,12 +158,13 @@ def check_subreddit_limit(db: Session, client_id: UUID) -> tuple[bool, str, int,
         .filter(
             ClientSubredditAssignment.client_id == client_id,
             ClientSubredditAssignment.is_active == True,
+            ClientSubredditAssignment.type == "professional",
         )
         .scalar() or 0
     )
 
     if current >= limit:
-        msg = f"Subreddit limit reached ({current}/{limit}). Upgrade plan to add more."
+        msg = f"Professional subreddit limit reached ({current}/{limit}). Upgrade plan to add more."
         logger.warning("PLAN_LIMIT | subreddits | client=%s | %d/%d", client_id, current, limit)
         return False, msg, current, limit
 
@@ -267,12 +268,13 @@ def get_usage_summary(db: Session, client_id: UUID) -> dict[str, dict[str, int]]
     if not client:
         return None
 
-    # Subreddits
+    # Subreddits (only professional count against limit)
     sub_count = (
         db.query(func.count(ClientSubredditAssignment.id))
         .filter(
             ClientSubredditAssignment.client_id == client_id,
             ClientSubredditAssignment.is_active == True,
+            ClientSubredditAssignment.type == "professional",
         )
         .scalar() or 0
     )

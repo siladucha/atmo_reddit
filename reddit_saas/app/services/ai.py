@@ -515,6 +515,9 @@ def call_llm(
     # Build ordered list of models to try: [primary, ...fallbacks, generation_model]
     models_to_try = [model] + _get_fallback_chain(model)
 
+    # Track the originally requested model for quality monitoring
+    _original_requested_model = model
+
     for attempt_model in models_to_try:
         try:
             kwargs["model"] = attempt_model
@@ -625,6 +628,9 @@ def call_llm(
         "cost_usd": cost_usd,
         "duration_ms": duration_ms,
         "model": model,
+        "requested_model": _original_requested_model,
+        "fallback_used": model != _original_requested_model,
+        "quality_outcome": "fallback_used" if model != _original_requested_model else "success",
     }
 
 
@@ -667,12 +673,31 @@ def call_llm_json(
     content = result["content"]
 
     # Guard: LLM returned None or empty string (safety filter, rate limit, etc.)
+    # Retry with fallback model before giving up — Gemini sometimes returns empty
+    # content with output_tokens > 0 (safety filter, structured output parse issue).
     if not content or not content.strip():
-        raise ValueError(
-            f"LLM returned empty response (model={result.get('model', 'unknown')}, "
-            f"input_tokens={result.get('input_tokens', '?')}, "
-            f"output_tokens={result.get('output_tokens', '?')})"
-        )
+        retry_model = _get_json_retry_model(result.get("model", model or ""))
+        if retry_model:
+            logger.warning(
+                "LLM_JSON_EMPTY_RESPONSE | model=%s | output_tokens=%s | retrying with %s",
+                result.get("model"), result.get("output_tokens", "?"), retry_model,
+            )
+            result = call_llm(
+                messages=messages,
+                model=retry_model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_format={"type": "json_object"},
+            )
+            content = result["content"]
+
+        if not content or not content.strip():
+            result["quality_outcome"] = "empty"
+            raise ValueError(
+                f"LLM returned empty response (model={result.get('model', 'unknown')}, "
+                f"input_tokens={result.get('input_tokens', '?')}, "
+                f"output_tokens={result.get('output_tokens', '?')})"
+            )
 
     # Attempt to parse JSON from the response
     data = _extract_json(content)
@@ -697,6 +722,7 @@ def call_llm_json(
                 data = _extract_json(content)
 
     if data is None:
+        result["quality_outcome"] = "parse_error"
         raise ValueError(
             f"LLM returned non-JSON response after retry "
             f"(model={result.get('model', 'unknown')}, "
@@ -709,6 +735,7 @@ def call_llm_json(
         data = validated.model_dump()
 
     result["data"] = data
+    result["quality_outcome"] = "success"
     return result
 
 
@@ -990,6 +1017,9 @@ def log_ai_usage(
     thread_id: str | None = None,
     subreddit_name: str | None = None,
     triggered_by: str | None = None,
+    quality_outcome: str | None = None,
+    fallback_model: str | None = None,
+    retry_count: int = 0,
 ) -> None:
     """Log an AI call to the ai_usage_log table.
 
@@ -1002,7 +1032,18 @@ def log_ai_usage(
         thread_id: Thread UUID string (optional, for per-thread cost tracking)
         subreddit_name: Subreddit name (optional, for per-subreddit cost tracking)
         triggered_by: What initiated this call (scheduler, manual, orchestrator, api, test_run)
+        quality_outcome: Quality classification (success/empty/parse_error/timeout/error/fallback_used)
+        fallback_model: If fallback was used, which model ultimately succeeded
+        retry_count: How many retries were needed
     """
+    # Auto-detect quality_outcome if not explicitly provided
+    if quality_outcome is None:
+        quality_outcome = result.get("quality_outcome", "success")
+
+    # Auto-detect fallback_model from result
+    if fallback_model is None and result.get("fallback_used"):
+        fallback_model = result.get("requested_model")
+
     log = AIUsageLog(
         client_id=client_id,
         avatar_id=avatar_id,
@@ -1015,6 +1056,9 @@ def log_ai_usage(
         cost_usd=Decimal(str(result["cost_usd"])),
         duration_ms=result["duration_ms"],
         triggered_by=triggered_by or ai_trigger_context.get(),
+        quality_outcome=quality_outcome,
+        fallback_model=fallback_model,
+        retry_count=retry_count,
     )
     db.add(log)
     db.commit()

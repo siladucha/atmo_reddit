@@ -6,8 +6,8 @@
 {% block content %}
 <div id="portal-content">
     <div style="margin-bottom:var(--space-4);">
-        <h1 class="text-h1">Daily Schedule{{ tooltip("EPG (Electronic Program Guide) — daily publishing plan per avatar. AI picks threads, generates comments, assigns time slots.") }}</h1>
-        <p class="text-small" style="margin-top:4px;">Today: {{ now_date }} · What your avatars are doing today and what happened recently.</p>
+        <h1 class="text-h1">Daily Schedule{{ tooltip("EPG (Electronic Program Guide) — daily publishing plan per voice. AI picks threads, generates comments, assigns time slots.") }}</h1>
+        <p class="text-small" style="margin-top:4px;">Today: {{ now_date }} · What your voices are doing today and what happened recently.</p>
     </div>
 
     <!-- Info + Legend -->
@@ -38,52 +38,7 @@
                 <span style="color:var(--color-muted);">Skipped — rejected during review</span>
             </span>
         </div>
-        <details>
-            <summary style="font-size:var(--text-small);color:var(--color-muted);cursor:pointer;font-weight:500;">ℹ️ How it works</summary>
-            <div style="font-size:var(--text-small);color:var(--color-muted);margin-top:10px;line-height:1.7;padding-left:12px;border-left:2px solid var(--color-border);">
-                <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">What this page shows:</strong> The daily publishing plan for each avatar — what will be posted, where, and when. Like a TV program guide but for your Reddit presence.</p>
-                <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">Daily cycle:</strong></p>
-                <ol style="margin:0 0 10px 16px;padding:0;">
-                    <li style="margin-bottom:4px;"><strong>Morning (08:15):</strong> AI scans fresh Reddit threads, picks the best opportunities, generates comments, assigns time slots.</li>
-                    <li style="margin-bottom:4px;"><strong>Review:</strong> Drafts appear in your Review Queue. Approve, edit, or skip.</li>
-                    <li style="margin-bottom:4px;"><strong>Afternoon (14:15):</strong> If there are unfilled slots, AI finds additional opportunities and tops up the schedule.</li>
-                    <li style="margin-bottom:4px;"><strong>Execution:</strong> Approved comments are posted by avatar owners at the scheduled times (±30 min jitter for naturalness).</li>
-                </ol>
-                <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">Budget per avatar:</strong> Each avatar has a daily comment limit based on phase — Phase 1: 2-3/day, Phase 2: up to 7/day, Phase 3: up to 15/day. This prevents overexposure.</p>
-                <p><strong style="color:var(--color-white);">Buttons:</strong> "Run Pipeline" triggers fresh thread scanning + scoring + generation. "Rebuild EPG" regenerates today's schedule (useful after you approve/skip drafts — fills empty slots with new opportunities).</p>
-            </div>
-        </details>
-    </div>
-
-    <!-- Action Buttons (client_manager + client_admin) -->
-    {% if user_role in ['owner', 'partner', 'client_admin', 'client_manager'] %}
-    <div style="display:flex;gap:12px;margin-bottom:var(--space-4);">
-        <button
-            hx-post="/clients/{{ client_id }}/actions/pipeline"
-            hx-target="#pipeline-status"
-            hx-swap="innerHTML"
-            hx-indicator="#pipeline-spinner"
-            class="btn-outline"
-            style="font-size:var(--text-small);padding:8px 16px;"
-        >
-            <span id="pipeline-spinner" class="htmx-indicator" style="margin-right:6px;">⏳</span>
-            Run Pipeline{{ tooltip("Score new threads + generate comment drafts. Takes 5-10 min.") }}
-        </button>
-        <button
-            hx-post="/clients/{{ client_id }}/actions/epg-rebuild"
-            hx-target="#epg-rebuild-status"
-            hx-swap="innerHTML"
-            hx-indicator="#epg-rebuild-spinner"
-            class="btn-outline"
-            style="font-size:var(--text-small);padding:8px 16px;"
-        >
-            <span id="epg-rebuild-spinner" class="htmx-indicator" style="margin-right:6px;">⏳</span>
-            Rebuild EPG{{ tooltip("Regenerate today's schedule. Fills empty slots after approvals/skips.") }}
-        </button>
-        <span id="pipeline-status" style="display:inline-flex;align-items:center;"></span>
-        <span id="epg-rebuild-status" style="display:inline-flex;align-items:center;"></span>
-    </div>
-    {% endif %}
+</div>
 
     <!-- Today's plan per avatar -->
     {% if avatar_epgs %}

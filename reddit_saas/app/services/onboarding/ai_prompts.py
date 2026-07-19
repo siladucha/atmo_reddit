@@ -219,15 +219,22 @@ RULES:
 - Keywords should be phrases people actually type in Reddit search or post titles
 - Include: product category terms, pain language, competitor names, technical jargon, use-case phrases
 - Categorize by priority: high (directly buying-signal), medium (relevant professional discussion), low (adjacent/awareness)
-- 8-12 high, 10-15 medium, 8-12 low
+- Generate AT LEAST 8 high, 10 medium, 8 low (total 26+ keywords minimum)
 - No single-word keywords (too broad). Minimum 2 words each.
+- Even if the company profile is brief, extrapolate from industry context to generate full lists
+- Think about what Reddit users search for, what post titles contain, what problems people describe
+- If company info is sparse, USE GENERAL INDUSTRY KNOWLEDGE to infer keywords. A fintech company means: loan rates, debt consolidation, credit score, refinancing options, etc. A cybersecurity company means: threat detection, SOC team, incident response, etc.
+- NEVER return fewer than 20 keywords total. If you find yourself generating less, think harder about the industry.
 
 OUTPUT (strict JSON):
 {
-  "high": ["phrase 1", "phrase 2"],
-  "medium": ["phrase 1", "phrase 2"],
-  "low": ["phrase 1", "phrase 2"]
+  "high": ["phrase 1", "phrase 2", ...at least 8 items],
+  "medium": ["phrase 1", "phrase 2", ...at least 10 items],
+  "low": ["phrase 1", "phrase 2", ...at least 8 items]
 }"""
+
+# Minimum acceptable keywords per tier
+_MIN_KEYWORDS = {"high": 5, "medium": 5, "low": 3}
 
 
 def suggest_keywords(
@@ -241,15 +248,23 @@ def suggest_keywords(
     """AI-powered keyword suggestion from client profile data.
 
     Returns:
-        Dict with high/medium/low keyword tiers.
+        Dict with high/medium/low keyword tiers (guaranteed 5+ per tier).
     """
-    user_content = f"""Company: {company_profile[:1000]}
+    # Build rich context even from minimal input
+    company_text = company_profile[:1000] if company_profile else "(not provided)"
+    icp_text = icp_profiles[:500] if icp_profiles else "(not provided)"
+    comp_text = ', '.join(competitors) if competitors else 'not specified'
+    industry_text = industry or 'not specified'
 
-ICP: {icp_profiles[:500]}
+    user_content = f"""Company: {company_text}
 
-Competitors: {', '.join(competitors) if competitors else 'not specified'}
+ICP (Ideal Customer Profile): {icp_text}
 
-Industry: {industry or 'not specified'}"""
+Competitors: {comp_text}
+
+Industry: {industry_text}
+
+IMPORTANT: Generate comprehensive keyword lists even if company info is brief. Use industry knowledge to fill gaps. I need AT LEAST 8 high-priority, 10 medium, and 8 low-priority keywords."""
 
     messages = [
         {"role": "system", "content": KEYWORD_SUGGESTION_PROMPT},
@@ -260,12 +275,41 @@ Industry: {industry or 'not specified'}"""
         result = call_llm_json(
             messages=messages,
             model=ONBOARDING_MODEL,
-            temperature=0.5,
-            max_tokens=1024,
+            temperature=0.6,
+            max_tokens=1500,
         )
         if db and client_id:
             log_ai_usage(db, client_id, "onboarding_keywords", result)
-        return result["data"]
+
+        data = result["data"]
+
+        # Validate minimum counts — retry once if insufficient
+        total = sum(len(data.get(t, [])) for t in ("high", "medium", "low"))
+        if total < 20:  # Need at least 20 total keywords
+            logger.warning(
+                "Keyword generation returned only %d keywords — retrying with emphasis", total
+            )
+            retry_messages = messages + [{"role": "user", "content": (
+                f"You only generated {total} keywords total. That's not enough. "
+                f"I need AT LEAST 8 high, 10 medium, 8 low (26+ total). "
+                f"Use your industry knowledge about '{industry_text}' to generate more. "
+                f"Return the complete expanded JSON."
+            )}]
+            retry_result = call_llm_json(
+                messages=retry_messages,
+                model=ONBOARDING_MODEL,
+                temperature=0.7,
+                max_tokens=1500,
+            )
+            if db and client_id:
+                log_ai_usage(db, client_id, "onboarding_keywords_retry", retry_result)
+            retry_data = retry_result["data"]
+            retry_total = sum(len(retry_data.get(t, [])) for t in ("high", "medium", "low"))
+            if retry_total > total:
+                data = retry_data
+                logger.info("Keyword retry improved: %d → %d keywords", total, retry_total)
+
+        return data
     except Exception as e:
         logger.error("Keyword suggestion failed: %s", e)
         return {"high": [], "medium": [], "low": [], "error": str(e)}

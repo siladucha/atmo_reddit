@@ -27,8 +27,7 @@
             </a>
         </div>
     </div>
-
-    {% if not tasks %}
+{% if not tasks %}
     <div style="text-align:center;padding:var(--space-6) 0;color:var(--color-muted);">
         <p style="font-size:var(--text-body);">No execution tasks yet.</p>
         <p style="font-size:var(--text-small);margin-top:8px;">Tasks appear here when your avatars have approved comments scheduled for posting.</p>
@@ -39,7 +38,7 @@
             <thead style="background:var(--color-surface-alt);">
                 <tr style="color:var(--color-muted);text-transform:uppercase;font-size:var(--text-micro);letter-spacing:0.05em;">
                     <th style="padding:12px 16px;text-align:left;">Task</th>
-                    <th style="padding:12px 16px;text-align:left;">Avatar</th>
+                    <th style="padding:12px 16px;text-align:left;">Voice</th>
                     <th style="padding:12px 16px;text-align:left;">Subreddit</th>
                     <th style="padding:12px 16px;text-align:left;">Status</th>
                     <th style="padding:12px 16px;text-align:left;">Scheduled</th>

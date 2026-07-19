@@ -8,24 +8,7 @@
         <h1 class="text-h1">Activity Log</h1>
         <p class="text-small" style="margin-top:4px;">Who did what and when. Last 30 days of actions on your account.</p>
     </div>
-
-    <!-- How it works -->
-    <details style="margin-bottom:var(--space-4);">
-        <summary style="font-size:var(--text-small);color:var(--color-muted);cursor:pointer;font-weight:500;">ℹ️ How it works</summary>
-        <div style="font-size:var(--text-small);color:var(--color-muted);margin-top:10px;line-height:1.7;padding-left:12px;border-left:2px solid var(--color-border);">
-            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">What this page shows:</strong> A chronological audit trail of all actions taken on your account — by you, your team members, and automated systems.</p>
-            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">Actions tracked:</strong></p>
-            <ul style="margin:0 0 10px 16px;padding:0;list-style:disc;">
-                <li style="margin-bottom:4px;">Draft approvals, edits, and rejections (who approved what)</li>
-                <li style="margin-bottom:4px;">Pipeline triggers and EPG rebuilds</li>
-                <li style="margin-bottom:4px;">Settings changes (keywords, guardrails, voice feedback)</li>
-                <li style="margin-bottom:4px;">Avatar management actions</li>
-            </ul>
-            <p><strong style="color:var(--color-white);">Who can do what:</strong> Actions are role-based. Managers can approve/edit. Viewers can only see. Admin actions show "via system" when performed automatically.</p>
-        </div>
-    </details>
-
-    {% if activity_items %}
+{% if activity_items %}
     <div style="display:flex;flex-direction:column;gap:4px;">
         {% for item in activity_items %}
         <div class="surface" style="padding:12px var(--space-3);display:flex;align-items:center;gap:12px;">

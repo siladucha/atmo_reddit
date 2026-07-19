@@ -173,6 +173,23 @@ def _get_sidebar_context(client_id: UUID, db: Session) -> dict:
         .scalar()
     ) or 0
 
+    # Onboarding progress (for sidebar progress bar)
+    onboarding_step = client.current_onboarding_step if client else 0
+    onboarding_completed = client.onboarding_completed_at is not None if client else False
+    if onboarding_completed:
+        onboarding_pct = 100
+    else:
+        # Steps: 1=company, 2=ICP, 3=voice, 4=subreddits, 5=calibration, 6=done
+        # Map step number to percentage (each step = 20%, step 6 = 100%)
+        onboarding_pct = min(100, max(0, (onboarding_step - 1) * 20)) if onboarding_step > 0 else 0
+    onboarding_steps = {
+        "company": onboarding_step >= 2,
+        "icp": onboarding_step >= 3,
+        "voice": onboarding_step >= 4,
+        "subreddits": onboarding_step >= 5,
+        "calibration": onboarding_step >= 6 or onboarding_completed,
+    }
+
     return {
         "client_id": str(client_id),
         "client_name": client_name,
@@ -183,6 +200,8 @@ def _get_sidebar_context(client_id: UUID, db: Session) -> dict:
         "plan_name": plan_display,
         "action_limit": action_limit,
         "month_generated": month_generated,
+        "onboarding_pct": onboarding_pct,
+        "onboarding_steps": onboarding_steps,
     }
 
 
@@ -523,13 +542,24 @@ def portal_avatars(
         UserRole.client_admin, UserRole.client_manager,
     )
 
+    # Voice limit from plan (for upsell logic)
+    client_obj = db.query(Client).filter(Client.id == client_id).first()
+    PLAN_VOICE_LIMITS = {"trial": 1, "seed": 1, "starter": 3, "growth": 7, "scale": 15}
+    voice_limit = PLAN_VOICE_LIMITS.get(client_obj.plan_type, 3) if client_obj else 3
+    at_voice_limit = len(avatars) >= voice_limit
+
     return _portal_render(
         request,
         "client/avatars.html",
         client_id,
         db,
         active_page="avatars",
-        extra_context={"avatars": avatars, "can_onboard": can_onboard},
+        extra_context={
+            "avatars": avatars,
+            "can_onboard": can_onboard,
+            "at_voice_limit": at_voice_limit,
+            "voice_limit": voice_limit,
+        },
     )
 
 
@@ -995,6 +1025,84 @@ def portal_settings(
             "current_subreddit_count": current_subreddit_count,
             "can_edit": can_edit,
         },
+    )
+
+
+# --- Settings: Telegram Connect/Disconnect (client-facing) ---
+
+
+@router.post("/clients/{client_id}/settings/telegram/connect", response_class=HTMLResponse)
+def portal_telegram_connect(
+    request: Request,
+    client_id: UUID,
+    chat_id: str = Form(...),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Connect Telegram for current user (client_admin, client_manager, owner, partner)."""
+    from datetime import datetime, timezone as tz
+
+    if user.user_role not in (UserRole.client_admin, UserRole.client_manager, UserRole.owner, UserRole.partner):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    chat_id = chat_id.strip()
+    if not chat_id or not chat_id.lstrip("-").isdigit():
+        return HTMLResponse(
+            '<span style="color:var(--color-red);font-size:var(--text-small);">Invalid Chat ID. Must be a number. Start the bot and use /start to get it.</span>'
+        )
+
+    user.telegram_chat_id = chat_id
+    user.telegram_connected_at = datetime.now(tz.utc)
+    if not user.telegram_notifications_level:
+        user.telegram_notifications_level = "all"
+    db.commit()
+
+    # Send confirmation via bot (non-blocking)
+    try:
+        from app.services.telegram.bot_service import get_bot_service
+        import asyncio
+
+        bot = get_bot_service()
+        if bot:
+            confirm_msg = (
+                f"✅ <b>Connected!</b>\n\n"
+                f"Account: {user.email}\n"
+                f"You'll receive draft review notifications here.\n\n"
+                f"Use /help for commands."
+            )
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.ensure_future(bot.send_message(chat_id, confirm_msg))
+                else:
+                    loop.run_until_complete(bot.send_message(chat_id, confirm_msg))
+            except RuntimeError:
+                asyncio.run(bot.send_message(chat_id, confirm_msg))
+    except Exception:
+        pass
+
+    return HTMLResponse(
+        '<span style="color:var(--color-green);font-size:var(--text-small);">✅ Telegram connected! Check your bot for confirmation.</span>'
+    )
+
+
+@router.post("/clients/{client_id}/settings/telegram/disconnect", response_class=HTMLResponse)
+def portal_telegram_disconnect(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Disconnect Telegram for current user."""
+    if user.user_role not in (UserRole.client_admin, UserRole.client_manager, UserRole.owner, UserRole.partner):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    user.telegram_chat_id = None
+    user.telegram_connected_at = None
+    db.commit()
+
+    return HTMLResponse(
+        '<span style="color:var(--color-muted);font-size:var(--text-small);">Disconnected. You won\'t receive Telegram notifications.</span>'
     )
 
 
@@ -2821,6 +2929,14 @@ def portal_approve_draft(
         draft.status = "approved"
         db.commit()
 
+        # Sync EPG slot status + create ExecutionTask (so extension/email picks it up)
+        try:
+            from app.services.epg_executor import sync_slot_status
+            sync_slot_status(db, draft.id, "approved")
+            db.commit()
+        except Exception:
+            pass
+
         # Audit log (best-effort)
         try:
             from app.services.audit import log_action
@@ -2879,6 +2995,14 @@ def portal_skip_draft(
 
         draft.status = "rejected"
         db.commit()
+
+        # Sync EPG slot status (frees budget slot)
+        try:
+            from app.services.epg_executor import sync_slot_status
+            sync_slot_status(db, draft.id, "rejected")
+            db.commit()
+        except Exception:
+            pass
 
         # Audit log (best-effort)
         try:
@@ -2954,6 +3078,14 @@ def portal_mark_posted(
             draft.reddit_comment_url = reddit_url.strip()
 
         db.commit()
+
+        # Sync EPG slot status
+        try:
+            from app.services.epg_executor import sync_slot_status
+            sync_slot_status(db, draft.id, "posted")
+            db.commit()
+        except Exception:
+            pass
 
         # Audit log (best-effort, never blocks response)
         try:
@@ -3034,6 +3166,14 @@ def portal_edit_draft(
 
     draft.status = "approved"
     db.commit()
+
+    # Sync EPG slot status + create ExecutionTask (so extension/email picks it up)
+    try:
+        from app.services.epg_executor import sync_slot_status
+        sync_slot_status(db, draft.id, "approved")
+        db.commit()
+    except Exception:
+        pass
 
     # Capture edit for learning loop (trains AI to write better)
     try:
@@ -3990,6 +4130,11 @@ def portal_billing(
             "limits": plan_limits.get(p, {}),
         })
 
+    # Check if Stripe billing is configured and enabled
+    from app.services.settings import get_setting
+    stripe_key = get_setting(db, "stripe_secret_key") or ""
+    billing_active = bool(stripe_key)
+
     return _portal_render(
         request,
         "client/billing.html",
@@ -4005,5 +4150,6 @@ def portal_billing(
             "trial_days_remaining": trial_days_remaining,
             "upgrades": upgrades,
             "days_active": days_active,
+            "billing_active": billing_active,
         },
     )

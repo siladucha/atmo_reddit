@@ -55,10 +55,15 @@ def generate_epg_slot(db: Session, slot_id: uuid.UUID) -> CommentDraft | None:
         _skip_slot(db, slot, f"avatar_health: {avatar.health_status}")
         return None
 
+    # Subreddit intelligence freshness gate — warn if stale but don't block
+    _check_subreddit_freshness(db, slot)
+
     if slot.slot_type == "hobby":
         return _generate_hobby_slot(db, slot, avatar)
     elif slot.slot_type == "professional":
         return _generate_professional_slot(db, slot, avatar)
+    elif slot.slot_type == "post":
+        return _generate_post_slot(db, slot, avatar)
     else:
         _skip_slot(db, slot, f"unknown_slot_type: {slot.slot_type}")
         return None
@@ -67,7 +72,7 @@ def generate_epg_slot(db: Session, slot_id: uuid.UUID) -> CommentDraft | None:
 def _generate_hobby_slot(db: Session, slot: EPGSlot, avatar: Avatar) -> CommentDraft | None:
     """Generate a hobby comment for an EPG slot."""
     from app.config import get_config
-    from app.services.ai import call_llm_json, log_ai_usage
+    from app.services.ai import call_llm, log_ai_usage
 
     # Find the hobby post
     hobby_post = db.query(HobbySubreddit).filter(HobbySubreddit.id == slot.hobby_post_id).first()
@@ -113,46 +118,54 @@ def _generate_hobby_slot(db: Session, slot: EPGSlot, avatar: Avatar) -> CommentD
         if prev_comments:
             prev_section = "\n".join(f"- {c[:100]}" for c in prev_comments[:5])
 
-        system_prompt = f"""# Hobby & Karma Comment Writer
+        system_prompt = f"""# Reddit Comment — Hobby Subreddit
 
-**Purpose:** Generate a short, engaging Reddit comment in a hobby subreddit. The single goal is karma: be the comment people upvote, reply to, and remember. You're a regular person participating in a community you enjoy.
+You ARE this person. Not an assistant. Not a coach. Not a content creator. A regular person on Reddit with opinions, blind spots, and a phone.
 
-## Voice Profile
+## Who you are
 {voice[:500]}
 
-## Rules (NON-NEGOTIABLE)
+## The single rule
+Write what THIS person would actually type. Not what's helpful. Not what's insightful. What they'd type on the toilet, on the bus, between meetings.
 
-1. **5-60 words** (hard max 80). If over 80, rewrite with a shorter idea.
-2. **Sound like a person typing on their phone.** Not a content creator, not AI.
-3. **One paragraph only.** No formatting, no bullets, no bold, no signatures.
-4. **Connect to specific details** in the post. Generic comments that work on any thread = fail.
-5. **No em-dashes (—).** Use commas, parentheses, or split the sentence.
-6. **No brand/product mentions.** Zero tolerance.
-7. **No "Th" sentence starters** (The, This, That, There, They). Rephrase.
-8. **No gerund openers** (Trying, Looking, Getting). Anchor to a subject.
-9. **Vary openers.** Don't start with "I [verb]..." every time.
-10. **NEVER use filler closers** like "Respect for the analysis", "Great post", "Thanks for sharing". These are bot signatures.
-11. **NEVER repeat a phrase** you used in a previous comment.
+## What real Reddit comments look like
+- "honestly I tried this for 2 weeks and nothing happened"
+- "wait does this actually work or is it placebo"
+- "my physio said the exact opposite lol"
+- "had the same issue. ended up just doing X instead"
+- "this is wild, I've never seen anyone mention Y before"
+- "genuinely curious — how long did it take you?"
 
-## Engagement Angles (pick ONE)
+## What you MUST NOT do (these are bot signatures)
+- Start with praise ("Love that", "Such a smart", "Great point", "Interesting")
+- Start with agreement ("Totally agree", "This resonates", "So true")
+- Use therapeutic language ("I appreciate you sharing", "Valid point")
+- Lecture or explain things nobody asked about
+- Offer unsolicited advice framed as questions ("Have you considered...")
+- Use hedging qualifiers ("Worth looking into", "You might want to")
+- Make vague medical/scientific claims without sources
+- Sound supportive when nobody asked for support
+- Use em-dashes (—)
 
-- **sharp_take** — opinionated observation nobody mentioned
-- **yeah_and** — relatable agreement with a twist
-- **useful_drop** — helpful tip delivered casually
-- **micro_story** — ultra-short personal anecdote (specific moment, not narrative)
-- **reality_check** — casual pushback on something off
-- **question** — genuine question that sparks discussion
+## What you CAN do
+- Disagree casually ("idk man, that hasn't been my experience")
+- Ask a genuine question because you're curious
+- Share ONE specific detail from your life (date, place, number, brand)
+- Make a joke or sarcastic observation
+- Say something short and opinionated
+- Admit you don't know something
+- Ignore part of the post and respond to one detail that caught your eye
 
-## Tone
+## Structure
+- 1 paragraph. 5-60 words (HARD max 80).
+- No formatting. No bullets. No signatures.
+- Vary sentence structure. Don't always start with "I".
+- End naturally — no wrap-up, no closing thought, no encouragement.
 
-Match the thread energy. Be casual, specific, concise, genuine. Never be a guru, teacher, or marketer. You're a casual participant, not an authority.
-
-## Previous Comments (DO NOT repeat patterns or phrases from these):
+## Previous comments (NEVER repeat these patterns):
 {prev_section if prev_section else "(none yet)"}
 
-## Output
-
-Respond with a JSON object: {{"comment": "your comment text here"}}"""
+## OUTPUT: Just the comment text. Nothing else."""
 
         user_prompt = f"""Subreddit: r/{hobby_post.subreddit}
 Post title: {hobby_post.post_title}
@@ -160,10 +173,20 @@ Post body: {(hobby_post.post_body or '')[:500]}
 Upvotes: {hobby_post.post_ups or 0}
 {('Top comments: ' + hobby_post.comments[:1500]) if hobby_post.comments else ''}"""
 
-        gen_model = get_config("llm_scoring_model") or get_config("llm_generation_model")
+        # --- Inject daily vibe context if available ---
+        try:
+            from app.services.subreddit_vibe import get_vibe_context_for_prompt
+            vibe_ctx = get_vibe_context_for_prompt(db, hobby_post.subreddit)
+            if vibe_ctx:
+                system_prompt = system_prompt + "\n" + vibe_ctx
+        except Exception:
+            pass  # Non-blocking: generate without vibe if unavailable
 
-        # call_llm_json handles retries and model fallback internally
-        result = call_llm_json(
+        gen_model = get_config("llm_generation_model")
+
+        # Plain text call (no JSON parsing needed — more reliable with Gemini)
+        from app.services.ai import call_llm, log_ai_usage
+        result = call_llm(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -179,8 +202,54 @@ Upvotes: {hobby_post.post_ups or 0}
             subreddit_name=hobby_post.subreddit,
         )
 
-        data = result.get("data", {})
-        comment_text = data.get("comment", result.get("content", ""))
+        comment_text = (result.get("content") or "").strip()
+
+        # Strip common LLM wrapper artifacts
+        # Remove JSON wrapper if model still returned it
+        if comment_text.startswith('{"comment"'):
+            import json as _json
+            try:
+                comment_text = _json.loads(comment_text).get("comment", comment_text)
+            except Exception:
+                pass
+        # Remove quotes wrapping
+        if comment_text.startswith('"') and comment_text.endswith('"'):
+            comment_text = comment_text[1:-1]
+        # Remove "Comment:" prefix
+        for prefix in ("Comment:", "comment:", "Reply:", "reply:"):
+            if comment_text.startswith(prefix):
+                comment_text = comment_text[len(prefix):].strip()
+
+        # Sentence completeness check — retry if truncated (no .?! ending)
+        if comment_text and len(comment_text) > 20:
+            last_char = comment_text.rstrip()[-1] if comment_text.rstrip() else ""
+            if last_char not in ".?!):;\"'":
+                # Likely truncated — one retry with same prompt
+                retry_result = call_llm(
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    model=gen_model,
+                    temperature=0.9,
+                    max_tokens=300,
+                )
+                retry_text = (retry_result.get("content") or "").strip()
+                if retry_text.startswith('"') and retry_text.endswith('"'):
+                    retry_text = retry_text[1:-1]
+                for prefix in ("Comment:", "comment:", "Reply:", "reply:"):
+                    if retry_text.startswith(prefix):
+                        retry_text = retry_text[len(prefix):].strip()
+                # Use retry if it's complete, otherwise keep original
+                if retry_text and len(retry_text) > len(comment_text) * 0.5:
+                    retry_last = retry_text.rstrip()[-1] if retry_text.rstrip() else ""
+                    if retry_last in ".?!):;\"'":
+                        comment_text = retry_text
+                        log_ai_usage(
+                            db, None, "hobby_comment_epg", retry_result,
+                            avatar_id=str(avatar.id),
+                            subreddit_name=hobby_post.subreddit,
+                        )
 
         # --- Quality gate: reject garbage before it reaches review queue ---
         from app.services.draft_quality_gate import validate_draft_text
@@ -422,6 +491,110 @@ def _generate_professional_slot(db: Session, slot: EPGSlot, avatar: Avatar) -> C
         return None
 
 
+def _generate_post_slot(db: Session, slot: EPGSlot, avatar: Avatar):
+    """Generate a Reddit post for an EPG slot using the post_generation pipeline.
+
+    Flow: topic → brief → write → PostDraft created.
+    Returns the PostDraft (for slot tracking) or None on failure.
+    """
+    from app.services.post_generation import generate_post_topic, generate_post_brief, generate_post
+
+    # Get client
+    client = db.query(Client).filter(Client.id == slot.client_id).first()
+    if not client:
+        _skip_slot(db, slot, "client_not_found")
+        return None
+
+    # Phase gate: posts only for Phase 2+
+    if avatar.warming_phase < 2:
+        _skip_slot(db, slot, f"post_phase_gate: phase={avatar.warming_phase}")
+        return None
+
+    subreddit = slot.subreddit
+    if not subreddit:
+        _skip_slot(db, slot, "no_subreddit_for_post")
+        return None
+
+    try:
+        # Get previous posts for diversity
+        from app.models.post_draft import PostDraft as PostDraftModel
+        previous = (
+            db.query(PostDraftModel.ai_title)
+            .filter(
+                PostDraftModel.avatar_id == avatar.id,
+                PostDraftModel.ai_title.isnot(None),
+            )
+            .order_by(PostDraftModel.created_at.desc())
+            .limit(5)
+            .all()
+        )
+        prev_posts = [p[0] for p in previous if p[0]]
+
+        # Stage 1: Generate topic direction
+        topic = generate_post_topic(db, client, avatar, subreddit, prev_posts)
+        if not topic:
+            _skip_slot(db, slot, "post_topic_empty")
+            return None
+
+        # Stage 2: Generate strategic brief
+        brief = generate_post_brief(db, client, avatar, subreddit, topic)
+        if not brief:
+            _skip_slot(db, slot, "post_brief_empty")
+            return None
+
+        # Stage 3: Generate the post
+        post_draft = generate_post(db, client, avatar, subreddit, brief, prev_posts)
+        if not post_draft:
+            _skip_slot(db, slot, "post_generation_failed")
+            return None
+
+        # Update slot — link to post_draft (we store PostDraft.id in skip_reason for tracking since
+        # draft_id FK points to CommentDraft, not PostDraft)
+        slot.generated_at = datetime.now(timezone.utc)
+        slot.skip_reason = None  # Clear any previous skip
+        # Store post_draft reference in selection_reasoning JSONB
+        slot.selection_reasoning = slot.selection_reasoning or {}
+        slot.selection_reasoning["post_draft_id"] = str(post_draft.id)
+        slot.selection_reasoning["post_title"] = post_draft.ai_title[:100] if post_draft.ai_title else ""
+
+        # Auto-approve if configured
+        if _should_auto_approve(db, slot.client_id, slot.avatar_id):
+            _plan_ok = True
+            if slot.client_id:
+                from app.services.plan_enforcement import check_approval_allowed_for_client
+                _plan_ok, _ = check_approval_allowed_for_client(db, slot.client_id)
+            if _plan_ok:
+                slot.status = "approved"
+                post_draft.status = "approved"
+                logger.info(
+                    "EPG post slot AUTO-APPROVED: avatar=%s sub=r/%s slot=%s",
+                    avatar.reddit_username, subreddit, slot.id,
+                )
+            else:
+                slot.status = "generated"
+        else:
+            slot.status = "generated"
+            _notify_drafts_pending(db, slot.client_id, avatar, subreddit)
+
+        db.commit()
+
+        _log_slot_generated(db, slot, avatar, subreddit)
+
+        logger.info(
+            "EPG post slot generated: avatar=%s sub=r/%s title='%s' slot=%s",
+            avatar.reddit_username, subreddit,
+            (post_draft.ai_title or "")[:50], slot.id,
+        )
+        return post_draft
+
+    except Exception as e:
+        import traceback
+        logger.error(f"EPG post generation failed: {e}\n{traceback.format_exc()}")
+        _skip_slot(db, slot, f"post_error: {str(e)[:100]}")
+        _notify_generation_failure(avatar, subreddit, str(e))
+        return None
+
+
 def generate_all_planned_slots(
     db: Session,
     avatar_id: uuid.UUID,
@@ -429,10 +602,51 @@ def generate_all_planned_slots(
 ) -> int:
     """Generate comments for all planned slots of an avatar for a given day.
 
+    SAFETY: Enforces absolute daily budget cap. If the avatar already has
+    generated/approved/posted slots >= budget, refuses to generate more.
+    This prevents over-generation from multiple EPG paths (morning build,
+    ensure_minimum, topup, manual triggers) accumulating beyond the limit.
+
     Returns count of successfully generated slots.
     """
     if plan_date is None:
         plan_date = date.today()
+
+    # --- BUDGET SAFETY GATE ---
+    # Hard cap: never generate more than budget allows in a single day,
+    # regardless of how many "planned" slots exist.
+    from app.services.portfolio_manager import AttentionBudget
+    from app.models.avatar import Avatar
+
+    avatar = db.query(Avatar).filter(Avatar.id == avatar_id).first()
+    if not avatar:
+        logger.warning("generate_all_planned_slots: avatar %s not found", avatar_id)
+        return 0
+
+    budget = AttentionBudget.from_avatar(avatar)
+    already_used = get_budget_used_today(db, avatar_id, plan_date)
+
+    if already_used >= budget.max_total_actions:
+        logger.info(
+            "generate_all_planned_slots BLOCKED by budget cap: avatar=%s "
+            "used=%d >= budget=%d. Skipping generation.",
+            avatar.reddit_username, already_used, budget.max_total_actions,
+        )
+        return 0
+
+    remaining_budget = budget.max_total_actions - already_used
+
+    # --- Pre-compute daily vibe for all subreddits in today's EPG ---
+    try:
+        from app.services.subreddit_vibe import compute_vibe_for_epg_subreddits
+        vibes = compute_vibe_for_epg_subreddits(db, avatar_id, plan_date)
+        if vibes:
+            logger.info(
+                "EPG vibe pre-computed for %d subreddits (avatar=%s)",
+                len(vibes), avatar_id,
+            )
+    except Exception as e:
+        logger.warning("EPG vibe pre-compute failed (non-blocking): %s", str(e)[:100])
 
     slots = (
         db.query(EPGSlot)
@@ -442,18 +656,32 @@ def generate_all_planned_slots(
             EPGSlot.status == "planned",
         )
         .order_by(EPGSlot.scheduled_at.asc().nullslast())
+        .limit(remaining_budget)  # Never process more than remaining budget
         .all()
     )
 
     generated = 0
     for slot in slots:
+        # Re-check budget before each generation (another path may have
+        # generated in parallel between iterations)
+        current_used = get_budget_used_today(db, avatar_id, plan_date)
+        if current_used >= budget.max_total_actions:
+            logger.info(
+                "generate_all_planned_slots: budget exhausted mid-loop "
+                "avatar=%s used=%d/%d after %d generated",
+                avatar.reddit_username, current_used,
+                budget.max_total_actions, generated,
+            )
+            break
+
         result = generate_epg_slot(db, slot.id)
         if result:
             generated += 1
 
     logger.info(
-        "generate_all_planned_slots: avatar=%s date=%s generated=%d/%d",
-        avatar_id, plan_date, generated, len(slots),
+        "generate_all_planned_slots: avatar=%s date=%s generated=%d/%d (budget=%d, used=%d)",
+        avatar.reddit_username, plan_date, generated, len(slots),
+        budget.max_total_actions, already_used + generated,
     )
     return generated
 
@@ -636,6 +864,72 @@ def _notify_generation_failure(avatar: Avatar, subreddit: str, error_msg: str) -
             )
     except Exception:
         pass  # Non-critical — never break pipeline
+
+
+def _check_subreddit_freshness(db: Session, slot: EPGSlot) -> None:
+    """Check if subreddit has fresh emotional profile + risk profile.
+
+    Emits activity event if stale. Does NOT block generation (fail-open).
+    This is observability — the daily intelligence task handles actual refresh.
+    """
+    from datetime import timedelta
+    from app.models.subreddit import Subreddit
+    from app.models.subreddit_risk_profile import SubredditRiskProfile
+
+    subreddit_name = slot.subreddit
+    if not subreddit_name:
+        return
+
+    now = datetime.now(timezone.utc)
+    stale_threshold = now - timedelta(days=7)
+
+    try:
+        sub = (
+            db.query(Subreddit)
+            .filter(Subreddit.subreddit_name.ilike(subreddit_name))
+            .first()
+        )
+        if not sub:
+            return
+
+        issues = []
+
+        # Check emotional profile freshness
+        if sub.emotional_profile_analyzed_at is None:
+            issues.append("emotional_never_analyzed")
+        elif sub.emotional_profile_analyzed_at < stale_threshold:
+            days_stale = (now - sub.emotional_profile_analyzed_at).days
+            issues.append(f"emotional_stale_{days_stale}d")
+
+        # Check risk profile freshness
+        risk_profile = (
+            db.query(SubredditRiskProfile)
+            .filter(SubredditRiskProfile.subreddit_id == sub.id)
+            .first()
+        )
+        if risk_profile is None:
+            issues.append("risk_profile_missing")
+        elif risk_profile.next_check_at and risk_profile.next_check_at < now:
+            days_overdue = (now - risk_profile.next_check_at).days
+            issues.append(f"risk_overdue_{days_overdue}d")
+
+        if issues:
+            from app.services.transparency import record_activity_event
+            record_activity_event(
+                db=db,
+                event_type="subreddit_intelligence_stale",
+                message=f"Generating for r/{subreddit_name} with stale intelligence: {', '.join(issues)}",
+                metadata={
+                    "subreddit": subreddit_name,
+                    "slot_id": str(slot.id),
+                    "issues": issues,
+                },
+                avatar_id=slot.avatar_id,
+            )
+
+    except Exception as e:
+        # Never block generation on freshness check failure
+        logger.debug("Freshness check failed for r/%s: %s", subreddit_name, str(e)[:100])
 
 
 def _skip_slot(db: Session, slot: EPGSlot, reason: str) -> None:

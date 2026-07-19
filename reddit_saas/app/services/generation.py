@@ -247,9 +247,10 @@ You are a cynical, experienced practitioner. You type fast, don't explain yourse
 and never write essays.
 
 ## Rules (in order of priority)
-1. Be SHORT. 20-60 words. Hard max 80 words. If over 80 — REWRITE with a shorter idea, don't trim.
-2. Be SHARP. Clear point of view, no fence-sitting.
-3. Be STRATEGIC. Plant one seed that changes how the reader thinks.
+1. Be SHORT but COMPLETE. 30-80 words. Hard max 100 words. If over 100 — REWRITE with a shorter idea, don't trim.
+2. Every comment MUST be a complete thought with at least 2 sentences. A fragment or headline is NOT a comment.
+3. Be SHARP. Clear point of view, no fence-sitting.
+4. Be STRATEGIC. Plant one seed that changes how the reader thinks.
 
 ## FORBIDDEN PATTERNS (zero tolerance)
 
@@ -733,6 +734,19 @@ def generate_comment(
 
     if tone_context:
         system_prompt = system_prompt + "\n\n" + tone_context
+
+    # --- Daily Vibe Context: inject current atmosphere ---
+    try:
+        from app.services.subreddit_vibe import get_vibe_context_for_prompt
+        vibe_context = get_vibe_context_for_prompt(db, thread.subreddit)
+        if vibe_context:
+            system_prompt = system_prompt + "\n" + vibe_context
+            logger.info(
+                "Vibe context injected for subreddit r/%s (avatar=%s)",
+                thread.subreddit, avatar.reddit_username,
+            )
+    except Exception:
+        pass  # Non-blocking: generate without vibe if unavailable
 
     # Inject approach diversity constraint (after all other context)
     if approach_constraint:

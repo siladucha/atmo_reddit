@@ -97,6 +97,15 @@ def update_comment(
     db.commit()
     db.refresh(comment)
 
+    # Sync EPG slot status + create ExecutionTask when approved/rejected/posted
+    if data.status in ("approved", "rejected", "posted"):
+        try:
+            from app.services.epg_executor import sync_slot_status
+            sync_slot_status(db, comment.id, data.status)
+            db.commit()
+        except Exception:
+            pass
+
     # Karma tracking — increment per-subreddit comment_count when transitioning
     # to "posted" (Req 2.5). The reddit_score is typically populated later by
     # an external feedback loop; record_comment_score handles None gracefully.

@@ -213,11 +213,40 @@ async function fetchQueueAndRender() {
     localTasks = resp?.tasks || [];
   } catch {}
 
+  // Fetch today_history directly from server (don't rely on stale cache)
   let todayHistory = [];
   try {
-    const stored = await chrome.storage.local.get('ramp_today_history');
-    todayHistory = stored?.ramp_today_history || [];
-  } catch {}
+    const auth = await getAuth();
+    if (auth?.token && auth?.rampUrl && auth?.nodeId) {
+      const resp = await fetch(
+        `${auth.rampUrl}/api/extension/tasks?execution_node_id=${encodeURIComponent(auth.nodeId)}`,
+        { headers: { 'Authorization': `Bearer ${auth.token}` } }
+      );
+      if (resp.ok) {
+        const data = await resp.json();
+        todayHistory = data.today_history || [];
+        console.log('[RAMP] today_history:', todayHistory.length, 'active tasks:', (data.tasks||[]).length);
+        await chrome.storage.local.set({ ramp_today_history: todayHistory });
+        if (data.tasks?.length > 0) {
+          chrome.runtime.sendMessage({ type: 'TASKS_FROM_POPUP', tasks: data.tasks }).catch(() => {});
+        }
+      } else {
+        console.warn('[RAMP] /tasks failed:', resp.status);
+      }
+    } else {
+      console.warn('[RAMP] no auth/nodeId', !!auth?.token, !!auth?.rampUrl, !!auth?.nodeId);
+    }
+  } catch (err) {
+    console.warn('[RAMP] fetch error:', err.message);
+  }
+
+  // Fallback to cached history if direct fetch failed
+  if (todayHistory.length === 0) {
+    try {
+      const stored = await chrome.storage.local.get('ramp_today_history');
+      todayHistory = stored?.ramp_today_history || [];
+    } catch {}
+  }
 
   // Merge: local queue overrides server history for active tasks
   const localMap = new Map(localTasks.map(t => [t.task_id, t]));
@@ -229,20 +258,25 @@ async function fetchQueueAndRender() {
     if (!todayHistory.find(h => h.task_id === t.task_id)) allTasks.push(t);
   }
 
+  // Filter out cancelled/skipped tasks — they should not appear in any category
+  const activeTasks = allTasks.filter(t =>
+    t.status !== 'cancelled' && t.status !== 'skipped'
+  );
+
   // Categorize
-  const pending = allTasks.filter(t =>
+  const pending = activeTasks.filter(t =>
     t.status === 'pending' ||
     (!t.status && t.lifecycle === 'CREATED') ||
     (t.status === 'generated' && !t.has_epg_slot && !t.scheduled_at)
   );
-  const scheduled = allTasks.filter(t =>
+  const scheduled = activeTasks.filter(t =>
     t.status === 'approved' || t.status === 'executing' ||
     (t.status === 'generated' && (t.has_epg_slot || t.scheduled_at))
   );
-  const completed = allTasks.filter(t =>
+  const completed = activeTasks.filter(t =>
     t.status === 'completed' || t.lifecycle === 'REPORTED' || t.lifecycle === 'FINALIZED'
   );
-  const failed = allTasks.filter(t =>
+  const failed = activeTasks.filter(t =>
     (t.status === 'failed' || (t.lifecycle === 'EXPIRED' && t.status !== 'cancelled')) &&
     t.status !== 'completed'
   );
@@ -274,49 +308,32 @@ async function fetchQueueAndRender() {
     failedSection.style.display = 'none';
   }
 
-  // ─── Today Section (stats + scheduled) ───
+  // ─── Today Section — unified timeline (all statuses in one list) ───
   const statDone = document.getElementById('stat-done');
   const statRemaining = document.getElementById('stat-remaining');
   statDone.textContent = `${completed.length} done`;
-  statRemaining.textContent = `${scheduled.length} remaining`;
-  // Show failed count only when > 0
-  const statFailed = document.createElement('span');
-  if (failed.length > 0) {
-    const statsEl = document.getElementById('today-stats');
-    // Remove old failed stat if exists
-    const oldFailed = statsEl.querySelector('.stat--red');
-    if (oldFailed) oldFailed.remove();
-    statFailed.className = 'stat stat--red';
-    statFailed.textContent = `${failed.length} failed`;
-    statsEl.appendChild(statFailed);
-  }
+  statRemaining.textContent = `${scheduled.length + pending.length} left`;
 
-  const scheduledList = document.getElementById('scheduled-list');
+  // Merge all into timeline sorted by scheduled_at
+  const timeline = [...scheduled, ...completed, ...pending].sort((a, b) => {
+    const ta = a.scheduled_at || a.completed_at || '9999';
+    const tb = b.scheduled_at || b.completed_at || '9999';
+    return ta < tb ? -1 : ta > tb ? 1 : 0;
+  });
+
+  const timelineList = document.getElementById('timeline-list');
   const emptyState = document.getElementById('empty-state');
-  if (scheduled.length > 0) {
-    emptyState.style.display = 'none';
-    scheduledList.innerHTML = scheduled.map(renderScheduledCard).join('');
-    bindScheduledActions(scheduledList);
-  } else if (pending.length === 0 && completed.length === 0) {
-    emptyState.style.display = '';
-    emptyState.textContent = 'Nothing scheduled today.';
-    scheduledList.innerHTML = '';
-    scheduledList.appendChild(emptyState);
-  } else {
-    emptyState.style.display = '';
-    emptyState.textContent = 'All tasks approved. Extension will post automatically.';
-    scheduledList.innerHTML = '';
-    scheduledList.appendChild(emptyState);
-  }
 
-  // ─── Done Section (collapsed) ───
-  const doneSection = document.getElementById('done-section');
-  const doneList = document.getElementById('done-list');
-  if (completed.length > 0) {
-    doneSection.style.display = '';
-    doneList.innerHTML = completed.map(renderDoneCard).join('');
+  if (timeline.length > 0) {
+    if (emptyState) emptyState.style.display = 'none';
+    timelineList.innerHTML = timeline.map(renderTimelineCard).join('');
   } else {
-    doneSection.style.display = 'none';
+    if (emptyState) {
+      emptyState.style.display = '';
+      emptyState.textContent = 'Nothing scheduled today.';
+    }
+    timelineList.innerHTML = '';
+    if (emptyState) timelineList.appendChild(emptyState);
   }
 
   // Badge: pending count only
@@ -370,52 +387,57 @@ function renderPendingCard(task) {
   `;
 }
 
-function renderScheduledCard(task) {
+function renderTimelineCard(task) {
   const sub = task.subreddit || '';
   const threadUrl = task.thread_url || '';
-  const threadTitle = truncate(task.thread_title || '', 40);
-  const deadlineStr = task.deadline ? `by ${formatTime(task.deadline)}` : formatTime(task.scheduled_at);
+  const threadTitle = truncate(task.thread_title || '', 50);
+  const text = truncate(task.comment_text || '', 80);
+  const time = formatTime(task.scheduled_at || task.completed_at);
   const typeIcon = task.task_type === 'post' ? '📝' : '💬';
-  const executing = task.status === 'executing' ? '⏳ ' : '';
+
+  // Status badge
+  let statusBadge = '';
+  let cardClass = 'task-card--timeline';
+  if (task.status === 'completed' || task.lifecycle === 'REPORTED' || task.lifecycle === 'FINALIZED') {
+    statusBadge = '<span class="timeline-badge timeline-badge--done">✓ posted</span>';
+    cardClass += ' task-card--timeline-done';
+  } else if (task.status === 'executing') {
+    statusBadge = '<span class="timeline-badge timeline-badge--active">⏳ posting...</span>';
+    cardClass += ' task-card--timeline-active';
+  } else if (task.status === 'approved') {
+    statusBadge = '<span class="timeline-badge timeline-badge--planned">✓ planned</span>';
+  } else if (task.status === 'generated' && (task.has_epg_slot || task.scheduled_at)) {
+    statusBadge = '<span class="timeline-badge timeline-badge--planned">✓ planned</span>';
+  } else if (task.status === 'generated') {
+    statusBadge = '<span class="timeline-badge timeline-badge--waiting">⏱ queued</span>';
+  } else if (task.status === 'pending') {
+    statusBadge = '<span class="timeline-badge timeline-badge--pending">● pending</span>';
+  }
+
+  const permalink = task.permalink
+    ? `<a href="${esc(task.permalink)}" target="_blank" class="timeline-link">view ↗</a>`
+    : '';
+
+  const titleHtml = threadTitle
+    ? (threadUrl
+      ? `<a href="${esc(threadUrl)}" target="_blank" class="task-card__title">${esc(threadTitle)}</a>`
+      : `<span class="task-card__title">${esc(threadTitle)}</span>`)
+    : '';
 
   return `
-    <div class="task-card task-card--scheduled" data-id="${task.task_id}">
+    <div class="task-card ${cardClass}">
       <div class="task-card__row">
+        <span class="timeline-time">${time}</span>
         <div class="task-card__info">
           <div class="task-card__top">
             <span class="task-card__type">${typeIcon}</span>
             <span class="task-card__sub">r/${esc(sub)}</span>
-            <span class="task-card__deadline">${executing}${deadlineStr}</span>
+            ${statusBadge}
           </div>
-          ${threadTitle ? (threadUrl
-            ? `<a href="${esc(threadUrl)}" target="_blank" class="task-card__title">${esc(threadTitle)}</a>`
-            : `<span class="task-card__title">${esc(threadTitle)}</span>`) : ''}
+          ${titleHtml}
+          ${text ? `<div class="task-card__preview">${esc(text)}</div>` : ''}
         </div>
-        <div class="task-card__actions">
-          <button class="btn-sm btn-sm--skip" data-action="cancel-scheduled" data-id="${task.task_id}" title="Cancel">✗</button>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function renderDoneCard(task) {
-  const sub = task.subreddit || '';
-  const time = formatTime(task.completed_at || task.scheduled_at);
-  const link = task.permalink
-    ? `<a href="${esc(task.permalink)}" target="_blank" class="task-card__permalink">view →</a>`
-    : '';
-
-  return `
-    <div class="task-card task-card--done">
-      <div class="task-card__row">
-        <div class="task-card__info">
-          <div class="task-card__top">
-            <span class="task-card__sub">r/${esc(sub)}</span>
-            <span class="task-card__deadline">✓ ${time}</span>
-          </div>
-        </div>
-        ${link}
+        ${permalink}
       </div>
     </div>
   `;
@@ -493,17 +515,6 @@ function bindPendingActions(container) {
       }
     }
     await fetchQueueAndRender();
-  });
-}
-
-function bindScheduledActions(container) {
-  container.addEventListener('click', async (e) => {
-    const btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    if (btn.dataset.action === 'cancel-scheduled') {
-      await chrome.runtime.sendMessage({ type: 'SKIP_TASK', taskId: btn.dataset.id });
-      await fetchQueueAndRender();
-    }
   });
 }
 

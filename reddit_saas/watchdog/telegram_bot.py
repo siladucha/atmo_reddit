@@ -429,6 +429,20 @@ def main():
                 if not chat_id or not text:
                     continue
 
+                # /start is always allowed — returns chat_id for self-service setup
+                if text.strip().startswith("/start"):
+                    logger.info("/start from chat_id=%s", chat_id)
+                    reply = (
+                        f"👋 Welcome! Your Chat ID is: <code>{chat_id}</code>\n\n"
+                        f"Paste this into your RAMP profile (/admin/profile) to receive notifications.\n\n"
+                    )
+                    if is_authorized(chat_id):
+                        reply += cmd_help()
+                    else:
+                        reply += "<i>You are not yet authorized for commands. Ask the admin to add your Chat ID.</i>"
+                    send_message(chat_id, reply)
+                    continue
+
                 if not is_authorized(chat_id):
                     logger.warning("Unauthorized access from chat_id=%s: %s", chat_id, text[:50])
                     send_message(chat_id, "⛔ Unauthorized. Your chat_id is not allowed.")

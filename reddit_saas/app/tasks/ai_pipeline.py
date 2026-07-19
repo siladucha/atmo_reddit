@@ -671,6 +671,35 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
                         )
                     except Exception:
                         db.rollback()
+                    # Notify ops (Telegram) — debounced per avatar per hour
+                    try:
+                        from app.services.ops_notifications import notify_ops
+                        import redis as _redis
+                        from app.config import get_settings
+                        _r = _redis.from_url(get_settings().redis_url)
+                        _dedup_key = f"ramp:gen_error_notify:{avatar.id}"
+                        if not _r.exists(_dedup_key):
+                            _r.setex(_dedup_key, 3600, "1")
+                            error_str = str(e)[:200]
+                            if "credit balance" in error_str.lower():
+                                notify_ops(
+                                    level="critical",
+                                    title="🔴 Generation Failed — Credits Exhausted",
+                                    body=f"u/{avatar.reddit_username} in r/{thread.subreddit}.\n"
+                                         f"Anthropic credits depleted. Pipeline blocked.",
+                                    category="llm_credits",
+                                    link="/admin/ai-costs",
+                                )
+                            else:
+                                notify_ops(
+                                    level="warning",
+                                    title="⚠️ Generation Error (pipeline)",
+                                    body=f"u/{avatar.reddit_username} in r/{thread.subreddit}: {error_str}",
+                                    category="generation_error",
+                                )
+                        _r.close()
+                    except Exception:
+                        pass
                     continue
 
             logger.info(f"Generated {generated} comments for {client.client_name}")
@@ -735,12 +764,23 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
     reset_task_call_counter()  # R-AI-007: reset per-task LLM call counter
     db = SessionLocal()
     try:
-        from app.services.settings import is_pipeline_enabled, is_generation_enabled
+        from app.services.settings import is_pipeline_enabled, is_generation_enabled, get_setting
         if triggered_by != "manual" and not is_pipeline_enabled(db):
             logger.info("generate_hobby_comments: pipeline_enabled=false, skipping")
             return 0
         if triggered_by != "manual" and not is_generation_enabled(db):
             logger.info("generate_hobby_comments: generation_enabled=false, skipping")
+            return 0
+
+        # When EPG 2.0 is enabled, hobby comments are generated via the EPG pipeline
+        # (build_portfolio → generate_all_planned_slots → _generate_hobby_slot).
+        # This legacy task is a PARALLEL path that bypasses EPG budget enforcement.
+        # Skip it to prevent over-generation. Only allow manual triggers for testing.
+        epg2_enabled = get_setting(db, "epg2_enabled") or ""
+        if epg2_enabled.lower() in ("true", "1") and triggered_by != "manual":
+            logger.info(
+                "generate_hobby_comments: epg2_enabled=true, hobby generation handled by EPG pipeline. Skipping legacy path."
+            )
             return 0
 
         from app.models.hobby import HobbySubreddit
@@ -1060,48 +1100,59 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
 
 
 def _build_hobby_system_prompt(avatar, previous_comments: list[str]) -> str:
-    """Build the Ori-style hobby comment system prompt with voice profile."""
+    """Build the hobby comment system prompt — sounds like a real person, not AI."""
     voice_section = ""
     if avatar.voice_profile_md:
-        voice_section = f"\n## Voice Profile\n\n{avatar.voice_profile_md}\n"
+        voice_section = f"\n## Who you are\n{avatar.voice_profile_md[:500]}\n"
 
     prev_section = ""
     if previous_comments:
-        import json as json_mod
-        prev_section = f"\n## Previous Comments (last {len(previous_comments)} — avoid repetition)\n\n{json_mod.dumps(previous_comments, ensure_ascii=False)}\n"
+        prev_lines = "\n".join(f"- {c[:100]}" for c in previous_comments[:8])
+        prev_section = f"\n## Previous comments (NEVER repeat these patterns or phrases):\n{prev_lines}\n"
 
-    return f"""# Hobby & Karma Comment Writer
+    return f"""# Reddit Comment — Hobby Subreddit
 
-**Purpose:** Generate a short, engaging Reddit comment in a hobby subreddit. The single goal is karma: be the comment people upvote, reply to, and remember. You're a regular person participating in a community you enjoy.
+You ARE this person. Not an assistant. Not a coach. Not a content creator. A regular person on Reddit with opinions, blind spots, and a phone.
+{voice_section}
+## The single rule
+Write what THIS person would actually type. Not what's helpful. Not what's insightful. What they'd type casually, between other things.
 
-## Rules (NON-NEGOTIABLE)
+## What real Reddit comments look like
+- "honestly I tried this for 2 weeks and nothing happened"
+- "wait does this actually work or is it placebo"
+- "my physio said the exact opposite lol"
+- "had the same issue. ended up just doing X instead"
+- "genuinely curious — how long did it take you?"
 
-1. **5-60 words** (hard max 80). If over 80, rewrite with a shorter idea.
-2. **Sound like a person typing on their phone.** Not a content creator, not AI.
-3. **One paragraph only.** No formatting, no bullets, no bold, no signatures.
-4. **Connect to specific details** in the post. Generic comments that work on any thread = fail.
-5. **No em-dashes (—).** Use commas, parentheses, or split the sentence.
-6. **No brand/product mentions.** Zero tolerance.
-7. **No "Th" sentence starters** (The, This, That, There, They). Rephrase.
-8. **No gerund openers** (Trying, Looking, Getting). Anchor to a subject.
-9. **Vary openers.** Don't start with "I [verb]..." every time.
+## What you MUST NOT do (these are bot signatures)
+- Start with praise ("Love that", "Such a smart", "Great point", "Interesting")
+- Start with agreement ("Totally agree", "This resonates", "So true")
+- Use therapeutic language ("I appreciate you sharing", "Valid point")
+- Lecture or explain things nobody asked about
+- Offer unsolicited advice framed as questions ("Have you considered...")
+- Use hedging qualifiers ("Worth looking into", "You might want to")
+- Make vague medical/scientific claims without sources
+- Sound supportive when nobody asked for support
+- Use em-dashes (—)
+- Start with gerunds (Trying, Looking, Getting)
+- Start with "Th" words (The, This, That, There, They)
 
-## Engagement Angles (pick ONE)
+## What you CAN do
+- Disagree casually ("idk man, that hasn't been my experience")
+- Ask a genuine question because you're curious
+- Share ONE specific detail from your life (date, place, number, brand)
+- Make a joke or sarcastic observation
+- Say something short and opinionated
+- Admit you don't know something
+- Ignore part of the post and respond to one detail
 
-- **sharp_take** — opinionated observation nobody mentioned
-- **yeah_and** — relatable agreement with a twist
-- **useful_drop** — helpful tip delivered casually
-- **micro_story** — ultra-short personal anecdote (specific moment, not narrative)
-- **reality_check** — casual pushback on something off
-- **question** — genuine question that sparks discussion
-
-## Tone
-
-Match the thread energy. Be casual, specific, concise, genuine. Never be a guru, teacher, or marketer. You're a casual participant, not an authority.
-{voice_section}{prev_section}
-## Output
-
-Output ONLY the comment text. No JSON, no explanation, no metadata. Just the comment itself."""
+## Structure
+- 1 paragraph. 5-60 words (HARD max 80).
+- No formatting. No bullets. No signatures. No brand mentions.
+- Vary sentence structure. Don't always start with "I".
+- End naturally — no wrap-up, no closing thought, no encouragement.
+{prev_section}
+## OUTPUT: Just the comment text. Nothing else."""
 
 
 def _build_hobby_user_prompt(post) -> str:

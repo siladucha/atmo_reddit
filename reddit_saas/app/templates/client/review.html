@@ -29,7 +29,7 @@
         </button>
         <button onclick="switchTab('approved')" id="tab-approved"
                 style="padding:10px 20px;font-size:var(--text-small);font-weight:600;border:none;background:transparent;cursor:pointer;border-bottom:2px solid transparent;color:var(--color-muted);">
-            📋 Ready to Post{{ tooltip("Approved comments waiting for an avatar owner to post them on Reddit.") }}{% if approved_count %} <span style="background:var(--color-surface-alt);color:var(--color-white);border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px;">{{ approved_count }}</span>{% endif %}
+            📋 Ready to Post{{ tooltip("Approved comments waiting for a voice owner to post them on Reddit.") }}{% if approved_count %} <span style="background:var(--color-surface-alt);color:var(--color-white);border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px;">{{ approved_count }}</span>{% endif %}
         </button>
         <button onclick="switchTab('posted')" id="tab-posted"
                 style="padding:10px 20px;font-size:var(--text-small);font-weight:600;border:none;background:transparent;cursor:pointer;border-bottom:2px solid transparent;color:var(--color-muted);">
@@ -74,31 +74,7 @@
             These drafts were automatically expired because they became too stale to post. The associated threads are no longer contextually relevant.
         </p>
     </div>
-
-    <!-- How it works -->
-    <details style="margin-bottom:var(--space-3);">
-        <summary style="font-size:var(--text-small);color:var(--color-muted);cursor:pointer;font-weight:500;">ℹ️ How it works</summary>
-        <div style="font-size:var(--text-small);color:var(--color-muted);margin-top:10px;line-height:1.7;padding-left:12px;border-left:2px solid var(--color-border);">
-            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">What this page shows:</strong> AI-generated comment drafts that need human review before posting. Every comment goes through this queue — nothing is ever posted without approval.</p>
-            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">The workflow:</strong></p>
-            <ol style="margin:0 0 10px 16px;padding:0;">
-                <li style="margin-bottom:4px;">AI scans Reddit for relevant threads matching your keywords and subreddits.</li>
-                <li style="margin-bottom:4px;">AI generates a comment draft in your avatar's voice, tailored to the thread context.</li>
-                <li style="margin-bottom:4px;">Draft appears here as <strong>Pending</strong> — waiting for your review.</li>
-                <li style="margin-bottom:4px;">You <strong>Approve</strong> (post as-is), <strong>Edit</strong> (improve it — your edits train the AI), or <strong>Skip</strong> (reject).</li>
-                <li>Approved drafts go to the posting queue and are published by the avatar owner.</li>
-            </ol>
-            <p style="margin-bottom:8px;"><strong style="color:var(--color-white);">Tips:</strong></p>
-            <ul style="margin:0 0 0 16px;padding:0;list-style:disc;">
-                <li style="margin-bottom:4px;">Editing a draft teaches the AI — future generations will reflect your corrections.</li>
-                <li style="margin-bottom:4px;">Use <strong>Regenerate</strong> if the tone is wrong. Add a note ("more casual", "focus on our product X") for better results.</li>
-                <li style="margin-bottom:4px;">Pending drafts expire after 48h if the thread becomes stale.</li>
-                <li>The thread link opens the original Reddit discussion for full context.</li>
-            </ul>
-        </div>
-    </details>
-
-    <!-- Voice filter -->
+<!-- Voice filter -->
     {% if avatar_options and avatar_options | length > 1 %}
     <div style="margin-bottom:var(--space-3);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <span class="text-small" style="color:var(--color-muted);">Filter:</span>

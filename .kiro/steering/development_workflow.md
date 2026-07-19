@@ -47,6 +47,7 @@ Production NEVER rebuilds code. It receives the exact Docker image that was alre
 - `feature/*` = active development (may be broken). Always branches from `develop`.
 - Direct push to `develop` → allowed for hotfixes only (must pass CI).
 - No force-push to `develop` or `main`.
+- **🚫 Working on `main` branch is FORBIDDEN.** Never commit, develop, or make changes directly on `main`. Always create a feature branch or work on `develop`. If you find yourself on `main`, switch to a feature branch before making any changes.
 
 ### Release Flow
 

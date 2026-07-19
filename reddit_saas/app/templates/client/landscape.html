@@ -7,9 +7,7 @@
         <h1 class="text-h1">Reddit Landscape Report</h1>
         <p class="text-small" style="margin-top:4px;">Your competitive presence across {{ landscape.subreddits_monitored }} monitored subreddits.</p>
     </div>
-
-
-    <!-- Loading state: show when no data yet (freshly onboarded) -->
+<!-- Loading state: show when no data yet (freshly onboarded) -->
     {% if landscape.threads_found == 0 %}
     <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.3);border-radius:var(--radius-card);padding:var(--space-4);margin-bottom:var(--space-4);text-align:center;"
          hx-get="/clients/{{ client_id }}/landscape"

@@ -3,7 +3,7 @@
     "domain": "risk_registry",
     "version": "3.2.0",
     "description": "Complete risk registry for RAMP system. Unified from code analysis, steering docs, production incidents (June 24-July 4, 2026), fleet PRAW audit (June 27), Reddit platform intelligence, Forecast & Reporting Layer design (July 2), Extension v3 old_reddit migration (July 4), and A/B Test Framework deployment (July 4). Designed for consumption by RAMP AI agent and human analysts.",
-    "last_updated": "2026-07-15",
+    "last_updated": "2026-07-19",
     "authors": [
       "Kiro (AI agent — code analysis, steering doc cross-reference)",
       "Max Breger (production incident report, ban detection design)",
@@ -30,7 +30,8 @@
     "usage_notes": {
       "for_ai_agent": "When asked about risks, always reference by ID. When proposing fixes, map to existing GAP/IMP IDs. When analyzing new incidents, check if they map to an existing risk or require a new entry.",
       "for_analysts": "Escalation level determines response SLA. CRITICAL = page immediately. HIGH = same-day fix. MEDIUM = sprint backlog. LOW = backlog. INFORMATIONAL = track only."
-    }
+    },
+    "total_risks": 104
   },
   "escalation_matrix": {
     "CRITICAL": {
@@ -1801,6 +1802,33 @@
         "Audit existing pre-warmed farm accounts for creation infrastructure quality",
         "Add 'creation_infrastructure_quality' field to avatar model (clean/unknown/compromised)"
       ]
+    },
+    {
+      "id": "R-AI-014",
+      "title": "Silent AI Degradation (HTTP 200 with broken contract)",
+      "domain": "AI/LLM",
+      "severity": "CRITICAL",
+      "likelihood": "Medium (increases during provider high-demand periods)",
+      "status": "open",
+      "description": "LLM provider returns HTTP 200 with API contract violation instead of explicit error (429/503). Request is counted as successful but output is unusable. Manifestations: empty content with non-zero output_tokens; truncated/incomplete response; invalid JSON; response_format/schema ignored; expected fields missing. Confirmed July 19, 2026: Gemini 2.5 Flash 0/10 quality pass during high-demand period. Google deprecated 2.0-flash (404) without notice.",
+      "impact": "Pipeline considers task complete and does not retry. Comments not generated or generated incorrectly. Increased cost from paid-but-unused generations. Content quality degrades silently. HTTP monitoring shows normal operation — problem invisible until client reports zero output.",
+      "mitigation_required": [
+        "HTTP 200 must NOT be treated as successful generation — only business-logic validation counts",
+        "Validate: JSON schema, required fields present, content non-empty, word count in range, sentence completeness",
+        "Auto-retry on contract violation (different model, not same degraded one)",
+        "Metrics: empty_content_rate, schema_validation_failure_rate, tokens_without_content_rate per model",
+        "Auto-fallback: circuit breaker that excludes degraded provider from routing after threshold breach",
+        "Quality gate at output level (not input/HTTP level) as the single source of truth for generation success"
+      ],
+      "mitigation_current": "Partial: quality_gate rejects too_short drafts, call_llm_json retries on empty response with fallback model. Missing: per-model degradation tracking, automatic provider exclusion, sentence completeness validation.",
+      "owner": "Max",
+      "created_at": "2026-07-19",
+      "updated_at": "2026-07-19",
+      "sbm_properties": [
+        "P1 (Monotonic Progress)",
+        "P3 (Cost Proportionality)"
+      ],
+      "notes": "Architectural principle: HTTP 200 is not proof of successful generation. Only successful business-logic validation of the result is."
     }
   ],
   "priorities": {

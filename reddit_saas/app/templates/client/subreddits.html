@@ -6,33 +6,10 @@
 {% block content %}
 <div id="portal-content">
     <div style="margin-bottom:var(--space-4);">
-        <h1 class="text-h1">Community Coverage{{ tooltip("Reddit communities where your avatars build presence and engage with your target audience.") }}</h1>
-        <p class="text-small" style="margin-top:4px;">{{ subreddits | length }} communities monitored. AI continuously analyzes moderation patterns to keep your avatars safe.</p>
+        <h1 class="text-h1">Community Coverage{{ tooltip("Reddit communities where your voices build presence and engage with your target audience.") }}</h1>
+        <p class="text-small" style="margin-top:4px;">{{ subreddits | length }} communities monitored. AI continuously analyzes moderation patterns to keep your voices safe.</p>
     </div>
-
-    <!-- How it works -->
-    <details style="margin-bottom:var(--space-4);">
-        <summary style="font-size:var(--text-small);color:var(--color-muted);cursor:pointer;font-weight:500;">ℹ️ How it works</summary>
-        <div style="font-size:var(--text-small);color:var(--color-muted);margin-top:10px;line-height:1.7;padding-left:12px;border-left:2px solid var(--color-border);">
-            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">What this page shows:</strong> Reddit communities where your avatars are active. Each subreddit is monitored for new threads, moderation behavior, and engagement opportunities.</p>
-            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">Two types of subreddits:</strong></p>
-            <ul style="margin:0 0 10px 16px;padding:0;list-style:disc;">
-                <li style="margin-bottom:4px;"><strong style="color:#60a5fa;">Target (professional)</strong> — communities where your ideal customers hang out. Avatar comments here drive visibility and leads.</li>
-                <li style="margin-bottom:4px;"><strong style="color:#a78bfa;">Hobby</strong> — general-interest communities used for warming. Builds karma and natural posting history before engaging in professional subs.</li>
-            </ul>
-            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">Risk analysis:</strong> Every Sunday, AI analyzes each subreddit's moderation patterns — how aggressive are moderators, what hours have high deletion rates, what rules exist. This determines the risk score (Safe → Moderate → High → Critical).</p>
-            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">Risk badges:</strong></p>
-            <ul style="margin:0 0 10px 16px;padding:0;list-style:disc;">
-                <li style="margin-bottom:4px;"><strong style="color:#4ade80;">Safe (0-30)</strong> — low moderation, avatar can post freely.</li>
-                <li style="margin-bottom:4px;"><strong style="color:#facc15;">Moderate (31-60)</strong> — some rules to follow, AI adjusts content tone.</li>
-                <li style="margin-bottom:4px;"><strong style="color:#fb923c;">High (61-80)</strong> — aggressive moderation, only high-karma avatars post here.</li>
-                <li style="margin-bottom:4px;"><strong style="color:#f87171;">Critical (81-100)</strong> — very high removal rate, blocked for newer avatars.</li>
-            </ul>
-            <p><strong style="color:var(--color-white);">Click any subreddit name</strong> to see the full risk profile: extracted rules, dangerous posting hours, and which avatars are safe to post there.</p>
-        </div>
-    </details>
-
-    {% if subreddits %}
+{% if subreddits %}
 
     <!-- Summary cards -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:12px;margin-bottom:var(--space-4);">

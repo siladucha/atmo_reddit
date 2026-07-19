@@ -75,28 +75,6 @@
             <span class="text-small">Generated {{ report.generated_at.strftime('%b %d, %Y %H:%M') if report.generated_at else 'N/A' }}</span>
         </div>
     </div>
-    <!-- How it works -->
-    <details style="margin-top:12px;">
-        <summary style="font-size:var(--text-small);color:var(--color-muted);cursor:pointer;font-weight:500;">ℹ️ How it works</summary>
-        <div style="font-size:var(--text-small);color:var(--color-muted);margin-top:10px;line-height:1.7;padding-left:12px;border-left:2px solid var(--color-border);">
-            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">What this report shows:</strong> A comprehensive intelligence summary combining real measurements with projections — your AI visibility status, growth trajectory, risks, and business impact.</p>
-            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">Report sections:</strong></p>
-            <ul style="margin:0 0 10px 16px;padding:0;list-style:disc;">
-                <li style="margin-bottom:4px;"><strong style="color:#3B82F6;">📍 Observed Results</strong> — real data from automated GEO monitoring. Solid lines. Fact.</li>
-                <li style="margin-bottom:4px;"><strong style="color:var(--color-white);">📋 Execution Plan</strong> — what's currently planned (avatars, comments/week, target subs).</li>
-                <li style="margin-bottom:4px;"><strong style="color:#8B5CF6;">📈 Forecast</strong> — projected visibility growth based on S-curve model. Dashed lines. Estimated.</li>
-                <li style="margin-bottom:4px;"><strong>⚠️ Risks</strong> — platform risk factors that could affect the forecast.</li>
-                <li style="margin-bottom:4px;"><strong>💰 Business Impact</strong> — category rank, gap closure rate, ROI framing.</li>
-            </ul>
-            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">Reading the data:</strong></p>
-            <ul style="margin:0 0 0 16px;padding:0;list-style:disc;">
-                <li style="margin-bottom:4px;"><strong style="color:#3B82F6;">Blue values (📍)</strong> = measured. This is real data from AI engine queries.</li>
-                <li style="margin-bottom:4px;"><strong style="color:#8B5CF6;">Purple values (📈 ~)</strong> = projected. These are estimates with confidence intervals (±Xpp).</li>
-                <li style="margin-bottom:4px;"><strong>Freshness badges</strong> (top right) — indicate whether the underlying data is current or potentially outdated.</li>
-                <li><strong>Confidence intervals (±Xpp)</strong> — represent the expected range. Wider = less certainty.</li>
-            </ul>
-        </div>
-    </details>
 </div>
 
 <!-- ═══════════════════ HERO CARD ═══════════════════ -->

@@ -102,7 +102,7 @@
         <a href="/clients/{{ client_id }}/subreddits" class="surface" style="padding:var(--space-3);text-decoration:none;transition:border-color 150ms;border:1px solid transparent;" onmouseover="this.style.borderColor='var(--color-orange)'" onmouseout="this.style.borderColor='transparent'">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
                 <span style="font-size:20px;">🌐</span>
-                <span style="font-weight:600;color:var(--color-white);">Subreddits</span>{{ tooltip("Reddit communities where your avatars are active. We scrape new threads from each and score them for engagement opportunities.") }}
+                <span style="font-weight:600;color:var(--color-white);">Subreddits</span>{{ tooltip("Reddit communities where your voices are active. We scrape new threads from each and score them for engagement opportunities.") }}
             </div>
             <p class="text-display" style="margin-bottom:4px;">{{ subreddits_count }}</p>
             <p class="text-small">active communities · Scraping status, freshness, results</p>
@@ -138,7 +138,7 @@
             <span style="font-size:28px;">🎯</span>
             <div>
                 <h3 style="color:var(--color-white);font-weight:600;margin-bottom:8px;">Your intelligence trial is active</h3>
-                <p style="color:var(--color-muted);font-size:var(--text-small);line-height:1.6;margin-bottom:12px;">We are scanning your target subreddits and analyzing competitor presence. While avatars are not active on the trial plan, you can explore:</p>
+                <p style="color:var(--color-muted);font-size:var(--text-small);line-height:1.6;margin-bottom:12px;">We are scanning your target subreddits and analyzing competitor presence. While voices are not active on the trial plan, you can explore:</p>
                 <div style="display:flex;flex-wrap:wrap;gap:8px;">
                     <a href="/clients/{{ client_id }}/landscape" style="padding:8px 16px;border-radius:var(--radius-input);background:var(--color-orange);color:#fff;font-size:var(--text-small);font-weight:600;text-decoration:none;">View Landscape Report →</a>
                     <a href="/clients/{{ client_id }}/subreddits" style="padding:8px 16px;border-radius:var(--radius-input);background:var(--color-surface-alt);border:1px solid var(--color-border);color:var(--color-white);font-size:var(--text-small);font-weight:500;text-decoration:none;">Your Subreddits</a>

@@ -202,6 +202,16 @@ def create_execution_task(
         # Default posting strategy: old_reddit (most reliable, no Shadow DOM / reCAPTCHA)
         task.posting_strategy = "old_reddit"
 
+        # SAFETY: Extension tasks MUST have scheduled_at to prevent burst posting.
+        # Without scheduled_at, the extension scheduler treats them as "immediate"
+        # and fires all tasks back-to-back with only 3-min gaps.
+        if task.scheduled_at is None:
+            logger.warning(
+                "Extension task for slot %s has no scheduled_at — assigning now+30min fallback",
+                epg_slot_id,
+            )
+            task.scheduled_at = datetime.now(timezone.utc) + timedelta(minutes=30)
+
     # A/B Test: override posting method if avatar in active experiment
     from app.services.settings import get_setting
     ab_test_enabled = get_setting(db, "ab_test_enabled") == "true"

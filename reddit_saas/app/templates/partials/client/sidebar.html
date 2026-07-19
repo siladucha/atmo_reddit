@@ -21,6 +21,39 @@
     <nav style="flex:1;padding:8px 0;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none;">
         <style>.portal-sidebar nav::-webkit-scrollbar{display:none;}</style>
 
+        <!-- Onboarding Progress Bar (shows when setup < 100%) -->
+        {% if onboarding_pct is defined and onboarding_pct < 100 %}
+        <div style="margin:0 10px 14px;background:rgba(37,99,196,0.08);border:0.5px solid rgba(37,99,196,0.2);border-radius:7px;padding:10px 11px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                <span style="font-size:11px;font-weight:500;color:#4E8EF5;">Setup progress</span>
+                <span style="font-size:11px;font-weight:500;color:#4E8EF5;">{{ onboarding_pct }}%</span>
+            </div>
+            <div style="height:4px;background:rgba(255,255,255,0.08);border-radius:999px;overflow:hidden;margin-bottom:8px;">
+                <div style="height:100%;width:{{ onboarding_pct }}%;background:#2563C4;border-radius:999px;transition:width 0.3s;"></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:8px;">
+                <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:{% if onboarding_steps.company %}#1D9E75{% else %}#6B7280{% endif %};">
+                    {% if onboarding_steps.company %}✓{% else %}○{% endif %} Company profile
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:{% if onboarding_steps.icp %}#1D9E75{% else %}#6B7280{% endif %};">
+                    {% if onboarding_steps.icp %}✓{% else %}○{% endif %} ICP and keywords
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:{% if onboarding_steps.voice %}#1D9E75{% else %}#6B7280{% endif %};">
+                    {% if onboarding_steps.voice %}✓{% else %}○{% endif %} Tone of voice
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:{% if onboarding_steps.subreddits %}#1D9E75{% else %}#6B7280{% endif %};">
+                    {% if onboarding_steps.subreddits %}✓{% else %}○{% endif %} Subreddit selection
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:{% if onboarding_steps.calibration %}#1D9E75{% else %}#6B7280{% endif %};">
+                    {% if onboarding_steps.calibration %}✓{% else %}○{% endif %} Voice calibration
+                </div>
+            </div>
+            <a href="/onboard" style="display:block;text-align:center;padding:6px 0;background:#2563C4;border-radius:5px;font-size:11px;font-weight:500;color:#fff;text-decoration:none;">
+                Continue setup →
+            </a>
+        </div>
+        {% endif %}
+
         <!-- 1. Overview -->
         <a href="/clients/{{ client_id }}/home"
            class="sidebar-nav-item {% if active_page == 'home' %}active{% endif %}"
@@ -90,22 +123,11 @@
         <!-- Divider -->
         <div style="margin:8px 14px;border-top:0.5px solid rgba(255,255,255,0.07);"></div>
 
-        <!-- 6. Extension -->
-        <a href="/clients/{{ client_id }}/extension"
-           class="sidebar-nav-item {% if active_page == 'extension' %}active{% endif %}"
-           style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin:1px 6px;border-radius:6px;text-decoration:none;color:#9ca3af;transition:all 0.15s;position:relative;
-                  {% if active_page == 'extension' %}border-left:2.5px solid #2563C4;background:#252540;color:#fff;{% else %}border-left:2.5px solid transparent;{% endif %}">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
-            </svg>
-            <span style="font-size:13px;font-weight:500;">Extension</span>
-        </a>
-
-        <!-- 7. Settings -->
+        <!-- 6. Settings -->
         <a href="/clients/{{ client_id }}/settings"
-           class="sidebar-nav-item {% if active_page in ['settings', 'subreddits', 'keywords', 'team', 'strategy'] %}active{% endif %}"
+           class="sidebar-nav-item {% if active_page in ['settings', 'subreddits', 'keywords', 'team', 'strategy', 'extension'] %}active{% endif %}"
            style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin:1px 6px;border-radius:6px;text-decoration:none;color:#9ca3af;transition:all 0.15s;position:relative;
-                  {% if active_page in ['settings', 'subreddits', 'keywords', 'team', 'strategy'] %}border-left:2.5px solid #2563C4;background:#252540;color:#fff;{% else %}border-left:2.5px solid transparent;{% endif %}">
+                  {% if active_page in ['settings', 'subreddits', 'keywords', 'team', 'strategy', 'extension'] %}border-left:2.5px solid #2563C4;background:#252540;color:#fff;{% else %}border-left:2.5px solid transparent;{% endif %}">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="3"/>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
@@ -116,21 +138,6 @@
 
     <!-- Plan Widget (bottom-pinned) -->
     <div style="padding:8px 10px 12px;">
-        <!-- Chrome Extension link -->
-        <a href="/clients/{{ client_id }}/extension" style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:8px;background:rgba(255,107,53,0.06);border:0.5px solid rgba(255,107,53,0.2);border-radius:7px;text-decoration:none;transition:all 0.15s;"
-           onmouseover="this.style.borderColor='rgba(255,107,53,0.5)'" onmouseout="this.style.borderColor='rgba(255,107,53,0.2)'">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;">
-                <circle cx="12" cy="12" r="10" stroke="#FF6B35" stroke-width="1.5"/>
-                <circle cx="12" cy="12" r="4" fill="#FF6B35" opacity="0.3"/>
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z" fill="#FF6B35" opacity="0.7"/>
-            </svg>
-            <div style="flex:1;min-width:0;">
-                <div style="font-size:11px;font-weight:600;color:#FF6B35;">Chrome Extension</div>
-                <div style="font-size:10px;color:#6B7280;">Auto-posting setup</div>
-            </div>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </a>
-
         <div style="background:rgba(37,99,196,0.08);border:0.5px solid rgba(37,99,196,0.2);border-radius:7px;padding:10px 12px;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
                 <span style="font-size:11px;font-weight:500;color:#4E8EF5;">{{ plan_name or "Starter plan" }}</span>

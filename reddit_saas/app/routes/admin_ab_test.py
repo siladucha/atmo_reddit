@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies.permissions import require_owner
+from app.dependencies.admin import require_superuser
 from app.logging_config import get_logger
 from app.models.ab_test import (
     AvatarAssignment,
@@ -42,7 +43,7 @@ templates = Jinja2Templates(directory="app/templates")
 async def list_experiments(
     request: Request,
     db: Session = Depends(get_db),
-    _user=Depends(require_owner),
+    _user=Depends(require_superuser),
 ):
     """List all A/B experiments with status, group counts, and duration."""
     experiments = (
@@ -88,7 +89,7 @@ async def list_experiments(
 @router.get("/new", response_class=HTMLResponse)
 async def new_experiment_form(
     request: Request,
-    _user=Depends(require_owner),
+    _user=Depends(require_superuser),
 ):
     """Render the create experiment form."""
     return templates.TemplateResponse(
@@ -107,7 +108,7 @@ async def create_experiment(
     risk_max: int = Form(40),
     generation_model: str = Form("gemini/gemini-2.5-flash"),
     db: Session = Depends(get_db),
-    user=Depends(require_owner),
+    user=Depends(require_superuser),
 ):
     """Create a new experiment with 3 default treatment groups."""
     try:
@@ -152,7 +153,7 @@ async def experiment_detail(
     request: Request,
     experiment_id: uuid.UUID,
     db: Session = Depends(get_db),
-    _user=Depends(require_owner),
+    _user=Depends(require_superuser),
 ):
     """Full detail page: groups, assignments, metrics summary."""
     experiment = db.query(ExperimentRun).filter(
@@ -237,7 +238,7 @@ async def add_treatment_group(
     posting_method: str = Form(...),
     description: str = Form(""),
     db: Session = Depends(get_db),
-    _user=Depends(require_owner),
+    _user=Depends(require_superuser),
 ):
     """Add a treatment group to an experiment (HTMX)."""
     experiment = db.query(ExperimentRun).filter(
@@ -280,7 +281,7 @@ async def assign_avatars(
     experiment_id: uuid.UUID,
     request: Request,
     db: Session = Depends(get_db),
-    _user=Depends(require_owner),
+    _user=Depends(require_superuser),
 ):
     """Assign selected avatars to a treatment group (HTMX)."""
     form = await request.form()
@@ -319,7 +320,7 @@ async def assign_avatars(
 async def start_experiment(
     experiment_id: uuid.UUID,
     db: Session = Depends(get_db),
-    _user=Depends(require_owner),
+    _user=Depends(require_superuser),
 ):
     """Transition experiment from draft → active."""
     try:
@@ -335,7 +336,7 @@ async def pause_experiment(
     experiment_id: uuid.UUID,
     reason: str = Form("Operator paused"),
     db: Session = Depends(get_db),
-    _user=Depends(require_owner),
+    _user=Depends(require_superuser),
 ):
     """Pause an active experiment."""
     try:
@@ -350,7 +351,7 @@ async def pause_experiment(
 async def resume_experiment(
     experiment_id: uuid.UUID,
     db: Session = Depends(get_db),
-    _user=Depends(require_owner),
+    _user=Depends(require_superuser),
 ):
     """Resume a paused experiment."""
     try:
@@ -365,7 +366,7 @@ async def resume_experiment(
 async def conclude_experiment(
     experiment_id: uuid.UUID,
     db: Session = Depends(get_db),
-    _user=Depends(require_owner),
+    _user=Depends(require_superuser),
 ):
     """Conclude an active experiment and generate final report."""
     try:
@@ -384,7 +385,7 @@ async def abort_experiment(
     experiment_id: uuid.UUID,
     reason: str = Form("Operator aborted"),
     db: Session = Depends(get_db),
-    _user=Depends(require_owner),
+    _user=Depends(require_superuser),
 ):
     """Abort an experiment."""
     try:
@@ -406,7 +407,7 @@ async def get_weekly_report(
     experiment_id: uuid.UUID,
     week_number: int,
     db: Session = Depends(get_db),
-    _user=Depends(require_owner),
+    _user=Depends(require_superuser),
 ):
     """Get weekly report partial (HTMX lazy-load)."""
     report = (
@@ -430,7 +431,7 @@ async def get_metrics_dashboard(
     request: Request,
     experiment_id: uuid.UUID,
     db: Session = Depends(get_db),
-    _user=Depends(require_owner),
+    _user=Depends(require_superuser),
 ):
     """Metrics dashboard partial with chart data (HTMX lazy-load)."""
     experiment = db.query(ExperimentRun).filter(

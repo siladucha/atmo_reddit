@@ -222,7 +222,8 @@ reddit_saas/
 │   │   ├── review_decision.py # ReviewDecision
 │   │   ├── intelligence_report.py # IntelligenceReport, ClientIntelligenceReport
 │   │   ├── forecast_accuracy.py # ForecastAccuracyLog
-│   │   └── observed_snapshot.py # ObservedSnapshot (GEO observed data)
+│   │   ├── observed_snapshot.py # ObservedSnapshot (GEO observed data)
+│   │   └── llm_quality_snapshot.py # LLMQualitySnapshot (periodic quality metrics per model×operation)
 │   ├── schemas/               # Pydantic validation schemas
 │   │   ├── avatar_analysis.py # BehavioralProfile, AvatarAnalysisRequest
 │   │   ├── client_strategy.py # ClientStrategyOutput (Positioning, SubredditPriority, ContentPillar, ForbiddenZone, AeoTarget, PhaseRoadmap)
@@ -268,7 +269,8 @@ reddit_saas/
 │   │   ├── executor_tasks.py  # Executor-facing task verification
 │   │   ├── manual.py          # UX manual overlay (contextual help)
 │   │   ├── subreddit_bans.py  # Per-subreddit ban management
-│   │   └── admin_ab_test.py   # A/B Test experiment management (create, assign, start, metrics)
+│   │   ├── admin_ab_test.py   # A/B Test experiment management (create, assign, start, metrics)
+│   │   └── admin_llm_quality.py # LLM Quality Monitor dashboard (per-model health, degradation events)
 │   ├── services/              # Business logic (120+ services)
 │   │   ├── activation_router.py # Risk-Aware zone routing (safe→bridge→target)
 │   │   ├── admin.py           # Admin CRUD
@@ -336,6 +338,7 @@ reddit_saas/
 │   │   ├── smart_scoring.py   # Budget-aware scoring (N threads per avatar, 90% cost reduction)
 │   │   ├── risk_prediction.py # AI ban risk forecasting (6-factor composite + prescriptive actions)
 │   │   ├── billing_dashboard.py # Cost/usage analytics (AI costs, plan usage, P&L, trends)
+│   │   ├── llm_quality_monitor.py # LLM quality monitoring (degradation detection, per-model×operation snapshots)
 │   │   ├── trial_guard.py     # 14-day trial expiry check (gates pipeline tasks)
 │   │   ├── team_management.py # Team RBAC enforcement (user create/edit permissions by role)
 │   │   ├── safety_blocks.py   # Brand mention protection (blocks Phase 1/2 brand drafts)
@@ -393,6 +396,7 @@ reddit_saas/
 │   │   ├── ab_test.py         # A/B test metric collection + duration checks
 │   │   ├── weekly_emails.py  # Weekly system health (owner) + business summary (partner) emails
 │   │   ├── provider_budget_check.py # Provider budget alerts: Telegram + email + bell (every 4h)
+│   │   ├── llm_quality_check.py # LLM quality degradation detection (every 4h vs 7-day baseline)
 │   │   ├── beat_app.py       # Lightweight Celery app for Beat (schedule only, no task imports, ~25 MB)
 │   │   └── worker.py          # Celery worker configuration (31 task modules, no schedule)
 │   ├── templates/             # Jinja2 templates (70+ pages + 120+ partials)
@@ -726,6 +730,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 | 01:00 | `compute_daily_performance_metrics` | Aggregate yesterday's avatar metrics |
 | 01:05 | `run_cost_reconciliation` | Compare expected (tokens×rates) vs logged cost_usd, alert on >5% drift |
 | every 4h at :45 | `check_provider_budgets` | Provider budget alert: Telegram + email + bell at 70%/95% thresholds |
+| every 4h at :20 | `check_llm_quality` | LLM quality degradation detection (success rate, latency, fallbacks vs 7-day baseline) |
 | 01:30 | `archive_old_decision_records` | Prune records > 90 days |
 | 02:00 | `run_feedback_loop_all` | Outcome analysis → EPG model correction |
 | 02:30 | `classify_expired_trials` | Trial failure classification |

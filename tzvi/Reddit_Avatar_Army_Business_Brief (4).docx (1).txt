@@ -1,0 +1,1057 @@
+﻿█████████████████████████████████████████████████████████████████
+Reddit Community Voice Army
+Product & Technical Business Brief
+█████████████████████████████████████████████████████████████████
+Confidential — For Internal & Partner Use Only
+May 2026 · v1.0
+
+
+________________
+
+
+01 · Pricing Model
+RAMP is a dual-track community presence platform. Track 1 (Client Voice) powers the client's own Reddit account with AI-assisted intelligence and an approval workflow. Track 2 (Platform Voices) extends reach through RAMP's managed network of established community voices, running under the client's strategic direction and content approval. Pricing reflects the scale of Platform Voice capacity and subreddit coverage across both tracks.
+
+
+Core Plans
+
+
+Plan
+	Price / mo
+	Platform Voices
+	Client Voice Seats
+	Subreddits
+	Actions / mo
+	Reporting
+	Seed
+	$149
+	1
+	1 (included)
+	2 professional
+	30 comments
+	Monthly report
+	Starter
+	$399
+	3
+	1 (included)
+	4 professional + hobbies
+	60 comments
+	Monthly report
+	Growth
+	$799
+	7
+	2 (included)
+	8 professional + hobbies
+	150 comments + 10 posts
+	Bi-weekly + sentiment dashboard
+	Scale
+	$1,499
+	15
+	3 (included)
+	Unlimited
+	400 actions
+	Weekly + Slack alerts + competitor monitor
+	Agency / White-label
+	Custom (~$2k+)
+	Custom
+	Custom
+	Multi-client workspaces
+	Volume pricing
+	Branded reports
+	
+
+⚡ Seed is a 3-month proof-of-concept. System auto-prompts upgrade at the 90-day mark. The 2-subreddit limit is intentional — enough to demonstrate value in the client’s primary community, not enough to replace a full engagement. Require work email to sign up. No gmail/hotmail.
+⚡ Never offer unlimited actions. Cap all plans technically from day one. One aggressive client can flood shared infrastructure and degrade performance for all others.⚡ Keywords and competitor tracking are internal infrastructure — not client-facing limits. Keywords: RAMP monitors all keywords the client approved in onboarding, plus continuously scans for new opportunities across relevant subreddits to surface upsell opportunities. Never communicate this as a packaging variable. Competitor tracking: RAMP monitors all competitors in the client’s category internally at all times. The client dashboard surfaces the top 3–5 competitors by current AI visibility score, dynamically ranked. If a competitor drops in relevance, they disappear from the view. If a new one surges, they appear automatically. The client never sees a hard limit — they always see what’s most relevant right now.
+
+
+Managed Client Voice
+⚠ LEGAL: Even under Managed Client Voice, the client retains ultimate authority — RAMP operates within pre-approved guardrails and strategic direction set at onboarding, not unilateral control. Client Voice seats remain included in every plan by default; this upsell is for clients who want RAMP to operate their account on their behalf rather than approving drafts themselves.
+For clients who want a Client Voice presence but don’t have anyone internally to run the daily approval workflow. RAMP reviews threads, drafts content, and posts from the client’s own authenticated session under pre-agreed guardrails, with periodic check-ins to confirm direction.
+
+
+Upsell
+	Price
+	What it includes
+	Managed Client Voice
+	+$399/mo
+	RAMP operates the client’s own Reddit account on their behalf within pre-approved guardrails. Client sets strategic direction at onboarding and reviews results periodically — no daily approval workload required on their side.
+	
+
+Upsell Ladder
+The ladder is organized by who raises it and when — not just by price. This keeps the sales motion legible: a new rep should be able to memorize Tier A in one sitting.
+
+
+Tier A — Self-Serve, Product-Triggered
+Low cognitive load, low price, high frequency. The product itself surfaces the need — client hits a cap, sees a gap, or wants to add a person. Eventually these should be one-click, in-app additions requiring no sales conversation.
+
+
+Upsell
+	Price
+	Trigger → What it does
+	Community Voice Expansion Pack
+	+$199/mo
+	Client’s Platform Voices are producing results and they want more reach → 5 additional Platform Voices added to any plan.
+	Client Voice Seat
+	+$39/mo
+	A second team member wants their own Reddit account powered by RAMP → one additional Client Voice seat. No proxy, no warming, no managed session — just intelligence routing. 4+ seats on one client signals Team/Agency fit — route up rather than stacking.
+	Extra Subreddits
+	+$99/mo per pack
+	Client hits their subreddit cap and monitoring surfaces a new relevant community → 3 additional monitored subreddits.
+	Extra GEO/AEO Prompts
+	+$179/mo per 10
+	Client wants deeper AI visibility coverage beyond their plan’s prompt allocation → 10 additional GEO/AEO prompts against RAMP’s native AI Search Authority layer. Pricing is a reasoned placeholder — confirm actual per-prompt provider cost with Max before finalizing; this is the single highest-cost-per-unit item on the ladder.
+	
+
+Tier B — Sales-Conversation Upsells
+Raised by a human at a natural milestone in the relationship, not proactively pitched on day one. Live in the sales playbook with explicit trigger conditions — not on a pricing page.
+
+
+Upsell
+	Price
+	Trigger → What it does
+	Managed Client Voice
+	+$399/mo
+	Client says “I don’t have time to do the daily approvals myself” after experiencing Track 1 friction firsthand → see above.
+	Content Strategy Briefs
+	+$299/mo
+	Client is already seeing citation-worthy threads and asks how to create more of this kind of content → data-driven content angles Platform Voices can cite as authoritative sources.
+	Content Production
+	+$599/mo (4 pieces) or +$899/mo (7 pieces)
+	Same trigger as above, client wants RAMP to actually produce the content → RAMP writes a committed, defined number of content pieces per month. Client selects primary destination at setup — client website/blog, LinkedIn/social, or citation-ready source content for Platform Voices to reference. Piece count and destination are locked into the order so the client always knows exactly what they’re paying for.
+	Voice Intelligence Reports
+	+$249–349/mo
+	A second buyer inside the account — paid media or creative lead — hears about RAMP’s Reddit intelligence and wants access → recurring synthesis of audience language patterns, objections, and framing pulled from monitored subreddits, structured for ad copy, landing pages, and sales enablement. Paraphrased patterns only, never verbatim quotes. Best positioned as something the original buyer champions internally, not something RAMP proactively pitches in the same call as the rest of the ladder.
+	
+
+Tier C — Separate Product Conversations
+Never mentioned in the same breath as core plan tiers or the rest of the ladder. Each gets its own materials and its own pitch. See dedicated sections below for Community Hub and Voice Intelligence positioning.
+
+
+Upsell
+	Price
+	Notes
+	Community Hub
+	Starting at $299/mo, scoped by community size — talk to sales
+	Requires an existing subreddit or a Readiness Assessment if the client’s account doesn’t yet meet Reddit’s eligibility bar. See dedicated section below.
+	Established Voice Inventory (Silver / Gold)
+	+$199 / +$499 one-time
+	Not externally marketed for now — see internal note below.
+	
+
+⚡ Voice inventory is kept in this brief for internal reference but is not communicated externally until inventory depth is sufficient to fulfill demand reliably. Available to offer in live sales conversations when it genuinely helps close a deal, not listed on the website or in outbound marketing. Action item: confirm with Max whether this currently appears on the website — if so, remove it.
+
+
+⚡ RAMP’s Platform Voice inventory is the strategic moat. Established community voices with genuine karma history are aged continuously in the background. Competitors can copy the software in 6 months. They cannot copy a two-year-old community voice with 5,000 karma. This inventory is never sold or transferred — it remains RAMP infrastructure assigned to clients for the duration of their engagement.
+
+
+⚡ The upsell discipline: every new upsell idea must pass one test before it enters this ladder — “what has to happen in the client relationship before this becomes the obviously right next thing to say?” If that trigger moment can’t be named in one sentence, it goes in a future-ideas appendix, not the live ladder. This keeps the ladder small enough that a new salesperson can memorize it in one sitting.
+
+
+Community Hub — Client-Owned Subreddit Management
+
+
+What it is
+An AI-assisted community operations layer for subreddits the client owns and moderates. Not automated moderation — a decision-support system where the client’s human moderator stays in control and RAMP provides intelligence plus one-click execution. RAMP’s bot account is added as a moderator, monitors the mod queue, classifies posts, and surfaces recommendations. The client approves or executes with a click. Platform Voices can also seed engagement inside the client’s own subreddit — organic replies to those seeds are read as buyer intent signals, closing the loop from awareness to lead.
+
+
+Reasoning
+This fits naturally into existing RAMP architecture — same task queue, same extension, same approval flow, just targeting a subreddit where the client is the moderator rather than a third party. Technically simpler than third-party engagement since there’s no external moderator risk. Near-zero infrastructure cost: AI classification calls plus Reddit’s free-tier API, no proxy or extension dependency. Margin runs 87–97% depending on community activity level. It is also a genuinely differentiated capability — intent signal detection from a client’s own community discussions is not offered by any competitor in the category.
+
+
+Trigger
+Client already has, or explicitly wants, their own subreddit. This is not proactively pitched to every client — it surfaces only when the client raises it, and current signal shows real inbound demand already exists (a real estate prospect requested this directly before RAMP had built it).
+
+
+Value proposition
+• Intent signal detection nobody else offers — real buyer language captured directly from community replies, not inferred from ad clicks
+• Client stays in full control — RAMP recommends, client decides, nothing is auto-removed without explicit opt-in
+• Natural extension of existing RAMP presence — Platform Voices already seeding discussions can seed the client’s own subreddit too
+• Reddit explicitly supports bot moderators — this is a fully compliant approach, not a grey-area one
+
+
+The eligibility gate
+Reddit requires an account to be 30+ days old with sufficient karma before it can create a new subreddit — an exact threshold Reddit does not publish. RAMP cannot charge for a service it cannot yet fulfill. Every Community Hub engagement therefore starts with a Readiness Assessment: RAMP checks the client’s account against Reddit’s practical threshold. If ready, the build proceeds immediately (operational in 3 weeks). If not, the client enters a Readiness Track — the same Phase 1 credibility-building engine RAMP already runs for Client Voice warmup, pointed at this different milestone — and Community Hub billing does not begin until the subreddit can actually be created.
+
+
+Pricing
+Community size
+	RAMP’s monthly cost
+	Client price
+	Under 100 subscribers
+	~$1/mo
+	$299/mo
+	100–1,000 subscribers
+	~$5/mo
+	$399/mo
+	1,000–10,000 subscribers
+	~$15/mo
+	$599/mo
+	10,000+ subscribers
+	~$35/mo
+	Custom — talk to sales
+	
+
+⚡ Client-facing pricing line: "Community Hub — Starting at $299/mo — Talk to sales. Requires an existing subreddit or a Reddit account that meets Reddit’s platform eligibility requirements. We assess and, if needed, prepare your account as part of onboarding."
+
+
+Voice Intelligence — Audience Language for Marketing Teams
+
+
+What it is
+A recurring synthesis report that mines the language, pain points, objections, and framing already present in monitored Reddit threads and repackages it for the client’s broader marketing use — ad copy, landing pages, email subject lines, sales scripts, positioning documents. This is the inverse of RAMP’s existing "be the source" content upsells: those put RAMP-generated content into Reddit for later citation. Voice Intelligence pulls real audience language out of Reddit and feeds it into the client’s other channels.
+
+
+Reasoning
+Near-zero incremental build cost — the underlying extraction (thread scoring, subreddit historical analysis, tone fingerprinting) already exists inside RAMP’s core intelligence engine for content generation. This is a repackaging of existing capability for a second output, not new infrastructure. It also opens a second buyer inside an existing account: the performance marketer or creative lead, who holds a completely different budget line than whoever bought RAMP for community presence. This expands wallet share inside a client without a new sales motion.
+
+
+⚠ Copyright and reputational discipline: the deliverable must surface patterns, themes, and paraphrased language structures — never verbatim quotes assembled as ready-to-ship copy. Reddit users retain copyright over what they write; lifting exact sentences into paid client ads is a real infringement exposure, and if a Reddit user ever recognizes their own words in a company’s ad, that becomes exactly the kind of backlash moment RAMP’s entire brand-safety architecture exists to prevent. Short illustrative quotes for color are fine; ready-to-use ad copy lifted verbatim is not.
+
+
+Trigger
+Best raised by the original buyer championing it internally to a colleague on the paid media or creative team — not proactively pitched by RAMP in the same conversation as the rest of the upsell ladder. Mixing this pitch with a $39/month seat add-on creates a scale mismatch that reads as scope creep to the buyer RAMP is actually talking to.
+
+
+Value proposition
+• The only tool in the category combining live Reddit execution with voice-of-customer synthesis — competitors offer one or the other, never both from the same engine
+• Turns raw community language into structured, testable insight — "your audience consistently frames this as a ‘stop the bleeding’ problem, not a ‘nice to have,’ 27 threads used variations of this framing" — rather than leaving the client’s team to interpret raw text themselves
+• Opens a second budget line inside an existing client without a new sales cycle
+
+
+Packaging
+Light version included at Growth and Scale as part of the standard reporting layer. Deeper, higher-frequency version available as the paid Tier B upsell (+$249–349/mo) for clients who want it feeding directly into an active paid media program. Not sold as a standalone product outside RAMP — outside the platform it competes with an established, well-funded voice-of-customer and social listening category; inside RAMP it is a differentiated capability nobody else can replicate because it is fused with live execution.
+
+
+02 · Free Trial
+The core tension: we need to give enough value to demonstrate capability, but our real product is time (karma builds over weeks) and depth (persona quality). Both are expensive to give away.
+
+
+The Model: 14-Day Trial — Intelligence First, One Posting Burst
+During the trial, users get full access to the intelligence layer plus a single posting burst of 5 comments to experience the complete workflow end-to-end. The trial is limited to 1 subreddit and 3 GEO/AEO prompts. Platform Voice activation (beyond trial burst) and full Client Voice posting are gated behind a paid plan. The posting burst is not framed as a daily drip — it is a deliberate demonstration of the full loop: find → draft → approve → post → track.
+
+
+Feature
+	Trial Access
+	Notes
+	AI-powered onboarding wizard
+	✅ Full access
+	Builds Company Profile, ICP, voice constraints
+	Subreddit discovery & mapping
+	✅ Full access
+	See which subreddits matter for their brand
+	Thread monitoring & scoring
+	✅ Full access
+	Real threads surfaced with engage/monitor/skip scoring
+	AI comment drafts
+	✅ Read-only
+	Drafts visible but posting is gated
+	Day 1 Reddit Landscape Report
+	✅ Auto-generated
+	Competitor presence baseline, share of voice at 0%
+	Community Voice activation (full)
+	❌ Paid only
+	Full activation requires plan selection. Trial includes a 5-comment posting burst (1 subreddit) to demonstrate the complete workflow end-to-end.
+	Karma building & phase progression
+	❌ Paid only
+	Infrastructure cost — not gated as punishment, but as reality
+	
+
+⚡ The aha moment is in the intelligence layer: 'This thread has 800 upvotes. Your competitor is mentioned twice. You are invisible.' That is what converts trial users.
+⚡ Require work email to sign up. No gmail or hotmail. This filters serious buyers from curious browsers and dramatically reduces abuse.
+________________
+
+
+03 · Timeline & Deliverables
+Monitoring and intelligence are always-on from Day 1 — they are the nervous system, not a phase. What changes across phases is community voice behavior and permissions, not what the system is watching.
+
+
+Day 1 — System Activation (Both Tracks)
+Immediate upon onboarding completion:
+* Track 1 (Client Voice): OAuth connection confirmed, account karma and phase eligibility assessed, first thread recommendations delivered within hoursTrack 2 (Platform Voices): Keyword and subreddit monitoring goes live
+* Competitor tracking begins across all target subreddits
+* Thread scoring pipeline activates (engage / monitor / skip)
+* Day 1 Reddit Landscape Report auto-generated and delivered — competitor share of voice baseline, top threads where brand is absent, subreddit map, keyword heat map
+
+
+⚡ This is a real deliverable on Day 1 with zero community voice activity. The client sees the battlefield immediately.
+
+
+PHASE 1
+Months 1–2
+	Credibility Building — Community Voice earns the right to exist in the community
+* Community Voice participates in hobby subreddits and general professional subs
+* Comments are genuinely helpful, on-topic, in the community voice's authentic voice
+* Zero brand mentions, zero links, zero agenda visible
+* Cross-community voice support begins Week 3 (see smart routing rules, Section 06)
+* Deliverables every 2 weeks: karma progress per community voice, top-performing comments by upvotes, competitor activity digest, new subreddit suggestions surfaced as upsell
+	
+
+PHASE 2
+Months 3–4
+	Content Seeding & Post Creation — Framing industry conversations
+* Platform Voices create original posts, framing discussions around client's strategic angles
+* External source citations introduced — neutral, credible links (not client brand yet)
+* System surfaces data-driven content recommendations to client dashboard (e.g. 'r/netsec has 14 threads on identity attacks this month — publish a guide and we will cite it')
+* Client publishes content on blog or neutral domain; community voices cite it naturally as a third-party source
+* Deliverables: posts created + upvote performance, content recommendation report, thread influence map, continued competitor digest
+	
+
+PHASE 3
+Month 5+
+	Brand Integration — Contextual, earned brand presence
+* Contextual brand mentions introduced only when 3 conditions are met simultaneously: (1) sufficient karma in that subreddit, (2) thread is genuinely relevant, (3) brand mention ratio for that community voice is below safe threshold
+* Linking to client content where the community voice has already established credibility as a source-sharer
+* Competitor displacement in comparison threads and buying-signal discussions
+* Deliverables: brand mention count + thread quality score, share of voice vs. competitors (delta from Day 1 baseline), high-intent thread appearances, first citation tracking
+	
+
+Month-by-Month Client Dashboard Summary
+Month
+	What the client sees moving
+	Day 1
+	Landscape report, competitor baseline, monitoring live
+	Week 1
+	Competitor alerts firing, community voice karma dashboard active
+	Week 3
+	Cross-community voice support routing begins, engagement rates rising
+	Month 2
+	Top-performing community voice comments, karma per sub, subreddit suggestions
+	Month 3
+	Original posts live, content brief recommendations, thread influence map
+	Month 4–5
+	Citation opportunities deployed, community voice authority building in target subs
+	Month 5+
+	First brand mentions, share of voice delta visible vs. Day 1 baseline
+	________________
+
+
+04 · What Success Looks Like
+We commit to activity, trajectory, and presence — not rankings or LLM visibility (yet). Every month has a named output. There is no waiting period. The client is always watching something move.
+
+
+Activity Metrics (Month 1 onward)
+* Total comments posted and upvote rate per community voice
+* Community voice karma growth — post karma and comment karma tracked separately
+* Subreddits penetrated and thread quality score
+* Brand-to-non-brand comment ratio (proves we are not spamming)
+
+
+Presence Metrics (Month 3 onward)
+* Thread influence map — which discussions the community voices shaped or started
+* Content citation rate — how many times client-published articles were cited by community voices in relevant threads
+* Share of voice vs. competitors in monitored subreddits (baseline set Day 1, delta visible from Month 3)
+
+
+Intent Metrics (Month 5 onward)
+* Brand mention count and thread quality score
+* High-intent thread participation rate — how often community voices appear in comparison, recommendation, and troubleshooting discussions
+* Thread lifetime visibility — Reddit threads where community voice comments continue receiving upvotes months after posting (proxy for AEO impact)
+* First brand appearances in threads where someone is actively comparing tools
+
+
+The B2B Headline Metric
+	"Your brand now appears in X% of high-intent [industry] discussions on Reddit, up from 0% six months ago." Concrete, verifiable, and something no other channel can claim.
+	
+
+The Early Win — Manufacturing Urgency in Month 1
+In months 1–2, find 2–3 existing high-traffic Reddit threads where the brand should have been mentioned and show the client. Frame it as:
+
+
+⚡ "This thread has 400 upvotes. Your competitor is mentioned 3 times. You are not. This is exactly what we are fixing."
+
+
+This resets patience, creates urgency, and makes the trust-building phase feel intentional rather than slow.
+
+
+Momentum Events Feed (Dashboard Feature)
+Any time an community voice has a breakout comment, the client sees it immediately in a 'Momentum Events' feed:
+⚡ [Community Voice name] had a breakout comment in [subreddit] — 89 upvotes. Phase 2 eligibility in this subreddit moved up by 3 weeks. Recommended action: [content brief link].
+The client feels the system is responsive and intelligent. They see their investment compounding in real time.
+________________
+
+
+05 · Competitive Landscape & USP
+
+
+The Market
+Tool
+	Model
+	What They Do
+	Pricing
+	Fatal Gap
+	ReddGrow
+	Hybrid SaaS self-serve
+	Automated karma warming, AI advocate personas (founder / domain expert / user), subreddit rule compliance, LLM Trusted Draft (identifies threads LLMs currently cite and injects brand comments), brand monitoring across all Reddit, human-in-the-loop approval, self-learning from edits. 400+ paying clients, 80+ B2B
+	$59–$299/mo
+	Track 1 (Client Voice) is architecturally identical to ReddGrow — RAMP differentiates on intelligence depth (historical subreddit analysis, nested replies, content gap layer, ICP voice calibration). Track 2 (Platform Voices) has no ReddGrow equivalent. ReddGrow has a live LLM Trusted Draft feature and 400+ clients — acknowledge this in conversations.
+	ReplyAgent
+	Pay-per-comment
+	Managed accounts, auto-post, AI comments
+	$3/comment + $79/mo opt.
+	Generic accounts, no persona depth, spray-and-pray, no voice training.
+	Redreach
+	SaaS self-serve
+	Find high-intent threads, suggest replies
+	$19–$29/mo
+	User posts manually. No accounts, no warmup, no identity.
+	CrowdReply
+	Credit-based
+	Finds threads and posts for you
+	~$3–6/action
+	No personas, no warmup. Generic drive-by engagement.
+	Brand24 / Sprout
+	Monitoring SaaS
+	Listen, alert, sentiment tracking
+	$79–$500+/mo
+	No engagement. No posting. Observation only.
+	
+
+Our Differentiation — The Dual-Track Moat
+
+
+1. Deep Persona Identity (not generic accounts)
+Every competitor either uses the client's own Reddit account (risking their real reputation) or uses generic pre-warmed accounts with zero strategic depth. We build deeply trained, industry-specific personas with a real identity: job title, location, hobby history, consistent voice, strategic engagement tiers, and a human-supervised editorial layer. A persona is not an account. It is a credible community member.
+
+
+2. Execution Abstraction (we run the browser, not the client)
+Clients have zero access to the posting layer. Every action goes through a dedicated anti-detect browser profile with a pinned residential US IP. The client approves strategy and content in a dashboard. We handle execution. This protects the community voice, protects the client's brand, and makes the product genuinely differentiated from every self-serve tool on the market.
+
+
+3. The Community Voice Inventory Moat
+We maintain a standing inventory of pre-warmed, aged community voices that appreciate over time. A Gold Community Voice with 2,000+ karma and 6+ months of genuine community history cannot be manufactured overnight by a competitor. This moat compounds with every month of operation.
+
+
+Positioning Statement
+"On Track 1: unlike tools that simply find threads and draft comments, RAMP powers your own Reddit account with deep intelligence — historical subreddit analysis, ICP voice calibration, content gap detection, and nested thread engagement. You decide what goes out. We make it the highest-quality contribution in the room. On Track 2: unlike services that spray generic content from anonymous accounts, our Platform Voices are established community presences with genuine history, running under your direction and approval. Two tracks. One compounding presence."
+________________
+
+
+06 · Onboarding Process
+The onboarding wizard is conversational and AI-powered — not a form. The user answers in natural language; the system builds the Company Profile, ICP doc, voice constraints, and subreddit map automatically. This is what we did manually for XM Cyber, productized.
+
+
+Step 1 — The Basics (2 min)
+* Input company URL → system scrapes and auto-summarizes the product
+* 'Does this look right?' → user confirms or corrects inline
+
+
+Step 2 — The Problem You Solve (3 min)
+* What does your best customer say their life was like before using you?
+* What does your product do that competitors cannot?
+* Who are your 2–3 main competitors?
+
+
+Step 3 — ICP Definition (3 min)
+* Describe the person who buys from you: job title, day-to-day frustration, what they read
+* What question do they ask Google, Reddit, or ChatGPT right before they find you?
+
+
+Step 4 — Voice, Tone & Guardrails (4 min)
+* What 3 things do you NEVER want your brand associated with on Reddit?
+* Is there a person, brand, or content style you want your presence to sound like?
+* Any claims you legally cannot make? (Critical for regulated industries)
+
+
+ToV Document Upload
+	Users can upload existing Tone of Voice documents, brand guidelines, messaging frameworks, or persona briefs. The AI ingests and learns them, merging with the wizard output to build a richer, more precise voice profile. Supported formats: PDF, DOCX, TXT, MD.
+	
+
+Step 5 — Keywords & Subreddits (3 min)
+* What topics do you want to appear in? → AI suggests subreddits based on intent and ICP match
+* Which competitors do you want to monitor?
+* AI generates a ranked subreddit list with rationale — user promotes or rejects each one
+
+
+Output — Auto-Generated Onboarding Pack
+Document
+	What it contains
+	Company Profile
+	Worldview, problem framing, positioning, competitor differentiation, banned vocabulary
+	ICP Persona
+	Target buyer profile, pain language, frustration signals, credibility markers
+	Voice Profile
+	Tone principles, speech patterns, hill-to-die-on, helpful mode topics, constraints, vocabulary lean
+	Keyword Map
+	Primary keywords, related topics, intent classification, probability scoring
+	Subreddit Map
+	Professional targets, hobby targets, prioritization rationale, posting norms per sub
+	
+
+⚡ Quality gate: if the client's brief is thin, system blocks community voice activation and surfaces specific fields to complete. 'Your community voice needs more context to sound credible. Please complete these 3 fields before we activate.' Quality is a prerequisite, not a suggestion.
+________________
+
+
+07 · Proxy & Control Architecture
+RAMP operates a dual-track execution architecture. Track 1 (Client Voice): the client's own Reddit account, connected via OAuth. RAMP surfaces thread opportunities, generates content recommendations, and delivers ready-to-post drafts through the approval workflow. The client reviews, approves, and posts from their own authenticated session on their own device. RAMP's servers do not post on the client's behalf on Track 1 — the client is always the actor. Track 2 (Platform Voices): RAMP's established community voices operate through dedicated browser sessions on RAMP infrastructure. Every piece of content requires client approval before execution. The client never receives credentials for Platform Voices. RAMP manages the full operational layer — session management, timing, posting execution, and guardrails — within the client's approved strategy and content parameters.
+
+
+Track 2 Execution Stack (Platform Voices)
+
+
+Layer
+	Tool
+	Role
+	Layer 1 — Orchestration
+	n8n / backend
+	Receives 'approved' trigger from dashboard, queues job, selects the right community voice worker based on availability and cooldown state
+	Layer 2 — Session Identity
+	GoLogin / AdsPower
+	Maintains browser profile per community voice. Each profile = one community voice's persistent digital identity: unique fingerprint, cookie jar, browsing history, pinned residential US IP (city-level, sticky session).
+	Layer 3 — Execution
+	Puppeteer / Playwright (sidecar VM)
+	Opens browser profile via GoLogin API, executes posting with behavioral randomization (typing speed variance, scroll patterns, 30–90 sec pre-post browsing). Never runs inside n8n container.
+	
+
+Infrastructure Cost Per Community Voice / Month
+Component
+	Cost
+	GoLogin browser profile
+	~$3–5
+	Residential proxy (sticky, city-level, ~1GB/month)
+	~$8–15
+	Compute for worker (shared across community voices)
+	~$2–3
+	Total per community voice
+	~$13–23/month
+	
+
+⚡ At Growth tier ($799/mo, 7 community voices), community voice infrastructure cost is ~$100–160/month. Healthy margin. This is already baked into plan pricing.
+
+
+Pre-Post Guardrail Layer
+Every approved comment passes an automated AI validation check before reaching the posting queue. If it fails, it bounces back to the dashboard with a specific reason — never silently dropped.
+
+
+* Rule: Brand mention frequency check
+Is this community voice over the safe brand-to-general ratio this week?
+* Rule: Promotional language detection
+Does this comment read like marketing copy rather than a peer opinion?
+* Rule: Phase eligibility gate
+Is this community voice in Phase 1? Block brand mentions entirely, regardless of client request.
+* Rule: Subreddit rule match
+Has this subreddit banned promotional content or links? Flag before posting.
+
+
+⚡ This layer protects the community voice, protects the client's brand, and protects us from liability when a client claims 'your system got us banned.' Nothing posts that has not passed the guardrail.
+
+
+Client Positioning
+"Unlike tools that post from your account and risk your reputation — our community voices run on dedicated, independently managed identities. You control the strategy. We handle the execution."
+________________
+
+
+08 · Smart Cross-Community Voice Routing Rules
+Platform Voices can support each other's comments through upvotes and follow-up engagement. This must be systematically controlled to avoid creating a detectable ring. All routing decisions are automated and fully logged for audit.
+
+
+The Rules (Non-Negotiable)
+Rule
+	Detail
+	Max 2 community voices per comment
+	No more than 2 community voices interact with the same comment within any 24-hour window
+	Delayed upvotes
+	Supporting community voice upvotes are delayed randomly 2–18 hours after the comment is posted. Never immediate.
+	Subreddit activity check
+	Supporting community voice must have genuinely visited that subreddit recently. System checks activity logs. Will not send an community voice to upvote in a sub they have never touched.
+	Real comment requirement
+	Supporting community voice leaves a genuine comment of their own in the same thread at least 30% of the time — not just a drive-by upvote.
+	Hard cap per comment
+	Any single comment receives support from a maximum of 2 other community voices, ever. This cap is permanent and cannot be overridden.
+	Persona fit weighting
+	Routing algorithm only sends a supporting community voice if their profile is plausible for that subreddit. Fit is assessed against subreddit type, audience, and community voice persona.
+	
+
+⚡ All cross-community voice behavior is logged completely. You can audit it and prove to a skeptical client that it is not a bot ring. Transparency here is a product feature, not just a compliance requirement.
+
+
+Viral Thread Behavior — Reduce Coordination
+When a thread is getting significant organic traction (50+ upvotes), actually reduce cross-community voice coordination for 48 hours. High-visibility threads attract moderator scrutiny. The comment is doing fine on its own. Do not create a footprint.
+________________
+
+
+09 · Viral Acceleration Rules
+When a comment or post performs significantly above baseline, the system responds intelligently — accelerating phase eligibility where appropriate, while holding firm on the rules that protect long-term credibility.
+
+
+Performance Tiers
+Tier
+	Threshold
+	What It Means
+	Warm
+	20+ upvotes, 5+ comments within 6 hours
+	Above-average engagement. Monitor closely.
+	Hot
+	50+ upvotes, 10+ comments
+	Community Voice is being received as credible community member.
+	Viral
+	200+ upvotes, front page of subreddit, or thread referenced elsewhere
+	Community Voice has genuine community authority in this sub.
+	
+
+What Accelerates
+* Karma threshold for Phase 2 eligibility in that specific subreddit — viral in r/netsec = faster posting rights there
+* Content seeding opportunity — viral thread is the ideal moment to surface a content brief recommendation to the client
+* Subreddit tier upgrade — if the sub wasn't a primary target, it just proved itself. System recommends adding it and surfaces as upsell if client is at their plan limit
+
+
+What Does NOT Accelerate
+* Brand mention eligibility — clients will push hardest here. Hold the line. A viral community voice is MORE valuable, not less. Burning credibility with a premature brand mention on a 500-upvote thread has a proportionally larger blast radius.
+* Cross-community voice coordination frequency — viral threads attract mod scrutiny. Reduce coordination for 48 hours post-viral.
+
+
+Automated Response by Tier
+Signal
+	Automated Actions
+	Warm
+	Flag for human review. No automatic action.
+	Hot
+	(1) Lock thread from further cross-community voice support for 24 hrs. (2) Update community voice's subreddit trust score — Phase-eligible in this sub ahead of schedule. (3) Send client alert: '[Community Voice] just got 67 upvotes in r/netsec. Here's the thread.'
+	Viral
+	All Hot actions, plus: (4) Surface content opportunity — generate content brief for what the thread proves there's appetite for. (5) Queue follow-up comment from same community voice, 48–72 hrs later (return to thread, answer a question, acknowledge counter-point). (6) Flag subreddit for tier upgrade.
+	
+
+The Core Principle
+A viral moment is for consolidating credibility — not monetizing it. The right move is to let the moment breathe, let the karma accrue, then leverage it 2–3 weeks later in a different thread in the same subreddit where the community voice's credibility now opens doors that were previously closed.
+
+
+Acceleration Model
+	Viral moments compress the timeline for the next phase's eligibility — but the phase transition still requires a deliberate step. If an community voice was 6 weeks from Phase 2 eligibility and something goes viral, the system moves that to 2 weeks. It does not flip to Phase 2 tomorrow.
+	
+
+Client-Facing: Momentum Events Feed
+Every viral or hot event surfaces immediately in the client dashboard:
+⚡ [Community Voice name] had a breakout comment in [subreddit] — 89 upvotes. Phase 2 eligibility in this subreddit moved up by 3 weeks. Recommended action: [content brief]. We are holding brand mentions until the community voice's credibility compounds further.
+The client sees the system making intelligent, protective decisions. They trust the judgment. The pressure to do something reckless with the momentum is defused automatically.
+
+
+Reddit Community Voice Army — Business Brief · Confidential · May 2026
+________________
+
+
+10 · Agency Model
+The agency model is a fundamentally different product experience — not simply a permission layer on top of the standard product. The agency is the operator; their client is the end user. This changes the information architecture, accountability structure, value proposition, and pricing logic entirely.
+
+
+Agency Archetypes
+Three distinct agency types will come to us, each needing a different product experience. Build for Type A and B first.
+
+
+Type A
+Silent Operator
+	Agency runs everything. Client has no dashboard access.
+* Client receives a monthly PDF report branded as the agency's work
+* Agency pays us in the background, bills client $3–5k/month
+* Pure white-label — no trace of our platform in the client experience
+* Most common archetype in early sales. Default to this model.
+	
+
+Type B
+Co-Pilot
+	Agency owns strategy and execution. Client has read-only access.
+* Client can see the intelligence layer: thread scoring, monitoring, karma dashboard
+* Client cannot approve, edit, or trigger any action
+* Agency retains full operational control
+* Ideal for sophisticated clients who want visibility without responsibility
+	
+
+Type C
+Reseller
+	Agency sells our product under their brand. Clients operate it semi-independently.
+* Fully white-labeled SaaS: agency logo, domain, color scheme
+* Agency handles onboarding and support; we are the silent infrastructure
+* Later-stage motion only — build this once Type A and B are stable and proven
+* Requires the most product maturity: self-serve onboarding, robust multi-tenant architecture
+	
+
+Multi-Client Workspace Architecture
+The current data model is built around a single client context. For agencies we need a full workspace hierarchy. Each client workspace is completely siloed — community voices, data, and credentials never bleed between clients. This is both a product requirement and a legal one.
+
+
+Level
+	Who Sees It
+	What It Contains
+	Agency Master Account
+	Agency operators only
+	All client workspaces, aggregated billing, cross-client alert feed, community voice inventory management, bulk cross-client insights
+	Client Workspace
+	Agency (full) + Client (read-only, Type B)
+	Company Profile, community voices, subreddit map, approval dashboard, reports — fully isolated per client
+	Client Read-Only View
+	Client only (Type B)
+	Intelligence layer: monitoring, thread scoring, karma dashboard, reports. No editing or approval capability.
+	
+
+⚡ Siloing is non-negotiable. An community voice, keyword, or data point from Client A must never appear in Client B's workspace. Enforce at the database level, not just the UI level.
+
+
+The Two Dashboard Views
+
+
+Agency Master View — Mission Control
+* All active client workspaces in a grid: name, plan tier, community voice count, last activity, health status
+* Cross-client alert feed: hot threads, low karma warnings, unapproved comment backlogs
+* Aggregated billing: one invoice to the agency, not per-client invoices they reconcile manually
+* Bulk insights: surface a cross-industry trend across all client workspaces simultaneously
+* Community Voice inventory management: agencies building their own pre-warmed pool manage it here
+
+
+Client Workspace View — Branded, Operated by Agency
+* Identical experience to the standard product dashboard
+* Branded with the agency logo and color scheme — no trace of our platform
+* If client has read-only access (Type B): stripped-down view — intelligence and reporting only
+* Agency can toggle client access on/off per workspace at any time
+
+
+White-Label Configuration
+White-labeling is table stakes for Type A and B agencies. It is a premium add-on, not included in base agency pricing.
+
+
+Element
+	What Gets White-Labeled
+	Domain
+	Custom subdomain: reddit.theiragency.com instead of our platform URL
+	Branding
+	Agency logo, color scheme, typography across all client-facing screens
+	Reports
+	PDF reports generated with agency branding, their name in the header
+	Emails
+	All notifications and alerts sent from the agency domain
+	Platform Name
+	Zero mention of our platform name anywhere in the client-facing experience
+	
+
+White-Label Pricing
+	One-time setup fee: ~$500. Included in Agency Growth tier and above on an ongoing basis. Agency Starter gets branded reports only — no custom domain.
+	
+
+Agency Pricing
+Pricing is per client slot with volume incentives to grow the roster. The math is designed to make the agency margin obvious and compelling from the first sales conversation.
+
+
+Tier
+	Monthly
+	Client Slots
+	Platform Voices / Client
+	White-Label
+	Support
+	Agency Starter
+	$999/mo
+	Up to 3
+	5 each
+	Branded reports only
+	Email
+	Agency Growth
+	$1,999/mo
+	Up to 8
+	7 each
+	Full (custom domain)
+	Priority + Slack
+	Agency Scale
+	$3,499/mo
+	Up to 20
+	10 each
+	Full + custom reporting
+	Dedicated account manager
+	Agency Enterprise
+	Custom
+	Unlimited
+	Custom
+	Full custom
+	SLA + quarterly business review
+	
+
+⚡ Additional client slots beyond tier limit: +$199/client/month. Additional community voices per client: same upsell ladder as standard product (Silver Community Voice +$199 one-time, Gold Community Voice +$499 one-time).
+
+
+The Agency Margin Math
+	Agency Growth ($1,999/mo, 8 clients): if the agency charges each client $2,500/month for Reddit strategy, that is $20,000/month revenue against a $1,999 platform cost. Even with $500/client in management overhead, they net ~$14,000/month margin. Lead with this number in every agency sales conversation.
+	
+
+⚡ Annual contracts only. Monthly is too fragile given revenue concentration risk — one agency churning can represent 8–20 clients disappearing simultaneously. Offer 15–20% discount for annual commitment and frame it as the industry standard for a platform partnership.
+
+
+Agency Onboarding — Two Flows
+Agency onboarding happens once on sign-up. Client onboarding repeats for every client the agency adds. Both flows must be seamless and fully self-serve at maturity.
+
+
+Flow 1 — Agency Account Setup (once)
+* Master account creation, team member access and role permissions (operator, viewer, billing)
+* White-label configuration: custom domain, logo upload, color scheme, email sender domain
+* Billing setup: aggregated invoice, payment method, tier selection
+* Community Voice pool initialization: shared pool vs. dedicated inventory selection
+
+
+Flow 2 — Client Workspace Creation (per client, two modes)
+
+
+Mode
+	Who Completes It
+	When to Use
+	Agency-Led
+	Agency fills the onboarding wizard on behalf of the client. Uploads existing brand docs, ToV materials, messaging frameworks via document upload.
+	Default. Agency wants full control. Client may not know the platform exists.
+	Client-Invited
+	Agency sends client a branded onboarding link. Client completes the wizard themselves. Agency reviews and approves before activation.
+	Preferred for quality. Client has deeper context about their own brand. Results in richer voice profiles and fewer corrections.
+	
+
+⚡ Both modes support ToV document upload (PDF, DOCX, TXT, MD). AI ingests and learns them, merging with wizard output to build the voice profile. Quality gate still applies — thin briefs block community voice activation regardless of who completed the wizard.
+
+
+Community Voice Pool Strategy for Agencies
+This is an infrastructure decision that affects the entire agency model. Recommendation: Hybrid model.
+
+
+Option
+	How It Works
+	Risk
+	Verdict
+	Shared Pool
+	We maintain inventory. Agency clients get assigned community voices from our pool on onboarding.
+	Community Voice burned on Client A is gone for everyone. Cross-client contamination risk.
+	Not recommended at agency tier.
+	Dedicated per Agency
+	Each agency gets their own isolated pool. Platform Voices belong to their account and can be reassigned between their clients.
+	More operationally complex and expensive at small scale.
+	Ideal but only at Agency Scale tier+.
+	Hybrid (Recommended)
+	Standard community voices from shared pool, isolated per workspace. Pre-warmed Silver and Gold community voices are always dedicated — purchased and permanently assigned to a specific client workspace.
+	A burned standard community voice is a minor setback. A burned Gold community voice is a defined, understood loss.
+	Build this first. Balances cost and safety.
+	
+
+The Reporting Layer
+For agencies, reporting is the client retention tool — it is what justifies the retainer every month. Our reports must do that job automatically, without the agency writing anything from scratch.
+
+
+Client Report — Monthly, Auto-Generated, White-Labeled
+* Delivered automatically in PDF on a set date each month
+* Fully white-labeled with agency branding — designed to be forwarded directly to the client CMO without edits
+* Covers all metrics from the deliverables framework: activity, presence, intent, momentum events
+* Agency adds a custom commentary field before auto-send — their strategic narrative layered on top of our data
+* They look smart. We automate the work.
+
+
+Agency Performance Report — Internal, Aggregate
+* Cross-client performance summary across all workspaces in one view
+* Designed for the agency's internal QBR: fastest-growing clients, highest karma community voices, most viral comments across the portfolio
+* Retention tool: makes the agency feel they are running a serious, measurable practice, not a side service
+
+
+Build Sequence — Do Not Over-Engineer Early
+Do not build the full agency architecture before having agency clients. Validate the model with process before investing in multi-tenant infrastructure.
+
+
+Phase
+	What to Build
+	Trigger
+	Phase 1 — Simulate
+	First 2–3 agency clients get manually provisioned as separate workspaces. White-labeling done with custom report templates. Manual and slow — but proves the model before engineering investment.
+	First agency inquiry
+	Phase 2 — Build Workspace Layer
+	Proper multi-client workspace architecture. Isolated data per client, agency master view, role-based access. Estimated 6–8 weeks of engineering.
+	3+ paying agency clients
+	Phase 3 — Self-Serve Agency Onboarding
+	Agency can sign up, configure white-label, add clients, and manage everything without touching us. Agency channel becomes truly scalable.
+	Agency channel generating consistent monthly revenue
+	
+
+Key Risk — Client Churn Propagation
+One agency churning can represent 8–20 clients of revenue disappearing simultaneously. Mitigate on two fronts:
+
+
+Contractual Mitigation
+	Annual agency contracts only. Offer 15–20% discount for annual commitment. Frame it as the industry standard for a platform partnership — not a concession.
+	
+
+Product Stickiness
+	The longer an agency is on the platform, the more valuable their community voice inventory becomes. Aged community voices with established karma cannot be transferred to a competitor platform. This moat compounds every month of operation and is the strongest retention mechanism in the product.
+	
+
+Reddit Community Voice Army — Business Brief · Confidential · May 2026
+________________
+
+
+11 · Track 1 — Client Voice (formerly RAMP Personal)
+Note: What was previously called RAMP Personal is now Track 1 (Client Voice) — built into every plan, not a separate product. The content in this section describes Track 1 characteristics: phase adaptation for real accounts, legal considerations specific to client-owned account engagement, and autopilot options for high-trust clients.
+
+
+Client Voice is not an alternative to Platform Voices — every client gets both. The two surfaces run on the same scraping, scoring, and generation infrastructure and diverge only at the execution layer: Client Voice posts from the client’s own session, Platform Voices post from RAMP-managed sessions.
+
+
+One-Line Definition
+	RAMP finds the conversations, drafts the contributions, and tells you exactly when and where to show up. You post under your own name. We do the rest.
+	
+
+How Track 1 Differs From Track 2
+
+
+Dimension
+	Core RAMP (Managed Platform Voices)
+	RAMP Personal (White-Label)
+	Who posts
+	RAMP-managed AI personas
+	Real person — their own Reddit account
+	Identity
+	Fictional personas, no client connection
+	Real employee, founder, or executive
+	Reddit ToS
+	Grey area — managed carefully
+	Fully compliant — real user, real device
+	Detection risk
+	Managed via proxies + phase system
+	Zero — authentic sessions, real device
+	Brand risk
+	Fully abstracted from client
+	Direct — real name and reputation on the line
+	Account warming
+	Required — Phase 1 credibility building
+	Compressed or skipped based on existing karma
+	Best for
+	Brand-level managed presence at scale
+	Founder-led, executive thought leadership, employee advocacy
+	Setup
+	Full onboarding + community voice allocation (24–48h)
+	Connect Reddit account + configure voice — live in hours
+	Posting flow
+	Human approves → platform posts via OAuth
+	Human approves → posts directly from mobile app or platform
+	
+
+The Technical Architecture
+RAMP Personal shares the entire intelligence stack with core RAMP: subreddit scraping, thread scoring, keyword monitoring, EPG (daily publishing program), strategy generation, and AI draft generation. The posting layer is different: instead of a managed OAuth session on a RAMP-controlled account, the user authenticates their own Reddit account via OAuth, and approved drafts post directly from that session.
+
+
+* Same intelligence engine: monitoring, scoring, EPG, strategy, recommendations
+* Same content generation: persona-aware drafts calibrated to subreddit tone and history
+* Same self-learning loop: every edit the user makes trains the AI for their specific voice
+* Same phase system: tracks the user's own community credibility, not a fictional persona's
+* Different execution: user's own OAuth session, their device, their IP, their account
+
+
+⚡ The mobile app is the primary interface for Track 1 Client Voice engagement. Login → today's EPG (3–7 recommendations) → draft detail → one-tap approve → posts via OAuth. No copy-paste. No switching apps. No sharing credentials.
+
+
+Roadmap
+Phase
+	Milestone
+	Target
+	Now
+	Auto-posting stable on personal community voices (E2E tests passing)
+	June 8–9
+	Phase 1
+	First customer demos using desktop version with real community voice results
+	June 10–12
+	Phase 1
+	Mobile REST API backend ready (EPG feed, approve/post endpoints)
+	June 13–15
+	Phase 1
+	Flutter MVP: login + EPG + draft detail + one-tap OAuth post
+	June 22–25
+	Phase 1
+	Mobile app testable on real phone
+	June 28–30
+	Phase 2
+	Self-serve onboarding for RAMP Personal (connect account, configure voice, live in hours)
+	Jul–Aug
+	Phase 2
+	GEO/AIO layer integrated via Spotlight API partnership
+	Jul–Aug
+	Phase 3
+	Team plan (up to 5 accounts per workspace, employee advocacy workflows)
+	Aug–Oct
+	
+
+⚡ For demos: present the desktop version with real community voice results next week. Pitch the mobile app as "coming next month" — this strengthens the roadmap story without requiring the app to be live. The mobile app is the key differentiator and a major sales point; it should be positioned as imminent, not distant.
+
+
+Action Limits — Why They Exist and How to Frame Them
+Action limits in RAMP Personal exist for a fundamentally different reason than in core RAMP. In managed community voices, limits protect against Reddit detection of coordinated automated behavior. In RAMP Personal, limits protect the user's own account credibility by keeping activity within the range that looks genuinely human.
+
+
+A real person does not comment 200 times a month on Reddit. Even highly active users average 20–50 meaningful professional comments per month. Exceeding this makes the account look inhuman — which defeats the entire value proposition of a real-account product.
+
+
+Client Framing
+	We limit your posting volume to what a genuinely active community member would produce — because your credibility is worth more than your comment count.
+	
+
+* Daily cap (system-enforced, not shown to user): never more than 5 comments in any 24-hour period from one account
+* Posting hours: only during the user's configured active timezone hours. No comments at 3am their time.
+* Limits are not overridable: a user requesting unlimited posting will get their account shadowbanned and blame RAMP Personal. The limits protect both the user and the platform.
+
+
+Phase System — Adapted for Real Accounts
+The phase system applies to RAMP Personal but is personalised to the user's existing Reddit history, not built from zero.
+
+
+User's Reddit History
+	Phase Entry Point
+	What This Means
+	New account (0–100 karma)
+	Phase 1 full
+	Standard warmup: hobby subs + professional subs, no brand mentions. Same timeline as managed community voices.
+	Established account (100–1,000 karma)
+	Phase 1.5
+	Skip hobby warming. Move directly to professional sub participation. Brand mentions unlock faster.
+	Authority account (1,000+ karma in relevant subs)
+	Phase 2 or 3 eligible
+	System assesses subreddit-specific karma. May unlock Phase 3 brand integration immediately in subs where credibility is already earned.
+	
+
+⚡ This is a genuine competitive advantage over managed community voices for users who already have Reddit history: they skip months of warmup and see results faster. Frame this in the pitch: "If you already have Reddit history, your phase timeline is shorter — sometimes dramatically."
+
+
+Legal Considerations — White-Label Specific
+RAMP Personal has a materially different legal profile from the managed community voice product. The Reddit ToS risk is essentially eliminated — real users posting from real accounts is fully compliant. However, two new risks emerge that are specific to this model:
+
+
+Employee Advocacy Disclosure (FTC Risk)
+The FTC requires disclosure when employees promote their employer's brand without making the relationship clear. If a RAMP Personal user is an employee posting about their company's products, they need disclosure language. This is the Lord & Taylor enforcement precedent.
+
+
+* RAMP Personal should provide an optional disclosure template: "I work at [Company] and think this is worth mentioning..."
+* Make disclosure a configurable toggle in the platform — on by default for employees, off for founders posting about general industry topics
+* Document that disclosure capability exists — this protects RAMP from FTC liability by demonstrating the tool actively supports compliance
+
+
+⚠ Do not position RAMP Personal to clients as a way to have employees promote the company without disclosure. Always frame employee advocacy as authentic expertise, not undisclosed promotion.
+
+
+AI-Generated Content
+Emerging regulations in several jurisdictions are beginning to require disclosure when AI assisted in creating content. While not yet legally mandatory in most markets, the trend is clear. RAMP Personal should include an optional AI-assisted disclosure toggle and monitor this regulatory space.
+
+
+Data Privacy
+RAMP Personal holds users' Reddit OAuth tokens. These are sensitive credentials requiring explicit handling in the privacy policy and terms of service: encrypted storage at rest, no use beyond the user's own account operations, deletion on account termination, and GDPR/CCPA compliance for EU and California users.
+
+
+Autopilot Mode
+Autopilot is an optional feature available on Pro and Team tiers only. When enabled, the system posts approved content automatically within the user's configured active hours, without requiring per-post manual approval.
+
+
+* Available on Pro and Team tiers only
+* Mandatory 7-day minimum on the platform before autopilot can be enabled
+* Hard daily cap of 3 auto-posted items per day regardless of monthly limit
+* User sets standing approval: "post anything that scores above X in these subreddits during these hours"
+* Instant kill switch: one tap turns autopilot off
+
+
+Framing
+	Autopilot doesn't post without your approval — it posts with your standing approval, within the guardrails you've already set.
+	
+
+Sales Pitch
+Scenario
+	Pitch
+	Founder who wants personal Reddit authority
+	"You already know Reddit is where your buyers research. RAMP Personal finds the conversations you should be in, drafts what you should say in your voice, and surfaces them on your phone. One tap and it's posted from your account. You get the credibility. We do the work."
+	B2B company with active executive team
+	"Your executives are the most credible voices in your category. RAMP Personal turns their expertise into a systematic Reddit presence — without them spending 2 hours a day on it. Think of it as a content team for Reddit, in their pocket."
+	Agency wanting employee advocacy add-on
+	"Alongside the managed community voice strategy, your client's own team can build authentic Reddit authority under their real names. Both tracks run on the same platform, visible in the same dashboard. One reinforces the other."
+	Client skeptical about managed community voices
+	"Start with RAMP Personal — your own account, your real identity, fully compliant. Once you see the intelligence layer working and the value it surfaces, you'll understand why brands want to extend that reach with additional managed presences."
+	
+
+RAMP — White-Label Product Addendum · Confidential · June 2026

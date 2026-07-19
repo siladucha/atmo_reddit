@@ -399,6 +399,14 @@ async def post_report(
         "reported_at": datetime.now(timezone.utc).isoformat(),
     }
 
+    # If task_failed → update task.status to cancelled (skipped/rejected) or failed
+    if body.result_type == "task_failed":
+        error_code = body.error_code or ""
+        if error_code in ("skipped_by_executor", "rejected_by_executor"):
+            task.status = "cancelled"
+        else:
+            task.status = "failed"
+
     # If task_completed with permalink → mark linked drafts as posted
     if body.result_type == "task_completed" and body.status == "posted" and body.permalink:
         now = datetime.now(timezone.utc)
@@ -1180,12 +1188,109 @@ async def get_extension_dashboard(
         "epg_summary": epg_summary,
         "epg": epg_list,
         "pending_drafts": drafts_list,
+        "subreddit_intel": _get_subreddit_intel_status(db, avatar),
         "links": links,
         "last_updated": now.isoformat(),
     }
 
 
 # ─── Helper Functions ────────────────────────────────────────────────────────
+
+
+def _get_subreddit_intel_status(db: Session, avatar: Avatar) -> dict:
+    """Get freshness status of subreddit intelligence for avatar's subs.
+
+    Returns summary for extension popup: total subs, fresh count, stale count.
+    """
+    from datetime import timedelta
+    from app.models.subreddit import Subreddit, ClientSubredditAssignment
+    from app.models.subreddit_risk_profile import SubredditRiskProfile
+
+    now = datetime.now(timezone.utc)
+    stale_threshold = now - timedelta(days=7)
+
+    try:
+        # Get avatar's subreddits (from client assignments)
+        sub_names = set()
+        if avatar.client_ids:
+            for cid_str in avatar.client_ids:
+                try:
+                    cid = uuid.UUID(cid_str)
+                except (ValueError, TypeError):
+                    continue
+                assignments = (
+                    db.query(ClientSubredditAssignment)
+                    .join(Subreddit, ClientSubredditAssignment.subreddit_id == Subreddit.id)
+                    .filter(
+                        ClientSubredditAssignment.client_id == cid,
+                        ClientSubredditAssignment.is_active.is_(True),
+                    )
+                    .all()
+                )
+                for a in assignments:
+                    sub_names.add(a.subreddit.subreddit_name.lower())
+
+        # Also include hobby subreddits
+        if avatar.hobby_subreddits:
+            for s in avatar.hobby_subreddits:
+                name = s.get("subreddit", s) if isinstance(s, dict) else s
+                if isinstance(name, str):
+                    sub_names.add(name.lower())
+
+        if not sub_names:
+            return {"total": 0, "fresh": 0, "stale": 0, "status": "no_subs"}
+
+        # Check freshness
+        fresh = 0
+        stale = 0
+        stale_subs = []
+
+        for name in sub_names:
+            sub = (
+                db.query(Subreddit)
+                .filter(sa.func.lower(Subreddit.subreddit_name) == name)
+                .first()
+            )
+            if not sub:
+                stale += 1
+                stale_subs.append(name)
+                continue
+
+            # Both emotional AND risk must be fresh
+            emotional_fresh = (
+                sub.emotional_profile_analyzed_at is not None
+                and sub.emotional_profile_analyzed_at >= stale_threshold
+            )
+
+            risk_profile = (
+                db.query(SubredditRiskProfile)
+                .filter(SubredditRiskProfile.subreddit_id == sub.id)
+                .first()
+            )
+            risk_fresh = (
+                risk_profile is not None
+                and risk_profile.next_check_at is not None
+                and risk_profile.next_check_at > now
+            )
+
+            if emotional_fresh and risk_fresh:
+                fresh += 1
+            else:
+                stale += 1
+                stale_subs.append(name)
+
+        status = "fresh" if stale == 0 else ("degraded" if stale <= len(sub_names) // 2 else "stale")
+
+        return {
+            "total": len(sub_names),
+            "fresh": fresh,
+            "stale": stale,
+            "stale_subs": stale_subs[:5],  # First 5 for UI display
+            "status": status,
+        }
+
+    except Exception as e:
+        return {"total": 0, "fresh": 0, "stale": 0, "status": "error", "error": str(e)[:100]}
 
 
 def _version_lt(v1: str, v2: str) -> bool:

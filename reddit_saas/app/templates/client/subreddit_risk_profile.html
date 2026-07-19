@@ -270,38 +270,48 @@
         </div>
         {% if emotional_profile %}
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px;">
-            {% if emotional_profile.formality is defined %}
+            {% if emotional_profile.formality_level is defined %}
             <div style="padding:12px;background:var(--color-surface-alt);border-radius:var(--radius-card);">
                 <div style="font-size:var(--text-micro);color:var(--color-muted);margin-bottom:4px;">Formality</div>
-                <div style="font-weight:600;color:var(--color-white);">{{ emotional_profile.formality | title }}</div>
+                <div style="font-weight:600;color:var(--color-white);">{{ emotional_profile.formality_level | title }}</div>
             </div>
             {% endif %}
-            {% if emotional_profile.humor_level is defined %}
+            {% if emotional_profile.humor_tolerance is defined %}
             <div style="padding:12px;background:var(--color-surface-alt);border-radius:var(--radius-card);">
-                <div style="font-size:var(--text-micro);color:var(--color-muted);margin-bottom:4px;">Humor</div>
-                <div style="font-weight:600;color:var(--color-white);">{{ emotional_profile.humor_level | title }}</div>
+                <div style="font-size:var(--text-micro);color:var(--color-muted);margin-bottom:4px;">Humor Tolerance</div>
+                <div style="font-weight:600;color:var(--color-white);">{{ emotional_profile.humor_tolerance | title }}</div>
             </div>
             {% endif %}
-            {% if emotional_profile.expertise_level is defined %}
+            {% if emotional_profile.vulnerability_tolerance is defined %}
             <div style="padding:12px;background:var(--color-surface-alt);border-radius:var(--radius-card);">
-                <div style="font-size:var(--text-micro);color:var(--color-muted);margin-bottom:4px;">Expertise Expected</div>
-                <div style="font-weight:600;color:var(--color-white);">{{ emotional_profile.expertise_level | title }}</div>
+                <div style="font-size:var(--text-micro);color:var(--color-muted);margin-bottom:4px;">Vulnerability</div>
+                <div style="font-weight:600;color:var(--color-white);">{{ emotional_profile.vulnerability_tolerance | title }}</div>
             </div>
             {% endif %}
-            {% if emotional_profile.dominant_emotions %}
+            {% if emotional_profile.rewarded_tones %}
             <div style="padding:12px;background:var(--color-surface-alt);border-radius:var(--radius-card);grid-column:1/-1;">
-                <div style="font-size:var(--text-micro);color:var(--color-muted);margin-bottom:6px;">Dominant Emotions</div>
+                <div style="font-size:var(--text-micro);color:var(--color-muted);margin-bottom:6px;">✓ Rewarded Tones</div>
                 <div style="display:flex;flex-wrap:wrap;gap:6px;">
-                    {% for emotion in emotional_profile.dominant_emotions[:6] %}
-                    <span style="padding:3px 10px;border-radius:var(--radius-pill);background:rgba(99,102,241,0.12);color:#a5b4fc;font-size:var(--text-small);">{{ emotion }}</span>
+                    {% for tone in emotional_profile.rewarded_tones[:5] %}
+                    <span style="padding:3px 10px;border-radius:var(--radius-pill);background:rgba(34,197,94,0.12);color:#86efac;font-size:var(--text-small);" title="{{ tone.description }}">{{ tone.name }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% if emotional_profile.punished_tones %}
+            <div style="padding:12px;background:var(--color-surface-alt);border-radius:var(--radius-card);grid-column:1/-1;">
+                <div style="font-size:var(--text-micro);color:var(--color-muted);margin-bottom:6px;">✗ Avoid These Tones</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                    {% for tone in emotional_profile.punished_tones[:5] %}
+                    <span style="padding:3px 10px;border-radius:var(--radius-pill);background:rgba(239,68,68,0.12);color:#fca5a5;font-size:var(--text-small);" title="{{ tone.description }}">{{ tone.name }}</span>
                     {% endfor %}
                 </div>
             </div>
             {% endif %}
         </div>
-        {% if emotional_profile.summary %}
+        {% if emotional_profile.community_temperament %}
         <p class="text-small" style="margin-top:12px;line-height:1.6;color:var(--color-muted);font-style:italic;">
-            "{{ emotional_profile.summary }}"
+            "{{ emotional_profile.community_temperament }}"
         </p>
         {% endif %}
         {% else %}

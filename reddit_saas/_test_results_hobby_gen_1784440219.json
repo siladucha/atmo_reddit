@@ -1,0 +1,136 @@
+{
+  "model": "gemini/gemini-2.5-flash",
+  "runs": 10,
+  "success_rate": 1.0,
+  "avg_time_ms": 2280.5,
+  "results": [
+    {
+      "run": 1,
+      "success": true,
+      "comment": "Owning zero hardware after 5 years definitely stings a bit. My Oura ring cost less upfront and I still have it, even though I stopped my subscription.",
+      "word_count": 27,
+      "elapsed_ms": 2647,
+      "input_tokens": 798,
+      "output_tokens": 39,
+      "model_used": "gemini/gemini-2.5-flash-lite",
+      "quality_issues": [],
+      "raw_content_preview": "{\"comment\": \"Owning zero hardware after 5 years definitely stings a bit. My Oura ring cost less upfront and I still have it, even though I stopped my subscription.\"}"
+    },
+    {
+      "run": 2,
+      "success": true,
+      "comment": "",
+      "word_count": 0,
+      "elapsed_ms": 1829,
+      "input_tokens": 798,
+      "output_tokens": 286,
+      "model_used": "gemini/gemini-2.5-flash",
+      "quality_issues": [
+        "too_short"
+      ],
+      "raw_content_preview": "{"
+    },
+    {
+      "run": 3,
+      "success": true,
+      "comment": "",
+      "word_count": 0,
+      "elapsed_ms": 1892,
+      "input_tokens": 798,
+      "output_tokens": 286,
+      "model_used": "gemini/gemini-2.5-flash",
+      "quality_issues": [
+        "too_short"
+      ],
+      "raw_content_preview": "{"
+    },
+    {
+      "run": 4,
+      "success": true,
+      "comment": "My HRV graph definitely mirrors my sleep consistency. It's wild how much that one variable can impact everything else.",
+      "word_count": 19,
+      "elapsed_ms": 2617,
+      "input_tokens": 798,
+      "output_tokens": 28,
+      "model_used": "gemini/gemini-2.5-flash-lite",
+      "quality_issues": [],
+      "raw_content_preview": "{\"comment\": \"My HRV graph definitely mirrors my sleep consistency. It's wild how much that one variable can impact everything else.\"}"
+    },
+    {
+      "run": 5,
+      "success": true,
+      "comment": "Crazy numbers when you frame it like that. My HRV trendline is the only thing keeping me subscribed at this point, but even that feels like a stretch sometimes.",
+      "word_count": 29,
+      "elapsed_ms": 2541,
+      "input_tokens": 798,
+      "output_tokens": 42,
+      "model_used": "gemini/gemini-2.5-flash-lite",
+      "quality_issues": [],
+      "raw_content_preview": "{\n  \"comment\": \"Crazy numbers when you frame it like that. My HRV trendline is the only thing keeping me subscribed at this point, but even that feels like a stretch sometimes.\"\n}"
+    },
+    {
+      "run": 6,
+      "success": true,
+      "comment": "My HRV tanked hard when I tried to go 3 months without paying. It's a tough subscription to justify long-term, even with the solid data.",
+      "word_count": 25,
+      "elapsed_ms": 2446,
+      "input_tokens": 798,
+      "output_tokens": 43,
+      "model_used": "gemini/gemini-2.5-flash-lite",
+      "quality_issues": [],
+      "raw_content_preview": "{\"comment\": \"My HRV tanked hard when I tried to go 3 months without paying. It's a tough subscription to justify long-term, even with the solid data.\"}\n}"
+    },
+    {
+      "run": 7,
+      "success": true,
+      "comment": "I stopped paying for it a few months back and yeah, that band just sits there now. Was hoping for some kind of trade-in or discount on a new device, but nope.",
+      "word_count": 32,
+      "elapsed_ms": 2466,
+      "input_tokens": 798,
+      "output_tokens": 43,
+      "model_used": "gemini/gemini-2.5-flash-lite",
+      "quality_issues": [],
+      "raw_content_preview": "{\"comment\": \"I stopped paying for it a few months back and yeah, that band just sits there now. Was hoping for some kind of trade-in or discount on a new device, but nope.\"}"
+    },
+    {
+      "run": 8,
+      "success": true,
+      "comment": "",
+      "word_count": 0,
+      "elapsed_ms": 1758,
+      "input_tokens": 798,
+      "output_tokens": 285,
+      "model_used": "gemini/gemini-2.5-flash",
+      "quality_issues": [
+        "too_short"
+      ],
+      "raw_content_preview": "{\n"
+    },
+    {
+      "run": 9,
+      "success": true,
+      "comment": "",
+      "word_count": 0,
+      "elapsed_ms": 1967,
+      "input_tokens": 798,
+      "output_tokens": 285,
+      "model_used": "gemini/gemini-2.5-flash",
+      "quality_issues": [
+        "too_short"
+      ],
+      "raw_content_preview": "{\n"
+    },
+    {
+      "run": 10,
+      "success": true,
+      "comment": "My HRV data definitely shows a dip when sleep debt piles up. That's the main thing I still use it for, regardless of the cost.",
+      "word_count": 25,
+      "elapsed_ms": 2642,
+      "input_tokens": 798,
+      "output_tokens": 37,
+      "model_used": "gemini/gemini-2.5-flash-lite",
+      "quality_issues": [],
+      "raw_content_preview": "{\"comment\": \"My HRV data definitely shows a dip when sleep debt piles up. That's the main thing I still use it for, regardless of the cost.\"}\n\"}"
+    }
+  ]
+}

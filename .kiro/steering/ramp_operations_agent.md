@@ -97,6 +97,7 @@
 - Stale learning (no edit records captured in 14 days)
 - Orphaned avatars (active but no pipeline output 7+ days)
 - Quality drift (karma/removal ratio degrading slowly)
+- ~~LLM response quality degradation (empty responses, parse errors, latency spikes)~~ → **PARTIALLY ADDRESSED July 19, 2026:** `check_llm_quality` task (every 4h) detects per-model×operation degradation vs 7-day baseline. Alerts on dashboard + Telegram. Admin: `/admin/llm-quality`.
 
 ### Scaling Intelligence (Phase 4)
 - 5-dimension capacity model (DB connections, Redis memory, Celery workers, LLM budget, Reddit API)

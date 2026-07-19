@@ -1,0 +1,39 @@
+title: "LLM Quality Monitor"
+purpose: "Detects model degradation under load — tracks success rates, latency, fallbacks, and empty responses across all LLM operations."
+
+sections:
+  - title: "What this page shows"
+    content: |
+      Every LLM call in RAMP records a quality_outcome: success, empty, parse_error, timeout, error, or fallback_used.
+      This page aggregates those signals and compares against a 7-day baseline to detect degradation.
+
+  - title: "Degradation Detection"
+    content: |
+      The system checks every 4 hours for:
+      • Success rate drops >10 percentage points from baseline
+      • Average latency exceeding 2× baseline
+      • Fallback rate >20% (primary model failing, backup used)
+      • Empty response rate >15% (model returning nothing)
+
+  - title: "What to do when degradation is detected"
+    content: |
+      1. Check if a specific provider is down (Anthropic status page, Google Cloud status)
+      2. Check if budget is exhausted (see AI Costs page for provider budget bars)
+      3. If latency spike — may be provider capacity issue, usually resolves within hours
+      4. If high empty rate on Gemini — known issue with safety filters, system auto-retries with fallback
+      5. If widespread across all models — check Redis/network health
+
+  - title: "Period filter"
+    content: |
+      Use 4h for real-time issues, 24h for daily summary, 7d for trend analysis.
+      The per-model table shows health at a glance — green ≥95%, yellow ≥85%, red <85%.
+
+actions:
+  owner:
+    - "View per-model and per-operation quality breakdown"
+    - "Identify which models are degrading"
+    - "See recent degradation events with details"
+    - "Use period filter to zoom in on incidents"
+  partner:
+    - "View overall success rate and degradation count"
+    - "Understand if pipeline quality is affected"

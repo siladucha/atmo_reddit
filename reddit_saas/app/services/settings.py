@@ -704,6 +704,12 @@ DEFAULTS: dict[str, dict] = {
         "desc": "Stripe webhook signing secret (whsec_...). Required for webhook signature verification.",
         "group": "billing",
     },
+    "stripe_secret_key": {
+        "value": "",
+        "secret": True,
+        "desc": "Stripe API secret key (sk_live_... or sk_test_...). Required for checkout session creation and subscription management.",
+        "group": "billing",
+    },
 }
 
 # ---------------------------------------------------------------------------

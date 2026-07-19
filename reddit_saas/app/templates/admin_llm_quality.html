@@ -1,0 +1,189 @@
+{% extends "admin_base.html" %}
+{% block title %}LLM Quality Monitor{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-white">🧠 LLM Quality Monitor</h1>
+      <p class="text-sm text-gray-400 mt-1">Model health, degradation detection, and performance under load</p>
+    </div>
+    <div class="flex gap-2">
+      {% for p, label in [("4h", "4h"), ("12h", "12h"), ("24h", "24h"), ("7d", "7d")] %}
+      <a href="?period={{ p }}"
+         class="px-3 py-1.5 rounded text-sm {{ 'bg-blue-600 text-white' if active_period == p else 'bg-gray-700 text-gray-300 hover:bg-gray-600' }}">
+        {{ label }}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Hero metrics -->
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+    <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+      <div class="text-xs text-gray-400 uppercase">Total Calls</div>
+      <div class="text-2xl font-bold text-white mt-1">{{ summary.total_calls }}</div>
+    </div>
+    <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+      <div class="text-xs text-gray-400 uppercase">Success Rate</div>
+      <div class="text-2xl font-bold {{ 'text-green-400' if summary.success_rate >= 95 else 'text-yellow-400' if summary.success_rate >= 85 else 'text-red-400' }} mt-1">
+        {{ summary.success_rate }}%
+      </div>
+    </div>
+    <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+      <div class="text-xs text-gray-400 uppercase">Empty Responses</div>
+      <div class="text-2xl font-bold text-white mt-1">{{ summary.by_outcome.get('empty', 0) }}</div>
+    </div>
+    <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+      <div class="text-xs text-gray-400 uppercase">Parse Errors</div>
+      <div class="text-2xl font-bold text-white mt-1">{{ summary.by_outcome.get('parse_error', 0) }}</div>
+    </div>
+    <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+      <div class="text-xs text-gray-400 uppercase">Degradation Events</div>
+      <div class="text-2xl font-bold {{ 'text-red-400' if summary.degradation_events > 0 else 'text-green-400' }} mt-1">
+        {{ summary.degradation_events }}
+      </div>
+    </div>
+  </div>
+
+  <!-- Active Degradation Alerts -->
+  {% if alerts %}
+  <div class="bg-red-900/30 border border-red-700 rounded-lg p-4">
+    <h2 class="text-lg font-semibold text-red-300 mb-3">⚠️ Active Degradation Signals</h2>
+    <div class="space-y-2">
+      {% for alert in alerts %}
+      <div class="flex items-start gap-3 p-3 bg-gray-800 rounded border-l-4 {{ 'border-red-500' if alert.severity == 'critical' else 'border-yellow-500' if alert.severity == 'high' else 'border-blue-500' }}">
+        <span class="text-xs font-mono px-2 py-0.5 rounded {{ 'bg-red-700 text-red-200' if alert.severity == 'critical' else 'bg-yellow-700 text-yellow-200' if alert.severity == 'high' else 'bg-blue-700 text-blue-200' }}">
+          {{ alert.severity | upper }}
+        </span>
+        <div class="flex-1">
+          <p class="text-sm text-gray-200">{{ alert.message }}</p>
+          <p class="text-xs text-gray-500 mt-1">{{ alert.signal_type }} | {{ alert.model }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Per-Model Health -->
+  <div class="bg-gray-800 rounded-lg border border-gray-700">
+    <div class="p-4 border-b border-gray-700">
+      <h2 class="text-lg font-semibold text-white">Per-Model Health</h2>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="text-gray-400 text-xs uppercase bg-gray-900/50">
+          <tr>
+            <th class="px-4 py-3 text-left">Model</th>
+            <th class="px-4 py-3 text-right">Calls</th>
+            <th class="px-4 py-3 text-right">Success Rate</th>
+            <th class="px-4 py-3 text-right">Avg Latency</th>
+            <th class="px-4 py-3 text-right">Empty</th>
+            <th class="px-4 py-3 text-right">Parse Errors</th>
+            <th class="px-4 py-3 text-right">Timeouts</th>
+            <th class="px-4 py-3 text-right">Fallbacks</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-700">
+          {% for m in summary.models %}
+          <tr class="hover:bg-gray-700/50">
+            <td class="px-4 py-3 text-white font-mono text-xs">{{ m.model }}</td>
+            <td class="px-4 py-3 text-right text-gray-300">{{ m.total }}</td>
+            <td class="px-4 py-3 text-right">
+              <span class="{{ 'text-green-400' if m.success_rate >= 95 else 'text-yellow-400' if m.success_rate >= 85 else 'text-red-400' }}">
+                {{ m.success_rate }}%
+              </span>
+            </td>
+            <td class="px-4 py-3 text-right text-gray-300">{{ m.avg_duration_ms }}ms</td>
+            <td class="px-4 py-3 text-right {{ 'text-yellow-400' if m.empty > 0 else 'text-gray-500' }}">{{ m.empty }}</td>
+            <td class="px-4 py-3 text-right {{ 'text-red-400' if m.parse_errors > 0 else 'text-gray-500' }}">{{ m.parse_errors }}</td>
+            <td class="px-4 py-3 text-right {{ 'text-orange-400' if m.timeouts > 0 else 'text-gray-500' }}">{{ m.timeouts }}</td>
+            <td class="px-4 py-3 text-right {{ 'text-yellow-400' if m.fallbacks > 0 else 'text-gray-500' }}">{{ m.fallbacks }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Per-Operation Health -->
+  <div class="bg-gray-800 rounded-lg border border-gray-700">
+    <div class="p-4 border-b border-gray-700">
+      <h2 class="text-lg font-semibold text-white">Per-Operation Health</h2>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="text-gray-400 text-xs uppercase bg-gray-900/50">
+          <tr>
+            <th class="px-4 py-3 text-left">Operation</th>
+            <th class="px-4 py-3 text-right">Calls</th>
+            <th class="px-4 py-3 text-right">Success Rate</th>
+            <th class="px-4 py-3 text-right">Avg Latency</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-700">
+          {% for op in summary.operations %}
+          <tr class="hover:bg-gray-700/50">
+            <td class="px-4 py-3 text-white">{{ op.operation }}</td>
+            <td class="px-4 py-3 text-right text-gray-300">{{ op.total }}</td>
+            <td class="px-4 py-3 text-right">
+              <span class="{{ 'text-green-400' if op.success_rate >= 95 else 'text-yellow-400' if op.success_rate >= 85 else 'text-red-400' }}">
+                {{ op.success_rate }}%
+              </span>
+            </td>
+            <td class="px-4 py-3 text-right text-gray-300">{{ op.avg_duration_ms }}ms</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Recent Degradation Events -->
+  {% if summary.recent_degradations %}
+  <div class="bg-gray-800 rounded-lg border border-gray-700">
+    <div class="p-4 border-b border-gray-700">
+      <h2 class="text-lg font-semibold text-white">Recent Degradation Events</h2>
+    </div>
+    <div class="p-4 space-y-3">
+      {% for d in summary.recent_degradations %}
+      <div class="p-3 bg-gray-900/50 rounded border border-gray-700">
+        <div class="flex justify-between items-start">
+          <div>
+            <span class="font-mono text-sm text-white">{{ d.model }}</span>
+            <span class="text-gray-400 text-sm ml-2">/ {{ d.operation }}</span>
+          </div>
+          <span class="text-xs text-gray-500">{{ d.at[:16] if d.at else '' }}</span>
+        </div>
+        {% if d.success_rate is not none %}
+        <div class="text-xs text-gray-400 mt-1">Success rate: {{ d.success_rate }}%</div>
+        {% endif %}
+        {% if d.details %}
+        <div class="mt-2 space-y-1">
+          {% for detail in d.details %}
+          <div class="text-xs px-2 py-1 bg-gray-800 rounded text-gray-300">
+            {{ detail.type }}: 
+            {% if detail.type == 'success_rate_drop' %}
+              {{ detail.baseline }}% → {{ detail.current }}% (-{{ detail.drop_pp }}pp)
+            {% elif detail.type == 'latency_spike' %}
+              {{ detail.current_ms }}ms ({{ detail.ratio }}x baseline)
+            {% elif detail.type == 'high_fallback' %}
+              {{ detail.rate_pct }}% needed fallback
+            {% elif detail.type == 'high_empty' %}
+              {{ detail.rate_pct }}% empty responses
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Quality monitoring uses the floating UX Manual overlay (? button) for contextual help -->
+</div>
+{% endblock %}

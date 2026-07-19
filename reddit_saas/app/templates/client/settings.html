@@ -6,22 +6,10 @@
 {% block content %}
 <div id="portal-content">
     <div style="margin-bottom:var(--space-4);">
-        <h1 class="text-h1">Profile & Settings{{ tooltip("Set brand guardrails and provide voice feedback to improve AI output. Manage keywords and subreddits from their dedicated pages.") }}</h1>
-        <p class="text-small" style="margin-top:4px;">Ongoing campaign refinement. Keywords and subreddits have their own dedicated pages in the sidebar.</p>
+        <h1 class="text-h1">Settings{{ tooltip("Brand guardrails, voice feedback, keywords, subreddits, team, integrations, and billing.") }}</h1>
+        <p class="text-small" style="margin-top:4px;">Campaign configuration and account management.</p>
     </div>
-
-    <!-- How it works -->
-    <details style="margin-bottom:var(--space-4);">
-        <summary style="font-size:var(--text-small);color:var(--color-muted);cursor:pointer;font-weight:500;">ℹ️ How it works</summary>
-        <div style="font-size:var(--text-small);color:var(--color-muted);margin-top:10px;line-height:1.7;padding-left:12px;border-left:2px solid var(--color-border);">
-            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">What this page controls:</strong> Brand-level settings that influence how AI generates content across all your avatars.</p>
-            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">Brand Guardrails:</strong> Define what the AI should never say — competitor disparagement, specific claims, forbidden terminology. These are hard limits applied to every generated comment.</p>
-            <p style="margin-bottom:10px;"><strong style="color:var(--color-white);">Voice Feedback:</strong> Free-text guidance for the AI about your preferred communication style. Examples: "More casual, less corporate", "Use first-person stories", "Avoid exclamation marks". The AI incorporates this into all future generations.</p>
-            <p><strong style="color:var(--color-white);">Changes take effect immediately</strong> — next time the AI generates a comment, it will use your updated guardrails and voice preferences.</p>
-        </div>
-    </details>
-
-    <div style="display:flex;flex-direction:column;gap:var(--space-3);">
+<div style="display:flex;flex-direction:column;gap:var(--space-3);">
 
         <!-- Brand Guardrails Section -->
         <div class="surface" style="padding:var(--space-3);" id="settings-guardrails">
@@ -51,6 +39,55 @@
             </div>
         </div>
 
+        <!-- Telegram Notifications -->
+        <div class="surface" style="padding:var(--space-3);">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                <span style="font-size:18px;">📱</span>
+                <h2 style="font-size:var(--text-h2);color:var(--color-white);margin:0;">Telegram Notifications</h2>
+            </div>
+            {% if user.telegram_chat_id %}
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                <span style="padding:4px 10px;border-radius:var(--radius-pill);background:rgba(34,197,94,0.15);color:var(--color-green);font-size:var(--text-small);">✓ Connected</span>
+                <span style="font-size:var(--text-small);color:var(--color-muted);">Chat ID: {{ user.telegram_chat_id }}</span>
+            </div>
+            <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:12px;">You receive draft review notifications via Telegram. Approve or skip drafts directly from your phone.</p>
+            <div id="tg-result"></div>
+            <button
+                hx-post="/clients/{{ client_id }}/settings/telegram/disconnect"
+                hx-target="#tg-result"
+                hx-swap="innerHTML"
+                style="padding:6px 14px;border-radius:var(--radius-card);border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.1);color:#f87171;font-size:var(--text-small);cursor:pointer;">
+                Disconnect
+            </button>
+            {% else %}
+            <p style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:12px;">Connect Telegram to approve drafts from your phone. You'll receive cards with Approve/Skip buttons for each pending comment.</p>
+            <div style="font-size:var(--text-small);color:var(--color-muted);margin-bottom:12px;padding:10px;background:var(--color-surface-alt);border-radius:var(--radius-card);">
+                <strong style="color:var(--color-white);">How to connect:</strong>
+                <ol style="margin:6px 0 0 16px;padding:0;">
+                    <li>Open Telegram, search for <code>@RampOpsBot</code></li>
+                    <li>Send <code>/start</code> — the bot will show your Chat ID</li>
+                    <li>Paste the Chat ID below and click Connect</li>
+                </ol>
+            </div>
+            <form
+                hx-post="/clients/{{ client_id }}/settings/telegram/connect"
+                hx-target="#tg-result"
+                hx-swap="innerHTML"
+                style="display:flex;gap:8px;align-items:flex-end;">
+                <div style="flex:1;">
+                    <label style="font-size:var(--text-micro);color:var(--color-muted);display:block;margin-bottom:4px;">Chat ID</label>
+                    <input type="text" name="chat_id" required placeholder="e.g. 123456789"
+                        style="width:100%;padding:8px 12px;border-radius:var(--radius-card);border:1px solid var(--color-border);background:var(--color-surface-alt);color:var(--color-white);font-size:var(--text-small);">
+                </div>
+                <button type="submit"
+                    style="padding:8px 20px;border-radius:var(--radius-card);background:var(--color-orange);color:#fff;border:none;font-size:var(--text-small);font-weight:500;cursor:pointer;">
+                    Connect
+                </button>
+            </form>
+            <div id="tg-result" style="margin-top:8px;"></div>
+            {% endif %}
+        </div>
+
         <!-- Notifications — Coming Soon -->
         <div class="surface" style="padding:var(--space-3);opacity:0.6;">
             <div style="display:flex;align-items:center;gap:8px;">
@@ -64,10 +101,21 @@
         <div class="surface" style="padding:var(--space-3);">
             <div style="display:flex;align-items:center;gap:8px;">
                 <span style="font-size:18px;">👥</span>
-                <h2 style="font-size:var(--text-h2);color:var(--color-white);margin:0;">Team</h2>
+                <h2 style="font-size:var(--text-h2);color:var(--color-white);margin:0;">Users and Access</h2>
             </div>
             <p style="font-size:var(--text-small);color:var(--color-muted);margin-top:6px;">
                 <a href="/clients/{{ client_id }}/team" style="color:var(--color-orange);text-decoration:none;">Manage your team members →</a>
+            </p>
+        </div>
+
+        <!-- Integrations (Extension) -->
+        <div class="surface" style="padding:var(--space-3);">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:18px;">🔌</span>
+                <h2 style="font-size:var(--text-h2);color:var(--color-white);margin:0;">Integrations</h2>
+            </div>
+            <p style="font-size:var(--text-small);color:var(--color-muted);margin-top:6px;">
+                <a href="/clients/{{ client_id }}/extension" style="color:var(--color-orange);text-decoration:none;">Chrome Extension setup →</a>
             </p>
         </div>
 

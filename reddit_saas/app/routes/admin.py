@@ -5911,7 +5911,7 @@ def admin_risk_registry(
 @router.get("/settings", response_class=HTMLResponse)
 def admin_settings(
     request: Request,
-    current_user: User = Depends(require_owner),
+    current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
     """Display all system settings grouped by category."""
@@ -5958,7 +5958,7 @@ def admin_settings(
 @router.post("/settings/bulk-save", response_class=HTMLResponse)
 async def admin_bulk_save_settings(
     request: Request,
-    current_user: User = Depends(require_owner),
+    current_user: User = Depends(require_superuser),
     db: Session = Depends(get_db),
 ):
     """Bulk-save multiple settings from form data (HTMX partial response)."""
@@ -10548,7 +10548,7 @@ def admin_profile(
 ):
     """User profile page — notification settings, Telegram connection."""
     return templates.TemplateResponse(
-        "admin_profile.html",
+        name="admin_profile.html",
         context={
             "request": request,
             "user": current_user,

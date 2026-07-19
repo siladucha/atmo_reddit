@@ -49,7 +49,7 @@
                 <span class="text-gray-300">|</span>
                 <!-- Role badge -->
                 {% if user_role == 'owner' %}
-                <span class="px-2 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700 border border-violet-200">👑 Owner</span>
+                <span class="px-2 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700 border border-violet-200">👑 Admin</span>
                 {% elif user_role == 'partner' %}
                 <span class="px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-700 border border-indigo-200">🤝 Partner</span>
                 {% elif user_role == 'qa' %}
@@ -75,6 +75,7 @@
         · <span class="text-amber-500" title="Posting disabled at environment level">🚫 posting off</span>
         {% endif %}
         · <a href="/guide" class="text-blue-500 hover:underline">User Guide</a>
+        · <a href="/terms" target="_blank" class="text-blue-500 hover:underline">Terms & Conditions</a>
     </footer>
     <script>
         function exportToJson(endpoint) {

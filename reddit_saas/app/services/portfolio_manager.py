@@ -1177,6 +1177,47 @@ def build_portfolio(
                 avatar.reddit_username, topup_remaining,
             )
 
+        # --- ABSOLUTE DAILY CAP (safety net) ---
+        # Regardless of topup_remaining or build path, the total number of
+        # generated+approved+posted slots today MUST NOT exceed the avatar's
+        # base budget. This prevents accumulation bugs from multiple EPG paths.
+        _base_budget = AttentionBudget.from_avatar(avatar, client)
+        _absolute_max = _base_budget.max_total_actions
+
+        from app.services.epg_executor import get_budget_used_today as _get_used_cap
+        _already_consumed = _get_used_cap(db, avatar.id, plan_date)
+
+        if _already_consumed >= _absolute_max:
+            result.status = "budget_exhausted"
+            result.message = (
+                f"Absolute daily cap reached: {_already_consumed}/{_absolute_max} "
+                f"slots already generated/approved/posted today."
+            )
+            result.daily_budget = _absolute_max
+            result.remaining = 0
+            logger.info(
+                "build_portfolio BLOCKED (absolute cap): avatar=%s "
+                "consumed=%d >= max=%d",
+                avatar.reddit_username, _already_consumed, _absolute_max,
+            )
+            return result
+
+        # Further cap budget to what's actually remaining
+        _truly_remaining = _absolute_max - _already_consumed
+        if budget.max_total_actions > _truly_remaining:
+            budget = AttentionBudget(
+                max_comments=min(budget.max_comments, _truly_remaining),
+                max_posts=min(budget.max_posts, max(0, _truly_remaining - min(budget.max_comments, _truly_remaining))),
+                max_total_actions=_truly_remaining,
+                acceptable_risk_level=budget.acceptable_risk_level,
+            )
+            logger.info(
+                "build_portfolio budget capped by absolute daily limit: avatar=%s "
+                "requested=%d capped_to=%d (consumed=%d max=%d)",
+                avatar.reddit_username, budget.max_total_actions + (_already_consumed - _already_consumed),
+                _truly_remaining, _already_consumed, _absolute_max,
+            )
+
         result.daily_budget = budget.max_total_actions
 
         # ---------------------------------------------------------------
@@ -1495,6 +1536,10 @@ def build_portfolio(
                 slot_dict["post_id"] = None
                 slot_dict["comment_type"] = "hobby"
                 result.hobby_slots.append(slot_dict)
+            elif action.slot_type == "post":
+                slot_dict["thread_id"] = str(opp.thread_id) if opp.thread_id else None
+                slot_dict["comment_type"] = "post"
+                result.business_slots.append(slot_dict)
             else:
                 slot_dict["thread_id"] = str(opp.thread_id) if opp.thread_id else None
                 slot_dict["comment_type"] = "professional"

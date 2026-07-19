@@ -198,7 +198,8 @@ def _emit_transition_event(
     activity = ActivityEvent(
         client_id=client_id,
         event_type="billing_state_transition",
-        details={
+        message=f"Billing state: {from_state} → {to_state} (trigger: {event.event_type})",
+        event_metadata={
             "from_state": from_state,
             "to_state": to_state,
             "trigger_event": event.event_type,

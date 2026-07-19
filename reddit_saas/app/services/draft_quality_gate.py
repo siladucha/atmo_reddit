@@ -18,7 +18,7 @@ class QualityResult(NamedTuple):
 
 
 # --- Thresholds ---
-MIN_COMMENT_LENGTH = 15  # chars (below this = obviously broken)
+MIN_COMMENT_LENGTH = 60  # chars (below this = obviously broken/truncated)
 MAX_COMMENT_LENGTH = 600  # chars (hobby = 5-60 words ≈ 30-360 chars; 600 = generous ceiling)
 HOT_THREAD_UPS_THRESHOLD = 500  # for hobby pipeline (generous — match threads are 1000+)
 
@@ -67,6 +67,11 @@ def validate_draft_text(comment_text: str, previous_drafts: list[str] | None = N
 
     if len(text) > MAX_COMMENT_LENGTH:
         return QualityResult(False, f"too_long:{len(text)}_chars")
+
+    # --- Word count minimum (catches truncated generation) ---
+    word_count = len(text.split())
+    if word_count < 10:
+        return QualityResult(False, f"too_few_words:{word_count}")
 
     # --- JSON artifact detection ---
     if _JSON_PATTERNS.search(text):

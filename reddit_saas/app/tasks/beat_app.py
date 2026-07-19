@@ -173,6 +173,10 @@ beat_app.conf.update(
             "task": "refresh_due_risk_profiles",
             "schedule": crontab(hour=5, minute=0),
         },
+        "subreddit-intelligence-daily": {
+            "task": "refresh_subreddit_intelligence_daily",
+            "schedule": crontab(hour=7, minute=0),
+        },
         "probe-subreddit-bans-weekly": {
             "task": "probe_subreddit_bans",
             "schedule": crontab(hour=3, minute=45, day_of_week="sunday"),
@@ -188,6 +192,10 @@ beat_app.conf.update(
         "cost-reconciliation-daily": {
             "task": "run_cost_reconciliation",
             "schedule": crontab(hour=1, minute=5),
+        },
+        "llm-quality-check-4h": {
+            "task": "check_llm_quality",
+            "schedule": crontab(hour="*/4", minute=20),
         },
         "provider-budget-check-4h": {
             "task": "check_provider_budgets",

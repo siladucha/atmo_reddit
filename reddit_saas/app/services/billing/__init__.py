@@ -10,6 +10,7 @@ Components:
 
 from app.services.billing.state_machine import BillingStateMachine, BillingEvent, TransitionResult
 from app.services.billing.plan_enforcer import PlanEnforcer, BudgetStatus
+from app.services.billing.grace_period_manager import GracePeriodManager
 
 __all__ = [
     "BillingStateMachine",
@@ -17,4 +18,5 @@ __all__ = [
     "TransitionResult",
     "PlanEnforcer",
     "BudgetStatus",
+    "GracePeriodManager",
 ]

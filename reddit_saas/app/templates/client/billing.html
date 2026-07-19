@@ -9,8 +9,7 @@
         <h1 class="text-h1">Plan & Billing{{ tooltip("Your current subscription plan, usage this month, and available upgrades.") }}</h1>
         <p class="text-small" style="margin-top:4px;">Manage your subscription and monitor usage.</p>
     </div>
-
-    <!-- Current Plan -->
+<!-- Current Plan -->
     <div class="surface" style="padding:var(--space-4);margin-bottom:var(--space-3);">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
             <div>
@@ -71,19 +70,23 @@
     {% if upgrades %}
     <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-3);">
         <h2 class="text-h3" style="margin-bottom:16px;">Available Upgrades</h2>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));gap:12px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));gap:12px;">
             {% for up in upgrades %}
-            <div style="padding:16px;background:var(--color-surface-alt);border-radius:var(--radius-card);border:1px solid var(--color-border);">
-                <p style="font-weight:600;color:var(--color-white);margin-bottom:4px;">{{ up.name }}</p>
-                <p style="font-size:22px;font-weight:700;color:var(--color-orange);margin-bottom:8px;">${{ up.price }}<span class="text-small" style="font-weight:400;">/mo</span></p>
-                <p class="text-small">{{ up.limits.avatars }} avatars, {{ up.limits.comments }} comments/mo</p>
+            <div style="padding:16px;background:var(--color-surface-alt);border-radius:var(--radius-card);border:1px solid var(--color-border);display:flex;flex-direction:column;gap:8px;">
+                <p style="font-weight:600;color:var(--color-white);margin-bottom:0;">{{ up.name }}</p>
+                <p style="font-size:22px;font-weight:700;color:var(--color-orange);margin-bottom:0;">${{ up.price }}<span class="text-small" style="font-weight:400;">/mo</span></p>
+                <p class="text-small" style="margin-bottom:8px;">{{ up.limits.avatars }} avatars, {{ up.limits.comments }} comments/mo</p>
+                {% if billing_active %}
+                <form method="post" action="/clients/{{ client_id }}/checkout?plan={{ up.name | lower }}" style="margin:0;">
+                    <button type="submit" style="width:100%;padding:8px 12px;background:var(--color-orange);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;transition:opacity 0.2s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+                        Upgrade to {{ up.name }}
+                    </button>
+                </form>
+                {% else %}
+                <p class="text-micro" style="color:var(--color-muted);text-align:center;">Contact us to upgrade</p>
+                {% endif %}
             </div>
             {% endfor %}
-        </div>
-        <div style="margin-top:16px;padding:12px 16px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:var(--radius-card);">
-            <p class="text-small" style="color:#a5b4fc;">
-                To upgrade your plan, <button onclick="showPricing()" style="background:none;border:none;color:var(--color-orange);font-weight:500;cursor:pointer;font-size:inherit;padding:0;">see available plans →</button>
-            </p>
         </div>
     </div>
     {% endif %}
@@ -98,7 +101,11 @@
             </div>
             <div style="display:flex;justify-content:space-between;padding:8px 0;">
                 <span class="text-small">Billing</span>
-                <span class="text-small" style="color:var(--color-muted);">Manual invoicing (Stripe coming soon)</span>
+                {% if billing_active %}
+                <span class="text-small" style="color:var(--color-green);">Stripe subscription active</span>
+                {% else %}
+                <span class="text-small" style="color:var(--color-muted);">Manual invoicing</span>
+                {% endif %}
             </div>
         </div>
     </div>

@@ -95,6 +95,15 @@ SBM is the compass for the Meta-loop: architectural tension = SBM property under
 - AI Costs page redesign: provider budget bars, unit economics, Chart.js burn chart. Business-facing view for partner.
 - **Projected savings: ~$8/mo per avatar.** Unit economics: ~$8.50×avatars + $3.50 overhead → ~$10/mo for 1 avatar (was ~$18/mo before Phase 2).
 
+**LLM Quality Monitoring (July 19, 2026):** Tracks response quality across all models and operations:
+- Every `call_llm()`/`call_llm_json()` records `quality_outcome` (success/empty/parse_error/timeout/error/fallback_used)
+- `check_llm_quality` Celery task (every 4h) computes per-model×operation metrics vs 7-day baseline
+- Degradation detection: success rate drop >10pp, latency >2× baseline, fallback >20%, empty >15%
+- Dashboard alert via `alert_aggregation.py` → owner/partner alert bar
+- Admin page: `/admin/llm-quality` — per-model health, per-operation health, degradation events
+- **Key file:** `app/services/llm_quality_monitor.py`, `app/tasks/llm_quality_check.py`
+- **This is NOT a cost control** (P3 covers cost). This detects quality degradation that may precede pipeline failure (P1 threat). A model returning 50% empty responses = drafts_generated drops → P1 violated.
+
 ---
 
 ### P4: Safety Monotonicity

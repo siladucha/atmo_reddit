@@ -19,7 +19,7 @@
         <form hx-post="/admin/users/{{ user.id }}/change-role" hx-target="closest tr" hx-swap="outerHTML" class="inline">
             <select name="new_role" onchange="this.form.requestSubmit()"
                     class="bg-slate-night border border-slate-600 text-white rounded px-2 py-0.5 text-xs cursor-pointer hover:border-indigo-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
-                <option value="owner" {% if role == 'owner' %}selected{% endif %} {% if current_user.role != 'owner' %}disabled{% endif %}>👑 Owner</option>
+                <option value="owner" {% if role == 'owner' %}selected{% endif %} {% if current_user.role != 'owner' %}disabled{% endif %}>👑 Admin</option>
                 <option value="partner" {% if role == 'partner' %}selected{% endif %}>🤝 Partner</option>
                 <option value="avatar_manager" {% if role == 'avatar_manager' %}selected{% endif %}>🎭 Avatar Mgr</option>
                 <option value="qa" {% if role == 'qa' %}selected{% endif %}>🔍 QA</option>
@@ -40,7 +40,7 @@
             {% elif role == 'b2c_user' %}bg-green-900/50 text-green-400 border border-green-700
             {% else %}bg-slate-700 text-gray-400 border border-slate-600
             {% endif %}">
-            {% if role == 'owner' %}👑 Owner
+            {% if role == 'owner' %}👑 Admin
             {% elif role == 'partner' %}🤝 Partner
             {% elif role == 'avatar_manager' %}🎭 Avatar Mgr
             {% elif role == 'qa' %}🔍 QA

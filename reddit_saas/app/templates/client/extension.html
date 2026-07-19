@@ -52,16 +52,7 @@
                 <strong style="color:var(--color-red);">Common error:</strong> "Manifest file is missing" — this means you selected the wrong folder. After unzipping, there may be a folder inside a folder. You need the <em>inner</em> folder that directly contains <code style="background:var(--color-surface-alt);padding:1px 4px;border-radius:3px;">manifest.json</code>.
             </p>
         </div>
-
-        <details style="margin-top:16px;">
-            <summary style="font-size:var(--text-small);color:var(--color-muted);cursor:pointer;font-weight:500;">ℹ️ How it works</summary>
-            <div style="font-size:var(--text-small);color:var(--color-muted);margin-top:10px;line-height:1.7;padding-left:12px;border-left:2px solid var(--color-border);">
-                <p style="margin-bottom:8px;">The extension connects to your Reddit account through your browser session (no passwords stored). When you approve comments in the Review Queue, they appear in the extension popup.</p>
-                <p style="margin-bottom:8px;"><strong>Manual mode:</strong> Click "Approve" on each task in the popup → extension posts it to Reddit.</p>
-                <p><strong>Auto mode:</strong> Approve all tasks in the morning → extension posts them at the scheduled times throughout the day.</p>
-            </div>
-        </details>
-    </div>
+</div>
 
     <!-- ⚠️ IMPORTANT: Computer Sleep Warning -->
     <div style="padding:var(--space-3);margin-bottom:var(--space-4);border-radius:var(--radius-card);background:rgba(234,179,8,0.08);border:1.5px solid rgba(234,179,8,0.4);">
@@ -99,9 +90,9 @@
         </div>
     </div>
 
-    <!-- Connected Avatars -->
+    <!-- Connected Voices -->
     <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-4);">
-        <h2 class="text-h3" style="margin-bottom:16px;">Connected Avatars</h2>
+        <h2 class="text-h3" style="margin-bottom:16px;">Connected Voices</h2>
 
         {% if avatars %}
         <div style="display:flex;flex-direction:column;gap:10px;">

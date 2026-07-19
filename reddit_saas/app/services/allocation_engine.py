@@ -539,7 +539,7 @@ def allocate_portfolio(
                 result.rejected.append((opp, "max_posts_exceeded"))
                 continue
             posts_count += 1
-            slot_type = "professional"
+            slot_type = "post"
         else:
             if comments_count >= budget.max_comments:
                 result.rejected.append((opp, "max_comments_exceeded"))

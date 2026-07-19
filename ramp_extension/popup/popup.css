@@ -212,3 +212,53 @@ body {
 
 .popup__footer { padding: 6px 14px; border-top: 1px solid var(--border); text-align: center; }
 .popup__footer span { font-size: 10px; color: var(--text-muted); }
+
+/* ─── Timeline (unified day view) ────────────────── */
+
+.task-card--timeline {
+  border-left: 3px solid var(--border);
+  padding-left: 12px;
+}
+.task-card--timeline .task-card__row {
+  align-items: flex-start;
+}
+.task-card--timeline-done {
+  border-left-color: var(--green);
+  opacity: 0.85;
+}
+.task-card--timeline-active {
+  border-left-color: var(--orange);
+  background: rgba(234,179,8,0.05);
+}
+
+.timeline-time {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 42px;
+  padding-top: 1px;
+  flex-shrink: 0;
+}
+
+.timeline-badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.timeline-badge--done { background: rgba(34,197,94,0.15); color: var(--green); }
+.timeline-badge--active { background: rgba(234,179,8,0.15); color: var(--orange); }
+.timeline-badge--waiting { background: rgba(124,58,237,0.15); color: var(--accent); }
+.timeline-badge--planned { background: rgba(34,197,94,0.1); color: var(--green); }
+.timeline-badge--pending { background: rgba(234,179,8,0.15); color: var(--orange); }
+
+.timeline-link {
+  font-size: 11px;
+  color: var(--green);
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+.timeline-link:hover { text-decoration: underline; }
