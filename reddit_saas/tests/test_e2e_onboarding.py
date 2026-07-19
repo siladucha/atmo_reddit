@@ -65,7 +65,7 @@ MOCK_PERSONA_RESPONSE = {
 }
 
 COMMENT_DATA = {
-    "comment": "great point, been there",
+    "comment": "Yeah I ran into the same issue last quarter when we were scaling our test suite — ended up using a canary deployment pattern that caught regressions before they hit staging.",
     "comment_to": "post",
     "location_depth": 0,
     "location_reasoning": "top level",
@@ -84,7 +84,7 @@ MOCK_COMMENT_RESPONSE = {
 }
 
 MOCK_EDIT_RESPONSE = {
-    "content": "great point, been there",
+    "content": "Yeah I ran into the same issue last quarter when we were scaling our test suite — ended up using a canary deployment pattern that caught regressions before they hit staging.",
     "input_tokens": 50,
     "output_tokens": 30,
     "cost_usd": 0.0005,
