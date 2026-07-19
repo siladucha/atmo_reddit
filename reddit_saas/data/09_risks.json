@@ -1,8 +1,8 @@
 {
   "meta": {
     "domain": "risk_registry",
-    "version": "3.2.0",
-    "description": "Complete risk registry for RAMP system. Unified from code analysis, steering docs, production incidents (June 24-July 4, 2026), fleet PRAW audit (June 27), Reddit platform intelligence, Forecast & Reporting Layer design (July 2), Extension v3 old_reddit migration (July 4), and A/B Test Framework deployment (July 4). Designed for consumption by RAMP AI agent and human analysts.",
+    "version": "3.3.0",
+    "description": "Complete risk registry for RAMP system. Unified from code analysis, steering docs, production incidents (June 24-July 4, 2026), fleet PRAW audit (June 27), Reddit platform intelligence, Forecast & Reporting Layer design (July 2), Extension v3 old_reddit migration (July 4), A/B Test Framework deployment (July 4), and LLM Quality Monitor (July 19). Designed for consumption by RAMP AI agent and human analysts.",
     "last_updated": "2026-07-19",
     "authors": [
       "Kiro (AI agent — code analysis, steering doc cross-reference)",
@@ -1649,6 +1649,25 @@
       "status": "mitigated",
       "detected_date": "2026-07-07",
       "mitigated_date": "2026-07-15"
+    },
+    {
+      "id": "R-AI-011",
+      "group": "AI",
+      "title": "LLM Quality Degradation Under Load — Silent Pipeline Output Drop",
+      "description": "LLM providers may degrade under load (rate limiting, empty responses, increased latency, safety filter false positives). Without quality monitoring, this manifests as reduced draft output or lower content quality with no alerting. Gemini Flash returns empty responses ~15% of the time for hobby comments (known June 2026). Provider model updates can silently change response quality.",
+      "impact": "Reduced pipeline output (fewer drafts), lower content quality (repetitive/generic), wasted LLM spend on failed calls. Clients see reduced value without explanation.",
+      "likelihood": "Low (now monitored)",
+      "escalation": "MEDIUM",
+      "source": "Observed: Gemini Flash empty responses (June 2026), Anthropic credit exhaustion (July 7), architectural analysis of load scaling scenarios.",
+      "related_gaps": [],
+      "related_risks": [
+        "R-AI-007",
+        "R-AI-010"
+      ],
+      "mitigation": "IMPLEMENTED (July 19, 2026): check_llm_quality Celery task every 4h. Records quality_outcome on every LLM call (success/empty/parse_error/timeout/error/fallback_used). Compares per-model×operation metrics against 7-day baseline. Alerts on: success rate drop >10pp, latency >2× baseline, fallback rate >20%, empty rate >15%. Dashboard: /admin/llm-quality. Alert in owner/partner bar.",
+      "status": "mitigated",
+      "detected_date": "2026-07-19",
+      "mitigated_date": "2026-07-19"
     },
     {
       "id": "R-PLATFORM-013",
