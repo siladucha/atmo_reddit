@@ -1015,6 +1015,7 @@ def portal_settings(
         db,
         active_page="settings",
         extra_context={
+            "user": user,
             "keywords": keywords,
             "keyword_subreddit_map": keyword_subreddit_map,
             "subreddits": subreddits,
