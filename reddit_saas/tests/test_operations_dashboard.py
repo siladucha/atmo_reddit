@@ -169,7 +169,7 @@ def test_dashboard_renders_top_metrics_bar(admin_client):
     assert r.status_code == 200
     assert "Pending Reviews" in r.text
     assert "Active Clients" in r.text
-    assert "Active Avatars" in r.text
+    assert "Active Voices" in r.text
     assert "Next Scheduled Run" in r.text
 
 
