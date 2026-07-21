@@ -182,7 +182,7 @@ Upvotes: {hobby_post.post_ups or 0}
         except Exception:
             pass  # Non-blocking: generate without vibe if unavailable
 
-        gen_model = get_config("llm_generation_model")
+        gen_model = get_config("llm_scoring_model")
 
         # Plain text call (no JSON parsing needed — more reliable with Gemini)
         from app.services.ai import call_llm, log_ai_usage
