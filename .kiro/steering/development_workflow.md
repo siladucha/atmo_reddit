@@ -7,6 +7,23 @@
 
 ---
 
+## Team
+
+| Person | Role | Works in | Git access |
+|--------|------|----------|------------|
+| **Max** | Tech lead, engineer | Local Mac + Kiro | Full (all branches) |
+| **Женя (Zhenya)** | QA engineer | Her own Kiro.dev workspace | Read all branches, write to `feature/*` and `staging` |
+| **Tzvi** | Business/clients | N/A | None (receives reports) |
+
+**Workflow with QA:**
+- Max develops on `feature/*` branches, merges to `staging`
+- Женя verifies on `staging.gorampit.com` using QA checklists
+- Женя can create `feature/qa-*` branches for test fixes / QA automation
+- Женя signs off → Max merges `staging → main` (prod deploy)
+- Женя does NOT deploy to production directly
+
+---
+
 ## Why This Change
 
 - Regression rate increased: multiple broken deploys in June-July 2026
