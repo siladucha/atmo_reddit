@@ -14,7 +14,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from app.templating import Jinja2Templates
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 

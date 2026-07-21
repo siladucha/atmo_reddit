@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from app.templating import Jinja2Templates
 
 from app.manual.registry import get_manual_content
 

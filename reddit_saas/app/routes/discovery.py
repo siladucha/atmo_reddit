@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
-from fastapi.templating import Jinja2Templates
+from app.templating import Jinja2Templates
 
 from app.database import get_db
 from app.dependencies.permissions import require_platform_admin

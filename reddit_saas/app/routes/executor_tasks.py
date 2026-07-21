@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Form, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from app.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.database import get_db

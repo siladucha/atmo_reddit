@@ -8,7 +8,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
+from app.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.database import get_db

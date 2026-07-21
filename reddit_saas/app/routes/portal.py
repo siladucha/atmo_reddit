@@ -12,7 +12,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
+from app.templating import Jinja2Templates
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 

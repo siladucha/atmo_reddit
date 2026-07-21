@@ -8,7 +8,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from app.templating import Jinja2Templates
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
