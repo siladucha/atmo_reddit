@@ -83,15 +83,16 @@ def expire_overdue_execution_tasks():
 
 @shared_task(name="dispatch_due_email_tasks")
 def dispatch_due_email_tasks():
-    """Send emails for execution tasks whose scheduled_at is within the next 30 minutes.
+    """Send emails for execution tasks whose posting window has opened.
 
-    Runs every 5 minutes via Beat. Ensures executor gets ONE email at a time,
-    close to when they need to act — not a batch dump.
+    Soft deadline model: each task has a window (scheduled_at → deadline).
+    Email goes out when window opens. Executor posts any time before deadline.
+
+    Runs every 5 minutes via Beat.
 
     Logic:
     - Find execution_tasks with status='generated' (created but not yet emailed)
-    - Where the linked EPG slot's scheduled_at is between now and now+30 min
-    - Skip tasks where scheduled_at is more than 30 min in the past (stale)
+    - Where scheduled_at <= now (window has opened) AND deadline > now (window still open)
     - CHECK QUIET HOURS before sending (defer if outside 07:00-23:00 Israel time)
     - CHECK AVATAR HEALTH before sending (cancel if frozen/shadowbanned/suspended)
     - CHECK THREAD LIVENESS before sending (cancel if locked/removed/archived)
@@ -101,6 +102,7 @@ def dispatch_due_email_tasks():
     from datetime import datetime, timedelta, timezone
 
     from zoneinfo import ZoneInfo
+    import sqlalchemy as sa
     from sqlalchemy import func as sa_func
 
     from app.models.avatar import Avatar
@@ -114,8 +116,10 @@ def dispatch_due_email_tasks():
     db = SessionLocal()
     try:
         now = datetime.now(timezone.utc)
-        window_start = now - timedelta(minutes=5)  # Small grace period for just-passed slots
-        window_end = now + timedelta(minutes=30)
+        # Soft deadline model: email goes out as soon as window opens (scheduled_at ≤ now).
+        # Executor has until `deadline` (window_end) to post.
+        # Grace period: also catch tasks whose window opened up to 5 min ago (beat tick alignment).
+        window_start = now - timedelta(minutes=5)
 
         # --- Quiet hours gate ---
         israel_tz = ZoneInfo("Asia/Jerusalem")
@@ -130,15 +134,20 @@ def dispatch_due_email_tasks():
             )
             return {"dispatched": 0, "reason": "quiet_hours", "local_time": now_israel.strftime("%H:%M")}
 
-        # Find tasks that are generated (not yet emailed) and due soon
+        # Find tasks whose window has opened: scheduled_at <= now (with 5 min grace)
+        # and deadline not yet passed (still within soft window)
         due_tasks = (
             db.query(ExecutionTask)
             .filter(
                 ExecutionTask.status == "generated",
                 ExecutionTask.delivery_count == 0,  # Never emailed
                 ExecutionTask.scheduled_at.isnot(None),
-                ExecutionTask.scheduled_at >= window_start,
-                ExecutionTask.scheduled_at <= window_end,
+                ExecutionTask.scheduled_at <= now,          # Window has opened
+                ExecutionTask.scheduled_at >= window_start,  # Not too stale (opened within last 5 min)
+                sa.or_(
+                    ExecutionTask.deadline.is_(None),
+                    ExecutionTask.deadline > now,            # Window still open
+                ),
             )
             .order_by(ExecutionTask.scheduled_at.asc())
             .all()

@@ -230,27 +230,52 @@ async function _doTick() {
       continue;
     }
 
-    // Apply jitter to scheduled_at
-    const jitteredTime = applyJitter(task.scheduled_at, task._jitter_offset);
+    // Soft deadline window model:
+    // Task is eligible when: scheduled_at <= now < deadline (if deadline exists)
+    // Extension picks a random execution moment within the window on first eligible tick.
+    const windowStart = new Date(task.scheduled_at).getTime();
+    const windowEnd = task.deadline ? new Date(task.deadline).getTime() : 0;
 
-    if (jitteredTime <= now) {
-      // Safety: skip tasks that are overdue by more than 30 minutes.
-      // Posting a burst of stale tasks after laptop wake = ban risk.
-      const MAX_OVERDUE_MS = 30 * 60 * 1000; // 30 minutes
-      if ((now - jitteredTime) > MAX_OVERDUE_MS) {
-        task.status = 'failed';
-        task.error_code = 'WINDOW_MISSED';
-        task.error_details = `Posting window missed by ${Math.round((now - jitteredTime) / 60000)} min (laptop sleep?)`;
-        task.failed_at = new Date().toISOString();
-        console.warn(`[RAMP Scheduler] Task ${task.task_id} skipped — window missed by ${Math.round((now - jitteredTime) / 60000)} min`);
-        await saveQueue(queue);
-        await reportFailureToBackend(task, { error_code: 'WINDOW_MISSED', error_details: task.error_details });
-        continue;
-      }
-
-      dueTask = task;
-      break;
+    // Window hasn't opened yet
+    if (windowStart > now) {
+      continue;
     }
+
+    // Window already closed (deadline passed) — mark as missed
+    if (windowEnd > 0 && windowEnd <= now) {
+      task.status = 'failed';
+      task.error_code = 'WINDOW_MISSED';
+      task.error_details = `Posting window closed (deadline was ${task.deadline})`;
+      task.failed_at = new Date().toISOString();
+      console.warn(`[RAMP Scheduler] Task ${task.task_id} — window closed (deadline passed)`);
+      await saveQueue(queue);
+      await reportFailureToBackend(task, { error_code: 'WINDOW_MISSED', error_details: task.error_details });
+      continue;
+    }
+
+    // Window is open. Compute a stable random execution point within window.
+    // Use stored _execute_at or generate one on first eligible tick.
+    if (!task._execute_at) {
+      if (windowEnd > 0) {
+        // Random point between now and windowEnd
+        const remaining = windowEnd - now;
+        const randomDelay = Math.floor(Math.random() * remaining);
+        task._execute_at = new Date(now + randomDelay).toISOString();
+      } else {
+        // No deadline — execute immediately
+        task._execute_at = new Date(now).toISOString();
+      }
+      await saveQueue(queue);
+    }
+
+    // Check if chosen execution moment has arrived
+    const executeAt = new Date(task._execute_at).getTime();
+    if (executeAt > now) {
+      continue; // Not yet time
+    }
+
+    dueTask = task;
+    break;
   }
 
   if (!dueTask) {

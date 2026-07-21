@@ -578,6 +578,12 @@ DEFAULTS: dict[str, dict] = {
         "desc": "Default deadline offset in hours from scheduled_at (or created_at if no schedule).",
         "group": "email_tasks",
     },
+    "epg_slot_window_hours": {
+        "value": "2",
+        "secret": False,
+        "desc": "Soft execution window in hours. Task can be posted any time within scheduled_at + this window.",
+        "group": "email_tasks",
+    },
     "smtp_host": {
         "value": "",
         "secret": False,

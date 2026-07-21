@@ -137,10 +137,12 @@ def create_execution_task(
         client = db.query(Client).filter(Client.id == slot.client_id).first()
         client_name = client.client_name if client else ""
 
-    # Compute deadline
-    deadline_hours = get_setting_int(db, "email_tasks_deadline_hours", default=4)
+    # Compute deadline — soft window end.
+    # Default window: 2 hours from scheduled_at (configurable via epg_slot_window_hours).
+    # This means executor/extension has a 2-hour window to post, not a pinpoint time.
+    window_hours = get_setting_int(db, "epg_slot_window_hours", default=2)
     base_time = slot.scheduled_at or datetime.now(timezone.utc)
-    deadline = base_time + timedelta(hours=deadline_hours)
+    deadline = base_time + timedelta(hours=window_hours)
 
     # Determine task type
     task_type = "comment"
@@ -577,19 +579,12 @@ def compose_task_email(task: ExecutionTask) -> tuple[str, str, str | None]:
         return subject, body_text, None
 
     # --- Standard content task ---
-    # Format scheduled time
-    time_str = ""
-    if task.scheduled_at:
-        time_str = task.scheduled_at.strftime("%H:%M")
-    else:
-        time_str = "ASAP"
+    # Format deadline time (soft window end)
+    deadline_str = task.deadline.strftime("%H:%M") if task.deadline else "N/A"
 
-    # Subject — [RAMP Task: type] Client / Avatar / r/Sub / TASK-CODE / HH:MM
+    # Subject — [RAMP Task: type] Client / Avatar / r/Sub / TASK-CODE / by HH:MM
     task_code_short = task.task_code
-    subject = f"[RAMP Task: {task.task_type}] {task.client_name} / {task.avatar_username} / r/{task.subreddit} / {task_code_short} / {time_str}"
-
-    # Deadline display
-    deadline_str = task.deadline.strftime("%H:%M %Z") if task.deadline else "N/A"
+    subject = f"[RAMP Task: {task.task_type}] {task.client_name} / {task.avatar_username} / r/{task.subreddit} / {task_code_short} / by {deadline_str}"
 
     # Token link
     from app.services.settings import get_setting as _gs
@@ -619,8 +614,7 @@ URL:    {task.thread_url or "See subreddit link above"}
 
 TIMING
 ------
-Execute at:  {time_str}
-Deadline:    {deadline_str}
+Post by:     {deadline_str}
 
 COMMENT TO POST
 ---------------
