@@ -100,7 +100,7 @@ def _check_trial_limit(client: Client, db: Session) -> str | None:
         .count()
     )
     if existing_count >= 1:
-        return "Trial accounts are limited to 1 avatar. Upgrade to add more."
+        return "Trial accounts are limited to 1 voice. Upgrade to add more."
     return None
 
 

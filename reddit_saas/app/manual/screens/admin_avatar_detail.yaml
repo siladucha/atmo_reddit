@@ -1,4 +1,4 @@
-title: "Avatar Detail"
+title: "Voice Detail"
 lifecycle_stage: "monitoring"
 
 flow_position:
@@ -10,7 +10,7 @@ flow_position:
       active: false
     - name: "Clients"
       active: false
-    - name: "Avatars"
+    - name: "Voices"
       active: true
     - name: "Pipeline"
       active: false
@@ -18,22 +18,22 @@ flow_position:
       active: false
 
 screen_context:
-  before: "Avatars list or search result"
-  after: "Edit avatar or view intelligence metrics"
-  description: "Detailed view of a single avatar. Karma history, subreddit presence, strategy, health status, and posting history."
+  before: "Voices list or search result"
+  after: "Edit voice or view intelligence metrics"
+  description: "Detailed view of a single voice. Karma history, subreddit presence, strategy, health status, and posting history."
 
-screen_purpose: "Deep dive into an avatar's performance and health. Make operational decisions about freezing, phase, or strategy."
+screen_purpose: "Deep dive into a voice's performance and health. Make operational decisions about freezing, phase, or strategy."
 
 available_actions:
   all:
     - name: "Freeze"
-      description: "Immediately pause all activity for this avatar"
+      description: "Immediately pause all activity for this voice"
       destructive: true
     - name: "Unfreeze"
       description: "Resume activity"
       destructive: false
     - name: "Edit"
-      description: "Modify avatar settings"
+      description: "Modify voice settings"
       destructive: false
     - name: "Phase Override"
       description: "Manually change warming phase"

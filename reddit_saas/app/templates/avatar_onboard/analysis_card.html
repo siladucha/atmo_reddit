@@ -1,4 +1,4 @@
-<!-- Avatar Analysis Card — HTMX partial (loaded into #analysis-result) -->
+<!-- Voice Analysis Card — HTMX partial (loaded into #analysis-result) -->
 <div class="surface" style="padding:var(--space-4);border-radius:var(--radius-card);border:1px solid var(--color-green);">
 
     <!-- Header: success + cost -->
@@ -138,7 +138,7 @@ Patterns: {{ analysis.voice_profile.speech_patterns or '' }}</textarea>
                 </div>
                 {% endfor %}
                 <p class="text-micro" style="color:var(--color-muted);margin-top:8px;font-style:italic;">
-                    Consider removing flagged subreddits or adjusting avatar's tone before approving.
+                    Consider removing flagged subreddits or adjusting voice's tone before approving.
                 </p>
             </div>
             {% endif %}
@@ -183,7 +183,7 @@ Patterns: {{ analysis.voice_profile.speech_patterns or '' }}</textarea>
         <div style="display:flex;gap:12px;margin-top:var(--space-4);padding-top:var(--space-3);border-top:1px solid var(--color-border);">
             <button type="submit"
                     style="flex:1;height:48px;background:var(--color-green);color:#fff;border:none;border-radius:var(--radius-input);font-weight:600;font-size:var(--text-body);cursor:pointer;">
-                ✓ Approve & Create Avatar
+                ✓ Approve & Create Voice
             </button>
             <button type="button"
                     onclick="document.getElementById('analysis-result').innerHTML=''"

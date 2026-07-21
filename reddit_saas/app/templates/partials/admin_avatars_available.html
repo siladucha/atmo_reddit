@@ -2,7 +2,7 @@
    Context: client, available_avatars #}
 {% if available_avatars %}
 <p class="text-sm text-gray-400 mb-4">
-    Select an avatar to assign to <strong class="text-white">{{ client.client_name }}</strong>:
+    Select a voice to assign to <strong class="text-white">{{ client.client_name }}</strong>:
 </p>
 <div class="space-y-2 max-h-[50vh] overflow-y-auto">
     {% for av in available_avatars %}
@@ -34,7 +34,7 @@
 {% else %}
 <div class="text-center py-8">
     <div class="text-2xl mb-2">✓</div>
-    <p class="text-gray-400 text-sm">All active avatars are already assigned to this client.</p>
+    <p class="text-gray-400 text-sm">All active voices are already assigned to this client.</p>
     <a href="/admin/avatars/new" class="inline-block mt-3 text-indigo-400 hover:text-indigo-300 text-sm">Create a new avatar →</a>
 </div>
 {% endif %}

@@ -28,7 +28,7 @@
     {% set guide_title = "📖 Client Dashboard" %}
     {% set guide_content %}
     <p>Your campaign overview. Top metrics show current pipeline status for your brand.
-       Below you'll see recent activity, avatar performance, and pending items that need your attention.</p>
+       Below you'll see recent activity, voice performance, and pending items that need your attention.</p>
     {% endset %}
     {% include "partials/page_guide.html" %}
 
@@ -39,7 +39,7 @@
             <div class="text-2xl font-mono font-semibold text-white">{{ metrics.subreddits_count }}</div>
         </div>
         <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
-            <div class="text-xs text-gray-400 mb-1" title="Reddit accounts assigned to this client for posting. Each has a unique persona and warming phase.">Avatars</div>
+            <div class="text-xs text-gray-400 mb-1" title="Reddit accounts assigned to this client for posting. Each has a unique persona and warming phase.">Voices</div>
             <div class="text-2xl font-mono font-semibold text-white">{{ metrics.avatars_count }}</div>
         </div>
         <div class="bg-dark-steel rounded-lg p-4 border border-slate-700">
@@ -129,7 +129,7 @@
 
         <!-- Side panels -->
         <div class="space-y-6">
-            <!-- Avatars Overview -->
+            <!-- Voices Overview -->
             <section class="bg-dark-steel rounded-lg border border-slate-700">
                 <header class="px-4 py-3 border-b border-slate-700">
                     <h3 class="text-sm font-semibold text-gray-200">Avatars{% set tooltip_text = "Reddit accounts assigned to your brand. Each avatar has a unique persona, warming phase, and karma history." %}{% include "partials/block_tooltip.html" %}</h3>

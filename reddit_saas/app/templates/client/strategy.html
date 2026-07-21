@@ -64,7 +64,7 @@
     {# --- CONTENT PILLARS --- #}
     <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-3);">
         <h2 class="text-h3" style="margin-bottom:12px;">📝 Content Themes</h2>
-        <p class="text-small" style="margin-bottom:12px;">Core topics your avatars engage with consistently.</p>
+        <p class="text-small" style="margin-bottom:12px;">Core topics your voices engage with consistently.</p>
         <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(250px, 1fr));gap:12px;">
             {% for pillar in client_strategy.content_pillars %}
             <div style="padding:14px;background:var(--color-surface-alt);border-radius:var(--radius-card);border-left:3px solid var(--color-orange);">
@@ -102,7 +102,7 @@
     {% if client_strategy.phase_roadmap and client_strategy.phase_roadmap.phases is defined %}
     <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-3);">
         <h2 class="text-h3" style="margin-bottom:12px;">📈 Growth Roadmap</h2>
-        <p class="text-small" style="margin-bottom:16px;">Your avatars progress through these phases based on community trust earned.</p>
+        <p class="text-small" style="margin-bottom:16px;">Your voices progress through these phases based on community trust earned.</p>
         <div style="display:flex;flex-direction:column;gap:0;">
             {% for phase in client_strategy.phase_roadmap.phases %}
             {% set phase_idx = loop.index0 %}
@@ -177,7 +177,7 @@
     </div>
     {% endif %}
 
-    {# --- PER-AVATAR STRATEGIES (collapsible) --- #}
+    {# --- PER-VOICE STRATEGIES (collapsible) --- #}
     {% if avatar_strategies %}
     <details style="margin-top:var(--space-4);">
         <summary class="text-h3" style="cursor:pointer;margin-bottom:12px;">
@@ -185,7 +185,7 @@
             <span class="text-small" style="font-weight:400;margin-left:8px;">{{ avatar_strategies | length }} voice{{ 's' if avatar_strategies | length > 1 else '' }}</span>
         </summary>
 
-        <!-- Avatar filter -->
+        <!-- Voice filter -->
         {% if avatar_options and avatar_options | length > 1 %}
         <div style="margin-bottom:var(--space-3);display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;">
             <span class="text-small" style="color:var(--color-muted);">Filter:</span>

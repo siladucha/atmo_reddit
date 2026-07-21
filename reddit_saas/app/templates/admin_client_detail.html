@@ -124,7 +124,7 @@
                        class="w-5 h-5 rounded border-slate-500 bg-slate-700 text-amber-500 focus:ring-amber-500 focus:ring-offset-0">
                 <div>
                     <span class="text-sm font-medium text-amber-400">⚡ Autopilot Mode</span>
-                    <p class="text-xs text-gray-500 mt-0.5">All avatars for this client: drafts auto-approved without human review.</p>
+                    <p class="text-xs text-gray-500 mt-0.5">All voices for this client: drafts auto-approved without human review.</p>
                 </div>
             </label>
 
@@ -136,7 +136,7 @@
                 <div class="mt-2 px-3 py-2.5 rounded bg-slate-800/60 border border-slate-600/50 text-[11px] text-gray-400 space-y-2">
                     <p><strong class="text-gray-300">What happens when ON:</strong> EPG generates comment → immediately approved → ExecutionTask created → browser extension (or email) delivers to executor. No human review step.</p>
                     <p><strong class="text-gray-300">What happens when OFF:</strong> Generated drafts wait in Review Queue. Someone must manually approve each draft before it reaches the executor. Extension shows "Nothing to approve" until manual action.</p>
-                    <p><strong class="text-gray-300">OR logic with avatar toggle:</strong> This is a client-wide override. If ON here — <em>all</em> avatars for this client get auto-approved, regardless of their individual toggle. Individual avatar toggle (<code>auto_approve_drafts</code>) works independently for avatars of clients with Autopilot OFF.</p>
+                    <p><strong class="text-gray-300">OR logic with voice toggle:</strong> This is a client-wide override. If ON here — <em>all</em> voices for this client get auto-approved, regardless of their individual toggle. Individual voice toggle (<code>auto_approve_drafts</code>) works independently for voices of clients with Autopilot OFF.</p>
                     <p><strong class="text-gray-300">Full delivery chain:</strong> EPG slot → LLM generation → <span class="text-amber-400">approval gate (here)</span> → ExecutionTask → delivery via extension/email → executor posts.</p>
                 </div>
             </details>
@@ -263,7 +263,7 @@
         </a>
         <a href="/admin/avatars?client_id={{ client.id }}"
            class="bg-dark-steel rounded-lg border border-slate-700 p-4 hover:border-indigo-500 transition-colors">
-            <div class="text-sm text-gray-400" title="Reddit accounts assigned to this client for posting comments. Each avatar has its own voice, persona, and warming phase.">Avatars</div>
+            <div class="text-sm text-gray-400" title="Reddit accounts assigned to this client for posting comments. Each voice has its own persona and warming phase.">Voices</div>
             <div class="text-xl font-mono text-white mt-1">{{ avatars|length }}</div>
         </a>
         <a href="/admin/clients/{{ client.id }}/geo"
@@ -273,10 +273,10 @@
         </a>
     </div>
 
-    <!-- Assigned Avatars -->
+    <!-- Assigned Voices -->
     {% if avatars_enriched %}
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-6">
-        <h2 class="text-lg font-medium text-white mb-3">Assigned Avatars</h2>
+        <h2 class="text-lg font-medium text-white mb-3">Assigned Voices</h2>
         <div class="space-y-2">
             {% for item in avatars_enriched %}
             {% set avatar = item.avatar %}
@@ -357,7 +357,7 @@
     <!-- Subreddits Coverage -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-6">
         <h2 class="text-lg font-medium text-white mb-2">Subreddit Coverage</h2>
-        <p class="text-xs text-gray-500 mb-4">Plan (assigned) vs Actual (avatar presence). Shows where avatars should be active and where they actually appeared.</p>
+        <p class="text-xs text-gray-500 mb-4">Plan (assigned) vs Actual (voice presence). Shows where voices should be active and where they actually appeared.</p>
 
         <div id="subreddit-coverage-table"
              hx-get="/admin/clients/{{ client.id }}/subreddits-table?sort_by=type&sort_dir=asc"

@@ -4,8 +4,18 @@ inclusion: always
 
 # Reddit Marketing SaaS — Project Context
 
+## Terminology: "Avatar" vs "Voice" (Legal — July 20, 2026)
+
+**Internal code/DB term:** `Avatar` (model name, variable names, DB columns, API endpoints — unchanged)
+**Client-facing / user-visible term:** "Voice" (all UI text, emails, client docs, sales materials)
+
+**Rule:** The word "avatar" MUST NEVER appear in any client-facing material, template text, email, or external communication. Use "voice" or "voices" instead. This is a legal requirement from Tzvi (July 20, 2026).
+
+When writing templates or client-facing text: "voice" (singular), "voices" (plural).
+When writing code or internal docs: `avatar` (refers to the code entity — acceptable in internal context only).
+
 ## What This Is
-A Reddit marketing SaaS platform. AI monitors subreddits, scores posts, generates comments from persona-based avatars, and humans review before manual posting.
+A Reddit marketing SaaS platform. AI monitors subreddits, scores posts, generates comments from persona-based voices, and humans review before manual posting.
 
 ## Partnership
 - 50/50: Max (tech) + Tzvi (business/clients)

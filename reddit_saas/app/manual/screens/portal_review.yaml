@@ -12,7 +12,7 @@ flow_position:
       active: true
     - name: "EPG Schedule"
       active: false
-    - name: "Avatars"
+    - name: "Voices"
       active: false
     - name: "Reports"
       active: false
@@ -20,7 +20,7 @@ flow_position:
 screen_context:
   before: "Dashboard or notification alert"
   after: "Approved drafts appear in EPG schedule for posting"
-  description: "AI-generated comment drafts waiting for your review. Each draft shows the target thread, avatar, subreddit, and generated comment text."
+  description: "AI-generated comment drafts waiting for your review. Each draft shows the target thread, voice, subreddit, and generated comment text."
 
 screen_purpose: "Review and approve AI-generated content before it gets posted. You are the final quality gate — approve good content, reject or edit what needs improvement."
 

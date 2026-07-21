@@ -21,7 +21,7 @@
 
         {% set assigns = assignments_by_group.get(group.id, []) %}
         <div class="flex items-center gap-2 text-sm">
-            <span class="text-gray-400">Avatars:</span>
+            <span class="text-gray-400">Voices:</span>
             <span class="text-white font-medium">{{ assigns | length }}</span>
             {% set excluded = assigns | selectattr('0.is_excluded') | list %}
             {% if excluded %}

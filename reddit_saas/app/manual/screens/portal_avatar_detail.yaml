@@ -1,4 +1,4 @@
-title: "Avatar Detail"
+title: "Voice Detail"
 lifecycle_stage: "execution"
 
 flow_position:
@@ -12,17 +12,17 @@ flow_position:
       active: false
     - name: "EPG Schedule"
       active: false
-    - name: "Avatars"
+    - name: "Voices"
       active: true
     - name: "Reports"
       active: false
 
 screen_context:
-  before: "Avatars list page"
-  after: "Back to avatars list or dashboard"
-  description: "Detailed view of a single avatar's performance. Karma growth, subreddit presence, posting history, and strategy."
+  before: "Voices list page"
+  after: "Back to voices list or dashboard"
+  description: "Detailed view of a single voice's performance. Karma growth, subreddit presence, posting history, and strategy."
 
-screen_purpose: "Understand how a specific avatar is performing in your campaign. Track karma growth and community presence."
+screen_purpose: "Understand how a specific voice is performing in your campaign. Track karma growth and community presence."
 
 available_actions:
   all:

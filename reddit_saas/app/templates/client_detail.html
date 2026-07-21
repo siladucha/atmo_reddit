@@ -71,7 +71,7 @@
         </div>
     </div>
 
-    <!-- Right column: Avatars -->
+    <!-- Right column: Voices -->
     <div class="space-y-4">
         <div class="bg-white rounded-lg shadow-sm border p-4">
             <h2 class="font-semibold text-gray-800 mb-3">Avatars ({{ avatars|length }})</h2>
@@ -87,14 +87,14 @@
                     {% endif %}
                 </div>
                 {% else %}
-                <div class="text-sm text-gray-400">No avatars assigned</div>
+                <div class="text-sm text-gray-400">No voices assigned</div>
                 {% endfor %}
             </div>
         </div>
 
         {% if unassigned_avatars %}
         <div class="bg-white rounded-lg shadow-sm border p-4">
-            <h2 class="font-semibold text-gray-800 mb-3">Assign Avatar</h2>
+            <h2 class="font-semibold text-gray-800 mb-3">Assign Voice</h2>
             <div class="space-y-2">
                 {% for avatar in unassigned_avatars %}
                 <div class="flex justify-between items-center p-2 bg-gray-50 rounded">

@@ -17,7 +17,7 @@
     {% set guide_content %}
     <p>One page for the whole platform. The top bar shows the four numbers you check first;
        below that, each client gets a card with today's pipeline counts and one-click triggers.
-       Side panels show scrape freshness, recent runs, avatar health, and the next scheduled run.</p>
+       Side panels show scrape freshness, recent runs, voice health, and the next scheduled run.</p>
     <p><strong class="text-gray-300">Auto-refresh:</strong> client cards update every 60 seconds.
        Use the inline reload buttons on side panels for an on-demand refresh.</p>
     {% endset %}
@@ -65,7 +65,7 @@
         </a>
         <a href="/admin/avatars"
            class="bg-dark-steel rounded-lg p-5 border border-slate-700 hover:border-slate-500 transition-colors block">
-            <div class="text-sm text-gray-400 mb-1" title="Total avatars with active=true in the system. Includes all phases and health statuses.">Active Avatars</div>
+            <div class="text-sm text-gray-400 mb-1" title="Total voices with active=true in the system. Includes all phases and health statuses.">Active Voices</div>
             <div class="text-3xl font-mono font-semibold text-white">{{ metrics.total_avatars }}</div>
         </a>
         <a href="/admin/tasks"
@@ -104,7 +104,7 @@
                 <span class="text-sm font-mono font-medium text-green-400">{{ metrics.today.approved }}</span>
             </div>
             <div class="flex items-center gap-1">
-                <span class="text-xs text-gray-400" title="Comments confirmed as posted on Reddit today by avatar owners">Posted</span>
+                <span class="text-xs text-gray-400" title="Comments confirmed as posted on Reddit today by voice owners">Posted</span>
                 <span class="text-sm font-mono font-medium text-indigo-400">{{ metrics.today.posted }}</span>
             </div>
             <span class="h-4 w-px bg-slate-700 mx-1"></span>
@@ -234,10 +234,10 @@
                 </div>
             </section>
 
-            <!-- Avatar Health -->
+            <!-- Voice Health -->
             <section class="bg-dark-steel rounded-lg border border-slate-700">
                 <header class="flex items-center justify-between px-4 py-3 border-b border-slate-700">
-                    <h3 class="text-sm font-semibold text-gray-200">Avatar Health{% set tooltip_text = "Overview of avatar warming phases, karma status, and promotion eligibility. Flags avatars at risk of demotion." %}{% include "partials/block_tooltip.html" %}</h3>
+                    <h3 class="text-sm font-semibold text-gray-200">Voice Health{% set tooltip_text = "Overview of voice warming phases, karma status, and promotion eligibility. Flags voices at risk of demotion." %}{% include "partials/block_tooltip.html" %}</h3>
                     <button class="text-xs text-gray-400 hover:text-white"
                             hx-get="/admin/dashboard/avatar-health"
                             hx-target="#avatar-health-panel"

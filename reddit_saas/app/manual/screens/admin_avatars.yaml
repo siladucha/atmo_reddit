@@ -1,4 +1,4 @@
-title: "Avatar Management"
+title: "Voice Management"
 lifecycle_stage: "monitoring"
 
 flow_position:
@@ -10,7 +10,7 @@ flow_position:
       active: false
     - name: "Clients"
       active: false
-    - name: "Avatars"
+    - name: "Voices"
       active: true
     - name: "Pipeline"
       active: false
@@ -19,27 +19,27 @@ flow_position:
 
 screen_context:
   before: "Dashboard or client detail page"
-  after: "Avatar detail, onboarding, or EPG schedule"
-  description: "Overview of all avatars across the platform. Filter by client, phase, health status, and pool. Manage lifecycle operations."
+  after: "Voice detail, onboarding, or EPG schedule"
+  description: "Overview of all voices across the platform. Filter by client, phase, health status, and pool. Manage lifecycle operations."
 
-screen_purpose: "Operational control center for all avatars — monitor health, manage phases, freeze/unfreeze, and onboard new avatars."
+screen_purpose: "Operational control center for all voices — monitor health, manage phases, freeze/unfreeze, and onboard new voices."
 
 available_actions:
   all:
-    - name: "Onboard Avatar"
-      description: "Start the one-click avatar onboarding flow (Reddit profile analysis)"
+    - name: "Onboard Voice"
+      description: "Start the one-click voice onboarding flow (Reddit profile analysis)"
       destructive: false
-    - name: "Freeze Avatar"
-      description: "Immediately pause all automated activity for this avatar"
+    - name: "Freeze Voice"
+      description: "Immediately pause all automated activity for this voice"
       destructive: true
-    - name: "Unfreeze Avatar"
-      description: "Resume automated activity for a frozen avatar"
+    - name: "Unfreeze Voice"
+      description: "Resume automated activity for a frozen voice"
       destructive: false
     - name: "View Detail"
-      description: "Open avatar intelligence page (karma, presence, strategy)"
+      description: "Open voice intelligence page (karma, presence, strategy)"
       destructive: false
     - name: "Phase Override"
-      description: "Manually set avatar phase (bypasses automatic evaluation)"
+      description: "Manually set voice phase (bypasses automatic evaluation)"
       destructive: false
 
 role_behavior:

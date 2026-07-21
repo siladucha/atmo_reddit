@@ -14,7 +14,7 @@ flow_position:
       active: false
     - name: "Subreddits"
       active: false
-    - name: "Avatars"
+    - name: "Voices"
       active: false
     - name: "Activate"
       active: true

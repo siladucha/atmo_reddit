@@ -10,7 +10,7 @@ flow_position:
       active: false
     - name: "Clients"
       active: false
-    - name: "Avatars"
+    - name: "Voices"
       active: false
     - name: "Pipeline"
       active: true

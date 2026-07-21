@@ -12,7 +12,7 @@ flow_position:
       active: false
     - name: "EPG Schedule"
       active: false
-    - name: "Avatars"
+    - name: "Voices"
       active: false
     - name: "Reports"
       active: true

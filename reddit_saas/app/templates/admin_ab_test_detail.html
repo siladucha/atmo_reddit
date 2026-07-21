@@ -140,10 +140,10 @@
 <div id="panel-assignments" class="ab-panel hidden">
     {% include "partials/ab_test_assignments.html" %}
 
-    <!-- Avatar Assignment (only for draft) -->
+    <!-- Voice Assignment (only for draft) -->
     {% if experiment.status == 'draft' and available_avatars %}
     <div class="bg-slate-800 rounded-lg border border-slate-700 p-4 mt-4">
-        <h3 class="text-sm font-medium text-gray-300 mb-3">Assign Avatars</h3>
+        <h3 class="text-sm font-medium text-gray-300 mb-3">Assign Voices</h3>
         <form method="POST" action="/admin/ab-tests/{{ experiment.id }}/assign">
             <div class="mb-3">
                 <label class="block text-xs text-gray-400 mb-1">Target Group</label>
@@ -208,7 +208,7 @@
         <div class="flex items-center gap-2">
             {% if cs.h0_rejected %}
             <span class="px-2 py-1 bg-red-900 text-red-200 rounded text-sm font-medium">H0 Rejected</span>
-            <span class="text-gray-300 text-sm">Posting method DOES affect avatar health</span>
+            <span class="text-gray-300 text-sm">Posting method DOES affect voice health</span>
             {% else %}
             <span class="px-2 py-1 bg-green-900 text-green-200 rounded text-sm font-medium">H0 Not Rejected</span>
             <span class="text-gray-300 text-sm">No significant effect detected</span>
@@ -221,7 +221,7 @@
                 <span class="text-white ml-1">{{ cs.total_weeks }}</span>
             </div>
             <div class="bg-slate-750 rounded p-2">
-                <span class="text-gray-400">Avatars:</span>
+                <span class="text-gray-400">Voices:</span>
                 <span class="text-white ml-1">{{ cs.total_avatars_analyzed }}</span>
             </div>
             <div class="bg-slate-750 rounded p-2">

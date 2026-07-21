@@ -129,7 +129,7 @@
         </div>
     </div>
 
-    <!-- Avatar Breakdown — decision helper -->
+    <!-- Voice Breakdown — decision helper -->
     {% if avatar_breakdown %}
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-4">
         <div class="text-xs text-gray-500 uppercase tracking-wider font-medium mb-2">Per Avatar{% set tooltip_text = "Pending drafts per avatar. 'Today' shows how many were already approved/posted today. Click an avatar to filter." %}{% include "partials/block_tooltip.html" %}</div>
@@ -253,10 +253,10 @@
             const uniqueDetected = [...new Set(detected)];
             const msg = `⚠️ BRAND MENTION DETECTED: "${uniqueDetected.join('", "')}" — ` +
                 (phase === 1
-                    ? 'Phase 1 avatar: brand mentions are BLOCKED. This comment will be rejected by safety gates.'
+                    ? 'Phase 1 voice: brand mentions are BLOCKED. This comment will be rejected by safety gates.'
                     : phase === 2
-                    ? 'Phase 2 avatar: brand mentions are restricted. Ensure brand ratio stays below 10% in early phase.'
-                    : 'Verify brand mention is appropriate for this avatar\'s current phase.');
+                    ? 'Phase 2 voice: brand mentions are restricted. Ensure brand ratio stays below 10% in early phase.'
+                    : 'Verify brand mention is appropriate for this voice\'s current phase.');
 
             if (!warning) {
                 warning = document.createElement('div');

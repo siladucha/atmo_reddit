@@ -95,7 +95,7 @@ def _avatar_display_name(avatar) -> str:
     # Generate a friendly name from reddit_username
     # e.g. "Flaky_Finder_13" -> "Flaky Finder", "Hot-Thought2408" -> "Hot Thought"
     import re
-    name = avatar.reddit_username or "Avatar"
+    name = avatar.reddit_username or "Voice"
     # Remove u/ prefix if present
     name = name.removeprefix("u/")
     # Replace underscores and hyphens with spaces
@@ -103,7 +103,7 @@ def _avatar_display_name(avatar) -> str:
     # Remove trailing/leading numbers
     name = re.sub(r'\d+$', '', name).strip()
     # Title case
-    name = name.title() if name else "Avatar"
+    name = name.title() if name else "Voice"
     return name
 
 

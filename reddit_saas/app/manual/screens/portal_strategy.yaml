@@ -12,15 +12,15 @@ flow_position:
       active: false
     - name: "EPG Schedule"
       active: false
-    - name: "Avatars"
+    - name: "Voices"
       active: false
     - name: "Reports"
       active: true
 
 screen_context:
   before: "Dashboard or sidebar navigation"
-  after: "Strategy guides avatar content generation"
-  description: "Strategy documents that guide your avatars' content generation. Defines voice, topics, and engagement approach."
+  after: "Strategy guides voice content generation"
+  description: "Strategy documents that guide your voices' content generation. Defines voice, topics, and engagement approach."
 
 screen_purpose: "Review and understand the strategy driving your campaign. This shapes how AI generates content for your brand."
 

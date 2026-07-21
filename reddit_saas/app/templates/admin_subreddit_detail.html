@@ -61,7 +61,7 @@
             </button>
             <button type="button" data-subreddit-detail-tab="avatars"
                     class="subreddit-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
-                Avatars
+                Voices
             </button>
             <button type="button" data-subreddit-detail-tab="community"
                     class="subreddit-detail-tab px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white">
@@ -211,14 +211,14 @@
 
     <div data-subreddit-detail-panel="avatars" class="subreddit-detail-panel hidden space-y-6">
 
-    <!-- Avatar Performance (Our Avatars) -->
+    <!-- Voice Performance (Our Voices) -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
             <div class="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
                 <h3 class="text-sm font-medium text-white flex items-center gap-2">
                     <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
                     </svg>
-                    Our Avatars in r/{{ subreddit_name }}
+                    Our Voices in r/{{ subreddit_name }}
                 </h3>
                 <span class="text-xs text-gray-500">{{ avatar_performance|length }} avatars</span>
             </div>
@@ -283,7 +283,7 @@
             </div>
             {% else %}
             <div class="px-4 py-8 text-center text-gray-500 text-sm">
-                No avatar activity in this subreddit yet.
+                No voice activity in this subreddit yet.
             </div>
             {% endif %}
     </div>

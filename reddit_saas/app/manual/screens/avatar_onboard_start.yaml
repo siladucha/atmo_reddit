@@ -1,4 +1,4 @@
-title: "Avatar Onboarding"
+title: "Voice Onboarding"
 lifecycle_stage: "configuration"
 
 flow_position:
@@ -10,7 +10,7 @@ flow_position:
       active: false
     - name: "Clients"
       active: false
-    - name: "Avatars"
+    - name: "Voices"
       active: true
     - name: "Pipeline"
       active: false
@@ -18,11 +18,11 @@ flow_position:
       active: false
 
 screen_context:
-  before: "Avatars list or client detail"
-  after: "Avatar detail page after approval"
-  description: "One-click avatar onboarding. Enter a Reddit username, AI analyzes the profile, and pre-fills avatar configuration."
+  before: "Voices list or client detail"
+  after: "Voice detail page after approval"
+  description: "One-click voice onboarding. Enter a Reddit username, AI analyzes the profile, and pre-fills voice configuration."
 
-screen_purpose: "Onboard new avatars quickly. AI classifies voice, strategy, and persona from Reddit history automatically."
+screen_purpose: "Onboard new voices quickly. AI classifies voice, strategy, and persona from Reddit history automatically."
 
 available_actions:
   all:
@@ -30,7 +30,7 @@ available_actions:
       description: "Fetch Reddit profile and run AI classification"
       destructive: false
     - name: "Approve"
-      description: "Create the avatar with the classified settings"
+      description: "Create the voice with the classified settings"
       destructive: false
     - name: "Edit"
       description: "Modify AI-generated settings before approval"

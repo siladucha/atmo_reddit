@@ -313,25 +313,25 @@ def _send_promotion_email(
     # What this means for the client
     if new_phase == 2:
         what_it_means = (
-            "Your avatar now engages in professional subreddits relevant to your business. "
+            "Your voice now engages in professional subreddits relevant to your business. "
             "Content quality and relevance will increase. Brand mentions become eligible in the next phase."
         )
     elif new_phase == 3:
         what_it_means = (
-            "Your avatar has earned enough community trust for brand integration. "
+            "Your voice has earned enough community trust for brand integration. "
             "It can now naturally reference your brand when contextually relevant."
         )
     elif new_phase == 1:
         what_it_means = (
-            "Your avatar has cleared incubation and is building credibility in hobby communities. "
+            "Your voice has cleared incubation and is building credibility in hobby communities. "
             "This foundation ensures long-term account health."
         )
     else:
-        what_it_means = "Your avatar is progressing through its warming phases."
+        what_it_means = "Your voice is progressing through its warming phases."
 
     subject = f"🎉 {avatar_username} promoted to Phase {new_phase}"
 
-    body_text = f"""Good news — Avatar Promoted!
+    body_text = f"""Good news — Voice Promoted!
 
 {avatar_username} has been promoted from Phase {previous_phase} to Phase {new_phase}.
 
@@ -394,24 +394,24 @@ def _send_demotion_email(
 
     subject = f"ℹ️ {avatar_username} — temporary phase adjustment"
 
-    body_text = f"""Avatar Phase Adjustment
+    body_text = f"""Voice Phase Adjustment
 
 {avatar_username} has been moved from Phase {previous_phase} to Phase {new_phase}.
 
 Reason: {client_reason}
 
 What's happening:
-• The avatar continues to operate at a reduced pace
+• The voice continues to operate at a reduced pace
 • Our system monitors recovery signals automatically
 • Phase promotion will happen again once conditions are met
 • No action needed from you
 
-This is a normal part of the warming process — it protects your avatar's long-term health.
+This is a normal part of the warming process — it protects your voice's long-term health.
 
 View details: {portal_link}
 
 —
-RAMP Avatar Intelligence
+RAMP Voice Intelligence
 """
 
     body_html = f"""<div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;padding:20px">
@@ -428,7 +428,7 @@ RAMP Avatar Intelligence
 
 <h3 style="font-size:14px;margin-bottom:8px">What's happening:</h3>
 <ul style="color:#555;padding-left:20px">
-  <li>Avatar continues at reduced pace</li>
+  <li>Voice continues at reduced pace</li>
   <li>Recovery is monitored automatically</li>
   <li>Phase promotion resumes when conditions are met</li>
   <li><strong>No action needed from you</strong></li>
@@ -440,7 +440,7 @@ RAMP Avatar Intelligence
   <a href="{portal_link}" style="background:#f59e0b;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block">View Details</a>
 </div>
 
-<p style="color:#888;font-size:12px;margin-top:24px">RAMP Avatar Intelligence — gorampit.com</p>
+<p style="color:#888;font-size:12px;margin-top:24px">RAMP Voice Intelligence — gorampit.com</p>
 </div>"""
 
     sent = _send_client_email(client_id, subject, body_text, body_html)
@@ -470,8 +470,8 @@ def send_health_alert_email(
         title = "Health Issue Detected"
         status_text = "Visibility restriction detected"
         explanation = (
-            "The platform has temporarily restricted this avatar's visibility. "
-            "This is usually resolved within 3-7 days. The avatar has been moved to "
+            "The platform has temporarily restricted this voice's visibility. "
+            "This is usually resolved within 3-7 days. The voice has been moved to "
             "a recovery phase and our system monitors it automatically."
         )
         action = "No action needed — recovery is automatic."
@@ -486,10 +486,10 @@ def send_health_alert_email(
         action = "Our team is looking into this. We'll update you with next steps."
     else:
         emoji = "⚠️"
-        title = "Avatar Paused"
+        title = "Voice Paused"
         status_text = f"Status: {health_status}"
         explanation = (
-            "This avatar has been temporarily paused for safety. "
+            "This voice has been temporarily paused for safety. "
             "Our monitoring system will resume operations when conditions are met."
         )
         action = "No action needed — system handles recovery."
@@ -504,12 +504,12 @@ Status: {status_text}
 
 {action}
 
-Your other avatars continue operating normally.
+Your other voices continue operating normally.
 
 View details: {portal_link}
 
 —
-RAMP Avatar Intelligence
+RAMP Voice Intelligence
 """
 
     body_html = f"""<div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;padding:20px">
@@ -529,13 +529,13 @@ RAMP Avatar Intelligence
   <strong style="color:#166534">✓ {action}</strong>
 </div>
 
-<p style="color:#666;font-size:13px">Your other avatars continue operating normally.</p>
+<p style="color:#666;font-size:13px">Your other voices continue operating normally.</p>
 
 <div style="margin-top:24px">
-  <a href="{portal_link}" style="background:#6b7280;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block">View Avatars</a>
+  <a href="{portal_link}" style="background:#6b7280;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block">View Voices</a>
 </div>
 
-<p style="color:#888;font-size:12px;margin-top:24px">RAMP Avatar Intelligence — gorampit.com</p>
+<p style="color:#888;font-size:12px;margin-top:24px">RAMP Voice Intelligence — gorampit.com</p>
 </div>"""
 
     sent = _send_client_email(client_uuid, subject, body_text, body_html)

@@ -10,7 +10,7 @@ flow_position:
       active: true
     - name: "Clients"
       active: false
-    - name: "Avatars"
+    - name: "Voices"
       active: false
     - name: "Pipeline"
       active: false
@@ -19,10 +19,10 @@ flow_position:
 
 screen_context:
   before: "Login / authentication"
-  after: "Manage clients, avatars, or review pipeline status"
+  after: "Manage clients, voices, or review pipeline status"
   description: "Central operations hub. Real-time overview of system health, active pipelines, and pending actions across all clients."
 
-screen_purpose: "Monitor overall platform health at a glance — active clients, avatar status, pipeline throughput, and system alerts."
+screen_purpose: "Monitor overall platform health at a glance — active clients, voice status, pipeline throughput, and system alerts."
 
 available_actions:
   all:
@@ -32,7 +32,7 @@ available_actions:
     - name: "View Activity Feed"
       description: "See recent pipeline events across all clients"
       destructive: false
-    - name: "Navigate to Clients/Avatars"
+    - name: "Navigate to Clients/Voices"
       description: "Jump to entity management screens"
       destructive: false
 

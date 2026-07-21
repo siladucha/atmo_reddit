@@ -11,7 +11,7 @@
 
 {% block content %}
 <div class="space-y-4">
-    <!-- Page Header with Avatar Selector -->
+    <!-- Page Header with Voice Selector -->
     <div class="flex items-center justify-between flex-wrap gap-3">
         <div>
             <h1 class="text-2xl font-semibold text-white">Decision Center</h1>
@@ -38,7 +38,7 @@
 
     <!-- Live Pulse Section -->
     <section id="live-pulse-section">
-        <!-- Avatar selector row -->
+        <!-- Voice selector row -->
         <div class="flex items-center gap-3 mb-2">
             <span class="text-xs text-gray-500 uppercase tracking-wider font-medium">Live Pulse</span>
             <select id="dc-avatar-selector"
@@ -153,7 +153,7 @@
 {% block extra_scripts %}
 <script>
 (function() {
-    // --- Avatar selector → reload Live Pulse + Insights ---
+    // --- Voice selector → reload Live Pulse + Insights ---
     window.updateLivePulse = function(avatarId) {
         if (!avatarId) return;
         var pulsePanel = document.getElementById('live-pulse-panel');

@@ -124,7 +124,7 @@
                     <th class="px-4 py-3">{{ sort_link('tag', 'Tag') }}</th>
                     <th class="px-4 py-3">{{ sort_link('title', 'Title') }}</th>
                     <th class="px-4 py-3">{{ sort_link('subreddit', 'Subreddit') }}</th>
-                    <th class="px-4 py-3">{{ sort_link('avatar', 'Avatar') }}</th>
+                    <th class="px-4 py-3">{{ sort_link('avatar', 'Voice') }}</th>
                     <th class="px-4 py-3 text-gray-400 uppercase text-xs font-medium">Client</th>
                     <th class="px-4 py-3">{{ sort_link('ups', 'Score') }}</th>
                     <th class="px-4 py-3">{{ sort_link('posted', 'Posted') }}</th>
@@ -162,7 +162,7 @@
                         {% if item.avatar_username %}
                         <span class="px-1.5 py-0.5 rounded text-xs bg-indigo-900/50 text-indigo-300 border border-indigo-700/50" title="Best-fit avatar for this thread (by subreddit karma)">u/{{ item.avatar_username }}</span>
                         {% elif s and s.tag == 'engage' %}
-                        <span class="text-gray-600 text-xs" title="No avatar with karma in this subreddit">?</span>
+                        <span class="text-gray-600 text-xs" title="No voice with karma in this subreddit">?</span>
                         {% else %}
                         <span class="text-gray-700 text-xs">—</span>
                         {% endif %}

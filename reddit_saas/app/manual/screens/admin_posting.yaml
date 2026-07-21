@@ -10,7 +10,7 @@ flow_position:
       active: false
     - name: "Clients"
       active: false
-    - name: "Avatars"
+    - name: "Voices"
       active: false
     - name: "Pipeline"
       active: true
@@ -20,7 +20,7 @@ flow_position:
 screen_context:
   before: "Dashboard or EPG schedule"
   after: "Individual posting event trace"
-  description: "Posting operations overview. See all posting events, success rates, timing, and per-avatar breakdown."
+  description: "Posting operations overview. See all posting events, success rates, timing, and per-voice breakdown."
 
 screen_purpose: "Monitor automated posting operations. Track what was posted, when, and whether it succeeded."
 
@@ -29,8 +29,8 @@ available_actions:
     - name: "View Trace"
       description: "See full lifecycle of a specific post (thread > score > draft > EPG > post)"
       destructive: false
-    - name: "Filter by Avatar"
-      description: "Show events for a specific avatar"
+    - name: "Filter by Voice"
+      description: "Show events for a specific voice"
       destructive: false
 
 role_behavior:
@@ -39,4 +39,4 @@ role_behavior:
     - role: "Owner / Partner"
       access: "Full posting visibility"
     - role: "Avatar Manager"
-      access: "Can see posting events for their avatars"
+      access: "Can see posting events for their voices"

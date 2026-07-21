@@ -28,19 +28,19 @@
                 {% if current_user_role == 'Client' and current_client_id %}
                 <a href="/clients/{{ current_client_id }}?tab=overview" class="hover:text-gray-900">Overview</a>
                 <a href="/clients/{{ current_client_id }}?tab=subreddits" class="hover:text-gray-900">Subreddits</a>
-                <a href="/clients/{{ current_client_id }}?tab=avatars" class="hover:text-gray-900">Avatars</a>
+                <a href="/clients/{{ current_client_id }}?tab=avatars" class="hover:text-gray-900">Voices</a>
                 <a href="/clients/{{ current_client_id }}?tab=threads" class="hover:text-gray-900">Threads</a>
                 <a href="/clients/{{ current_client_id }}?tab=review" class="hover:text-gray-900">Review</a>
                 <a href="/clients/{{ current_client_id }}?tab=reports" class="hover:text-gray-900">Reports</a>
                 {% elif current_user_role == 'Internal' %}
                 <a href="/" class="hover:text-gray-900">Dashboard</a>
                 <a href="/review" class="hover:text-gray-900">Review</a>
-                <a href="/avatars-page" class="hover:text-gray-900">Avatars</a>
+                <a href="/avatars-page" class="hover:text-gray-900">Voices</a>
                 <a href="/admin/" class="hover:text-gray-900">🛡️ Admin</a>
                 {% else %}
                 <a href="/" class="hover:text-gray-900 {% block nav_dashboard %}{% endblock %}">Dashboard</a>
                 <a href="/review" class="hover:text-gray-900 {% block nav_review %}{% endblock %}">Review</a>
-                <a href="/avatars-page" class="hover:text-gray-900 {% block nav_avatars %}{% endblock %}">Avatars</a>
+                <a href="/avatars-page" class="hover:text-gray-900 {% block nav_avatars %}{% endblock %}">Voices</a>
                 {% if is_superuser %}
                 <a href="/admin-page" class="hover:text-gray-900 {% block nav_admin %}{% endblock %}">AI Costs</a>
                 <a href="/admin/" class="hover:text-gray-900 {% block nav_admin_panel %}{% endblock %}">🛡️ Admin</a>

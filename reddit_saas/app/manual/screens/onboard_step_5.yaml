@@ -1,4 +1,4 @@
-title: "Onboarding: Avatars"
+title: "Onboarding: Voices"
 lifecycle_stage: "onboarding"
 
 flow_position:
@@ -14,7 +14,7 @@ flow_position:
       active: false
     - name: "Subreddits"
       active: false
-    - name: "Avatars"
+    - name: "Voices"
       active: true
     - name: "Activate"
       active: false
@@ -22,9 +22,9 @@ flow_position:
 screen_context:
   before: "Previous onboarding step"
   after: "Next onboarding step"
-  description: "Step 5 of the AI-guided onboarding wizard. Avatars configuration."
+  description: "Step 5 of the AI-guided onboarding wizard. Voices configuration."
 
-screen_purpose: "Configure avatars for your campaign. AI assists with suggestions based on your website and industry."
+screen_purpose: "Configure voices for your campaign. AI assists with suggestions based on your website and industry."
 
 available_actions:
   all:

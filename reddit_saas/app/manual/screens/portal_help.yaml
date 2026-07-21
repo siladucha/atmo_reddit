@@ -11,7 +11,7 @@ screen_purpose: "Find answers to common questions about how RAMP works, how to m
 available_actions:
   all:
     - name: "Browse Guides"
-      description: "Step-by-step guides for common tasks (reviewing drafts, managing avatars, reading reports)"
+      description: "Step-by-step guides for common tasks (reviewing drafts, managing voices, reading reports)"
       destructive: false
     - name: "Contact Support"
       description: "Reach out to your account manager for help"

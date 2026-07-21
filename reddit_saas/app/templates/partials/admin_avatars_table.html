@@ -30,10 +30,10 @@
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">{{ sort_header('Phase', 'phase_asc', 'phase_desc') }} {{ tooltip("Avatar warming phase — determines content strategy restrictions") }}</th>
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Pool {{ tooltip("Avatar pool assignment — B2B (client), B2C (self-service), Mentor (high-karma), Warm (pre-warming)") }}</th>
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">{{ sort_header('Karma', 'karma_asc', 'karma_desc') }}</th>
-            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">AI Cost {{ tooltip("Total AI/LLM API spend for this avatar (scoring + generation + editing)") }}</th>
+            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">AI Cost {{ tooltip("Total AI/LLM API spend for this voice (scoring + generation + editing)") }}</th>
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Health {{ tooltip("Shadowban/suspension detection score — checks if Reddit has restricted this account") }}</th>
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">CQS {{ tooltip("Comment Quality Score — Reddit's internal contributor quality rating") }}</th>
-            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Posting {{ tooltip("Automated posting status — AUTO means avatar posts approved comments automatically") }}</th>
+            <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Posting {{ tooltip("Automated posting status — AUTO means voice posts approved comments automatically") }}</th>
             <th class="px-4 py-2 text-[10px] tracking-wider font-medium uppercase">Actions</th>
         </tr>
     </thead>
@@ -193,7 +193,7 @@
                 <div class="flex gap-2">
                     <a href="/export/avatars/{{ a.id }}/report.md"
                        class="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-700 text-gray-200 border border-slate-600 hover:bg-slate-600 hover:text-white"
-                       title="Download avatar report (.md)">
+                       title="Download voice report (.md)">
                         📄 Report
                     </a>
                     <form method="post" action="/admin/avatars/{{ a.id }}/toggle-active" class="inline">

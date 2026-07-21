@@ -293,16 +293,16 @@
         </table>
     </details>
 
-    <!-- Cost per Avatar -->
+    <!-- Cost per Voice -->
     {% if by_avatar %}
     <details class="cost-section bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
         <summary class="px-4 py-3 border-b border-slate-700 flex items-center justify-between hover:bg-slate-700/30">
-            <h2 class="text-sm font-medium text-white">Cost per Avatar ($/day)</h2>
+            <h2 class="text-sm font-medium text-white">Cost per Voice ($/day)</h2>
             <svg class="chevron w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
         </summary>
         <table class="w-full text-sm text-left">
             <thead><tr class="border-b border-slate-700">
-                <th class="px-4 py-2 text-gray-500 uppercase text-xs">Avatar</th>
+                <th class="px-4 py-2 text-gray-500 uppercase text-xs">Voice</th>
                 <th class="px-4 py-2 text-gray-500 uppercase text-xs">Client</th>
                 <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">Calls</th>
                 <th class="px-4 py-2 text-gray-500 uppercase text-xs text-right">Total</th>
@@ -343,11 +343,11 @@
     <!-- Cost by Operation (with tooltips) -->
     {% set op_descriptions = {
         "scoring": "Evaluates each post: relevant to client? Sets engage/monitor/skip.",
-        "persona_select": "Picks which avatar replies. Compares voice/karma/subreddit fit.",
-        "generation": "Writes the comment from the selected avatar's voice.",
+        "persona_select": "Picks which voice replies. Compares voice/karma/subreddit fit.",
+        "generation": "Writes the comment from the selected voice's persona.",
         "editing": "Polishes the generated comment (removes AI-ness).",
         "hobby_comment": "Generates hobby comments for karma warming (no brand).",
-        "strategy_generation": "Creates strategic document for avatar (tone, goals, approach).",
+        "strategy_generation": "Creates strategic document for voice (tone, goals, approach).",
         "scoring_batch": "Batch scoring — multiple posts in one prompt (experimental).",
         "discovery": "Discovery Engine: entity extraction, hypothesis formation, report generation."
     } %}

@@ -4,7 +4,7 @@ lifecycle_stage: "account"
 screen_context:
   before: "Settings or sidebar navigation"
   after: "Plan changes take effect on next billing cycle"
-  description: "View your current plan, usage limits, and billing information. Upgrade to increase avatar count, comment volume, or add managed services."
+  description: "View your current plan, usage limits, and billing information. Upgrade to increase voice count, comment volume, or add managed services."
 
 screen_purpose: "Understand your plan limits and current usage. See when you're approaching caps and what upgrade options are available."
 

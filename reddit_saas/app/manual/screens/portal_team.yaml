@@ -6,7 +6,7 @@ screen_context:
   after: "Team members get access to portal with appropriate permissions"
   description: "Manage who has access to your RAMP portal. Invite team members with specific roles — admin, manager, or viewer."
 
-screen_purpose: "Control access to your account. Add colleagues who need to review drafts, monitor avatars, or view reports. Each role has different permissions."
+screen_purpose: "Control access to your account. Add colleagues who need to review drafts, monitor voices, or view reports. Each role has different permissions."
 
 available_actions:
   all:

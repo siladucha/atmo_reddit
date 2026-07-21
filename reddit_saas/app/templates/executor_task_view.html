@@ -39,7 +39,7 @@
         <!-- Task details -->
         <div class="grid grid-cols-2 gap-3 text-sm mb-4">
             <div><span class="text-gray-500">Client:</span> <span class="font-medium">{{ task.client_name }}</span></div>
-            <div><span class="text-gray-500">Avatar:</span> <span class="font-medium">u/{{ task.avatar_username }}</span></div>
+            <div><span class="text-gray-500">Voice:</span> <span class="font-medium">u/{{ task.avatar_username }}</span></div>
             <div><span class="text-gray-500">Subreddit:</span> <span class="font-medium">r/{{ task.subreddit }}</span></div>
             <div><span class="text-gray-500">Type:</span> <span class="font-medium">{{ task.task_type }}</span></div>
             <div><span class="text-gray-500">Execute at:</span> <span class="font-medium">{{ task.scheduled_at.strftime('%H:%M') if task.scheduled_at else 'ASAP' }}</span></div>

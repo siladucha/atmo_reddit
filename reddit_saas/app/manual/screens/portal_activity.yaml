@@ -12,7 +12,7 @@ flow_position:
       active: false
     - name: "Schedule"
       active: false
-    - name: "Avatars"
+    - name: "Voices"
       active: false
     - name: "Activity"
       active: true
@@ -30,7 +30,7 @@ available_actions:
       description: "Focus on specific event types (generation, posting, health, scraping)"
       destructive: false
     - name: "Search Events"
-      description: "Find specific events by keyword or avatar name"
+      description: "Find specific events by keyword or voice name"
       destructive: false
 
 role_behavior:

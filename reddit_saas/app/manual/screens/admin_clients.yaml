@@ -10,7 +10,7 @@ flow_position:
       active: false
     - name: "Clients"
       active: true
-    - name: "Avatars"
+    - name: "Voices"
       active: false
     - name: "Pipeline"
       active: false
@@ -19,7 +19,7 @@ flow_position:
 
 screen_context:
   before: "Admin dashboard overview"
-  after: "Client detail page or avatar management"
+  after: "Client detail page or voice management"
   description: "Full list of all clients in the platform. Create new clients, manage settings, view status, and navigate to individual client configurations."
 
 screen_purpose: "Manage the client roster — onboard new clients, configure existing ones, monitor trial status, and control client activation."

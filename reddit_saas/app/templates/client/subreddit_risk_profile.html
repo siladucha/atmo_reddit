@@ -20,7 +20,7 @@
                     Subreddit Risk Profile
                     <span class="tooltip-macro-wrapper">
                         <span class="tooltip-macro-trigger" tabindex="0">ℹ️</span>
-                        <span class="tooltip-macro-popup">A composite score (0–100) measuring how aggressively this subreddit moderates new accounts. Lower = safer for your avatars. Updated weekly.</span>
+                        <span class="tooltip-macro-popup">A composite score (0–100) measuring how aggressively this subreddit moderates new accounts. Lower = safer for your voices. Updated weekly.</span>
                     </span>
                 </p>
             </div>
@@ -58,7 +58,7 @@
         <span style="font-size:16px;">ℹ️</span>
         <p style="font-size:var(--text-small);color:var(--color-muted);margin:0;">
             Risk score is estimated (default 50) — fewer than 5 posted comments tracked here yet.
-            The score will become more accurate as your avatars post and we observe moderation patterns.
+            The score will become more accurate as your voices post and we observe moderation patterns.
         </p>
     </div>
     {% endif %}
@@ -87,7 +87,7 @@
             <h2 class="text-h3" style="margin:0;">Subreddit Rules</h2>
             <span class="tooltip-macro-wrapper">
                 <span class="tooltip-macro-trigger" tabindex="0">ℹ️</span>
-                <span class="tooltip-macro-popup">Rules extracted automatically from this subreddit's sidebar and wiki using AI. Your avatars respect these rules when generating content — e.g. minimum karma requirements or banned topics.</span>
+                <span class="tooltip-macro-popup">Rules extracted automatically from this subreddit's sidebar and wiki using AI. Your voices respect these rules when generating content — e.g. minimum karma requirements or banned topics.</span>
             </span>
         </div>
         {% if extracted_rules %}
@@ -131,7 +131,7 @@
             <h2 class="text-h3" style="margin:0;">Moderation Insights</h2>
             <span class="tooltip-macro-wrapper">
                 <span class="tooltip-macro-trigger" tabindex="0">ℹ️</span>
-                <span class="tooltip-macro-popup">Based on how often comments are removed and at what times. "Dangerous hours" are times when removals spike — your avatars avoid posting during these windows.</span>
+                <span class="tooltip-macro-popup">Based on how often comments are removed and at what times. "Dangerous hours" are times when removals spike — your voices avoid posting during these windows.</span>
             </span>
         </div>
         {% if not moderation_not_computed %}
@@ -169,7 +169,7 @@
         </div>
         {% else %}
         <p class="text-small" style="color:var(--color-muted);">
-            Moderation patterns require at least 5 posted comments to analyze. Data will appear as your avatars post here.
+            Moderation patterns require at least 5 posted comments to analyze. Data will appear as your voices post here.
         </p>
         {% endif %}
     </div>
@@ -195,7 +195,7 @@
             <h2 class="text-h3" style="margin:0;">Voice Fitness</h2>
             <span class="tooltip-macro-wrapper">
                 <span class="tooltip-macro-trigger" tabindex="0">ℹ️</span>
-                <span class="tooltip-macro-popup">How well each of your avatars fits this community. Score based on karma, account age, tone match, and posting history. Low score = avatar may get removed more often here.</span>
+                <span class="tooltip-macro-popup">How well each of your voices fits this community. Score based on karma, account age, tone match, and posting history. Low score = voice may get removed more often here.</span>
             </span>
         </div>
         {% if avatar_fitness %}
@@ -265,7 +265,7 @@
             <h2 class="text-h3" style="margin:0;">Community Tone</h2>
             <span class="tooltip-macro-wrapper">
                 <span class="tooltip-macro-trigger" tabindex="0">ℹ️</span>
-                <span class="tooltip-macro-popup">AI analysis of how people communicate here — formality level, humor, expertise expectations. Your avatars adapt their voice to match this community's natural tone.</span>
+                <span class="tooltip-macro-popup">AI analysis of how people communicate here — formality level, humor, expertise expectations. Your voices adapt their voice to match this community's natural tone.</span>
             </span>
         </div>
         {% if emotional_profile %}
@@ -316,7 +316,7 @@
         {% endif %}
         {% else %}
         <p class="text-small" style="color:var(--color-muted);">
-            Community tone analysis runs weekly. Once available, it shows formality, humor level, expertise expectations, and dominant emotions — helping your avatars blend in naturally.
+            Community tone analysis runs weekly. Once available, it shows formality, humor level, expertise expectations, and dominant emotions — helping your voices blend in naturally.
         </p>
         {% endif %}
     </div>

@@ -29,7 +29,7 @@
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:var(--space-3);">
         {% for av in avatars %}
         <a href="/clients/{{ client_id }}/avatars/{{ av.id }}" class="surface" style="padding:var(--space-3);text-decoration:none;border:1px solid transparent;transition:border-color 150ms;{% if not av.active_flag %}opacity:0.5;{% endif %}" onmouseover="this.style.borderColor='var(--color-orange)'" onmouseout="this.style.borderColor='transparent'">
-            <!-- Header: avatar circle + name + status -->
+            <!-- Header: voice circle + name + status -->
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
                 <div style="width:44px;height:44px;border-radius:50%;background:var(--color-surface-alt);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;color:var(--color-orange);flex-shrink:0;">
                     {{ (av.client_display_name or "?")[0] | upper }}
@@ -54,7 +54,7 @@
             <div style="display:flex;gap:16px;margin-bottom:12px;">
                 <!-- Phase -->
                 <div>
-                    <p class="text-micro" style="margin-bottom:2px;">Phase{{ tooltip("Warming phase controls what the avatar can do. Phase 1 = credibility only (no brand). Phase 2 = content seeding. Phase 3 = brand integration.") }}</p>
+                    <p class="text-micro" style="margin-bottom:2px;">Phase{{ tooltip("Warming phase controls what the voice can do. Phase 1 = credibility only (no brand). Phase 2 = content seeding. Phase 3 = brand integration.") }}</p>
                     {% if av.warming_phase == 0 %}
                     <span style="padding:2px 8px;border-radius:var(--radius-pill);background:rgba(124,58,237,0.2);color:#a78bfa;font-size:var(--text-small);font-weight:500;">Mentor</span>
                     {% elif av.warming_phase == 1 %}
@@ -88,7 +88,7 @@
             <!-- Shadowban alert -->
             {% if av.health_status == 'shadowbanned' %}
             <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:8px 12px;margin-bottom:8px;">
-                <p style="color:var(--color-red);font-size:var(--text-small);font-weight:500;">This avatar has been flagged by Reddit. We have automatically paused it and are investigating. No action needed from you.</p>
+                <p style="color:var(--color-red);font-size:var(--text-small);font-weight:500;">This voice has been flagged by Reddit. We have automatically paused it and are investigating. No action needed from you.</p>
             </div>
             {% endif %}
 
@@ -107,7 +107,7 @@
             {% endif %}
         </a>
         {% endfor %}
-        <!-- Upsell: avatar expansion -->
+        <!-- Upsell: voice expansion -->
         {% if avatar_at_limit %}
         <div class="surface" style="padding:var(--space-3);border:1px dashed rgba(255,107,53,0.4);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:160px;">
             <p style="color:var(--color-orange);font-size:20px;margin-bottom:8px;">+</p>
@@ -120,7 +120,7 @@
     {% else %}
     <div class="surface" style="padding:var(--space-5);text-align:center;">
         <p style="font-size:24px;margin-bottom:var(--space-2);">👥</p>
-        <p style="color:var(--color-white);font-weight:500;margin-bottom:8px;">Your avatars are being configured</p>
+        <p style="color:var(--color-white);font-weight:500;margin-bottom:8px;">Your voices are being configured</p>
         <p class="text-small">Check back in 24-48 hours. We are setting up your team of personas.</p>
     </div>
     {% endif %}

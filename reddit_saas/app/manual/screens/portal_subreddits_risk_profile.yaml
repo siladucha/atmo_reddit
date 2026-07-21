@@ -10,31 +10,31 @@ flow_position:
       active: false
     - name: "Risk Profile"
       active: true
-    - name: "Avatar Fitness"
+    - name: "Voice Fitness"
       active: false
     - name: "Content Generation"
       active: false
 
 screen_context:
   before: "Subreddits list (click subreddit name)"
-  after: "System uses this data to decide where and when your avatars post"
-  description: "Detailed intelligence about a specific subreddit — its rules, moderation intensity, dangerous hours, and how well your avatars fit this community."
+  after: "System uses this data to decide where and when your voices post"
+  description: "Detailed intelligence about a specific subreddit — its rules, moderation intensity, dangerous hours, and how well your voices fit this community."
 
-screen_purpose: "Understand the risk landscape of a community before and during engagement. The system uses this profile to protect your avatars from removals and bans."
+screen_purpose: "Understand the risk landscape of a community before and during engagement. The system uses this profile to protect your voices from removals and bans."
 
 available_actions:
   all:
     - name: "View Risk Score"
-      description: "Composite score (0–100) showing moderation aggressiveness. Lower = safer for your avatars."
+      description: "Composite score (0–100) showing moderation aggressiveness. Lower = safer for your voices."
       destructive: false
     - name: "Review Extracted Rules"
-      description: "AI-extracted rules from subreddit sidebar/wiki. Your avatars automatically respect these (karma minimums, posting limits, banned topics)."
+      description: "AI-extracted rules from subreddit sidebar/wiki. Your voices automatically respect these (karma minimums, posting limits, banned topics)."
       destructive: false
     - name: "Check Moderation Insights"
-      description: "How often comments get removed here, and at what hours. Avatars avoid 'dangerous hours' automatically."
+      description: "How often comments get removed here, and at what hours. Voices avoid 'dangerous hours' automatically."
       destructive: false
-    - name: "Check Avatar Fitness"
-      description: "See which of your avatars are a good fit for this community based on karma, account age, and tone."
+    - name: "Check Voice Fitness"
+      description: "See which of your voices are a good fit for this community based on karma, account age, and tone."
       destructive: false
 
 role_behavior:

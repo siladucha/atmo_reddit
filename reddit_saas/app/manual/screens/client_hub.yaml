@@ -12,17 +12,17 @@ flow_position:
       active: false
     - name: "EPG Schedule"
       active: false
-    - name: "Avatars"
+    - name: "Voices"
       active: false
     - name: "Reports"
       active: false
 
 screen_context:
   before: "Client list or direct navigation"
-  after: "Tab-specific content (overview, subreddits, avatars, etc.)"
+  after: "Tab-specific content (overview, subreddits, voices, etc.)"
   description: "Tabbed overview of a single client. Quick access to all client data sections."
 
-screen_purpose: "Central hub for client information. Switch between overview, subreddits, avatars, threads, and review tabs."
+screen_purpose: "Central hub for client information. Switch between overview, subreddits, voices, threads, and review tabs."
 
 available_actions:
   all:

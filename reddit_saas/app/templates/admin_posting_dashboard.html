@@ -14,10 +14,10 @@
                 <option value="14" {{ 'selected' if days == 14 else '' }}>14 days</option>
                 <option value="30" {{ 'selected' if days == 30 else '' }}>30 days</option>
             </select>
-            <!-- Avatar filter -->
+            <!-- Voice filter -->
             <select onchange="window.location.href='/admin/posting?days={{ days }}&avatar_id='+this.value"
                     class="bg-gray-700 text-gray-200 text-sm rounded px-2 py-1 border border-gray-600">
-                <option value="">All Avatars</option>
+                <option value="">All Voices</option>
                 {% for a in all_avatars %}
                 <option value="{{ a.id }}" {{ 'selected' if avatar_id_filter == a.id|string else '' }}>
                     {{ a.reddit_username }}
@@ -82,14 +82,14 @@
         </div>
     </div>
 
-    <!-- Per-Avatar Breakdown -->
+    <!-- Per-Voice Breakdown -->
     {% if avatar_breakdown %}
     <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
-        <h2 class="text-sm font-medium text-gray-300 uppercase mb-3">Per-Avatar Performance</h2>
+        <h2 class="text-sm font-medium text-gray-300 uppercase mb-3">Per-Voice Performance</h2>
         <table class="w-full text-sm">
             <thead class="text-gray-500 border-b border-gray-700">
                 <tr>
-                    <th class="text-left py-2">Avatar</th>
+                    <th class="text-left py-2">Voice</th>
                     <th class="text-right">Total</th>
                     <th class="text-right">Success</th>
                     <th class="text-right">Rate</th>
@@ -128,7 +128,7 @@
                 <thead class="text-gray-500 border-b border-gray-700 sticky top-0 bg-gray-800">
                     <tr>
                         <th class="text-left py-2">Time</th>
-                        <th class="text-left">Avatar</th>
+                        <th class="text-left">Voice</th>
                         <th class="text-left">Outcome</th>
                         <th class="text-left">Reddit URL</th>
                         <th class="text-right">Duration</th>

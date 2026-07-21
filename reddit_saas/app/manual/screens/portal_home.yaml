@@ -12,7 +12,7 @@ flow_position:
       active: false
     - name: "EPG Schedule"
       active: false
-    - name: "Avatars"
+    - name: "Voices"
       active: false
     - name: "Reports"
       active: false
@@ -20,9 +20,9 @@ flow_position:
 screen_context:
   before: "Login or portal navigation"
   after: "Review queue to approve pending drafts, or EPG to see today's schedule"
-  description: "Your campaign home base. See how your avatars are performing, what content is pending review, and key metrics at a glance."
+  description: "Your campaign home base. See how your voices are performing, what content is pending review, and key metrics at a glance."
 
-screen_purpose: "Get a quick overview of your Reddit presence program — active avatars, pending approvals, recent posts, and campaign health."
+screen_purpose: "Get a quick overview of your Reddit presence program — active voices, pending approvals, recent posts, and campaign health."
 
 available_actions:
   all:

@@ -1,5 +1,5 @@
 {% extends "admin_base.html" %}
-{% block title %}Avatars{% endblock %}
+{% block title %}Voices{% endblock %}
 
 {% block breadcrumbs %}
 <nav class="text-sm text-gray-400">
@@ -7,7 +7,7 @@
     <span class="mx-2 text-gray-600">/</span>
     <span class="text-gray-500">Content</span>
     <span class="mx-2 text-gray-600">/</span>
-    <span class="text-white">Avatars</span>
+    <span class="text-white">Voices</span>
 </nav>
 {% endblock %}
 
@@ -21,7 +21,7 @@
     <!-- Header -->
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-semibold text-white">Avatars</h1>
+            <h1 class="text-2xl font-semibold text-white">Voices</h1>
             <p class="text-sm text-gray-400 mt-1">
                 {{ page_obj.counts.total }} total ·
                 <span class="text-green-400" title="Reddit account active (healthy, can post)">{{ page_obj.counts.active }} active on Reddit</span> ·
@@ -73,7 +73,7 @@
                     hx-target="#assign-avatar-modal-body"
                     hx-swap="innerHTML"
                     hx-trigger="click"
-                    hx-on::before-request="document.getElementById('assign-avatar-modal-body').innerHTML='<p class=\'text-gray-400 text-sm\'>Loading available avatars…</p>'; document.getElementById('assign-avatar-modal').classList.remove('hidden')"
+                    hx-on::before-request="document.getElementById('assign-avatar-modal-body').innerHTML='<p class=\'text-gray-400 text-sm\'>Loading available voices…</p>'; document.getElementById('assign-avatar-modal').classList.remove('hidden')"
                     hx-on::response-error="document.getElementById('assign-avatar-modal-body').innerHTML='<p class=\'text-red-400 text-sm\'>Failed to load avatars. Please refresh the page.</p>'"
                     class="bg-green-700 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
                 + Assign Existing Avatar
@@ -103,7 +103,7 @@
                         class="text-gray-400 hover:text-white text-xl leading-none px-2 py-1">&times;</button>
             </div>
             <div id="assign-avatar-modal-body" class="p-5 overflow-y-auto flex-1">
-                <p class="text-gray-400 text-sm">Loading available avatars…</p>
+                <p class="text-gray-400 text-sm">Loading available voices…</p>
             </div>
         </div>
     </div>

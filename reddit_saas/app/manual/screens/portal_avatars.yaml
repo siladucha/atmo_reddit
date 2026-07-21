@@ -1,4 +1,4 @@
-title: "My Avatars"
+title: "My Voices"
 lifecycle_stage: "execution"
 
 flow_position:
@@ -12,28 +12,28 @@ flow_position:
       active: false
     - name: "EPG Schedule"
       active: false
-    - name: "Avatars"
+    - name: "Voices"
       active: true
     - name: "Reports"
       active: false
 
 screen_context:
   before: "Dashboard or sidebar navigation"
-  after: "Individual avatar detail page"
-  description: "View all avatars working on your campaign. See their phase, health status, and recent activity."
+  after: "Individual voice detail page"
+  description: "View all voices working on your campaign. See their phase, health status, and recent activity."
 
-screen_purpose: "Monitor your avatar team. Check which avatars are active, their warming progress, and posting history."
+screen_purpose: "Monitor your voice team. Check which voices are active, their warming progress, and posting history."
 
 available_actions:
   all:
     - name: "View Detail"
-      description: "Open detailed avatar page with karma and activity"
+      description: "Open detailed voice page with karma and activity"
       destructive: false
 
 role_behavior:
   summary: "All client roles can view. No destructive actions available."
   differences:
     - role: "Client Admin / Manager"
-      access: "Full avatar list with status details"
+      access: "Full voice list with status details"
     - role: "Client Viewer"
-      access: "Read-only avatar list"
+      access: "Read-only voice list"

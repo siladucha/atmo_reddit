@@ -96,5 +96,5 @@
     <span class="text-amber-400">⚠️ Not active: {{ subreddit_coverage|selectattr('status_icon', 'equalto', 'warning')|list|length }}</span>
 </div>
 {% else %}
-<p class="text-gray-500 text-sm py-4">No subreddits assigned and no avatar presence data</p>
+<p class="text-gray-500 text-sm py-4">No subreddits assigned and no voice presence data</p>
 {% endif %}

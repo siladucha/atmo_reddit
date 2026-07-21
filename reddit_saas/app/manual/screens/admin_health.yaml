@@ -10,7 +10,7 @@ flow_position:
       active: false
     - name: "Clients"
       active: false
-    - name: "Avatars"
+    - name: "Voices"
       active: false
     - name: "Pipeline"
       active: false
@@ -19,15 +19,15 @@ flow_position:
 
 screen_context:
   before: "Dashboard or alert notification"
-  after: "Individual avatar health detail"
-  description: "Avatar health monitoring. Shadowban detection results, CQS scores, frozen avatars, and health history."
+  after: "Individual voice health detail"
+  description: "Voice health monitoring. Shadowban detection results, CQS scores, frozen voices, and health history."
 
-screen_purpose: "Monitor avatar health status. Identify shadowbanned or at-risk avatars before they cause issues."
+screen_purpose: "Monitor voice health status. Identify shadowbanned or at-risk voices before they cause issues."
 
 available_actions:
   all:
     - name: "Run Health Check"
-      description: "Trigger immediate health scan for all avatars"
+      description: "Trigger immediate health scan for all voices"
       destructive: false
     - name: "View History"
       description: "See health status changes over time"
@@ -37,4 +37,4 @@ role_behavior:
   summary: "Owner only — system monitoring."
   differences:
     - role: "Owner"
-      access: "Full health dashboard with all avatars"
+      access: "Full health dashboard with all voices"

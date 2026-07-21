@@ -107,11 +107,11 @@
         {% endif %}
     </div>
 
-    <!-- Avatars Summary -->
+    <!-- Voices Summary -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-5 mb-4">
         <div class="flex items-center justify-between mb-3">
             <h2 class="text-lg font-medium text-white">
-                Avatars
+                Voices
                 <span class="text-sm text-gray-400 font-normal">({{ avatars|length }})</span>
             </h2>
             <a href="/admin/clients/{{ client.id }}/onboard/step/4" class="text-indigo-400 hover:text-indigo-300 text-sm">Edit</a>
@@ -125,7 +125,7 @@
             {% endfor %}
         </div>
         {% else %}
-        <p class="text-gray-500 text-sm">No avatars assigned.</p>
+        <p class="text-gray-500 text-sm">No voices assigned.</p>
         {% endif %}
     </div>
 

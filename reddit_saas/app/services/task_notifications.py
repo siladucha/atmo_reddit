@@ -77,7 +77,7 @@ def notify_avatar_frozen(client_id, avatar_name: str, reason: str = ""):
     _notify(
         client_id,
         "warning",
-        f"Avatar {avatar_name} frozen",
+        f"Voice {avatar_name} paused",
         body,
         f"/clients/{client_id}/avatars",
     )

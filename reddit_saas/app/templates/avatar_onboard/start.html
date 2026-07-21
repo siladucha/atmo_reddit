@@ -1,12 +1,12 @@
 {% extends "client_base.html" if is_portal else "admin_base.html" %}
 
-{% block title %}Onboard Avatar — {{ client.client_name }}{% endblock %}
+{% block title %}Onboard Voice — {{ client.client_name }}{% endblock %}
 
 {% block content %}
 <div style="max-width:720px;margin:0 auto;padding:var(--space-4) var(--space-3);">
     <!-- Header -->
     <div style="margin-bottom:var(--space-4);">
-        <h1 class="text-h1">Onboard New Avatar</h1>
+        <h1 class="text-h1">Onboard New Voice</h1>
         <p class="text-small" style="margin-top:4px;color:var(--color-muted);">
             Add a Reddit account to work for <strong style="color:var(--color-white);">{{ client.client_name }}</strong>.
             The system will analyze the account and suggest a configuration.
@@ -17,7 +17,7 @@
     {% if existing_avatars > 0 %}
     <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-3);">
         <p style="font-size:var(--text-small);color:#a5b4fc;">
-            This client currently has <strong>{{ existing_avatars }}</strong> active avatar{{ "s" if existing_avatars > 1 else "" }}.
+            This client currently has <strong>{{ existing_avatars }}</strong> active voice{{ "s" if existing_avatars > 1 else "" }}.
         </p>
     </div>
     {% endif %}
@@ -33,11 +33,11 @@
     {% if request.query_params.get('success') %}
     <div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:var(--radius-card);padding:var(--space-3);margin-bottom:var(--space-3);">
         <p style="color:var(--color-green);font-weight:500;">
-            ✓ Avatar u/{{ request.query_params.get('success') }} onboarded successfully. Strategy generation started.
+            ✓ Voice u/{{ request.query_params.get('success') }} onboarded successfully. Strategy generation started.
         </p>
         <p style="color:var(--color-muted);font-size:var(--text-small);margin-top:4px;">
-            Add another avatar below, or
-            <a href="/clients/{{ client_id }}/avatars" style="color:var(--color-orange);text-decoration:underline;">view all avatars →</a>
+            Add another voice below, or
+            <a href="/clients/{{ client_id }}/avatars" style="color:var(--color-orange);text-decoration:underline;">view all voices →</a>
         </p>
     </div>
     {% endif %}
@@ -92,7 +92,7 @@
     <!-- Back link -->
     <div style="margin-top:var(--space-4);">
         {% if is_portal %}
-        <a href="/clients/{{ client_id }}/avatars" style="color:var(--color-muted);font-size:var(--text-small);text-decoration:none;">← Back to Avatars</a>
+        <a href="/clients/{{ client_id }}/avatars" style="color:var(--color-muted);font-size:var(--text-small);text-decoration:none;">← Back to Voices</a>
         {% else %}
         <a href="/admin/clients/{{ client_id }}" style="color:var(--color-muted);font-size:var(--text-small);text-decoration:none;">← Back to Client</a>
         {% endif %}

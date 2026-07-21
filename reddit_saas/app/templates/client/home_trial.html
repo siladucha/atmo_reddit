@@ -22,7 +22,7 @@
                     Trial period active
                 {% endif %}
             </p>
-            <p class="text-small">Your avatars and karma carry over when you upgrade.</p>
+            <p class="text-small">Your voices and karma carry over when you upgrade.</p>
         </div>
         <a href="#" class="btn-orange-outline" style="font-size:var(--text-small);padding:8px 16px;text-decoration:none;">
             Upgrade Now
@@ -69,7 +69,7 @@
         {% if avatars_active > 0 and week_posted == 0 and pending_count == 0 %}
         <div style="padding:12px;background:var(--color-surface-alt);border-radius:8px;">
             <p style="color:var(--color-white);font-size:var(--text-body);margin-bottom:4px;">
-                Your avatar{{ 's are' if avatars_active > 1 else ' is' }} warming up in {{ subreddits_count }} subreddit{{ 's' if subreddits_count != 1 else '' }}.
+                Your voice{{ 's are' if avatars_active > 1 else ' is' }} warming up in {{ subreddits_count }} subreddit{{ 's' if subreddits_count != 1 else '' }}.
             </p>
             <p class="text-small">
                 Building credibility through hobby engagement. First AI-generated comments are expected within 24-72 hours after the next pipeline run.
@@ -89,12 +89,12 @@
             <p style="color:var(--color-green);font-weight:600;margin-bottom:4px;">
                 🚀 {{ week_posted }} comment{{ 's' if week_posted != 1 else '' }} posted this week!
             </p>
-            <p class="text-small">Your avatars are actively building presence in target communities.</p>
+            <p class="text-small">Your voices are actively building presence in target communities.</p>
         </div>
         {% elif avatars_active == 0 %}
         <div style="padding:12px;background:var(--color-surface-alt);border-radius:8px;">
             <p style="color:var(--color-white);font-size:var(--text-body);margin-bottom:4px;">
-                Setting up your first avatar...
+                Setting up your first voice...
             </p>
             <p class="text-small">
                 Once configured, AI will start monitoring subreddits and generating engagement opportunities for your brand.
