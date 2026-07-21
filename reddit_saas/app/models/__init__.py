@@ -119,6 +119,8 @@ __all__ = [
     "MetricSnapshot",
     "WeeklyReport",
     "ControlViolation",
+    "ReportGenerationJob",
+    "ReportJobEvent",
 ]
 
 # GEO/AEO Prompt Monitoring
@@ -176,3 +178,6 @@ from app.models.client_subscription import ClientSubscription
 from app.models.webhook_event import WebhookEvent
 from app.models.billing_period_history import BillingPeriodHistory
 from app.models.upsell_event import UpsellEvent
+
+# Landscape Report Observability
+from app.models.report_generation_job import ReportGenerationJob, ReportJobEvent

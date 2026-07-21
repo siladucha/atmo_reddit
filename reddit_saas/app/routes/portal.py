@@ -2415,7 +2415,7 @@ def portal_insights(
                         "title": (t.post_title or "")[:80],
                         "subreddit": t.subreddit or "",
                         "ups": t.ups or 0,
-                        "permalink": t.permalink or "",
+                        "permalink": t.url or "",
                         "competitor_present": False,  # TODO: cross-ref with competitor data
                     })
                     if len(high_value_threads) >= 8:
@@ -2481,14 +2481,34 @@ def portal_visibility(
     db: Session = Depends(get_db),
 ):
     """Client portal — AI Search Visibility (Share of Voice, Competitor Comparison)."""
+    import json as _json
+    import redis
+    from app.config import get_settings
     from app.services.visibility_report import compute_visibility_report
 
     client_obj = db.query(Client).filter(Client.id == client_id).first()
     if not client_obj:
         raise HTTPException(status_code=404, detail="Client not found")
 
-    # Compute full visibility report from GEO batch data
-    report = compute_visibility_report(db, client_id, include_excerpts=True)
+    # --- 24h Redis cache for visibility report ---
+    cache_key = f"ramp:visibility_report:{client_id}"
+    cached = None
+    try:
+        settings = get_settings()
+        r = redis.Redis.from_url(settings.redis_url, decode_responses=True)
+        cached = r.get(cache_key)
+    except Exception:
+        pass  # Redis down — compute fresh
+
+    if cached:
+        report = _json.loads(cached)
+    else:
+        # Compute full visibility report from GEO batch data
+        report = compute_visibility_report(db, client_id, include_excerpts=True)
+        try:
+            r.setex(cache_key, 86400, _json.dumps(report, default=str))  # 24h TTL
+        except Exception:
+            pass  # Cache write failure non-blocking
 
     # Also compute high-intent thread participation (not part of GEO, Reddit-specific)
     from app.models.thread_score import ThreadScore
@@ -3416,19 +3436,136 @@ def portal_landscape(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Day 1 Landscape Report — competitive presence, opportunities, scored threads."""
-    from app.services.onboarding.landscape_report import generate_landscape_report
+    """Day 1 Landscape Report — status-aware rendering with job tracking."""
+    from app.services.onboarding.landscape_report import (
+        get_job_status,
+        generate_landscape_report_tracked,
+    )
 
-    report = generate_landscape_report(db, client_id)
+    # Check current job status
+    status = get_job_status(db, client_id)
 
+    if status["status"] == "completed" and status.get("completed_at"):
+        # Check freshness (<24h) — data refreshes daily via scraping
+        completed_at = datetime.fromisoformat(status["completed_at"])
+        if (datetime.now(timezone.utc) - completed_at) < timedelta(hours=24):
+            # Serve cached report
+            report = status["report_data"]
+            return _portal_render(
+                request,
+                "client/landscape.html",
+                client_id,
+                db,
+                active_page="landscape",
+                extra_context={"landscape": report, "landscape_status": "completed"},
+            )
+        else:
+            # Stale — trigger fresh generation
+            report = generate_landscape_report_tracked(db, client_id)
+    elif status["status"] in ("pending", "processing"):
+        # Already generating — render status page with HTMX poll
+        return _portal_render(
+            request,
+            "client/landscape.html",
+            client_id,
+            db,
+            active_page="landscape",
+            extra_context={"landscape_status": "generating", "job_status": status},
+        )
+    elif status["status"] == "failed":
+        # Show error with retry
+        return _portal_render(
+            request,
+            "client/landscape.html",
+            client_id,
+            db,
+            active_page="landscape",
+            extra_context={"landscape_status": "failed", "job_status": status},
+        )
+    else:
+        # No job exists — trigger generation
+        report = generate_landscape_report_tracked(db, client_id)
+
+    # If result is a processing/dedup response (dict with status key)
+    if isinstance(report, dict) and report.get("status") == "processing":
+        refreshed_status = get_job_status(db, client_id)
+        return _portal_render(
+            request,
+            "client/landscape.html",
+            client_id,
+            db,
+            active_page="landscape",
+            extra_context={"landscape_status": "generating", "job_status": refreshed_status},
+        )
+
+    # If result is an error response
+    if isinstance(report, dict) and report.get("error"):
+        refreshed_status = get_job_status(db, client_id)
+        return _portal_render(
+            request,
+            "client/landscape.html",
+            client_id,
+            db,
+            active_page="landscape",
+            extra_context={"landscape_status": "failed", "job_status": refreshed_status},
+        )
+
+    # Normal render with report data
     return _portal_render(
         request,
         "client/landscape.html",
         client_id,
         db,
-        active_page="report",
-        extra_context={"landscape": report},
+        active_page="landscape",
+        extra_context={"landscape": report, "landscape_status": "completed"},
     )
+
+
+@router.get("/clients/{client_id}/landscape/status", response_class=HTMLResponse)
+def portal_landscape_status(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """HTMX polling endpoint — returns partial HTML with current landscape report status."""
+    from app.services.onboarding.landscape_report import get_job_status
+
+    status = get_job_status(db, client_id)
+
+    if status["status"] == "completed" and status.get("report_data"):
+        # Report is ready — render the full landscape content
+        return _portal_render(
+            request,
+            "client/landscape.html",
+            client_id,
+            db,
+            active_page="landscape",
+            extra_context={
+                "landscape": status["report_data"],
+                "landscape_status": "completed",
+            },
+        )
+    elif status["status"] == "failed":
+        # Generation failed — render error state
+        return _portal_render(
+            request,
+            "client/landscape.html",
+            client_id,
+            db,
+            active_page="landscape",
+            extra_context={"landscape_status": "failed", "job_status": status},
+        )
+    else:
+        # Still generating — render status page with continued HTMX poll
+        return _portal_render(
+            request,
+            "client/landscape.html",
+            client_id,
+            db,
+            active_page="landscape",
+            extra_context={"landscape_status": "generating", "job_status": status},
+        )
 
 
 # --- Momentum Events Feed (HTMX partial for home) ---

@@ -716,6 +716,19 @@ DEFAULTS: dict[str, dict] = {
         "desc": "Stripe API secret key (sk_live_... or sk_test_...). Required for checkout session creation and subscription management.",
         "group": "billing",
     },
+    # --- Engineering Memory (Notion) ---
+    "notion_engineering_memory_token": {
+        "value": "",
+        "secret": True,
+        "desc": "Notion integration token for Engineering Memory database",
+        "group": "engineering_memory",
+    },
+    "notion_engineering_memory_database_id": {
+        "value": "",
+        "secret": False,
+        "desc": "Notion database ID for Engineering Memory",
+        "group": "engineering_memory",
+    },
 }
 
 # ---------------------------------------------------------------------------
