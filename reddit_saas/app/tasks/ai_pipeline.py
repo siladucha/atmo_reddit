@@ -866,7 +866,7 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
                             HobbySubreddit.ai_comment.is_(None),
                             HobbySubreddit.status == "new",
                             HobbySubreddit.post_body.isnot(None),
-                            sa_func.length(HobbySubreddit.post_body) > 20,
+                            sa_func.length(HobbySubreddit.post_body) >= 120,
                             # Freshness: only posts scraped within last 7 days
                             HobbySubreddit.created_at >= hobby_freshness_cutoff,
                             # Skip image/video/link posts - text-only replies
@@ -893,7 +893,7 @@ def generate_hobby_comments(self, avatar_id: str, max_comments: int = 10, trigge
                         HobbySubreddit.ai_comment.is_(None),
                         HobbySubreddit.status == "new",
                         HobbySubreddit.post_body.isnot(None),
-                        sa_func.length(HobbySubreddit.post_body) > 20,
+                        sa_func.length(HobbySubreddit.post_body) >= 120,
                         # Freshness: only posts scraped within last 7 days
                         HobbySubreddit.created_at >= hobby_freshness_cutoff,
                         # Skip image/video/link posts

@@ -951,6 +951,10 @@ def scan_opportunities(
                         HobbySubreddit.status == "new",  # fresh posts not yet used
                         HobbySubreddit.ai_comment.is_(None),
                         HobbySubreddit.post_body.isnot(None),
+                        # Minimum body length — filters legacy image/video posts
+                        # that have only a short caption (< 120 chars). Matches
+                        # post_filter.py MIN_SELF_TEXT_LENGTH threshold.
+                        sa_func.length(HobbySubreddit.post_body) >= 120,
                         # Freshness: only posts from last 7 days
                         HobbySubreddit.created_at >= hobby_freshness_cutoff,
                         # Filter out image/video/link posts - LLM cant see media,
@@ -1013,7 +1017,7 @@ def scan_opportunities(
                 _archive_filters = [
                     HobbySubreddit.avatar_username == avatar.reddit_username,
                     HobbySubreddit.post_body.isnot(None),
-                    sa_func.length(HobbySubreddit.post_body) > 20,
+                    sa_func.length(HobbySubreddit.post_body) >= 120,
                     or_(
                         HobbySubreddit.url.is_(None),
                         HobbySubreddit.url == "",
