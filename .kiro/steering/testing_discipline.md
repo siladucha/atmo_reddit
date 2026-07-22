@@ -81,6 +81,18 @@ If any of these fail → **do not deploy**. Fix first.
 4. ❌ Don't write tests that require Docker (we run on local PG/Redis)
 5. ❌ Don't add 7 property-based test files for one feature (draft_expiry has 7 — this is waste)
 6. ❌ Don't test internal method signatures — test behavior through public interfaces
+7. ❌ **Don't leave tests mocking a replaced implementation** — when a service is refactored (e.g. Notion → PostgreSQL, sync → async), update the tests in the same commit. Stale mocks (patching `httpx.AsyncClient`, `get_setting`, etc.) for a service that no longer uses them will pass locally if not imported but fail CI when the import signature changes. Rule: **service refactor = test refactor, same PR**.
+
+---
+
+## When Refactoring a Service
+
+When you change the storage backend, sync/async contract, or function signature of a service:
+
+1. **Grep for existing tests:** `grep -r "service_name\|function_name" tests/` — find ALL test files that touch this service
+2. **Read those tests before touching the service** — understand what contract they assert
+3. **Update tests in the same commit as the service change** — never ship a service change that leaves old mocks in place
+4. **Incident that created this rule (July 22, 2026):** `engineering_memory.py` migrated Notion → PostgreSQL. Tests kept mocking `httpx.AsyncClient` + `get_setting` + expecting async `create_incident`. CI failed on next unrelated change that imported the module. Fix: rewrote `TestCreateIncident` to mock SQLAlchemy session instead.
 
 ---
 
