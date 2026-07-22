@@ -19,7 +19,9 @@ from app.routes.extension_events import router as extension_events_router
 from app.routes.telegram_webhook import router as telegram_webhook_router
 from app.routes.stripe_checkout import router as stripe_checkout_router
 from app.routes.admin_llm_quality import router as admin_llm_quality_router
+from app.routes.engineering_memory import router as engineering_memory_router
 from app.routes.stripe_webhook import router as stripe_webhook_router
+from app.routes.webhooks import router as webhooks_router
 from app.routes import notifications as notifications_routes
 from app.routes import manual as manual_routes
 from app.services.metrics_collector import (
@@ -181,6 +183,8 @@ app.include_router(admin_llm_quality_router, tags=["admin-llm-quality"])
 app.include_router(telegram_webhook_router, tags=["telegram"])
 app.include_router(stripe_checkout_router, tags=["stripe-billing"])
 app.include_router(stripe_webhook_router, tags=["stripe-webhook"])
+app.include_router(webhooks_router, tags=["webhooks"])
+app.include_router(engineering_memory_router, tags=["engineering-memory"])
 
 
 @app.get("/health")
@@ -316,3 +320,29 @@ def on_startup():
         )
 
     logger.info("Startup validation passed — all critical settings OK")
+
+    # Check Stripe billing configuration (from DB, after init_defaults + seed_from_env)
+    try:
+        from app.database import SessionLocal as _StartupSessionLocal
+        from app.services.settings import get_setting as _startup_get_setting
+        _startup_db = _StartupSessionLocal()
+        try:
+            stripe_key = _startup_get_setting(_startup_db, "stripe_secret_key")
+        finally:
+            _startup_db.close()
+    except Exception:
+        stripe_key = None
+
+    if not stripe_key:
+        logger.warning(
+            "⚠️  Stripe billing not configured — set keys in /admin/settings. "
+            "All billing functionality is disabled."
+        )
+    else:
+        # Stripe is configured — sync products in background
+        try:
+            from app.tasks.billing import sync_stripe_products
+            sync_stripe_products.delay()
+            logger.info("Stripe configured — queued sync_stripe_products task")
+        except Exception as e:
+            logger.warning("Failed to queue sync_stripe_products: %s", e)

@@ -76,6 +76,12 @@ class Client(Base):
     subreddits = relationship("ClientSubreddit", back_populates="client")  # legacy, kept for migration
     subreddit_assignments = relationship("ClientSubredditAssignment", back_populates="client")
 
+    # Stripe billing identifiers
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+    stripe_price_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    subscription_canceled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Billing state (denormalized from client_subscriptions for fast pipeline queries)
     subscription_status: Mapped[str] = mapped_column(String(20), default="trial", server_default="trial")
     # trial | active | past_due | suspended | canceled | trial_expired | archived

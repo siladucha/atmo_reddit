@@ -27,6 +27,7 @@ services:
       - TZ=Asia/Jerusalem
     volumes:
       - backups:/app/backups
+      - uploads:/app/app/static/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -157,3 +158,5 @@ volumes:
     name: reddit_saas_pgdata
   backups:
     name: reddit_saas_backups
+  uploads:
+    name: reddit_saas_uploads

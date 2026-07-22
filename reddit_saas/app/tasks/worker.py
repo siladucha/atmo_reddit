@@ -44,6 +44,7 @@ celery_app = Celery(
         "app.tasks.weekly_emails",
         "app.tasks.subreddit_intelligence",
         "app.tasks.llm_quality_check",
+        "app.tasks.billing",
     ],
 )
 

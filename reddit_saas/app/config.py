@@ -17,6 +17,10 @@ class Settings(BaseSettings):
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
+    # NOTE: Stripe keys (stripe_secret_key, stripe_webhook_secret, stripe_publishable_key)
+    # are stored in the system_settings DB table, NOT in this bootstrap class.
+    # Access them via get_setting(db, "stripe_secret_key") etc.
+
 
 @lru_cache
 def get_settings() -> Settings:
@@ -25,7 +29,9 @@ def get_settings() -> Settings:
 
 
 # Bootstrap keys that are resolved from env, never from DB
-_BOOTSTRAP_KEYS = frozenset({"database_url", "redis_url", "app_env", "extension_hmac_secret", "secret_key"})
+_BOOTSTRAP_KEYS = frozenset({
+    "database_url", "redis_url", "app_env", "extension_hmac_secret", "secret_key",
+})
 
 
 def get_config(key: str, db=None) -> str:
