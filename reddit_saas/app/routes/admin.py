@@ -1274,6 +1274,25 @@ def admin_client_detail(
         .all()
     )
 
+    # Billing info for the billing section
+    billing_info = None
+    if client.stripe_customer_id:
+        try:
+            from app.services.billing.billing_service import BillingService
+            billing_svc = BillingService(db)
+            if billing_svc.is_configured():
+                cached_invoices = billing_svc._get_cached_invoices(client.id, limit=5)
+                # Try to get payment method info from last invoice or Stripe
+                payment_last4 = None
+                payment_brand = None
+                billing_info = {
+                    "invoices": cached_invoices,
+                    "payment_last4": payment_last4,
+                    "payment_brand": payment_brand,
+                }
+        except Exception:
+            billing_info = None
+
     return templates.TemplateResponse(
         name="admin_client_detail.html",
         context={
@@ -1285,6 +1304,7 @@ def admin_client_detail(
             "avatars_enriched": avatars_enriched,
             "keywords": keywords,
             "discovery_sessions": discovery_sessions,
+            "billing_info": billing_info,
             "error": None,
         },
         request=request,
@@ -6137,6 +6157,150 @@ def admin_billing(
         },
         request=request,
     )
+
+
+# ---------------------------------------------------------------------------
+# Stripe Billing: Sync & Coupon Management
+# ---------------------------------------------------------------------------
+
+@router.post("/clients/{client_id}/sync-stripe", response_class=HTMLResponse)
+def admin_sync_stripe(
+    client_id: uuid.UUID,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Sync subscription state from Stripe for a specific client (HTMX)."""
+    from app.services.billing.billing_service import BillingService
+
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        return HTMLResponse('<span class="text-red-400 text-xs">Client not found</span>')
+
+    billing_svc = BillingService(db)
+    if not billing_svc.is_configured():
+        return HTMLResponse('<span class="text-amber-400 text-xs">Stripe not configured</span>')
+
+    try:
+        billing_svc.sync_subscription_from_stripe(client_id)
+        return HTMLResponse('<span class="text-green-400 text-xs">✓ Synced from Stripe</span>')
+    except Exception as e:
+        return HTMLResponse(f'<span class="text-red-400 text-xs">Error: {str(e)[:80]}</span>')
+
+
+@router.get("/billing/coupons", response_class=HTMLResponse)
+def admin_billing_coupons(
+    request: Request,
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Coupon management page: list existing coupons + create form."""
+    from app.models.billing_coupon import BillingCoupon
+
+    coupons = (
+        db.query(BillingCoupon)
+        .order_by(BillingCoupon.created_at.desc())
+        .all()
+    )
+
+    return templates.TemplateResponse(
+        name="admin_billing_coupons.html",
+        context={
+            "request": request,
+            "active_nav": "billing",
+            "coupons": coupons,
+            "error": None,
+            "success": None,
+        },
+        request=request,
+    )
+
+
+@router.post("/billing/coupons", response_class=HTMLResponse)
+def admin_create_coupon(
+    request: Request,
+    name: str = Form(...),
+    percent_off: int = Form(...),
+    duration_in_months: int = Form(...),
+    max_redemptions: int | None = Form(None),
+    current_user: User = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    """Create a new billing coupon via Stripe + local storage."""
+    from app.models.billing_coupon import BillingCoupon
+    from app.services.billing.billing_service import BillingService
+
+    # Validate inputs
+    error = None
+    if not name or len(name.strip()) < 2:
+        error = "Name must be at least 2 characters."
+    elif percent_off < 10 or percent_off > 100:
+        error = "Discount percentage must be between 10% and 100%."
+    elif duration_in_months < 1 or duration_in_months > 12:
+        error = "Duration must be between 1 and 12 months."
+    elif max_redemptions is not None and max_redemptions < 1:
+        error = "Max redemptions must be at least 1."
+
+    if error:
+        coupons = db.query(BillingCoupon).order_by(BillingCoupon.created_at.desc()).all()
+        return templates.TemplateResponse(
+            name="admin_billing_coupons.html",
+            context={
+                "request": request,
+                "active_nav": "billing",
+                "coupons": coupons,
+                "error": error,
+                "success": None,
+            },
+            request=request,
+        )
+
+    billing_svc = BillingService(db)
+    if not billing_svc.is_configured():
+        coupons = db.query(BillingCoupon).order_by(BillingCoupon.created_at.desc()).all()
+        return templates.TemplateResponse(
+            name="admin_billing_coupons.html",
+            context={
+                "request": request,
+                "active_nav": "billing",
+                "coupons": coupons,
+                "error": "Stripe is not configured. Cannot create coupons.",
+                "success": None,
+            },
+            request=request,
+        )
+
+    try:
+        coupon_code = billing_svc.create_coupon(
+            name=name.strip(),
+            percent_off=percent_off,
+            duration_in_months=duration_in_months,
+            max_redemptions=max_redemptions if max_redemptions and max_redemptions > 0 else None,
+        )
+        coupons = db.query(BillingCoupon).order_by(BillingCoupon.created_at.desc()).all()
+        return templates.TemplateResponse(
+            name="admin_billing_coupons.html",
+            context={
+                "request": request,
+                "active_nav": "billing",
+                "coupons": coupons,
+                "error": None,
+                "success": f"Coupon '{coupon_code}' created successfully.",
+            },
+            request=request,
+        )
+    except Exception as e:
+        coupons = db.query(BillingCoupon).order_by(BillingCoupon.created_at.desc()).all()
+        return templates.TemplateResponse(
+            name="admin_billing_coupons.html",
+            context={
+                "request": request,
+                "active_nav": "billing",
+                "coupons": coupons,
+                "error": f"Failed to create coupon: {str(e)[:100]}",
+                "success": None,
+            },
+            request=request,
+        )
 
 
 # ---------------------------------------------------------------------------

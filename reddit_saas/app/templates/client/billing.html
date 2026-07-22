@@ -1,113 +1,176 @@
 {% extends "client_base.html" %}
-{% from "partials/tooltip.html" import tooltip %}
 
 {% block title %}Plan & Billing — {{ client_name }}{% endblock %}
 
 {% block content %}
 <div id="portal-content">
     <div style="margin-bottom:var(--space-4);">
-        <h1 class="text-h1">Plan & Billing{{ tooltip("Your current subscription plan, usage this month, and available upgrades.") }}</h1>
-        <p class="text-small" style="margin-top:4px;">Manage your subscription and monitor usage.</p>
+        <h1 class="text-h1">Plan & Billing</h1>
+        <p class="text-small" style="margin-top:4px;">Manage your subscription, plan, and payment method.</p>
     </div>
-<!-- Current Plan -->
+
+    {% if not billing_configured %}
+    <!-- Billing Not Configured -->
+    <div class="surface" style="padding:var(--space-4);text-align:center;">
+        <div style="font-size:48px;margin-bottom:16px;">💳</div>
+        <h2 class="text-h3" style="margin-bottom:8px;">Billing Not Configured</h2>
+        <p class="text-small" style="color:var(--color-muted);max-width:400px;margin:0 auto;">
+            Billing integration is not yet set up for this platform. Please contact your account manager for billing inquiries.
+        </p>
+    </div>
+    {% else %}
+
+    <!-- Payment Failure Banner -->
+    {% if subscription_status == "past_due" %}
+    <div style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.4);border-radius:var(--radius-card);padding:14px 18px;margin-bottom:var(--space-3);display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span style="font-size:20px;">⚠️</span>
+        <div style="flex:1;">
+            <p style="font-weight:600;color:#f59e0b;margin:0;">Payment failed. Please update your payment method.</p>
+            <p class="text-small" style="color:var(--color-muted);margin:4px 0 0;">Your subscription is past due. Update your payment method to restore full access.</p>
+        </div>
+        {% if has_stripe_customer %}
+        <form method="post" action="/clients/{{ client_id }}/billing/manage" style="margin:0;">
+            <button type="submit" style="padding:8px 16px;background:#f59e0b;color:#000;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">
+                Update Payment Method
+            </button>
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Current Plan -->
     <div class="surface" style="padding:var(--space-4);margin-bottom:var(--space-3);">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
             <div>
                 <p class="text-micro" style="margin-bottom:4px;">Current Plan</p>
-                <div style="display:flex;align-items:baseline;gap:8px;">
+                <div style="display:flex;align-items:center;gap:10px;">
                     <span style="font-size:28px;font-weight:700;color:var(--color-white);">{{ plan_type | title }}</span>
-                    {% if plan_type == 'trial' %}
-                    <span class="badge-orange">TRIAL</span>
+                    <!-- Subscription Status Badge -->
+                    {% if subscription_status == "active" %}
+                    <span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.3);">Active</span>
+                    {% elif subscription_status == "trialing" %}
+                    <span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;background:rgba(59,130,246,0.15);color:#3b82f6;border:1px solid rgba(59,130,246,0.3);">Trialing</span>
+                    {% elif subscription_status == "past_due" %}
+                    <span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);">Past Due</span>
+                    {% elif subscription_status == "canceled" %}
+                    <span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);">Canceled</span>
+                    {% elif subscription_status == "trial" %}
+                    <span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;background:rgba(168,85,247,0.15);color:#a855f7;border:1px solid rgba(168,85,247,0.3);">Trial</span>
+                    {% elif subscription_status == "trial_expired" %}
+                    <span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;background:rgba(107,114,128,0.15);color:#6b7280;border:1px solid rgba(107,114,128,0.3);">Expired</span>
                     {% endif %}
                 </div>
             </div>
             <div style="text-align:right;">
-                {% if plan_price > 0 %}
-                <span style="font-size:28px;font-weight:700;color:var(--color-white);">${{ plan_price }}</span>
+                <span style="font-size:28px;font-weight:700;color:var(--color-white);">{{ plan_price_display }}</span>
+                {% if plan_price_display != "Free" %}
                 <span class="text-small">/month</span>
-                {% elif plan_type == 'trial' %}
-                <span style="font-size:20px;font-weight:600;color:var(--color-orange);">Free Trial</span>
-                {% if trial_days_remaining is not none %}
-                <p class="text-small" style="margin-top:4px;">{{ trial_days_remaining }} days remaining</p>
                 {% endif %}
+                {% if billing_period_end %}
+                <p class="text-small" style="margin-top:4px;color:var(--color-muted);">
+                    Next billing: {{ billing_period_end.strftime('%b %d, %Y') }}
+                </p>
                 {% endif %}
             </div>
         </div>
     </div>
 
-    <!-- Usage This Month -->
-    <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-3);">
-        <h2 class="text-h3" style="margin-bottom:16px;">Usage This Month</h2>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-            <!-- Voices -->
-            <div style="padding:14px;background:var(--color-surface-alt);border-radius:var(--radius-card);">
-                <p class="text-micro" style="margin-bottom:4px;">Active Voices</p>
-                <div style="display:flex;align-items:baseline;gap:4px;">
-                    <span style="font-size:24px;font-weight:700;color:var(--color-white);">{{ avatars_count }}</span>
-                    <span class="text-small">/ {{ limits.avatars }}</span>
-                </div>
-                {% set avatar_pct = (avatars_count / limits.avatars * 100) | int if limits.avatars > 0 else 0 %}
-                <div style="margin-top:8px;height:4px;border-radius:2px;background:var(--color-border);overflow:hidden;">
-                    <div style="height:100%;width:{{ [avatar_pct, 100] | min }}%;background:{% if avatar_pct >= 90 %}var(--color-red){% elif avatar_pct >= 70 %}var(--color-orange){% else %}var(--color-green){% endif %};border-radius:2px;"></div>
-                </div>
-            </div>
-            <!-- Comments -->
-            <div style="padding:14px;background:var(--color-surface-alt);border-radius:var(--radius-card);">
-                <p class="text-micro" style="margin-bottom:4px;">Comments Generated</p>
-                <div style="display:flex;align-items:baseline;gap:4px;">
-                    <span style="font-size:24px;font-weight:700;color:var(--color-white);">{{ comments_this_month }}</span>
-                    <span class="text-small">/ {{ limits.comments }}</span>
-                </div>
-                {% set comment_pct = (comments_this_month / limits.comments * 100) | int if limits.comments > 0 else 0 %}
-                <div style="margin-top:8px;height:4px;border-radius:2px;background:var(--color-border);overflow:hidden;">
-                    <div style="height:100%;width:{{ [comment_pct, 100] | min }}%;background:{% if comment_pct >= 90 %}var(--color-red){% elif comment_pct >= 70 %}var(--color-orange){% else %}var(--color-green){% endif %};border-radius:2px;"></div>
-                </div>
-            </div>
-        </div>
+    <!-- Actions Row -->
+    {% if has_stripe_customer %}
+    <div style="display:flex;gap:12px;margin-bottom:var(--space-3);flex-wrap:wrap;">
+        <!-- Manage Subscription -->
+        <form method="post" action="/clients/{{ client_id }}/billing/manage" style="margin:0;flex:1;min-width:180px;">
+            <button type="submit" style="width:100%;padding:12px 16px;background:var(--color-surface-alt);border:1px solid var(--color-border);color:var(--color-white);border-radius:var(--radius-card);font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--color-orange)'" onmouseout="this.style.borderColor='var(--color-border)'">
+                🔧 Manage Subscription
+            </button>
+        </form>
     </div>
+    {% endif %}
 
-    <!-- Upgrade Options -->
-    {% if upgrades %}
+    <!-- Change Plan -->
     <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-3);">
-        <h2 class="text-h3" style="margin-bottom:16px;">Available Upgrades</h2>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));gap:12px;">
-            {% for up in upgrades %}
-            <div style="padding:16px;background:var(--color-surface-alt);border-radius:var(--radius-card);border:1px solid var(--color-border);display:flex;flex-direction:column;gap:8px;">
-                <p style="font-weight:600;color:var(--color-white);margin-bottom:0;">{{ up.name }}</p>
-                <p style="font-size:22px;font-weight:700;color:var(--color-orange);margin-bottom:0;">${{ up.price }}<span class="text-small" style="font-weight:400;">/mo</span></p>
-                <p class="text-small" style="margin-bottom:8px;">{{ up.limits.avatars }} voices, {{ up.limits.comments }} comments/mo</p>
-                {% if billing_active %}
-                <form method="post" action="/clients/{{ client_id }}/checkout?plan={{ up.name | lower }}" style="margin:0;">
+        <h2 class="text-h3" style="margin-bottom:16px;">Change Plan</h2>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));gap:12px;">
+            {% for tier in all_tiers %}
+            <div style="padding:16px;background:var(--color-surface-alt);border-radius:var(--radius-card);border:{% if tier.is_current %}2px solid var(--color-orange){% else %}1px solid var(--color-border){% endif %};display:flex;flex-direction:column;gap:8px;position:relative;">
+                {% if tier.is_current %}
+                <span style="position:absolute;top:-8px;right:12px;padding:2px 8px;background:var(--color-orange);color:#000;border-radius:10px;font-size:10px;font-weight:700;">CURRENT</span>
+                {% endif %}
+                <p style="font-weight:600;color:var(--color-white);margin-bottom:0;">{{ tier.display_name }}</p>
+                <p style="font-size:22px;font-weight:700;color:var(--color-orange);margin-bottom:0;">{{ tier.price_display }}<span class="text-small" style="font-weight:400;">/mo</span></p>
+                <p class="text-small" style="margin-bottom:8px;color:var(--color-muted);">{{ tier.max_avatars }} voice{{ "s" if tier.max_avatars > 1 else "" }}</p>
+                {% if not tier.is_current and has_stripe_customer %}
+                <form method="post" action="/clients/{{ client_id }}/billing/change-plan" style="margin:0;">
+                    <input type="hidden" name="plan_tier" value="{{ tier.name }}">
                     <button type="submit" style="width:100%;padding:8px 12px;background:var(--color-orange);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;transition:opacity 0.2s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
-                        Upgrade to {{ up.name }}
+                        {% if tier.price_cents > (all_tiers | selectattr('is_current') | first).price_cents %}Upgrade{% else %}Downgrade{% endif %}
                     </button>
                 </form>
-                {% else %}
-                <p class="text-micro" style="color:var(--color-muted);text-align:center;">Contact us to upgrade</p>
+                {% elif tier.is_current %}
+                <div style="width:100%;padding:8px 12px;text-align:center;color:var(--color-muted);font-size:13px;font-weight:500;">
+                    Your plan
+                </div>
                 {% endif %}
             </div>
             {% endfor %}
         </div>
     </div>
-    {% endif %}
 
-    <!-- Account Info -->
+    <!-- Invoices -->
     <div class="surface" style="padding:var(--space-3);">
-        <h2 class="text-h3" style="margin-bottom:12px;">Account</h2>
-        <div style="display:flex;flex-direction:column;gap:8px;">
-            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--color-border);">
-                <span class="text-small">Active since</span>
-                <span class="text-small" style="color:var(--color-white);">{{ days_active }} days</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;padding:8px 0;">
-                <span class="text-small">Billing</span>
-                {% if billing_active %}
-                <span class="text-small" style="color:var(--color-green);">Stripe subscription active</span>
-                {% else %}
-                <span class="text-small" style="color:var(--color-muted);">Manual invoicing</span>
-                {% endif %}
-            </div>
+        <h2 class="text-h3" style="margin-bottom:16px;">Recent Invoices</h2>
+        {% if invoices %}
+        <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;">
+                <thead>
+                    <tr style="border-bottom:1px solid var(--color-border);">
+                        <th style="text-align:left;padding:8px 12px;font-size:12px;font-weight:600;color:var(--color-muted);text-transform:uppercase;">Date</th>
+                        <th style="text-align:left;padding:8px 12px;font-size:12px;font-weight:600;color:var(--color-muted);text-transform:uppercase;">Amount</th>
+                        <th style="text-align:left;padding:8px 12px;font-size:12px;font-weight:600;color:var(--color-muted);text-transform:uppercase;">Status</th>
+                        <th style="text-align:right;padding:8px 12px;font-size:12px;font-weight:600;color:var(--color-muted);text-transform:uppercase;">PDF</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for inv in invoices %}
+                    <tr style="border-bottom:1px solid var(--color-border);">
+                        <td style="padding:10px 12px;font-size:13px;color:var(--color-white);">
+                            {% if inv.created_at %}{{ inv.created_at[:10] }}{% elif inv.period_start %}{{ inv.period_start[:10] }}{% else %}—{% endif %}
+                        </td>
+                        <td style="padding:10px 12px;font-size:13px;color:var(--color-white);font-weight:600;">
+                            ${{ "%.2f" | format(inv.amount_cents / 100) }}
+                        </td>
+                        <td style="padding:10px 12px;">
+                            {% if inv.status == "paid" %}
+                            <span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:rgba(34,197,94,0.15);color:#22c55e;">Paid</span>
+                            {% elif inv.status == "open" %}
+                            <span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:rgba(59,130,246,0.15);color:#3b82f6;">Open</span>
+                            {% elif inv.status == "void" %}
+                            <span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:rgba(107,114,128,0.15);color:#6b7280;">Void</span>
+                            {% elif inv.status == "uncollectible" %}
+                            <span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:rgba(239,68,68,0.15);color:#ef4444;">Uncollectible</span>
+                            {% else %}
+                            <span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:rgba(107,114,128,0.15);color:#6b7280;">{{ inv.status | title }}</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding:10px 12px;text-align:right;">
+                            {% if inv.invoice_pdf_url %}
+                            <a href="{{ inv.invoice_pdf_url }}" target="_blank" rel="noopener" style="color:var(--color-orange);font-size:13px;font-weight:500;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+                                📄 Download
+                            </a>
+                            {% else %}
+                            <span class="text-small" style="color:var(--color-muted);">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
+        {% else %}
+        <p class="text-small" style="color:var(--color-muted);text-align:center;padding:24px 0;">No invoices yet.</p>
+        {% endif %}
     </div>
+
+    {% endif %}
 </div>
 {% endblock %}

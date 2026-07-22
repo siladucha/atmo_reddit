@@ -736,7 +736,7 @@ def step3_suggest(
         seniority_options += f'<option value="{val}" {selected}>{label}</option>'
 
     html = f"""<div>
-    <label class="text-micro" style="color:var(--color-muted);">Job titles of your buyers *</label>
+    <label class="text-micro" style="color:var(--color-muted);">Job titles of your buyers</label>
     <input type="text" name="job_titles" class="field-input" style="width:100%;" placeholder="e.g. CISO, VP Security, Security Architect" value="{job_titles}">
 </div>
 <div>
@@ -1163,12 +1163,30 @@ def step6_get(
         .count()
     )
 
+    # Handle ?checkout=canceled — user abandoned Stripe Checkout
+    checkout_canceled = request.query_params.get("checkout") == "canceled"
+    if checkout_canceled:
+        # Emit checkout_abandoned activity event
+        try:
+            from app.services.transparency import record_activity_event
+            record_activity_event(
+                db=db,
+                client_id=str(client.id),
+                event_type="checkout_abandoned",
+                description=f"Client {client.client_name} abandoned Stripe Checkout",
+                details={"triggered_by": user.email},
+            )
+            db.commit()
+        except Exception:
+            pass
+
     return _render_onboard(
         "onboarding/step6.html",
         _onboarding_context(
             request, 6, client,
             quality=quality,
             subreddit_count=sub_count,
+            checkout_canceled=checkout_canceled,
         ),
     )
 
@@ -1275,6 +1293,39 @@ def step6_activate(
         )
     except Exception:
         pass
+
+    # --- Stripe Checkout Integration ---
+    # If Stripe is configured, redirect to Stripe Checkout for payment method collection
+    # with a 14-day trial. If not configured or checkout creation fails, fall through
+    # to legacy trial activation (redirect to complete page).
+    try:
+        from app.services.billing import BillingService
+
+        billing_service = BillingService(db)
+        if billing_service.is_configured():
+            # Determine plan tier (default to "seed" for trial signups)
+            plan_tier = client.plan_type if client.plan_type in ("seed", "starter", "growth", "scale") else "seed"
+
+            # Build URLs
+            base_url = str(request.base_url).rstrip("/")
+            success_url = f"{base_url}/clients/{client.id}/home?checkout=success"
+            cancel_url = f"{base_url}/onboard/step/6?checkout=canceled"
+
+            # Check for pilot coupon (future: read from client config or admin setting)
+            coupon_id = None
+
+            result = billing_service.create_checkout_session(
+                client_id=client.id,
+                plan_tier=plan_tier,
+                success_url=success_url,
+                cancel_url=cancel_url,
+                coupon_id=coupon_id,
+            )
+            logger.info("Stripe checkout session created for client %s, redirecting to %s", client.id, result.session_url)
+            return RedirectResponse(result.session_url, status_code=303)
+    except Exception as e:
+        logger.warning("Stripe checkout creation failed for client %s: %s. Falling back to legacy trial.", client.id, e)
+        # Fall through to legacy trial activation (no Stripe)
 
     return RedirectResponse(url="/onboard/complete", status_code=303)
 

@@ -14,6 +14,12 @@
     </div>
     {% endif %}
 
+    {% if checkout_canceled %}
+    <div style="background:rgba(255,152,0,0.1);border:1px solid var(--color-orange);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-3);">
+        <p style="color:var(--color-orange);font-size:var(--text-small);">Payment setup was canceled. Your 14-day trial is still active — you can complete payment anytime from your billing settings.</p>
+    </div>
+    {% endif %}
+
     {% if quality and not quality.can_activate %}
     <div style="background:rgba(229,57,53,0.1);border:1px solid var(--color-red);border-radius:var(--radius-card);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-3);">
         <p style="color:var(--color-red);font-size:var(--text-small);font-weight:600;margin-bottom:4px;">Cannot activate yet — missing required information:</p>

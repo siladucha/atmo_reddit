@@ -1,0 +1,102 @@
+{% extends "admin_base.html" %}
+{% block title %}Billing Coupons{% endblock %}
+{% block breadcrumbs %}
+<nav class="text-sm text-gray-400">
+    <span class="text-gray-500">Admin</span> / <a href="/admin/billing" class="hover:text-white">Billing</a> / <span class="text-white">Coupons</span>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <h1 class="text-2xl font-semibold text-white mb-6">Coupon Management</h1>
+
+    {% if error %}
+    <div class="bg-red-900/30 border border-red-700 rounded-lg px-4 py-3 mb-4 text-sm text-red-300">{{ error }}</div>
+    {% endif %}
+    {% if success %}
+    <div class="bg-green-900/30 border border-green-700 rounded-lg px-4 py-3 mb-4 text-sm text-green-300">{{ success }}</div>
+    {% endif %}
+
+    <!-- Create Coupon Form -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6 mb-6">
+        <h2 class="text-lg font-medium text-white mb-4">Create New Coupon</h2>
+        <form method="post" action="/admin/billing/coupons" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs text-gray-400 uppercase mb-1">Coupon Name</label>
+                    <input type="text" name="name" required placeholder="e.g. Early Bird Pilot"
+                           class="w-full bg-slate-night border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 uppercase mb-1">Discount Percentage (10-100%)</label>
+                    <input type="number" name="percent_off" required min="10" max="100" value="25"
+                           class="w-full bg-slate-night border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 uppercase mb-1">Duration (1-12 months)</label>
+                    <input type="number" name="duration_in_months" required min="1" max="12" value="3"
+                           class="w-full bg-slate-night border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 uppercase mb-1">Max Redemptions (optional)</label>
+                    <input type="number" name="max_redemptions" min="1" placeholder="Unlimited"
+                           class="w-full bg-slate-night border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+            </div>
+            <button type="submit"
+                    class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors">
+                Create Coupon
+            </button>
+        </form>
+    </div>
+
+    <!-- Existing Coupons List -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-700">
+            <h2 class="text-sm font-semibold text-gray-200">Existing Coupons</h2>
+        </div>
+        {% if coupons %}
+        <table class="w-full text-sm text-left">
+            <thead>
+                <tr class="border-b border-slate-700">
+                    <th class="px-4 py-3 text-xs text-gray-400 uppercase">Name</th>
+                    <th class="px-4 py-3 text-xs text-gray-400 uppercase">Code</th>
+                    <th class="px-4 py-3 text-xs text-gray-400 uppercase">Discount</th>
+                    <th class="px-4 py-3 text-xs text-gray-400 uppercase">Duration</th>
+                    <th class="px-4 py-3 text-xs text-gray-400 uppercase">Redemptions</th>
+                    <th class="px-4 py-3 text-xs text-gray-400 uppercase">Status</th>
+                    <th class="px-4 py-3 text-xs text-gray-400 uppercase">Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for coupon in coupons %}
+                <tr class="border-b border-slate-700 hover:bg-slate-700/30">
+                    <td class="px-4 py-3 text-white">{{ coupon.name }}</td>
+                    <td class="px-4 py-3 font-mono text-indigo-400 text-xs">{{ coupon.code }}</td>
+                    <td class="px-4 py-3 text-gray-300">
+                        {% if coupon.percent_off %}{{ coupon.percent_off }}% off{% endif %}
+                        {% if coupon.amount_off_cents %}${{ "%.2f" | format(coupon.amount_off_cents / 100) }} off{% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-gray-300">{{ coupon.duration_in_months }} mo</td>
+                    <td class="px-4 py-3 text-gray-300 font-mono">
+                        {{ coupon.times_redeemed }}{% if coupon.max_redemptions %}/{{ coupon.max_redemptions }}{% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if coupon.is_active %}
+                        <span class="px-2 py-0.5 rounded text-xs font-medium bg-green-500/10 text-green-400">Active</span>
+                        {% else %}
+                        <span class="px-2 py-0.5 rounded text-xs font-medium bg-gray-500/10 text-gray-400">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-gray-500 text-xs font-mono">
+                        {{ coupon.created_at.strftime('%Y-%m-%d') if coupon.created_at else '—' }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="px-4 py-8 text-center text-gray-500 text-sm">No coupons created yet.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -170,10 +170,108 @@
         </div>
     </div>
 
-    <!-- Discovery History -->
+    <!-- Billing Section -->
     <div class="bg-dark-steel rounded-lg border border-slate-700 p-6 mb-6">
         <div class="flex justify-between items-center mb-4">
             <div>
+                <h2 class="text-lg font-medium text-white">Billing</h2>
+                <p class="text-xs text-gray-500 mt-1">Stripe subscription status and invoice history.</p>
+            </div>
+            <div id="billing-sync-result"></div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <!-- Subscription Status -->
+            <div class="bg-slate-night rounded-lg p-4 border border-slate-700">
+                <div class="text-xs text-gray-500 uppercase mb-1">Status</div>
+                {% set sub_status = client.subscription_status or 'trial' %}
+                {% if sub_status == 'active' %}
+                <span class="px-2 py-1 rounded text-sm font-medium bg-green-500/10 text-green-500">Active</span>
+                {% elif sub_status == 'trialing' %}
+                <span class="px-2 py-1 rounded text-sm font-medium bg-blue-500/10 text-blue-500">Trialing</span>
+                {% elif sub_status == 'past_due' %}
+                <span class="px-2 py-1 rounded text-sm font-medium bg-amber-500/10 text-amber-500">Past Due</span>
+                {% elif sub_status == 'canceled' %}
+                <span class="px-2 py-1 rounded text-sm font-medium bg-red-500/10 text-red-500">Canceled</span>
+                {% elif sub_status == 'trial_expired' %}
+                <span class="px-2 py-1 rounded text-sm font-medium bg-gray-500/10 text-gray-500">Trial Expired</span>
+                {% else %}
+                <span class="px-2 py-1 rounded text-sm font-medium bg-gray-500/10 text-gray-400">{{ sub_status }}</span>
+                {% endif %}
+            </div>
+
+            <!-- Current Plan -->
+            <div class="bg-slate-night rounded-lg p-4 border border-slate-700">
+                <div class="text-xs text-gray-500 uppercase mb-1">Plan</div>
+                <div class="text-white font-medium">{{ (client.plan_type or 'trial') | capitalize }}</div>
+                {% set plan_prices = {"seed": 149, "starter": 399, "growth": 799, "scale": 1499} %}
+                {% if client.plan_type in plan_prices %}
+                <div class="text-xs text-gray-400 mt-0.5">${{ plan_prices[client.plan_type] }}/mo</div>
+                {% endif %}
+            </div>
+
+            <!-- Next Billing Date -->
+            <div class="bg-slate-night rounded-lg p-4 border border-slate-700">
+                <div class="text-xs text-gray-500 uppercase mb-1">Next Billing</div>
+                {% if client.billing_period_end %}
+                <div class="text-white font-mono text-sm">{{ client.billing_period_end.strftime('%Y-%m-%d') }}</div>
+                {% else %}
+                <div class="text-gray-500 text-sm">—</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Stripe Links + Sync -->
+        <div class="flex flex-wrap items-center gap-3 mb-4">
+            {% if client.stripe_customer_id %}
+            <a href="https://dashboard.stripe.com/customers/{{ client.stripe_customer_id }}"
+               target="_blank"
+               class="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium bg-slate-700 hover:bg-slate-600 text-gray-200 border border-slate-600 transition-colors">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                Stripe Customer
+            </a>
+            {% endif %}
+            <button hx-post="/admin/clients/{{ client.id }}/sync-stripe"
+                    hx-target="#billing-sync-result"
+                    hx-swap="innerHTML"
+                    class="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                ↻ Sync from Stripe
+            </button>
+        </div>
+
+        <!-- Payment method (last 4) + invoice history -->
+        {% if billing_info %}
+        {% if billing_info.payment_last4 %}
+        <div class="text-xs text-gray-400 mb-3">
+            Payment method: •••• {{ billing_info.payment_last4 }}
+            {% if billing_info.payment_brand %}<span class="ml-1 text-gray-500">({{ billing_info.payment_brand }})</span>{% endif %}
+        </div>
+        {% endif %}
+        {% if billing_info.invoices %}
+        <div class="mt-3">
+            <h4 class="text-xs text-gray-500 uppercase mb-2">Recent Invoices</h4>
+            <div class="space-y-1">
+                {% for inv in billing_info.invoices[:5] %}
+                <div class="flex items-center justify-between px-3 py-1.5 rounded bg-slate-night text-xs">
+                    <span class="text-gray-300">{{ inv.period_start }}</span>
+                    <span class="text-white font-mono">${{ "%.2f" | format(inv.amount_cents / 100) }}</span>
+                    <span class="px-1.5 py-0.5 rounded {% if inv.status == 'paid' %}bg-green-500/10 text-green-400{% else %}bg-amber-500/10 text-amber-400{% endif %}">{{ inv.status }}</span>
+                    {% if inv.invoice_pdf_url %}
+                    <a href="{{ inv.invoice_pdf_url }}" target="_blank" class="text-indigo-400 hover:text-indigo-300">PDF</a>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        {% elif not client.stripe_customer_id %}
+        <p class="text-xs text-gray-500">No Stripe customer linked. Client is on legacy trial.</p>
+        {% endif %}
+    </div>
+
+    <!-- Discovery History -->
+    <div class="bg-dark-steel rounded-lg border border-slate-700 p-6 mb-6">
+        <div class="flex justify-between items-center mb-4">            <div>
                 <h2 class="text-lg font-medium text-white">Discovery History</h2>
                 <p class="text-xs text-gray-500 mt-1">Reddit ecosystem research sessions for this client.</p>
             </div>

@@ -188,10 +188,22 @@ def get_top_metrics(db: Session) -> dict[str, Any]:
     )
     last_activity_since = _human_since(last_activity.created_at, now) if last_activity else "Never"
 
+    # MRR calculation: sum plan prices for active/trialing subscriptions
+    PLAN_PRICES = {"seed": 149, "starter": 399, "growth": 799, "scale": 1499}
+    mrr_clients = (
+        db.query(Client.plan_type)
+        .filter(
+            Client.subscription_status.in_(["active", "trialing"]),
+        )
+        .all()
+    )
+    mrr = sum(PLAN_PRICES.get(c.plan_type, 0) for c in mrr_clients)
+
     return {
         "pending_reviews": pending_reviews,
         "total_clients": total_clients,
         "total_avatars": total_avatars,
+        "mrr": mrr,
         "next_run_label": next_run["label"] if next_run else None,
         "next_run_in": next_run["in_human"] if next_run else None,
         "today": {

@@ -72,6 +72,18 @@
                         <a href="/admin/clients/{{ item.client.id }}" class="text-indigo-400 hover:text-indigo-300">
                             {{ item.client.client_name }}{% if item.client.plan_type == "trial" %} <span class="ml-2 px-2 py-0.5 rounded text-xs font-medium bg-amber-900/50 text-amber-400">TRIAL</span>{% endif %}
                         </a>
+                        {% set sub_status = item.client.subscription_status or 'trial' %}
+                        {% if sub_status == 'active' %}
+                        <span class="ml-2 px-2 py-0.5 rounded text-xs font-medium bg-green-500/10 text-green-500">active</span>
+                        {% elif sub_status == 'trialing' %}
+                        <span class="ml-2 px-2 py-0.5 rounded text-xs font-medium bg-blue-500/10 text-blue-500">trialing</span>
+                        {% elif sub_status == 'past_due' %}
+                        <span class="ml-2 px-2 py-0.5 rounded text-xs font-medium bg-amber-500/10 text-amber-500">past_due</span>
+                        {% elif sub_status == 'canceled' %}
+                        <span class="ml-2 px-2 py-0.5 rounded text-xs font-medium bg-red-500/10 text-red-500">canceled</span>
+                        {% elif sub_status == 'trial_expired' %}
+                        <span class="ml-2 px-2 py-0.5 rounded text-xs font-medium bg-gray-500/10 text-gray-500">trial_expired</span>
+                        {% endif %}
                     </td>
                     <td class="px-4 py-3 text-gray-300">{{ item.client.brand_name }}</td>
                     <td class="px-4 py-3">
