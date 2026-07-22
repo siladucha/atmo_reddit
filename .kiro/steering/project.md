@@ -233,6 +233,9 @@ reddit_saas/
 │   │   ├── intelligence_report.py # IntelligenceReport, ClientIntelligenceReport
 │   │   ├── forecast_accuracy.py # ForecastAccuracyLog
 │   │   ├── observed_snapshot.py # ObservedSnapshot (GEO observed data)
+│   │   ├── billing_event.py   # BillingEvent (webhook audit log)
+│   │   ├── client_invoice.py  # ClientInvoice (cached invoice data)
+│   │   ├── billing_coupon.py  # BillingCoupon (coupon tracking)
 │   │   └── llm_quality_snapshot.py # LLMQualitySnapshot (periodic quality metrics per model×operation)
 │   ├── schemas/               # Pydantic validation schemas
 │   │   ├── avatar_analysis.py # BehavioralProfile, AvatarAnalysisRequest
@@ -280,7 +283,8 @@ reddit_saas/
 │   │   ├── manual.py          # UX manual overlay (contextual help)
 │   │   ├── subreddit_bans.py  # Per-subreddit ban management
 │   │   ├── admin_ab_test.py   # A/B Test experiment management (create, assign, start, metrics)
-│   │   └── admin_llm_quality.py # LLM Quality Monitor dashboard (per-model health, degradation events)
+│   │   ├── admin_llm_quality.py # LLM Quality Monitor dashboard (per-model health, degradation events)
+│   │   └── webhooks.py        # POST /api/webhooks/stripe
 │   ├── services/              # Business logic (120+ services)
 │   │   ├── activation_router.py # Risk-Aware zone routing (safe→bridge→target)
 │   │   ├── admin.py           # Admin CRUD
@@ -372,6 +376,9 @@ reddit_saas/
 │   │   ├── avatar_invariant.py # Active client → must have avatar check
 │   │   ├── daily_review/     # Daily Ops Review (signal_collector, cost_governor, review_engine Phase 2)
 │   │   ├── ab_test/          # A/B Test Framework (experiment_manager, control_enforcer, posting_router, metric_collector, statistical_reporter)
+│   │   ├── billing/          # BillingService, state_machine, plan_enforcer, grace_period_manager
+│   │   ├── subscription_manager.py # Webhook event processing (subscription lifecycle sync)
+│   │   ├── access_gate.py    # Subscription-aware pipeline gating (replaces trial_guard.py)
 │   │   └── forecast/         # Forecast & Reporting Layer (observed_reality, visibility_forecaster, report_composer, platform_risk, business_impact, accuracy_tracker)
 │   ├── tasks/                 # Celery background tasks (31 files)
 │   │   ├── ai_pipeline.py     # AI scoring/generation (retry, kill switches)
@@ -407,6 +414,7 @@ reddit_saas/
 │   │   ├── weekly_emails.py  # Weekly system health (owner) + business summary (partner) emails
 │   │   ├── provider_budget_check.py # Provider budget alerts: Telegram + email + bell (every 4h)
 │   │   ├── llm_quality_check.py # LLM quality degradation detection (every 4h vs 7-day baseline)
+│   │   ├── billing.py        # process_billing_event (retry 3×, exponential backoff), sync_stripe_products
 │   │   ├── beat_app.py       # Lightweight Celery app for Beat (schedule only, no task imports, ~25 MB)
 │   │   └── worker.py          # Celery worker configuration (31 task modules, no schedule)
 │   ├── templates/             # Jinja2 templates (70+ pages + 120+ partials)
@@ -659,6 +667,29 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - **Sidebar link**: in admin navigation under "Operations" section
 - **Data source**: `data/09_risks.json` (inside Docker image). Update JSON to add/modify risks.
 
+### Stripe Billing Integration (July 2026)
+- Stripe Checkout for trial + paid subscription
+- Webhook-driven lifecycle (trialing → active → past_due → canceled)
+- AccessGate replaces trial_guard for pipeline gating
+- Portal billing page (plan display, change plan, invoices, Stripe Portal redirect)
+- Admin billing (MRR, badges, sync from Stripe, coupon management)
+- Pilot/discount coupons (Stripe Coupon API)
+- 4 plan tiers: Seed $149, Starter $399, Growth $799, Scale $1,499
+- Onboarding step 6 → Stripe Checkout redirect
+- Trial-to-paid welcome email
+
+### Engineering Memory / QA Intelligence (July 2026)
+- **`BugReport` model** — PostgreSQL table with auto-increment `bug_id` (BUG-001, BUG-002...)
+- **Intake form** `/report-issue` — public form, auto-detects logged-in user role, 3-layer anti-bot
+- **Screenshot upload** — saved to `/static/uploads/bugs/`, URL stored in DB, Docker volume persists
+- **Admin sidebar** — "Report Bug" + "QA Board" links for owner/partner
+- **Client sidebar** — "Extension" link restored (BUG-032 fix)
+- **31 historical bugs seeded** from QA CSV
+- **Lifecycle:** Reported → Investigating → Fixed → Verified (with Rule + Protection)
+- **Severity:** Risk Level (Low/Medium/High/Critical) + Environment (dev/staging/prod)
+- **QA workflow:** Jenny verifies fixes, sets Verified or Reopens with comment
+- **Notion deprecated** as primary store (kept as archive via MCP)
+
 ## What's NOT Built Yet
 - ~~Production deployment~~ → **DONE** (gorampit.com, DigitalOcean, SSL)
 - ~~Automated Posting — Admin UI~~ → **DONE** (posting dashboard with stats, events, traceability)
@@ -670,7 +701,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 - Strategy Questions feedback loop — future: multiple-choice answers, saved as client preferences
 - ~~Subreddit rule extraction~~ → **DONE** (rule_extractor + moderation_profiler + risk_scorer + fitness_gate, full admin/portal UI)
 - Cross-avatar deduplication (prevent two avatars commenting on same thread)
-- Real billing/payments (Stripe)
+- ~~Real billing/payments (Stripe)~~ → **DONE** (Stripe Billing Integration, July 2026. Checkout, webhooks, AccessGate, portal billing, admin billing, coupons)
 - Plan action limits enforcement (max_comments_per_month)
 - Data retention cleanup (TTL for old scraped threads)
 - Agency multi-tenant workspace (deferred until 3+ agency clients)
@@ -770,6 +801,7 @@ ramp_poster/                   # Flutter mobile app [PLANNED — parallel develo
 | 07:00 | `check_experiment_durations` | A/B test duration alerts |
 | 19:00 Sun | `send_weekly_system_health_email` | System health report to owner (capacity, latency, WoW, predictions) |
 | 19:15 Sun | `send_weekly_business_summary_email` | Business summary to partner (MRR, clients, funnel) |
+| at app startup | `sync_stripe_products` | Ensures Stripe Products/Prices exist |
 
 ## Comment Draft Status Workflow
 `pending` → `approved` / `rejected` → `posted`

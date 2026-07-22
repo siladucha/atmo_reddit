@@ -716,6 +716,12 @@ DEFAULTS: dict[str, dict] = {
         "desc": "Stripe API secret key (sk_live_... or sk_test_...). Required for checkout session creation and subscription management.",
         "group": "billing",
     },
+    "stripe_publishable_key": {
+        "value": "",
+        "secret": True,
+        "desc": "Stripe Publishable Key (pk_test_... or pk_live_...). Required for client-side checkout.",
+        "group": "billing",
+    },
     # --- Engineering Memory (Notion) ---
     "notion_engineering_memory_token": {
         "value": "",
@@ -1042,6 +1048,9 @@ def seed_from_env(db: Session) -> None:
         "llm_scoring_model": "LITELLM_SCORING_MODEL",
         "llm_generation_model": "LITELLM_GENERATION_MODEL",
         "geo_perplexity_api_key": "PERPLEXITY_API_KEY",
+        "stripe_secret_key": "STRIPE_SECRET_KEY",
+        "stripe_webhook_secret": "STRIPE_WEBHOOK_SECRET",
+        "stripe_publishable_key": "STRIPE_PUBLISHABLE_KEY",
         "app_env": "APP_ENV",
         "app_host": "APP_HOST",
         "app_port": "APP_PORT",
