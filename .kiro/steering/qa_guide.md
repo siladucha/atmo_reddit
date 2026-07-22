@@ -17,9 +17,11 @@ Max develops on `develop` → merges to `staging` → Женя verifies on stagi
 **Staging:** `https://staging.gorampit.com` (167.172.191.42)
 **Production:** `https://gorampit.com` (161.35.27.165) — only Max deploys here
 
-## Баг-репорт Workflow (Notion)
+## Баг-репорт Workflow (PostgreSQL)
 
-Database ID: `3a404a57-f8f3-8108-8481-dab416265d5d`
+**Table:** `bug_reports` (PostgreSQL — NOT Notion)
+**Form:** `https://gorampit.com/report-issue` (or staging)
+**Admin:** `/admin/qa` (planned) — owner/partner see all bugs, filter by status
 
 ```
 Reported → Investigating → Fixed → Verified
@@ -28,6 +30,24 @@ Reported → Investigating → Fixed → Verified
 **Каждый Verified баг ДОЛЖЕН иметь:** Problem + Root Cause + Fix + Rule + Protection
 
 Categories: AI, UX, Backend, Compliance, Integration
+Environments: dev, staging, prod
+Risk Levels: Critical, High, Medium, Low
+
+### Severity Guidelines
+
+| Level | Criteria | Examples |
+|-------|----------|---------|
+| **Critical** | Data loss, security, app unavailable, payment failure | Auth broken, DB corruption, posting without approval |
+| **High** | Core functionality broken, users can't complete key workflows | EPG not generating, extension not posting, onboarding stuck |
+| **Medium** | Feature partially works, workaround exists | Regenerate button errors but can edit manually, wrong sort order |
+| **Low** | UI issues, cosmetic defects, minor usability | Font size, tooltip text outdated, icon misaligned |
+
+### QA Verification Flow
+
+1. Engineer marks bug as **Fixed** (root_cause + fix filled)
+2. QA checks fix on **staging** (staging.gorampit.com)
+3. QA sets **Verified** + comment → bug closed, Rule + Protection populated
+4. OR QA sets **Reopen** + comment → engineer re-investigates
 
 ---
 

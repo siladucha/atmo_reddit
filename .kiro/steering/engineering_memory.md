@@ -6,34 +6,60 @@ inclusion: always
 
 ## What This Is
 
-Engineering Memory is the QA Intelligence loop. Every bug reported → investigated → fixed → rule created → system improved. The Notion database is the single source of truth for all known issues.
+Engineering Memory is the QA Intelligence loop. Every bug reported → investigated → fixed → rule created → system improved. The **PostgreSQL `bug_reports` table** is the single source of truth for all known issues.
 
-## Notion Database
+## Storage
 
-- **Database ID:** `3a404a57-f8f3-8108-8481-dab416265d5d`
-- **Parent page:** RAMP QA (`668fc31a-4b09-4b31-8f7f-5d41128ac995`)
-- **Access:** Notion MCP (configured in `~/.kiro/settings/mcp.json`)
+- **Table:** `bug_reports` (PostgreSQL)
+- **Model:** `app/models/bug_report.py`
+- **Service:** `app/services/engineering_memory.py`
+- **Route:** `app/routes/engineering_memory.py`
+- **Form:** `/report-issue` (public, auto-detects logged-in user)
+- **Admin sidebar:** "Report Bug" + "QA Board" links
 
-## Agent Workflow (How I Use This)
+## Schema
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| bug_id | String(20), unique | Auto-increment BUG-001, BUG-002... |
+| title | String(200) | Short description |
+| problem | Text | Full problem text (what/where/expected/actual) |
+| root_cause | Text | Why it happened (filled after investigation) |
+| fix | Text | What was done to fix |
+| rule | Text | Preventive guideline |
+| protection | String(50) | None/Manual/Test/CI/Prompt/Checklist |
+| risk_level | String(20) | Low/Medium/High/Critical |
+| category | String(30) | AI/UX/Backend/Compliance/Integration |
+| status | String(20) | Reported/Investigating/Fixed/Verified |
+| environment | String(20) | dev/staging/prod |
+| reporter | String(200) | Name + email + [role] |
+| screenshot_url | String(500) | /static/uploads/bugs/{uuid}.ext |
+| created_at | DateTime | Auto |
+| fixed_at | DateTime | Set when status → Fixed |
+| verified_at | DateTime | Set when status → Verified |
+| verified_by | String(100) | Who verified (Jenny/Tzvi) |
+| verification_comment | Text | QA comment on verification |
+
+## Agent Workflow
 
 ### Before making changes
 
-1. Query Notion for existing bugs in the area I'm changing
-2. Check if there's a Rule or Protection that applies
-3. If modifying a component with known bugs → address them or explicitly note why not
+1. Query `bug_reports` for existing bugs in the area being changed
+2. Check if there's a Rule that applies
+3. Address existing bugs or explicitly note why not
 
 ### After fixing a bug
 
-1. Update Notion record: Root Cause, Fix, Status → Fixed
+1. Update record: root_cause, fix, status → Fixed, fixed_at
 2. Propose Rule + Protection
-3. Wait for verification (Tzvi/Jenny sets Status → Verified)
+3. Wait for QA verification (Jenny sets → Verified)
 
 ### When new bug reported
 
-1. Bug enters Notion with Status = Reported
-2. I investigate, add Root Cause
-3. Fix code, update Notion with Fix field, Status → Fixed
-4. Rule + Protection proposed after verification
+1. Bug enters DB via form with status = Reported, auto-assigned bug_id
+2. I investigate, update root_cause
+3. Fix code, update fix field, status → Fixed
+4. Rule + Protection added after verification
 
 ## Lifecycle
 
@@ -41,16 +67,23 @@ Engineering Memory is the QA Intelligence loop. Every bug reported → investiga
 Reported → Investigating → Fixed → Verified
 ```
 
-- **Reported:** Problem described, Category assigned by QA
-- **Investigating:** Root cause being identified
-- **Fixed:** Code fix deployed, Root Cause + Fix documented
-- **Verified:** QA confirmed fix works, Rule + Protection populated
-
 ## Completeness Rule
 
-**Every Verified incident MUST have:** Problem + Root Cause + Fix + Rule + Protection
+**Every Verified bug MUST have:** Problem + Root Cause + Fix + Rule + Protection
 
-Protection = "None" is valid (accepted risk). But it must be explicit.
+## Anti-Bot Protection (3 layers)
+
+1. **Honeypot** — hidden `website` field (bots fill it)
+2. **JS Challenge** — hidden field computed by JavaScript (7×13=91)
+3. **Timing** — form must be open >3 seconds before submit
+
+## Screenshot Flow
+
+1. User attaches image in form
+2. Saved to `app/static/uploads/bugs/{uuid}.ext`
+3. Accessible at `/static/uploads/bugs/{filename}`
+4. Docker volume `uploads` persists across rebuilds
+5. After bug Verified → screenshot can be deleted
 
 ## Categories
 
@@ -62,33 +95,22 @@ Protection = "None" is valid (accepted risk). But it must be explicit.
 | Compliance | Terminology, legal, audit |
 | Integration | Extension, Notion, external APIs |
 
-## For Tzvi (Visibility)
-
-Tzvi has read access to the Notion database with these views:
-- **By Status** (board) — see what's Reported/Investigating/Fixed/Verified
-- **Open Issues** — everything not yet Verified
-- **Recently Verified** — completed fixes with Rules
-
 ## Key Rules (from resolved incidents)
-
-These are active constraints I must follow:
 
 1. **Internal term "avatar" cannot appear in client-facing UI** (BUG-001, Compliance)
 2. **Extension download must use permanent filename** `ramp_extension_latest.zip` (BUG-021/032)
 3. **All navigation items must be present in sidebar after UX restructuring** (BUG-032)
 
-## Intake Form
+## For QA (Jenny)
 
-- **URL:** `/report-issue` (public, pre-fills role if logged in)
-- **Admin sidebar:** "Report Bug" link in Operations section
-- **Client sidebar:** Not added yet (BUG-025 addresses this)
+- Report bugs via `/report-issue` form on staging/prod
+- After engineer marks Fixed → verify on staging
+- Set Verified + comment, or Reopen with explanation
+- Access via partner account in admin panel
 
-## MCP Access Pattern
+## Migration from Notion
 
-```
-# Query open bugs
-mcp_notion_API_query_data_source(data_source_id="3a404a57-f8f3-8108-8481-dab416265d5d", filter={"property": "Status", "select": {"does_not_equal": "Verified"}})
-
-# Update bug after fix
-mcp_notion_API_patch_page(page_id="...", properties={"Status": {"select": {"name": "Fixed"}}, "Root Cause": {"rich_text": [...]}, "Fix": {"rich_text": [...]}})
-```
+- Notion database still exists (read-only archive)
+- MCP connection maintained for historical reference
+- New bugs go to PostgreSQL exclusively
+- Notion is NOT the source of truth anymore
