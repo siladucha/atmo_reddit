@@ -49,9 +49,12 @@ def score_threads(self, client_id: str, triggered_by: str = "scheduler"):
             if not client.is_active:
                 logger.info(f"score_threads: client {client.client_name} is deactivated, skipping")
                 return 0
-            from app.services.trial_guard import is_trial_expired
-            if is_trial_expired(client):
-                logger.info(f"score_threads: client {client.client_name} trial expired, skipping")
+            # Gate pipeline access via AccessGate (handles trial expiry + subscription status)
+            from app.services.access_gate import AccessGate
+            AccessGate.check_trial_expiry(client)
+            if not AccessGate.can_execute_pipeline(client):
+                logger.info(f"score_threads: client {client.client_name} access blocked, skipping")
+                db.commit()
                 return 0
 
             # Smart scoring: iterate over eligible avatars
@@ -190,9 +193,12 @@ def generate_comments(self, client_id: str, max_comments: int = 15, triggered_by
             if not client.is_active:
                 logger.info(f"generate_comments: client {client.client_name} is deactivated, skipping")
                 return 0
-            from app.services.trial_guard import is_trial_expired
-            if is_trial_expired(client):
-                logger.info(f"generate_comments: client {client.client_name} trial expired, skipping")
+            # Gate pipeline access via AccessGate (handles trial expiry + subscription status)
+            from app.services.access_gate import AccessGate
+            AccessGate.check_trial_expiry(client)
+            if not AccessGate.can_execute_pipeline(client):
+                logger.info(f"generate_comments: client {client.client_name} access blocked, skipping")
+                db.commit()
                 return 0
 
             # Get active avatars for this client
@@ -1245,9 +1251,12 @@ def generate_posts(self, client_id: str, max_posts: int = 3, triggered_by: str =
             if not client.is_active:
                 logger.info(f"generate_posts: client {client.client_name} is deactivated, skipping")
                 return 0
-            from app.services.trial_guard import is_trial_expired
-            if is_trial_expired(client):
-                logger.info(f"generate_posts: client {client.client_name} trial expired, skipping")
+            # Gate pipeline access via AccessGate (handles trial expiry + subscription status)
+            from app.services.access_gate import AccessGate
+            AccessGate.check_trial_expiry(client)
+            if not AccessGate.can_execute_pipeline(client):
+                logger.info(f"generate_posts: client {client.client_name} access blocked, skipping")
+                db.commit()
                 return 0
 
             # Get active avatars for this client — Phase 2+ only (posts need karma)
@@ -1502,8 +1511,11 @@ def generate_posts_all_clients():
 
         for client in clients:
             try:
-                from app.services.trial_guard import is_trial_expired
-                if is_trial_expired(client):
+                # Gate pipeline access via AccessGate (handles trial expiry + subscription status)
+                from app.services.access_gate import AccessGate
+                AccessGate.check_trial_expiry(client)
+                if not AccessGate.can_execute_pipeline(client):
+                    db.commit()
                     continue
 
                 # Check if client has Phase 2+ avatars

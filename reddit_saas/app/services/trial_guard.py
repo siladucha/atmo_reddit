@@ -2,6 +2,11 @@
 
 Used by pipeline tasks to skip expired trials (prevents AI resource consumption
 for unpaying users).
+
+DEPRECATED: This module is superseded by app.services.access_gate.AccessGate
+which provides full subscription-aware access gating (active, trialing, past_due,
+canceled, trial_expired). Use AccessGate.can_execute_pipeline(client) instead of
+is_trial_expired(client) for new code.
 """
 
 from datetime import datetime, timezone

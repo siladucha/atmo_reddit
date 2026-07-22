@@ -34,7 +34,7 @@ from app.services.client_action_limiter import (
     get_action_status,
     log_action,
 )
-from app.services.trial_guard import is_trial_expired
+from app.services.access_gate import AccessGate
 
 logger = get_logger(__name__)
 
@@ -48,11 +48,14 @@ def _check_trial_not_expired_actions(
     if not user.client_id:
         return
     client = db.query(Client).filter(Client.id == user.client_id).first()
-    if client and is_trial_expired(client):
-        raise HTTPException(
-            status_code=403,
-            detail="Trial expired. Please upgrade to continue using RAMP.",
-        )
+    if client:
+        AccessGate.check_trial_expiry(client)
+        if not AccessGate.can_execute_pipeline(client):
+            db.commit()
+            raise HTTPException(
+                status_code=403,
+                detail="Trial expired. Please upgrade to continue using RAMP.",
+            )
 
 
 router = APIRouter(

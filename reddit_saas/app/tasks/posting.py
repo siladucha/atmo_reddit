@@ -65,7 +65,7 @@ def execute_pending_posts():
             return {"dispatched": 0, "reason": "no_pending_slots"}
 
         from app.models.client import Client
-        from app.services.trial_guard import is_trial_expired
+        from app.services.access_gate import AccessGate
 
         dispatched = 0
         skipped = 0
@@ -78,13 +78,16 @@ def execute_pending_posts():
                 skipped += 1
                 continue
 
-            # Skip expired trial clients — prevent posting after trial ends
+            # Skip clients with blocked subscription (past_due, canceled, trial_expired)
             if avatar.client_ids:
                 try:
                     _client = db.query(Client).filter(Client.id == uuid.UUID(avatar.client_ids[0])).first()
-                    if _client and is_trial_expired(_client):
-                        skipped += 1
-                        continue
+                    if _client:
+                        AccessGate.check_trial_expiry(_client)
+                        if not AccessGate.can_execute_pipeline(_client):
+                            db.commit()
+                            skipped += 1
+                            continue
                 except (ValueError, IndexError):
                     pass
 

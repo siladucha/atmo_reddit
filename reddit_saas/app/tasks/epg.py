@@ -135,10 +135,12 @@ def build_and_generate_epg_all_avatars():
                         results["skipped_avatars"] += 1
                         continue
 
-                    # Skip expired trial clients (prevent AI resource waste)
+                    # Gate pipeline access via AccessGate (handles trial expiry + subscription status)
                     if client:
-                        from app.services.trial_guard import is_trial_expired
-                        if is_trial_expired(client):
+                        from app.services.access_gate import AccessGate
+                        AccessGate.check_trial_expiry(client)
+                        if not AccessGate.can_execute_pipeline(client):
+                            db.commit()
                             results["skipped_avatars"] += 1
                             continue
 
@@ -405,9 +407,12 @@ def epg_topup_underfilled_avatars():
                         results["skipped"] += 1
                         continue
 
+                    # Gate pipeline access via AccessGate (handles trial expiry + subscription status)
                     if client:
-                        from app.services.trial_guard import is_trial_expired
-                        if is_trial_expired(client):
+                        from app.services.access_gate import AccessGate
+                        AccessGate.check_trial_expiry(client)
+                        if not AccessGate.can_execute_pipeline(client):
+                            db.commit()
                             results["skipped"] += 1
                             continue
 
@@ -612,9 +617,12 @@ def ensure_daily_epg_minimum():
                         results["still_starving"] += 1
                         continue
 
+                    # Gate pipeline access via AccessGate (handles trial expiry + subscription status)
                     if client:
-                        from app.services.trial_guard import is_trial_expired
-                        if is_trial_expired(client):
+                        from app.services.access_gate import AccessGate
+                        AccessGate.check_trial_expiry(client)
+                        if not AccessGate.can_execute_pipeline(client):
+                            db.commit()
                             results["still_starving"] += 1
                             continue
 

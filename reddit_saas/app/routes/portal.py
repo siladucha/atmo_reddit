@@ -33,7 +33,7 @@ from app.schemas.client_portal import (
     SafetyBlockResponse,
 )
 from app.services.safety_blocks import check_safety_blocks
-from app.services.trial_guard import is_trial_expired
+from app.services.access_gate import AccessGate
 from app.services.permission_context import get_permission_context
 
 logger = get_logger(__name__)
@@ -55,11 +55,14 @@ def _check_trial_not_expired(
     if request.method == "GET":
         return
     client = db.query(Client).filter(Client.id == user.client_id).first()
-    if client and is_trial_expired(client):
-        raise HTTPException(
-            status_code=403,
-            detail="Trial expired. Please upgrade to continue using RAMP.",
-        )
+    if client:
+        AccessGate.check_trial_expiry(client)
+        if not AccessGate.can_execute_pipeline(client):
+            db.commit()
+            raise HTTPException(
+                status_code=403,
+                detail="Trial expired. Please upgrade to continue using RAMP.",
+            )
 
 
 router = APIRouter(
@@ -362,6 +365,7 @@ def portal_home(
             "has_strategy": has_strategy,
             "week_posted": week_posted,
             "onboarding_step": client_obj.current_onboarding_step if client_obj else 0,
+            "subscription_status": client_obj.subscription_status if client_obj else "trial",
         },
     )
 
@@ -390,7 +394,23 @@ def portal_review(
     )
     avatar_options = [{"id": str(a.id), "name": _avatar_display_name(a)} for a in avatars_for_filter]
 
-    # Count approved (ready to post) and posted
+    # Count approved (ready to post) — today only (matches default view)
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Pending count — today only (for tab badge; sidebar badge stays 14d for overall awareness)
+    pending_count_today = (
+        db.query(func.count(CommentDraft.id))
+        .join(Avatar, CommentDraft.avatar_id == Avatar.id)
+        .filter(
+            CommentDraft.status == "pending",
+            Avatar.client_ids.any(str(client_id)),
+            Avatar.active.is_(True),
+            Avatar.is_frozen.is_(False),
+            CommentDraft.created_at >= today_start,
+        )
+        .scalar()
+    ) or 0
+
     approved_count = (
         db.query(func.count(CommentDraft.id))
         .join(Avatar, CommentDraft.avatar_id == Avatar.id)
@@ -399,7 +419,7 @@ def portal_review(
             Avatar.client_ids.any(str(client_id)),
             Avatar.active.is_(True),
             Avatar.is_frozen.is_(False),
-            CommentDraft.created_at >= datetime.now(timezone.utc) - timedelta(days=14),
+            CommentDraft.created_at >= today_start,
         )
         .scalar()
     ) or 0
@@ -434,7 +454,7 @@ def portal_review(
         db,
         active_page="review",
         extra_context={
-            "pending_count": sidebar["pending_count"],
+            "pending_count": pending_count_today,
             "approved_count": approved_count,
             "posted_count": posted_count,
             "expired_count": expired_count,
@@ -2759,6 +2779,7 @@ def portal_drafts_partial(
     status: str = "pending",
     avatar_id: str = "",
     sort: str = "newest",
+    date_filter: str = "",
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -2782,26 +2803,36 @@ def portal_drafts_partial(
     if avatar_id:
         query = query.filter(CommentDraft.avatar_id == avatar_id)
 
-    # For posted tab, limit to last 30 days
-    if status == "posted":
+    # Date filter (for pending/approved tabs)
+    if date_filter == "today" and status in ("pending", "approved"):
+        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        query = query.filter(CommentDraft.created_at >= today_start)
+    elif date_filter == "7d" and status in ("pending", "approved"):
         query = query.filter(
-            CommentDraft.created_at >= datetime.now(timezone.utc) - timedelta(days=30)
+            CommentDraft.created_at >= datetime.now(timezone.utc) - timedelta(days=7)
         )
-    # For pending tab, skip stale drafts older than 14 days — threads are dead by then
-    elif status == "pending":
-        query = query.filter(
-            CommentDraft.created_at >= datetime.now(timezone.utc) - timedelta(days=14)
-        )
-    # For approved tab, limit to last 14 days (matches count in review header)
-    elif status == "approved":
-        query = query.filter(
-            CommentDraft.created_at >= datetime.now(timezone.utc) - timedelta(days=14)
-        )
-    # For expired tab, limit to last 30 days
-    elif status == "expired":
-        query = query.filter(
-            CommentDraft.created_at >= datetime.now(timezone.utc) - timedelta(days=30)
-        )
+    else:
+        # Default time windows per tab (when no date_filter or date_filter=all)
+        # For posted tab, limit to last 30 days
+        if status == "posted":
+            query = query.filter(
+                CommentDraft.created_at >= datetime.now(timezone.utc) - timedelta(days=30)
+            )
+        # For pending tab, skip stale drafts older than 14 days — threads are dead by then
+        elif status == "pending":
+            query = query.filter(
+                CommentDraft.created_at >= datetime.now(timezone.utc) - timedelta(days=14)
+            )
+        # For approved tab, limit to last 14 days (matches count in review header)
+        elif status == "approved":
+            query = query.filter(
+                CommentDraft.created_at >= datetime.now(timezone.utc) - timedelta(days=14)
+            )
+        # For expired tab, limit to last 30 days
+        elif status == "expired":
+            query = query.filter(
+                CommentDraft.created_at >= datetime.now(timezone.utc) - timedelta(days=30)
+            )
 
     # Sort order
     if sort == "oldest":
@@ -4215,63 +4246,44 @@ def portal_billing(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Client portal billing/plan page."""
-    from app.services.business_metrics import PLAN_PRICES
+    """Client portal billing/plan page with Stripe integration."""
+    from app.services.billing.billing_service import BillingService, PLAN_TIERS, PLAN_MAX_AVATARS
 
     client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
 
-    plan_type = client.plan_type or "starter" if client else "starter"
-    plan_price = PLAN_PRICES.get(plan_type, 0)
+    billing_service = BillingService(db)
+    billing_configured = billing_service.is_configured()
 
-    # Usage stats
-    now = datetime.now(timezone.utc)
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    plan_type = client.plan_type or "trial"
+    subscription_status = client.subscription_status or "trial"
+    billing_period_end = client.billing_period_end
+    has_stripe_customer = bool(client.stripe_customer_id)
 
-    avatars_count = (
-        db.query(func.count(Avatar.id))
-        .filter(Avatar.client_ids.any(str(client_id)), Avatar.active.is_(True))
-        .scalar()
-    ) or 0
+    # Plan display info
+    plan_price_cents = PLAN_TIERS.get(plan_type, 0)
+    plan_price_display = f"${plan_price_cents // 100}" if plan_price_cents else "Free"
 
-    comments_this_month = (
-        db.query(func.count(CommentDraft.id))
-        .filter(
-            CommentDraft.client_id == client_id,
-            CommentDraft.status.in_(["approved", "posted"]),
-            CommentDraft.created_at >= month_start,
-        )
-        .scalar()
-    ) or 0
-
-    # Plan limits (approximate)
-    plan_limits = {
-        "trial": {"avatars": 0, "comments": 5},
-        "seed": {"avatars": 1, "comments": 30},
-        "starter": {"avatars": 3, "comments": 60},
-        "growth": {"avatars": 7, "comments": 150},
-        "scale": {"avatars": 15, "comments": 400},
-    }
-    limits = plan_limits.get(plan_type, {"avatars": 3, "comments": 60})
-
-    # Days since creation (for trial)
-    days_active = (now - client.created_at).days if client and client.created_at else 0
-    trial_days_remaining = max(0, 14 - days_active) if plan_type == "trial" else None
-
-    # Available upgrades
-    plan_order = ["trial", "seed", "starter", "growth", "scale"]
-    current_idx = plan_order.index(plan_type) if plan_type in plan_order else 0
-    upgrades = []
-    for p in plan_order[current_idx + 1:]:
-        upgrades.append({
-            "name": p.title(),
-            "price": PLAN_PRICES.get(p, 0),
-            "limits": plan_limits.get(p, {}),
+    # Build plan tiers for "Change Plan" section
+    all_tiers = []
+    for tier, price_cents in PLAN_TIERS.items():
+        all_tiers.append({
+            "name": tier,
+            "display_name": tier.title(),
+            "price_cents": price_cents,
+            "price_display": f"${price_cents // 100}",
+            "max_avatars": PLAN_MAX_AVATARS.get(tier, 1),
+            "is_current": tier == plan_type,
         })
 
-    # Check if Stripe billing is configured and enabled
-    from app.services.settings import get_setting
-    stripe_key = get_setting(db, "stripe_secret_key") or ""
-    billing_active = bool(stripe_key)
+    # Get invoices
+    invoices = []
+    if billing_configured and has_stripe_customer:
+        try:
+            invoices = billing_service.get_recent_invoices(client_id, limit=12)
+        except Exception as e:
+            logger.warning("Failed to fetch invoices for client %s: %s", client_id, str(e))
 
     return _portal_render(
         request,
@@ -4281,13 +4293,69 @@ def portal_billing(
         active_page="billing",
         extra_context={
             "plan_type": plan_type,
-            "plan_price": plan_price,
-            "avatars_count": avatars_count,
-            "comments_this_month": comments_this_month,
-            "limits": limits,
-            "trial_days_remaining": trial_days_remaining,
-            "upgrades": upgrades,
-            "days_active": days_active,
-            "billing_active": billing_active,
+            "plan_price_display": plan_price_display,
+            "subscription_status": subscription_status,
+            "billing_period_end": billing_period_end,
+            "billing_configured": billing_configured,
+            "has_stripe_customer": has_stripe_customer,
+            "all_tiers": all_tiers,
+            "invoices": invoices,
         },
     )
+
+
+@router.post("/clients/{client_id}/billing/manage", response_class=RedirectResponse)
+def portal_billing_manage(
+    request: Request,
+    client_id: UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Create Stripe Customer Portal session and redirect for subscription management."""
+    from app.services.billing.billing_service import BillingService
+
+    billing_service = BillingService(db)
+    if not billing_service.is_configured():
+        raise HTTPException(status_code=400, detail="Billing is not configured")
+
+    return_url = str(request.url_for("portal_billing", client_id=client_id))
+    try:
+        result = billing_service.create_portal_session(client_id, return_url=return_url)
+        return RedirectResponse(url=result.portal_url, status_code=303)
+    except (ValueError, RuntimeError) as e:
+        logger.error("Portal session creation failed for client %s: %s", client_id, str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/clients/{client_id}/billing/change-plan", response_class=RedirectResponse)
+def portal_billing_change_plan(
+    request: Request,
+    client_id: UUID,
+    plan_tier: str = Form(...),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Create Stripe Checkout session for plan change with prorated billing."""
+    from app.services.billing.billing_service import BillingService, PLAN_TIERS
+
+    if plan_tier not in PLAN_TIERS:
+        raise HTTPException(status_code=400, detail=f"Invalid plan tier: {plan_tier}")
+
+    billing_service = BillingService(db)
+    if not billing_service.is_configured():
+        raise HTTPException(status_code=400, detail="Billing is not configured")
+
+    success_url = str(request.url_for("portal_billing", client_id=client_id)) + "?plan_changed=1"
+    cancel_url = str(request.url_for("portal_billing", client_id=client_id))
+
+    try:
+        result = billing_service.create_plan_change_session(
+            client_id=client_id,
+            new_plan_tier=plan_tier,
+            success_url=success_url,
+            cancel_url=cancel_url,
+        )
+        return RedirectResponse(url=result.session_url, status_code=303)
+    except (ValueError, RuntimeError) as e:
+        logger.error("Plan change session failed for client %s: %s", client_id, str(e))
+        raise HTTPException(status_code=400, detail=str(e))
