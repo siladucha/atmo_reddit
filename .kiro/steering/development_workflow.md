@@ -1,3 +1,8 @@
+---
+inclusion: fileMatch
+fileMatchPattern: "**/workflows/**,docker-compose*,Dockerfile,**/deploy*,.github/**"
+---
+
 # Development Workflow — CI/CD Discipline
 
 ## Status: TRANSITION IN PROGRESS (July 13, 2026)
@@ -12,13 +17,14 @@
 | Person | Role | Works in | Git access |
 |--------|------|----------|------------|
 | **Max** | Tech lead, engineer | Local Mac + Kiro | Full (all branches) |
-| **Женя (Zhenya)** | QA engineer | Her own Kiro.dev workspace | Read all branches, write to `feature/*` and `staging` |
+| **Женя (Zhenya)** | QA engineer | Her own Kiro.dev workspace | Read all branches, write to `feature/*` and `qa` |
 | **Tzvi** | Business/clients | N/A | None (receives reports) |
 
 **Workflow with QA:**
-- Max develops on `feature/*` branches, merges to `staging`
+- Max develops on `develop` branch (his working branch)
+- When ready for QA → merge `develop → staging` (auto-deploy to staging server)
 - Женя verifies on `staging.gorampit.com` using QA checklists
-- Женя can create `feature/qa-*` branches for test fixes / QA automation
+- Женя works on `qa` branch for test fixes / QA automation
 - Женя signs off → Max merges `staging → main` (prod deploy)
 - Женя does NOT deploy to production directly
 
@@ -34,66 +40,100 @@
 
 ---
 
-## Git Flow — Two-Branch Promotion Model
+## Git Flow — Four-Branch Model
+
+### Branch → Environment Mapping
+
+| Branch | Environment | Server | Purpose |
+|--------|------------|--------|---------|
+| `main` | Production | `gorampit.com` (161.35.27.165) | Live client-facing system |
+| `staging` | Staging | `staging.gorampit.com` (167.172.191.42) | Pre-production verification |
+| `develop` | — (local) | — | Max's working branch (daily development) |
+| `qa` | — (local/staging) | — | Женя's QA working branch |
+
+### Flow Diagram
 
 ```
-feature/xyz (local Mac)
-    ↓ push to origin
-    ↓ CI runs (tests + imports + alembic)
-    ↓ merge → staging
+feature/xyz (short-lived, for isolated changes)
+    ↓ merge → develop
+develop (Max's working branch — daily development happens here)
+    ↓ push to staging when ready for QA
 staging (staging.gorampit.com, 167.172.191.42)
     ↓ CI + auto-deploy to staging server
-    ↓ Verify (smoke test, manual check)
-    ↓ Operator approves
-    ↓ merge staging → main (fast-forward or PR)
+    ↓ Женя verifies on staging
+    ↓ QA sign-off
+    ↓ merge staging → main
 main (gorampit.com, 161.35.27.165)
     ↓ CI + auto-deploy to production (with auto-rollback)
 ```
 
 ### Core Principles
 
-1. **All work happens on feature branches.** Never commit directly to `main` or `staging`.
-2. **staging ≤ main.** Staging cannot be ahead of production (unless hotfix in progress). Both branches must be at the same commit, or main is ahead (has changes staging hasn't received yet — which shouldn't happen in normal flow).
-3. **Flow is one-directional:** `feature/* → staging → main`. No cherry-picks backwards.
-4. **Deploy = merge.** Push to `staging` triggers staging deploy. Push to `main` triggers production deploy.
+1. **`develop` is Max's primary working branch.** Daily coding, experiments, WIP — all happen here.
+2. **`qa` is Женя's working branch.** Test fixes, QA automation, regression scripts.
+3. **`staging` = deployment gate.** Code reaches staging only when ready for verification.
+4. **`main` = production.** Only verified code from staging gets merged here.
+5. **Feature branches are optional.** Use `feature/*` for isolated multi-day work that shouldn't pollute `develop`. Merge back to `develop` when done.
+6. **Flow is one-directional:** `feature/* → develop → staging → main`. No cherry-picks backwards (except hotfix).
 
 ### Branch Rules
 
-- `main` = production. Push triggers CI → deploy to prod. Protected.
-- `staging` = staging environment. Push triggers CI → deploy to staging. Pre-production verification.
-- `feature/*` = active development. Always branch from `staging` (which equals `main` in steady state).
-- **🚫 Working directly on `main` or `staging` is FORBIDDEN.** Never commit, develop, or make changes on these branches. Always use a feature branch.
-- No force-push to `staging` or `main`.
-- Direct push to `staging` allowed ONLY for CI-verified hotfixes (must still be a merge, not direct commit).
+| Branch | Push triggers deploy? | Who commits | Protected? |
+|--------|----------------------|-------------|-----------|
+| `main` | ✅ → production | Max (merge from staging only) | Yes — no direct commits |
+| `staging` | ✅ → staging server | Max (merge from develop) | Yes — no direct commits |
+| `develop` | ❌ | Max (daily work) | No |
+| `qa` | ❌ | Женя (QA work) | No |
+| `feature/*` | ❌ | Max | No |
 
 ### Normal Flow
 
 ```bash
-# 1. Create feature branch (from staging, which = main)
-git checkout staging && git pull
-git checkout -b feature/my-change
-
-# 2. Work, commit, push
+# 1. Daily development on develop
+git checkout develop && git pull
+# ... work, commit ...
 git add . && git commit -m "feat: ..."
-git push -u origin feature/my-change
+git push origin develop
 
-# 3. CI runs on push (tests must pass)
-
-# 4. Merge to staging (triggers staging deploy)
+# 2. When ready for QA — merge to staging (triggers staging deploy)
 git checkout staging && git pull
-git merge feature/my-change
+git merge develop
 git push origin staging
-# → CI passes → deploy-staging.yml runs → verify on staging.gorampit.com
+# → CI passes → deploy-staging.yml runs → Женя verifies on staging.gorampit.com
 
-# 5. After staging verification — merge to main (triggers prod deploy)
+# 3. After QA sign-off — merge to main (triggers prod deploy)
 git checkout main && git pull
 git merge staging --ff-only
 git push origin main
 # → CI passes → deploy-production.yml runs → verify on gorampit.com
 
-# 6. Cleanup
-git branch -d feature/my-change
-git push origin --delete feature/my-change
+# 4. Sync develop with main (pick up any hotfix or qa fixes)
+git checkout develop && git merge main && git push origin develop
+```
+
+### Feature Branch Flow (for isolated work)
+
+```bash
+git checkout develop && git pull
+git checkout -b feature/my-isolated-change
+# ... work ...
+git push -u origin feature/my-isolated-change
+# When done:
+git checkout develop && git merge feature/my-isolated-change
+git push origin develop
+git branch -d feature/my-isolated-change
+```
+
+### QA Branch Flow
+
+```bash
+# Женя works on qa branch
+git checkout qa && git pull
+# ... test fixes, automation ...
+git push origin qa
+
+# When QA fixes need to reach staging:
+# Женя creates PR: qa → staging (or Max merges)
 ```
 
 ### Hotfix Flow (production emergency)
@@ -106,15 +146,18 @@ git push -u origin hotfix/critical-fix
 # CI passes
 git checkout main && git merge hotfix/critical-fix && git push origin main
 # → prod deploy
-# Then sync staging:
+# Sync downstream:
 git checkout staging && git merge main && git push origin staging
+git checkout develop && git merge main && git push origin develop
 ```
 
 ### Invariants
 
 - After every prod deploy: `staging` and `main` point to the same commit.
+- `develop` may be ahead of `staging` (unreleased work). This is normal.
+- `qa` branch is independent — Женя syncs from `staging` as needed.
 - Feature branches are short-lived (hours/days, not weeks).
-- If `staging` is ahead of `main`, it means code is being verified before prod. This is normal. But `staging` should never STAY ahead indefinitely — either merge to main or revert.
+- If `staging` is ahead of `main`, it means code is being QA-verified. Merge to main after sign-off same day.
 
 ---
 
@@ -224,12 +267,13 @@ Three workflow files in `.github/workflows/`:
 
 ## What NOT To Do
 
-1. ❌ Don't commit directly to `main` or `staging` — always use feature branch
-2. ❌ Don't keep feature branches alive for weeks — merge or abandon
-3. ❌ Don't let staging drift ahead of main — after staging verification, merge to main same day
+1. ❌ Don't commit directly to `main` or `staging` — merge from `develop`/`staging` respectively
+2. ❌ Don't keep feature branches alive for weeks — merge to `develop` or abandon
+3. ❌ Don't let staging drift ahead of main — after QA sign-off, merge to main same day
 4. ❌ Don't force-push to `main` or `staging`
 5. ❌ Don't deploy via rsync manually unless GitHub Actions is broken (emergency only)
 6. ❌ Don't skip CI — if tests fail, fix them before merge
+7. ❌ Don't develop on `staging` or `main` directly — use `develop` for daily work
 
 ---
 
@@ -243,6 +287,9 @@ Three workflow files in `.github/workflows/`:
 - ✅ No more manual rsync deploys
 
 **Branch discipline (enforced by this document + agent behavior):**
-- All work on feature branches
-- staging = main in steady state
-- Feature branches short-lived (same-day merge target)
+- Daily work on `develop` branch
+- Feature branches for isolated multi-day work → merge back to `develop`
+- `staging` = QA verification gate (deploy trigger)
+- `main` = production (deploy trigger)
+- `qa` = Женя's independent working branch
+- staging = main after every prod deploy (steady state)

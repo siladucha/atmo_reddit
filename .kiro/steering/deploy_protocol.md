@@ -1,3 +1,8 @@
+---
+inclusion: fileMatch
+fileMatchPattern: "**/deploy*,docker-compose*,Dockerfile,Makefile,*.sh,**/workflows/**"
+---
+
 # Agent Deploy Protocol — Mandatory Procedure
 
 ## What This Is

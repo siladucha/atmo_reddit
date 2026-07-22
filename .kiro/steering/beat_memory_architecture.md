@@ -1,3 +1,8 @@
+---
+inclusion: fileMatch
+fileMatchPattern: "**/beat_app*,**/worker*,docker-compose*,**/heartbeat*"
+---
+
 # Celery Beat Memory Architecture (Established July 7, 2026)
 
 ## Problem Solved

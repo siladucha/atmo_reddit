@@ -1,3 +1,8 @@
+---
+inclusion: fileMatch
+fileMatchPattern: "**/extension*,**/ramp_extension/**,**/executor*"
+---
+
 # Browser Extension — Architecture & Design Decisions
 
 ## What It Is

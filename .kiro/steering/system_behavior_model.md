@@ -1,3 +1,7 @@
+---
+inclusion: always
+---
+
 # System Behavior Model (SBM)
 
 ## What This Is

@@ -1,3 +1,7 @@
+---
+inclusion: manual
+---
+
 # Meta-Loop — Architecture Evolution Process
 
 ## What This Is

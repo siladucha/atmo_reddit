@@ -1,3 +1,8 @@
+---
+inclusion: fileMatch
+fileMatchPattern: "**/health_checker*,**/shadowban*,**/health_status*,**/cqs*,**/avatar*"
+---
+
 # Shadowban Detection Architecture
 
 ## Key Platform Fact (Confirmed June 28, 2026)

@@ -1,3 +1,8 @@
+---
+inclusion: fileMatch
+fileMatchPattern: "**/operations_agent*,**/watchdog/**,**/ramp_watchdog*,**/alert_aggregation*,**/signal_collector*"
+---
+
 # RAMP Operations Agent — Readiness & Tracking
 
 ## Current Status: Phase 1A+1B Deployed (External Watchdog + Telegram Alerts — July 2-3, 2026)

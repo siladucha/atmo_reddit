@@ -1,3 +1,8 @@
+---
+inclusion: fileMatch
+fileMatchPattern: "**/services/**,**/tasks/**,**/routes/**,**/models/**"
+---
+
 # System Diagnostic JSON — Reference
 
 ## Truth Layer Classification

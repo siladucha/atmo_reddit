@@ -1,5 +1,5 @@
 ---
-inclusion: always
+inclusion: manual
 ---
 
 # Load Dynamics & AWS Cost Impact — Per Node Analysis

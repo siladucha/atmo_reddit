@@ -1,3 +1,7 @@
+---
+inclusion: manual
+---
+
 # Truth Resolution Model — Documentation Layer 2.0
 
 ## Core Principle

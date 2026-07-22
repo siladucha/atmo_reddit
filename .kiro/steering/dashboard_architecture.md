@@ -1,5 +1,6 @@
 ---
-inclusion: always
+inclusion: fileMatch
+fileMatchPattern: "**/admin_dashboard*,**/dashboard*,**/portal*,**/business_metrics*,**/admin.py"
 ---
 
 # Dashboard Architecture — Role-Based Views (June 23, 2026)

@@ -1,3 +1,8 @@
+---
+inclusion: fileMatch
+fileMatchPattern: "**/reddit*,**/praw*,**/health_checker*,**/scraping*,**/posting*"
+---
+
 # Reddit Platform Uncertainty Principle
 
 ## Core Principle

@@ -1,3 +1,7 @@
+---
+inclusion: manual
+---
+
 # RAMP v3.0 Enterprise — North Star (NOT for immediate implementation)
 
 ## Status: DEFERRED — Architecture Orientation Document

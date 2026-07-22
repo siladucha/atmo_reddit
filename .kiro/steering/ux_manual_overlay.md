@@ -1,3 +1,8 @@
+---
+inclusion: fileMatch
+fileMatchPattern: "**/templates/**,**/manual/**,**/ux_manual*"
+---
+
 # UX Manual Overlay — Single Source of Contextual Help
 
 ## Rule (July 19, 2026)

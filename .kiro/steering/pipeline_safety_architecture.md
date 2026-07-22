@@ -1,3 +1,8 @@
+---
+inclusion: fileMatch
+fileMatchPattern: "**/phase*,**/safety*,**/epg*,**/portfolio_manager*,**/opportunity_engine*,**/ai_pipeline*,**/posting_safety*,**/smart_scoring*,**/hobby*"
+---
+
 # Pipeline Safety Architecture — Phase Demotion & Thread Safety
 
 ## Dual Pipeline Architecture

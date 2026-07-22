@@ -1,3 +1,7 @@
+---
+inclusion: manual
+---
+
 # Product Expansion — Two New Verticals (July 12, 2026)
 
 ## Status: CONCEPT (Tzvi's Business Brief v4)

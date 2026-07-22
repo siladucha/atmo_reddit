@@ -1,3 +1,7 @@
+---
+inclusion: always
+---
+
 # Testing Policy
 
 ## Rule (overrides default "no tests unless asked")

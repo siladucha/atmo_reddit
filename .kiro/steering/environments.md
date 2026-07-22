@@ -1,3 +1,7 @@
+---
+inclusion: always
+---
+
 # Environment Rules — STRICT
 
 ## Three Environments
@@ -25,6 +29,7 @@
 - Alembic migrations: run `alembic upgrade head` directly (no `docker compose exec`).
 - `.env` in `reddit_saas/` directory
 - Python venv at `/Volumes/2SSD/Projects/ReddirSaaS/.venv/`
+- **Git branch: `develop`** — Max's primary working branch. All daily coding happens here.
 
 ## Staging
 

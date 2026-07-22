@@ -1,5 +1,5 @@
 ---
-inclusion: always
+inclusion: manual
 ---
 
 # RAMP — Competitive Landscape & Strategic Positioning

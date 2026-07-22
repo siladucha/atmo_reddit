@@ -1,3 +1,8 @@
+---
+inclusion: fileMatch
+fileMatchPattern: "**/geo_*,**/visibility*,**/forecast/**,**/intelligence_report*,**/observed*"
+---
+
 # Visibility Intelligence Report — Steering
 
 ## What This Is

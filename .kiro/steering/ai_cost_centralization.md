@@ -1,5 +1,6 @@
 ---
-inclusion: always
+inclusion: fileMatch
+fileMatchPattern: "**/services/ai.py,**/ai_usage*,**/billing_dashboard*,**/unit_economics*,**/cost*,**/llm_quality*"
 ---
 
 # AI Cost Centralization — Architecture Invariant

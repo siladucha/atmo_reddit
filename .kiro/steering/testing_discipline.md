@@ -1,3 +1,7 @@
+---
+inclusion: always
+---
+
 # Testing Discipline — Agent Rules
 
 ## Core Principle

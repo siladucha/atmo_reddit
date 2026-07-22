@@ -1,3 +1,8 @@
+---
+inclusion: fileMatch
+fileMatchPattern: "**/tasks/**,**/services/epg*,**/services/generation*,**/services/scoring*,**/services/posting*,**/services/scrape*,**/portfolio_manager*,**/opportunity_engine*,**/ai_pipeline*"
+---
+
 # End-to-End Pipeline — Architecture Overview
 
 ## Last Updated: July 2, 2026

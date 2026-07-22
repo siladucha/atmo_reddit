@@ -1,3 +1,7 @@
+---
+inclusion: always
+---
+
 # AI Agent Role — Operational Identity & Authority
 
 ## System Position (Architecture Diagram)
