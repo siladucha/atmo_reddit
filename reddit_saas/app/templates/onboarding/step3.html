@@ -55,7 +55,7 @@
                 </div>
                 <div class="icp-fields" style="display:flex;flex-direction:column;gap:12px;">
                     <div>
-                        <label class="text-micro" style="color:var(--color-muted);">Job titles *</label>
+                        <label class="text-micro" style="color:var(--color-muted);">Job titles</label>
                         <input type="text" name="job_titles_{{ loop.index0 }}" class="field-input" style="width:100%;" placeholder="e.g. CISO, VP Security, Security Architect" value="{{ icp.job_titles or '' }}">
                     </div>
                     <div>
@@ -115,7 +115,7 @@ function addIcpBlock() {
         </div>
         <div class="icp-fields" style="display:flex;flex-direction:column;gap:12px;">
             <div>
-                <label class="text-micro" style="color:var(--color-muted);">Job titles *</label>
+                <label class="text-micro" style="color:var(--color-muted);">Job titles</label>
                 <input type="text" name="job_titles_${count}" class="field-input" style="width:100%;" placeholder="e.g. Cloud Architect, DevOps Lead">
             </div>
             <div>

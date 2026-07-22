@@ -85,6 +85,14 @@
     </div>
     {% endif %}
 
+    <!-- Date filter (shown for pending/approved tabs) -->
+    <div id="date-filter-row" style="margin-bottom:var(--space-2);display:flex;align-items:center;gap:8px;">
+        <span class="text-small" style="color:var(--color-muted);">Date:</span>
+        <button onclick="setDateFilter('today')" id="date-today" style="padding:3px 10px;border-radius:var(--radius-pill);font-size:var(--text-micro);font-weight:500;border:1px solid var(--color-orange);background:rgba(255,107,53,0.15);color:var(--color-orange);cursor:pointer;">Today</button>
+        <button onclick="setDateFilter('7d')" id="date-7d" style="padding:3px 10px;border-radius:var(--radius-pill);font-size:var(--text-micro);font-weight:500;border:1px solid var(--color-border);background:transparent;color:var(--color-muted);cursor:pointer;">Last 7 days</button>
+        <button onclick="setDateFilter('all')" id="date-all" style="padding:3px 10px;border-radius:var(--radius-pill);font-size:var(--text-micro);font-weight:500;border:1px solid var(--color-border);background:transparent;color:var(--color-muted);cursor:pointer;">All</button>
+    </div>
+
     <!-- Sort control -->
     <div style="margin-bottom:var(--space-2);display:flex;align-items:center;gap:8px;">
         <span class="text-small" style="color:var(--color-muted);">Sort:</span>
@@ -94,7 +102,7 @@
 
     <!-- Draft cards (lazy loaded) -->
     <div id="drafts-area"
-         hx-get="/clients/{{ client_id }}/partials/drafts?status=pending"
+         hx-get="/clients/{{ client_id }}/partials/drafts?status=pending&date_filter=today"
          hx-trigger="load"
          hx-swap="innerHTML"
          style="display:flex;flex-direction:column;gap:var(--space-2);">
@@ -112,9 +120,17 @@
 let currentTab = 'pending';
 let currentAvatarFilter = '';
 let currentSort = 'newest';
+let currentDateFilter = 'today';
 
 function switchTab(tab) {
     currentTab = tab;
+    // Show/hide date filter row (only for pending/approved)
+    const dateRow = document.getElementById('date-filter-row');
+    if (tab === 'pending' || tab === 'approved') {
+        dateRow.style.display = 'flex';
+    } else {
+        dateRow.style.display = 'none';
+    }
     // Update tab styles
     ['pending', 'approved', 'posted', 'expired'].forEach(t => {
         const btn = document.getElementById('tab-' + t);
@@ -167,9 +183,29 @@ function setSort(sort) {
     loadDrafts();
 }
 
+function setDateFilter(dateVal) {
+    currentDateFilter = dateVal;
+    ['today', '7d', 'all'].forEach(d => {
+        const btn = document.getElementById('date-' + d);
+        if (d === dateVal) {
+            btn.style.borderColor = 'var(--color-orange)';
+            btn.style.background = 'rgba(255,107,53,0.15)';
+            btn.style.color = 'var(--color-orange)';
+        } else {
+            btn.style.borderColor = 'var(--color-border)';
+            btn.style.background = 'transparent';
+            btn.style.color = 'var(--color-muted)';
+        }
+    });
+    loadDrafts();
+}
+
 function loadDrafts() {
     let url = '/clients/{{ client_id }}/partials/drafts?status=' + currentTab + '&sort=' + currentSort;
     if (currentAvatarFilter) url += '&avatar_id=' + currentAvatarFilter;
+    if ((currentTab === 'pending' || currentTab === 'approved') && currentDateFilter !== 'all') {
+        url += '&date_filter=' + currentDateFilter;
+    }
     htmx.ajax('GET', url, {target: '#drafts-area', swap: 'innerHTML'});
 }
 </script>

@@ -169,7 +169,14 @@
     </div>
     {% endif %}
 
-    <!-- ═══ TREND CHART (Details — collapsible) ═══ -->
+    <!-- ═══ TREND CHART (24-week visibility projection) ═══ -->
+    {% if visibility.trend_chart and visibility.trend_chart.weeks %}
+    <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-4);">
+        <h3 class="text-h3" style="margin-bottom:4px;">Visibility Trend (24 Weeks)</h3>
+        <p class="text-micro" style="margin-bottom:16px;color:var(--color-muted);">Solid = measured · Dashed = projected (S-curve)</p>
+        <canvas id="portal-trend-chart" style="max-height:260px;"></canvas>
+    </div>
+    {% endif %}
 </div>
 
     {% endif %}
@@ -210,17 +217,8 @@
         });
     }
 
-    // --- Trend chart (inside <details>, init on open) ---
-    let trendChartInitialized = false;
-    const detailsEl = document.querySelector('details:has(#portal-trend-chart)');
-    if (detailsEl) {
-        detailsEl.addEventListener('toggle', function() {
-            if (this.open && !trendChartInitialized) {
-                trendChartInitialized = true;
-                initTrendChart();
-            }
-        });
-    }
+    // --- Trend chart (always visible) ---
+    initTrendChart();
 
     function initTrendChart() {
         const trendData = {{ visibility.trend_chart | tojson }};
