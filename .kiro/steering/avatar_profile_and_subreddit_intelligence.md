@@ -1,6 +1,6 @@
 ---
-inclusion: auto
-fileMatchPattern: "**/avatar*,**/persona*,**/generation*,**/subreddit*,**/karma*,**/phase*,**/comment_draft*"
+inclusion: fileMatch
+fileMatchPattern: "**/avatar*,**/persona*,**/generation*,**/subreddit*,**/karma*,**/phase*,**/comment_draft*,**/hobby*,**/health_checker*"
 ---
 
 # Avatar Profile Management & Subreddit Intelligence — Design Specification

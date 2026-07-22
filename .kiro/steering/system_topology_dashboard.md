@@ -1,6 +1,6 @@
 ---
-inclusion: auto
-fileMatchPattern: "**/admin_dashboard*,**/admin_health*,**/dashboard*,**/topology*,**/transparency*"
+inclusion: fileMatch
+fileMatchPattern: "**/topology*,**/dashboard*,**/admin_health*,**/transparency*"
 ---
 
 # System Topology Dashboard — Design Specification
