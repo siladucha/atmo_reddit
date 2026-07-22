@@ -92,11 +92,11 @@ A/B testing framework to scientifically validate whether the posting method (old
 
 - [ ] 12. Integration Testing & Deploy @optional
   Verify end-to-end flow locally, fix integration issues, deploy to staging.
-  - [~] 12.1. Test: create experiment → add 2 groups → assign 5+ avatars each → start (all transitions work)
-  - [~] 12.2. Test: control enforcer overrides budget, task creation uses correct posting_strategy, extension receives posting_strategy
-  - [~] 12.3. Test: weekly metric collection and statistical report generation
-  - [~] 12.4. Test: phase evaluation skipped for experiment avatars; pausing restores normal behavior
-  - [~] 12.5. Verify no regression for non-experiment avatars; migration applies cleanly on staging
+  - [ ] 12.1. Test: create experiment → add 2 groups → assign 5+ avatars each → start (all transitions work)
+  - [ ] 12.2. Test: control enforcer overrides budget, task creation uses correct posting_strategy, extension receives posting_strategy
+  - [ ] 12.3. Test: weekly metric collection and statistical report generation
+  - [ ] 12.4. Test: phase evaluation skipped for experiment avatars; pausing restores normal behavior
+  - [ ] 12.5. Verify no regression for non-experiment avatars; migration applies cleanly on staging
 
 ## Task Dependency Graph
 

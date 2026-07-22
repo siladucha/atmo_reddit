@@ -161,6 +161,8 @@ Phase 1A+1B ✅ COMPLETE. Silent death is no longer possible — operator gets T
 | 2026-07-07 | **Beat memory leak RESOLVED** | Root cause: `include=[]` loaded 31 heavy modules into Beat (unnecessary). Fix: separate lightweight `beat_app.py`. Stable 25 MB. Risk R-INFRA-002 → `resolved`. Deploy grace period added to watchdog + deploy.sh. |
 | 2026-07-15 | **Provider Budget Multi-Channel Alerting DEPLOYED** | `check_provider_budgets` Celery task every 4h. 3 channels: Telegram push, email (owner+partner), admin bell. Partner dashboard now shows system alerts bar. Redis cooldown 12h. Prevents R-AI-008 (silent credit exhaustion). |
 | 2026-07-19 | **LLM Quality Monitor DEPLOYED** | `check_llm_quality` task every 4h. Tracks quality_outcome on every LLM call. Detects degradation vs 7-day baseline (success rate, latency, fallback rate, empty rate). Admin page + dashboard alerts. Risk R-AI-011 → mitigated. |
+| 2026-07-22 | **Stripe Billing Integration DEPLOYED (code)** | BillingService + SubscriptionManager + AccessGate + webhook handler + portal billing + admin billing + coupons. 98 tests. Pending: staging/prod deploy. Risk R-BIZ-009 → mitigated. |
+| 2026-07-22 | **Engineering Memory / QA Intelligence DEPLOYED** | BugReport PostgreSQL model, intake form /report-issue (3-layer anti-bot, screenshot upload, auto-detect role), admin sidebar links, 31 bugs seeded. Notion deprecated as primary store. Closes: BUG-025 (Report Bug link), BUG-032 (Extension link). QA verification UI pending. |
 
 ## Related Documentation
 

@@ -31,7 +31,7 @@
       "for_ai_agent": "When asked about risks, always reference by ID. When proposing fixes, map to existing GAP/IMP IDs. When analyzing new incidents, check if they map to an existing risk or require a new entry.",
       "for_analysts": "Escalation level determines response SLA. CRITICAL = page immediately. HIGH = same-day fix. MEDIUM = sprint backlog. LOW = backlog. INFORMATIONAL = track only."
     },
-    "total_risks": 104
+    "total_risks": 105
   },
   "escalation_matrix": {
     "CRITICAL": {
@@ -719,6 +719,22 @@
       "mitigation": "Document shared avatar policy. Prefer 1:1 avatar-client mapping. If shared, segment subreddit assignments.",
       "status": "open",
       "detected_date": "2026-06-25"
+    },
+    {
+      "id": "R-BIZ-009",
+      "group": "BUSINESS",
+      "title": "Zero Revenue / PMF Risk",
+      "description": "Platform fully built but no paying clients yet. Revenue = $0. Pre-warmed avatar inventory + AI pipeline operational but commercial lifecycle not activated until Stripe billing integration.",
+      "impact": "Business cannot sustain without revenue. Engineering investment at risk if PMF not proven. Partner patience finite.",
+      "likelihood": "High",
+      "escalation": "HIGH",
+      "source": "Business model analysis, partnership agreement, pilot client pipeline",
+      "related_gaps": [],
+      "mitigation": "Stripe billing integration deployed July 22, 2026. 4 plan tiers live. Coupon system for pilot clients. E2E payment flow working. Remaining: first paying client conversion.",
+      "status": "mitigated",
+      "detected_date": "2026-06-25",
+      "mitigated_date": "2026-07-22",
+      "mitigation_notes": "Stripe billing integration deployed July 22, 2026. 4 plan tiers live (Seed $149, Starter $399, Growth $799, Scale $1,499). Coupon system for pilot clients (ZoomREI: GBL27Qgm 70% off 3 months). E2E payment flow working: onboarding → Stripe Checkout → webhook → subscription_status sync → AccessGate pipeline gating. Infrastructure ready for first paying client. Risk reduced from Critical to High — no paying client yet but all billing infrastructure operational."
     },
     {
       "id": "R-SEC-001",
