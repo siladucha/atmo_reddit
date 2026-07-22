@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report an Issue — RAMP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+    <!-- Dark header -->
+    <header class="bg-gray-900 text-white py-4 px-6 shadow-md">
+        <div class="max-w-2xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <svg class="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+                </svg>
+                <h1 class="text-xl font-semibold tracking-tight">RAMP</h1>
+            </div>
+            <span class="text-sm text-gray-400">Issue Reporter</span>
+        </div>
+    </header>
+
+    <main class="max-w-2xl mx-auto py-10 px-4 sm:px-6">
+
+        {% if success %}
+        <!-- Success confirmation (replaces form) -->
+        <div class="bg-white rounded-lg shadow-sm p-8 text-center" role="alert" aria-live="polite">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                <svg class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
+                </svg>
+            </div>
+            <h2 class="text-lg font-semibold text-gray-900 mb-2">Report submitted</h2>
+            <p class="text-gray-600">Thank you. Our QA team will review your report and investigate the issue.</p>
+            <a href="/report-issue" class="inline-block mt-6 text-sm text-indigo-600 hover:text-indigo-500 font-medium">Submit another report &rarr;</a>
+        </div>
+
+        {% else %}
+        <!-- Page heading -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-bold text-gray-900">Report an Issue</h2>
+            <p class="mt-1 text-sm text-gray-600">Help us improve by describing what went wrong.</p>
+            {% if reporter_role %}
+            <div class="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border border-indigo-100 rounded-md text-xs text-indigo-700">
+                <span>Reporting as:</span>
+                <strong>{{ reporter_name or reporter_email or 'authenticated' }}</strong>
+                <span class="px-1.5 py-0.5 bg-indigo-100 rounded text-indigo-600 font-medium">{{ reporter_role }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Error banner -->
+        {% if error %}
+        <div class="mb-6 rounded-md bg-red-50 border border-red-200 p-4" role="alert" aria-live="assertive">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/>
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-red-800">{{ error }}</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Form card -->
+        <div class="bg-white shadow-sm rounded-lg p-6 sm:p-8">
+            <form action="/api/report-issue" method="post" enctype="multipart/form-data" class="space-y-6" id="bug-form">
+
+                <!-- Anti-bot: honeypot (bots fill hidden fields) -->
+                <input type="text" name="website" style="display:none" tabindex="-1" autocomplete="off" aria-hidden="true">
+
+                <!-- Anti-bot: timestamp (form must be open >3 seconds) -->
+                <input type="hidden" name="form_ts" id="form_ts" value="">
+
+                <!-- Anti-bot: JS challenge (bots don't execute JS) -->
+                <input type="hidden" name="human_check" id="human_check" value="">
+
+                <!-- Hidden reporter context (auto-filled if logged in) -->
+                <input type="hidden" name="reporter_role" value="{{ reporter_role or '' }}">
+                <input type="hidden" name="reporter_name" value="{{ reporter_name or '' }}">
+
+                <!-- What happened? -->
+                <div>
+                    <label for="what_happened" class="block text-sm font-medium text-gray-700">
+                        What happened? <span class="text-red-500" aria-label="required">*</span>
+                    </label>
+                    <textarea
+                        id="what_happened"
+                        name="what_happened"
+                        rows="3"
+                        required
+                        aria-required="true"
+                        class="mt-1 block w-full rounded-md border border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-3"
+                        placeholder="Describe the problem you encountered"
+                    ></textarea>
+                </div>
+
+                <!-- Where did it happen? -->
+                <div>
+                    <label for="where" class="block text-sm font-medium text-gray-700">
+                        Where did it happen? <span class="text-red-500" aria-label="required">*</span>
+                    </label>
+                    <input
+                        type="text"
+                        id="where"
+                        name="where"
+                        required
+                        aria-required="true"
+                        class="mt-1 block w-full rounded-md border border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-3"
+                        placeholder="Page URL, feature name, or section"
+                    >
+                </div>
+
+                <!-- What was expected? -->
+                <div>
+                    <label for="expected" class="block text-sm font-medium text-gray-700">
+                        What was expected? <span class="text-red-500" aria-label="required">*</span>
+                    </label>
+                    <textarea
+                        id="expected"
+                        name="expected"
+                        rows="3"
+                        required
+                        aria-required="true"
+                        class="mt-1 block w-full rounded-md border border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-3"
+                        placeholder="What should have happened instead"
+                    ></textarea>
+                </div>
+
+                <!-- What was the result? -->
+                <div>
+                    <label for="actual_result" class="block text-sm font-medium text-gray-700">
+                        What was the result? <span class="text-red-500" aria-label="required">*</span>
+                    </label>
+                    <textarea
+                        id="actual_result"
+                        name="actual_result"
+                        rows="3"
+                        required
+                        aria-required="true"
+                        class="mt-1 block w-full rounded-md border border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-3"
+                        placeholder="What actually happened"
+                    ></textarea>
+                </div>
+
+                <!-- Screenshot (optional) -->
+                <div>
+                    <label for="screenshot" class="block text-sm font-medium text-gray-700">
+                        Screenshot <span class="text-gray-400 text-xs font-normal">(optional)</span>
+                    </label>
+                    <input
+                        type="file"
+                        id="screenshot"
+                        name="screenshot"
+                        accept="image/*"
+                        aria-describedby="screenshot-help"
+                        class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                    >
+                    <p id="screenshot-help" class="mt-1 text-xs text-gray-400">PNG, JPG, or GIF up to 10 MB</p>
+                </div>
+
+                <!-- Email (optional) -->
+                <div>
+                    <label for="email" class="block text-sm font-medium text-gray-700">
+                        Your email <span class="text-gray-400 text-xs font-normal">(optional — for follow-up)</span>
+                    </label>
+                    <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        aria-describedby="email-help"
+                        class="mt-1 block w-full rounded-md border border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-3"
+                        placeholder="you@example.com"
+                        value="{{ reporter_email or '' }}"
+                    >
+                    <p id="email-help" class="mt-1 text-xs text-gray-400">We'll only use this to follow up on your report</p>
+                </div>
+
+                <!-- Submit -->
+                <div class="pt-2">
+                    <button
+                        type="submit"
+                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                    >
+                        Submit Report
+                    </button>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+
+        <!-- Footer -->
+        <p class="mt-8 text-center text-xs text-gray-400">
+            RAMP Engineering Memory &mdash; Issue reports are reviewed by the QA team.
+        </p>
+    </main>
+
+    <!-- Anti-bot JS: sets timestamp + challenge value -->
+    <script>
+    (function() {
+        // Set form open timestamp
+        document.getElementById('form_ts').value = Math.floor(Date.now() / 1000).toString();
+        // JS challenge: compute simple value that proves JS executed
+        document.getElementById('human_check').value = (7 * 13).toString();
+    })();
+    </script>
+
+</body>
+</html>

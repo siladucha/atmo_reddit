@@ -121,6 +121,9 @@ __all__ = [
     "ControlViolation",
     "ReportGenerationJob",
     "ReportJobEvent",
+    "BillingEvent",
+    "ClientInvoice",
+    "BillingCoupon",
 ]
 
 # GEO/AEO Prompt Monitoring
@@ -181,3 +184,11 @@ from app.models.upsell_event import UpsellEvent
 
 # Landscape Report Observability
 from app.models.report_generation_job import ReportGenerationJob, ReportJobEvent
+
+# Stripe Billing Integration
+from app.models.billing_event import BillingEvent
+from app.models.client_invoice import ClientInvoice
+from app.models.billing_coupon import BillingCoupon
+
+# Engineering Memory / QA
+from app.models.bug_report import BugReport

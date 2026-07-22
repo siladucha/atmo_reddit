@@ -38,6 +38,9 @@ PUBLIC_ROUTES = {
     "/resend-verification",
     "/forgot-password",
     "/reset-password",
+    "/report-issue",
+    "/api/report-issue",
+    "/api/webhooks/stripe",
 }
 
 # Routes protected by HTTP Basic Auth (API docs)
