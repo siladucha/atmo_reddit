@@ -39,6 +39,9 @@ def _build_problem_text(form_data: dict) -> str:
         val = form_data.get(key, "").strip()
         if val:
             parts.append(f"{label}: {val}")
+    screenshot_url = form_data.get("screenshot_url", "").strip()
+    if screenshot_url:
+        parts.append(f"[Screenshot: {screenshot_url}]")
     return "\n\n".join(parts)
 
 

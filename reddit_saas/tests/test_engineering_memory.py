@@ -1,15 +1,13 @@
 """Tests for app/services/engineering_memory.py"""
 
-import asyncio
-
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import MagicMock, patch
 
 from app.services.engineering_memory import (
-    create_incident,
-    _truncate_title,
     _build_problem_text,
     _build_reporter,
+    _truncate_title,
+    create_incident,
 )
 
 
@@ -78,111 +76,109 @@ class TestBuildProblemText:
         assert "Where:" not in result
         assert "Actual result:" not in result
 
+    def test_no_screenshot_when_missing(self):
+        form_data = {"what_happened": "Bug", "where": "Page", "expected": "X", "actual_result": "Y"}
+        result = _build_problem_text(form_data)
+        assert "Screenshot" not in result
+
 
 class TestBuildReporter:
-    def test_email_provided(self):
+    def test_email_only(self):
         assert _build_reporter({"email": "user@example.com"}) == "user@example.com"
 
-    def test_empty_email(self):
+    def test_name_and_email(self):
+        result = _build_reporter({"email": "user@example.com", "reporter_name": "Alice"})
+        assert "Alice" in result
+        assert "user@example.com" in result
+
+    def test_name_email_and_role(self):
+        result = _build_reporter({
+            "email": "user@example.com",
+            "reporter_name": "Alice",
+            "reporter_role": "QA",
+        })
+        assert "Alice" in result
+        assert "user@example.com" in result
+        assert "[QA]" in result
+
+    def test_empty_email_defaults_to_client(self):
         assert _build_reporter({"email": ""}) == "Client"
 
-    def test_no_email_key(self):
+    def test_no_email_key_defaults_to_client(self):
         assert _build_reporter({}) == "Client"
 
-    def test_whitespace_email(self):
+    def test_whitespace_email_defaults_to_client(self):
         assert _build_reporter({"email": "   "}) == "Client"
 
 
 class TestCreateIncident:
-    def test_creates_incident_successfully(self):
+    def _make_db(self):
+        """Return a mock DB session that satisfies create_incident."""
         mock_db = MagicMock()
-        # Mock get_setting to return token and database_id
-        with patch("app.services.engineering_memory.get_setting") as mock_get_setting:
-            mock_get_setting.side_effect = lambda db, key: {
-                "notion_engineering_memory_token": "ntn_test_token",
-                "notion_engineering_memory_database_id": "db-123-456",
-            }.get(key, "")
+        # _get_next_bug_id calls db.execute(...).scalar() — return None → BUG-001
+        mock_db.execute.return_value.scalar.return_value = None
+        # db.refresh() sets attributes on the bug — patch it as no-op
+        mock_db.refresh = MagicMock()
+        mock_db.commit = MagicMock()
+        return mock_db
 
-            mock_response = MagicMock()
-            mock_response.json.return_value = {"id": "page-abc-123"}
-            mock_response.raise_for_status = MagicMock()
-
-            with patch("httpx.AsyncClient") as mock_client_cls:
-                mock_client = AsyncMock()
-                mock_client.post.return_value = mock_response
-                mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-                mock_client.__aexit__ = AsyncMock(return_value=False)
-                mock_client_cls.return_value = mock_client
-
-                form_data = {
-                    "what_happened": "Button is broken",
-                    "where": "/admin/dashboard",
-                    "expected": "Button should submit form",
-                    "actual_result": "Nothing happens on click",
-                    "email": "tester@example.com",
-                }
-
-                page_id = asyncio.run(create_incident(mock_db, form_data))
-
-                assert page_id == "page-abc-123"
-                mock_client.post.assert_called_once()
-
-                # Verify the payload structure
-                call_args = mock_client.post.call_args
-                payload = call_args.kwargs.get("json") or call_args[1].get("json")
-                props = payload["properties"]
-                assert props["Status"]["select"]["name"] == "Reported"
-                assert "Category" not in props
-                assert props["Reporter"]["rich_text"][0]["text"]["content"] == "tester@example.com"
-
-    def test_raises_on_missing_token(self):
-        mock_db = MagicMock()
-        with patch("app.services.engineering_memory.get_setting") as mock_get_setting:
-            mock_get_setting.return_value = ""
-
-            with pytest.raises(ValueError, match="token"):
-                asyncio.run(create_incident(mock_db, {"what_happened": "test"}))
-
-    def test_raises_on_missing_database_id(self):
-        mock_db = MagicMock()
-        with patch("app.services.engineering_memory.get_setting") as mock_get_setting:
-            mock_get_setting.side_effect = lambda db, key: {
-                "notion_engineering_memory_token": "token123",
-                "notion_engineering_memory_database_id": "",
-            }.get(key, "")
-
-            with pytest.raises(ValueError, match="database ID"):
-                asyncio.run(create_incident(mock_db, {"what_happened": "test"}))
+    def test_creates_bug_report(self):
+        mock_db = self._make_db()
+        form_data = {
+            "what_happened": "Button is broken",
+            "where": "/admin/dashboard",
+            "expected": "Button should submit form",
+            "actual_result": "Nothing happens on click",
+            "email": "tester@example.com",
+        }
+        result = create_incident(mock_db, form_data)
+        mock_db.add.assert_called_once()
+        mock_db.commit.assert_called_once()
+        # The added object should be a BugReport with correct fields
+        bug = mock_db.add.call_args[0][0]
+        assert bug.status == "Reported"
+        assert bug.bug_id == "BUG-001"
+        assert "Button is broken" in bug.title
+        assert "tester@example.com" in bug.reporter
 
     def test_reporter_defaults_to_client(self):
-        mock_db = MagicMock()
-        with patch("app.services.engineering_memory.get_setting") as mock_get_setting:
-            mock_get_setting.side_effect = lambda db, key: {
-                "notion_engineering_memory_token": "token",
-                "notion_engineering_memory_database_id": "db-id",
-            }.get(key, "")
+        mock_db = self._make_db()
+        form_data = {
+            "what_happened": "Something",
+            "where": "Somewhere",
+            "expected": "A",
+            "actual_result": "B",
+        }
+        create_incident(mock_db, form_data)
+        bug = mock_db.add.call_args[0][0]
+        assert bug.reporter == "Client"
 
-            mock_response = MagicMock()
-            mock_response.json.return_value = {"id": "page-xyz"}
-            mock_response.raise_for_status = MagicMock()
+    def test_screenshot_url_stored(self):
+        mock_db = self._make_db()
+        form_data = {
+            "what_happened": "Visual bug",
+            "screenshot_url": "/static/uploads/bugs/test.png",
+        }
+        create_incident(mock_db, form_data)
+        bug = mock_db.add.call_args[0][0]
+        assert bug.screenshot_url == "/static/uploads/bugs/test.png"
+        assert "[Screenshot: /static/uploads/bugs/test.png]" in bug.problem
 
-            with patch("httpx.AsyncClient") as mock_client_cls:
-                mock_client = AsyncMock()
-                mock_client.post.return_value = mock_response
-                mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-                mock_client.__aexit__ = AsyncMock(return_value=False)
-                mock_client_cls.return_value = mock_client
+    def test_sequential_bug_id(self):
+        mock_db = self._make_db()
+        mock_db.execute.return_value.scalar.return_value = "BUG-005"
+        create_incident(mock_db, {"what_happened": "test"})
+        bug = mock_db.add.call_args[0][0]
+        assert bug.bug_id == "BUG-006"
 
-                form_data = {
-                    "what_happened": "Something",
-                    "where": "Somewhere",
-                    "expected": "A",
-                    "actual_result": "B",
-                }
+    def test_environment_defaults_to_prod(self):
+        mock_db = self._make_db()
+        create_incident(mock_db, {"what_happened": "test"})
+        bug = mock_db.add.call_args[0][0]
+        assert bug.environment == "prod"
 
-                asyncio.run(create_incident(mock_db, form_data))
-
-                call_args = mock_client.post.call_args
-                payload = call_args.kwargs.get("json") or call_args[1].get("json")
-                reporter = payload["properties"]["Reporter"]["rich_text"][0]["text"]["content"]
-                assert reporter == "Client"
+    def test_environment_from_form(self):
+        mock_db = self._make_db()
+        create_incident(mock_db, {"what_happened": "test", "environment": "staging"})
+        bug = mock_db.add.call_args[0][0]
+        assert bug.environment == "staging"
