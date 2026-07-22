@@ -814,19 +814,41 @@ def check_avatar_health(db: Session, avatar: Avatar) -> HealthCheckResult:
 
     # Update health_status (and health_status_changed_at if changed)
     if new_status != previous_status:
-        avatar.health_status = new_status
-        avatar.health_status_changed_at = now
-
-        # Auto-freeze when status transitions to shadowbanned or suspended
-        if new_status in (HealthStatus.SHADOWBANNED.value, HealthStatus.SUSPENDED.value):
-            avatar.is_frozen = True
-            avatar.freeze_reason = new_status
-            avatar.frozen_at = now
+        # DUAL-CONFIRMATION GUARD (BUG-033 fix):
+        # For shadowban detection via "zero_content_with_history" (API returned 0 comments),
+        # require 2 consecutive detections before freezing.
+        # This prevents transient API failures from triggering false positives.
+        # NOTE: "submission_visibility_probe" and "visibility_check" (0% ratio with actual
+        # sampled comments) are DEFINITIVE — those do NOT need confirmation.
+        if (
+            new_status == HealthStatus.SHADOWBANNED.value
+            and detection_method == "zero_content_with_history"
+            and previous_status not in (HealthStatus.SHADOWBANNED.value, HealthStatus.SUSPENDED.value, HealthStatus.LIMITED.value)
+        ):
+            # First detection via zero-content heuristic — NOT confirmed yet.
+            # Mark as LIMITED (signals issue without freezing pipeline).
+            # Next health check (6-12h) will confirm or clear.
             logger.warning(
-                "AVATAR_AUTO_FROZEN | username=%s | reason=%s | "
-                "previous_status=%s | detection_method=%s",
-                username, new_status, previous_status, detection_method,
+                "SHADOWBAN_SUSPECTED (not confirmed) | username=%s | method=%s | "
+                "will_confirm_on_next_check | NOT freezing yet",
+                username, detection_method,
             )
+            avatar.health_status = HealthStatus.LIMITED.value
+            avatar.health_status_changed_at = now
+        else:
+            avatar.health_status = new_status
+            avatar.health_status_changed_at = now
+
+            # Auto-freeze when status transitions to shadowbanned or suspended
+            if new_status in (HealthStatus.SHADOWBANNED.value, HealthStatus.SUSPENDED.value):
+                avatar.is_frozen = True
+                avatar.freeze_reason = new_status
+                avatar.frozen_at = now
+                logger.warning(
+                    "AVATAR_AUTO_FROZEN | username=%s | reason=%s | "
+                    "previous_status=%s | detection_method=%s",
+                    username, new_status, previous_status, detection_method,
+                )
 
             # Flag pending drafts for this avatar
             try:

@@ -340,15 +340,15 @@ New phase: {phase_desc}
 What this means:
 {what_it_means}
 
-View avatar details: {portal_link}
+View voice details: {portal_link}
 
 —
-RAMP Avatar Intelligence
+RAMP Voice Intelligence
 """
 
     body_html = f"""<div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;padding:20px">
 <div style="background:#dcfce7;border-radius:8px;padding:16px;margin-bottom:16px">
-  <h2 style="margin:0;color:#166534">🎉 Avatar Promoted!</h2>
+  <h2 style="margin:0;color:#166534">🎉 Voice Promoted!</h2>
 </div>
 
 <p><strong>{avatar_username}</strong> has graduated to the next phase:</p>
@@ -361,10 +361,10 @@ RAMP Avatar Intelligence
 <p style="color:#555">{what_it_means}</p>
 
 <div style="margin-top:24px">
-  <a href="{portal_link}" style="background:#22c55e;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block">View Avatar</a>
+  <a href="{portal_link}" style="background:#22c55e;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block">View Voice</a>
 </div>
 
-<p style="color:#888;font-size:12px;margin-top:24px">RAMP Avatar Intelligence — gorampit.com</p>
+<p style="color:#888;font-size:12px;margin-top:24px">RAMP Voice Intelligence — gorampit.com</p>
 </div>"""
 
     sent = _send_client_email(client_id, subject, body_text, body_html)
@@ -1286,6 +1286,128 @@ RAMP Business Intelligence — gorampit.com/admin
 
     except Exception as e:
         logger.warning("Failed to send weekly business summary: %s", e)
+        return False
+    finally:
+        db.close()
+
+
+# ─── 6. Trial-to-Paid Welcome Email ──────────────────────────────────────────
+
+
+def send_trial_to_paid_welcome_email(
+    client_id,
+    plan_type: str,
+    amount_cents: int,
+) -> bool:
+    """Send welcome email on successful trial-to-paid transition.
+
+    Called when SubscriptionManager detects trialing→active transition.
+    Confirms plan activation and first charge amount.
+
+    Requirements: 8.4
+    """
+    from app.database import SessionLocal
+    from app.models.client import Client
+
+    client_uuid = uuid.UUID(str(client_id))
+    db = SessionLocal()
+    try:
+        client = db.query(Client).filter(Client.id == client_uuid).first()
+        if not client:
+            return False
+
+        brand_name = client.brand_name or "your company"
+
+        # Format amount
+        amount_dollars = amount_cents / 100 if amount_cents else 0
+        amount_str = f"${amount_dollars:,.2f}"
+
+        # Plan display name
+        plan_names = {
+            "seed": "Seed",
+            "starter": "Starter",
+            "growth": "Growth",
+            "scale": "Scale",
+        }
+        plan_display = plan_names.get(plan_type, plan_type.capitalize() if plan_type else "Starter")
+
+        portal_link = _portal_url(client_uuid, "/billing")
+
+        subject = f"🎉 Welcome to RAMP! Your {plan_display} plan is now active"
+
+        body_text = f"""Welcome to RAMP, {brand_name}!
+
+Your {plan_display} plan is now active. First charge: {amount_str}/month.
+
+Your trial has ended and your subscription is live. All pipeline features continue running seamlessly — no interruption to your service.
+
+What's included in your {plan_display} plan:
+• AI-powered content generation for your voices
+• Automated pipeline: scoring, generation, scheduling
+• AI visibility monitoring (GEO/AEO)
+• Full access to the client portal
+
+Manage your subscription: {portal_link}
+
+Thank you for choosing RAMP. We're building your Reddit presence every day.
+
+—
+The RAMP Team
+gorampit.com
+"""
+
+        body_html = f"""<div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;padding:20px">
+<div style="background:#dcfce7;border-radius:8px;padding:20px;margin-bottom:16px;text-align:center">
+  <h1 style="margin:0;color:#166534">🎉 Welcome to RAMP!</h1>
+  <p style="margin:8px 0 0;color:#15803d;font-size:16px">Your {plan_display} plan is now active</p>
+</div>
+
+<p>Hi {brand_name},</p>
+
+<p>Your trial has ended and your subscription is live. All features continue running seamlessly.</p>
+
+<div style="background:#f0fdf4;border-radius:8px;padding:16px;margin:16px 0">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div style="font-size:12px;color:#666;text-transform:uppercase">Plan</div>
+      <div style="font-size:20px;font-weight:bold;color:#166534">{plan_display}</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:12px;color:#666;text-transform:uppercase">First Charge</div>
+      <div style="font-size:20px;font-weight:bold;color:#166534">{amount_str}/mo</div>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-bottom:8px">What's included:</h3>
+<ul style="color:#555;padding-left:20px">
+  <li>AI-powered content generation for your voices</li>
+  <li>Automated pipeline: scoring, generation, scheduling</li>
+  <li>AI visibility monitoring (GEO/AEO)</li>
+  <li>Full access to the client portal</li>
+</ul>
+
+<div style="margin-top:24px;text-align:center">
+  <a href="{portal_link}" style="background:#22c55e;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">Manage Subscription</a>
+</div>
+
+<p style="color:#666;font-size:13px;margin-top:24px">Thank you for choosing RAMP. We're building your Reddit presence every day.</p>
+
+<p style="color:#888;font-size:12px;margin-top:24px">
+  The RAMP Team — gorampit.com
+</p>
+</div>"""
+
+        sent = _send_client_email(client_uuid, subject, body_text, body_html)
+        if sent:
+            logger.info(
+                "Trial-to-paid welcome email sent for client %s (%s plan, %s)",
+                client_id, plan_type, amount_str,
+            )
+        return sent > 0
+
+    except Exception as e:
+        logger.warning("Failed to send trial-to-paid welcome email for %s: %s", client_id, e)
         return False
     finally:
         db.close()
