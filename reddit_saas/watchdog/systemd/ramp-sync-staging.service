@@ -1,0 +1,14 @@
+[Unit]
+Description=RAMP sync prod DB to staging
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/ramp/sync-staging.sh
+TimeoutStartSec=600
+StandardOutput=journal
+StandardError=journal
+
+# Load Telegram credentials for notifications
+EnvironmentFile=-/opt/ramp/.env.watchdog

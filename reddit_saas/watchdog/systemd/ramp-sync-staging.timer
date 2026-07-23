@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily prod→staging DB sync (after EPG generation)
+
+[Timer]
+# 09:30 Israel time — EPG builds at 08:15, generates until ~09:00
+OnCalendar=*-*-* 09:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
