@@ -99,7 +99,7 @@ DC="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
 
 $DC exec -T db psql -U reddit_saas_user -d reddit_saas <<SQL
 -- Mask passwords (set all to bcrypt hash of 'staging123')
-UPDATE users SET hashed_password = '\$2b\$12\$LQv3c1yqBo9SkvXS7QTJPe1GINbRx3F3H2eRzY5GhBN3mACkr9Fhy' WHERE hashed_password IS NOT NULL;
+UPDATE users SET hashed_password = '\$2b\$12\$ZNRqF8qql9igR/ShNkK2.eAKndrst3wcVfYeW4ER6vpnordCp/oMu' WHERE hashed_password IS NOT NULL;
 
 -- Clear sensitive tokens
 UPDATE users SET password_reset_token_hash = NULL, email_verification_token_hash = NULL;
