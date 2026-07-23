@@ -29,6 +29,12 @@ from app.models.user_role import UserRole
 router = APIRouter(prefix="/admin/subreddits", tags=["admin-risk-profile"])
 templates = Jinja2Templates(directory="app/templates")
 
+from app.version import __version__ as app_version
+from app.config import get_settings as _get_settings
+templates.env.globals["app_version"] = app_version
+templates.env.globals["posting_disabled"] = lambda: _get_settings().posting_disabled
+templates.env.globals["app_env"] = _get_settings().app_env
+
 # Roles allowed to view risk profile page
 _ALLOWED_ROLES = {
     UserRole.owner,

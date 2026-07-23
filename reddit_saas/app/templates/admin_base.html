@@ -36,6 +36,10 @@
         .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
         .sidebar-nav::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
 
+        /* Collapsible sidebar sections */
+        .sidebar-collapsible { transition: color 0.15s; }
+        .sidebar-chevron { transition: transform 0.15s; }
+
         /* ----- Block tooltips ----- */
         .block-tooltip-trigger {
             display: inline-flex;
@@ -314,7 +318,10 @@
 
             {# ---------- OPERATIONS (owner only, except Review/Activity/Users for partner) ---------- #}
             {% if is_owner or is_partner %}
-            <div class="sidebar-group-label px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Operations</div>
+            <div class="sidebar-group-label sidebar-collapsible px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold cursor-pointer select-none hover:text-gray-300 flex items-center gap-1" data-section="operations">
+                <svg class="w-3 h-3 transition-transform sidebar-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                Operations
+            </div>
 
             <a href="/admin/"
                class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
@@ -440,7 +447,10 @@
 
             {# ---------- CONTENT (owner + partner + qa see all; client roles see limited) ---------- #}
             {% if is_platform_admin or is_qa %}
-            <div class="sidebar-group-label px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Content</div>
+            <div class="sidebar-group-label sidebar-collapsible px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold cursor-pointer select-none hover:text-gray-300 flex items-center gap-1" data-section="content">
+                <svg class="w-3 h-3 transition-transform sidebar-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                Content
+            </div>
 
             <a href="/admin/clients"
                class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
@@ -494,8 +504,10 @@
 
             {# ---------- MONITORING (owner: all; partner: AI Costs + Audit Logs) ---------- #}
             {% if is_platform_admin %}
-            <div class="sidebar-group-label px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Monitoring</div>
-            {% endif %}
+            <div class="sidebar-group-label sidebar-collapsible px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold cursor-pointer select-none hover:text-gray-300 flex items-center gap-1" data-section="monitoring">
+                <svg class="w-3 h-3 transition-transform sidebar-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                Monitoring
+            </div>
 
             {% if is_platform_admin %}
             <a href="/admin/health"
@@ -545,6 +557,10 @@
                 <span class="sidebar-label">Audit Logs</span>
             </a>
             {% endif %}
+            {% endif %}
+
+            <!-- Group divider (Monitoring end) -->
+            <div class="my-2 border-t border-slate-700"></div>
 
             {# ---------- DAILY REVIEW (owner/partner) ---------- #}
             <a href="/admin/daily-review"
@@ -561,7 +577,10 @@
             <!-- Group divider -->
             <div class="my-2 border-t border-slate-700"></div>
 
-            <div class="sidebar-group-label px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Settings</div>
+            <div class="sidebar-group-label sidebar-collapsible px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold cursor-pointer select-none hover:text-gray-300 flex items-center gap-1" data-section="settings">
+                <svg class="w-3 h-3 transition-transform sidebar-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                Settings
+            </div>
 
             <a href="/admin/settings"
                class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors
@@ -740,6 +759,46 @@
                 backdrop.classList.add('hidden');
             }
         }
+
+        // Sidebar section collapse persistence (localStorage)
+        (function() {
+            var headers = document.querySelectorAll('.sidebar-collapsible[data-section]');
+            headers.forEach(function(h) {
+                var key = 'sidebar_' + h.dataset.section;
+                var saved = localStorage.getItem(key);
+                // Default: collapsed. Only open if explicitly saved as 'open'
+                if (saved !== 'open') h.dataset.collapsed = 'true';
+
+                h.addEventListener('click', function() {
+                    var collapsed = h.dataset.collapsed === 'true';
+                    if (collapsed) {
+                        delete h.dataset.collapsed;
+                        localStorage.setItem(key, 'open');
+                    } else {
+                        h.dataset.collapsed = 'true';
+                        localStorage.setItem(key, 'closed');
+                    }
+                    applySiblingVisibility(h);
+                });
+                // Apply initial state
+                applySiblingVisibility(h);
+            });
+
+            function applySiblingVisibility(header) {
+                var collapsed = header.dataset.collapsed === 'true';
+                var el = header.nextElementSibling;
+                while (el) {
+                    // Stop at next collapsible header or border-t divider
+                    if (el.classList.contains('sidebar-collapsible') || 
+                        (el.tagName === 'DIV' && el.classList.contains('my-2') && el.classList.contains('border-t'))) break;
+                    el.style.display = collapsed ? 'none' : '';
+                    el = el.nextElementSibling;
+                }
+                // Update chevron
+                var chevron = header.querySelector('.sidebar-chevron');
+                if (chevron) chevron.style.transform = collapsed ? 'rotate(0deg)' : 'rotate(90deg)';
+            }
+        })();
 
         function exportToJson(endpoint) {
             var a = document.createElement('a');

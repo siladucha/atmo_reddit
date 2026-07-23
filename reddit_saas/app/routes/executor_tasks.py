@@ -26,6 +26,12 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/tasks", tags=["executor-tasks"])
 templates = Jinja2Templates(directory="app/templates")
 
+from app.version import __version__ as app_version
+from app.config import get_settings as _get_settings
+templates.env.globals["app_version"] = app_version
+templates.env.globals["posting_disabled"] = lambda: _get_settings().posting_disabled
+templates.env.globals["app_env"] = _get_settings().app_env
+
 
 def _get_task_by_token(db: Session, task_code: str, token: str) -> ExecutionTask:
     """Resolve task by code + token. Raises appropriate HTTP errors."""
