@@ -4717,77 +4717,8 @@ def admin_remove_subreddit(
 
 
 # ---------------------------------------------------------------------------
-# Celery task monitoring (6.7)
+# Celery task monitoring (6.7) — MOVED to app/routes/admin_tasks.py
 # ---------------------------------------------------------------------------
-
-@router.get("/tasks", response_class=HTMLResponse)
-def admin_tasks(
-    request: Request,
-    current_user: User = Depends(require_superuser),
-    db: Session = Depends(get_db),
-):
-    schedule = operations_dashboard.get_schedule_with_history(db)
-    run_history = operations_dashboard.get_run_history(
-        db, limit=30, event_types=operations_dashboard._ALL_EVENT_TYPES
-    )
-    clients_list = db.query(Client).filter(Client.is_active.is_(True)).order_by(Client.client_name).all()
-
-    return templates.TemplateResponse(
-        name="admin_tasks.html",
-        context={
-            "request": request,
-            "active_nav": "tasks",
-            "schedule": schedule,
-            "run_history": run_history,
-            "clients": clients_list,
-            "error": None,
-        },
-        request=request,
-    )
-
-
-@router.post("/tasks/trigger/{pipeline_type}/{entity_id}", response_class=HTMLResponse)
-def admin_trigger_pipeline(
-    request: Request,
-    pipeline_type: str,
-    entity_id: str,
-    current_user: User = Depends(require_superuser),
-    db: Session = Depends(get_db),
-):
-    error = None
-    task_id = None
-    try:
-        from app.tasks.worker import celery_app
-        task_id = admin_service.trigger_pipeline(celery_app, pipeline_type, entity_id)
-        audit_service.log_action(
-            db=db,
-            user_id=current_user.id,
-            action="trigger_pipeline",
-            entity_type="task",
-            details={"pipeline_type": pipeline_type, "entity_id": entity_id, "task_id": task_id},
-        )
-    except Exception as e:
-        error = str(e)
-
-    schedule = operations_dashboard.get_schedule_with_history(db)
-    run_history = operations_dashboard.get_run_history(
-        db, limit=30, event_types=operations_dashboard._ALL_EVENT_TYPES
-    )
-    clients_list = db.query(Client).filter(Client.is_active.is_(True)).order_by(Client.client_name).all()
-
-    return templates.TemplateResponse(
-        name="admin_tasks.html",
-        context={
-            "request": request,
-            "active_nav": "tasks",
-            "schedule": schedule,
-            "run_history": run_history,
-            "clients": clients_list,
-            "error": error,
-            "success": f"Pipeline triggered (task: {task_id})" if task_id else None,
-        },
-        request=request,
-    )
 
 
 # ---------------------------------------------------------------------------
