@@ -25,17 +25,21 @@ STAGING_USER="root"
 DUMP_FILE="/tmp/staging_sync_$(date +%Y%m%d).custom"
 REMOTE_DUMP="/tmp/prod_sync.custom"
 LOG_TAG="[STAGING-SYNC]"
-TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
-TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-}"
+
+# Load Telegram credentials (same as watchdog/backup)
+TG_CONFIG="/opt/ramp/watchdog.env"
+if [ -f "$TG_CONFIG" ]; then
+    source "$TG_CONFIG"
+fi
 
 log() { echo "$LOG_TAG $(date '+%H:%M:%S') $1"; }
 
 notify() {
-    if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
-        curl -sf -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-            -d chat_id="$TELEGRAM_CHAT_ID" \
-            -d text="$1" \
-            -d parse_mode="HTML" >/dev/null 2>&1 || true
+    if [ -n "${TG_BOT_TOKEN:-}" ] && [ -n "${TG_CHAT_ID:-}" ]; then
+        curl -sf -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TG_CHAT_ID}" \
+            -d "text=$1" \
+            -d "parse_mode=HTML" >/dev/null 2>&1 || true
     fi
 }
 
