@@ -1,0 +1,153 @@
+{% extends "admin_base.html" %}
+
+{% block title %}QA Board — RAMP{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-white">QA Board</h1>
+            <p class="text-sm text-gray-400 mt-1">Internal bug tracking — replaces Notion</p>
+        </div>
+        <a href="/report-issue" target="_blank"
+           class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded-lg transition-colors">
+            + Report Bug
+        </a>
+    </div>
+
+    <!-- Stats cards -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div class="bg-slate-800 rounded-lg p-3 border border-slate-700">
+            <div class="text-2xl font-bold text-white">{{ total }}</div>
+            <div class="text-xs text-gray-400">Total</div>
+        </div>
+        <div class="bg-slate-800 rounded-lg p-3 border border-red-900/50">
+            <div class="text-2xl font-bold text-red-400">{{ reported }}</div>
+            <div class="text-xs text-gray-400">Reported</div>
+        </div>
+        <div class="bg-slate-800 rounded-lg p-3 border border-yellow-900/50">
+            <div class="text-2xl font-bold text-yellow-400">{{ investigating }}</div>
+            <div class="text-xs text-gray-400">Investigating</div>
+        </div>
+        <div class="bg-slate-800 rounded-lg p-3 border border-blue-900/50">
+            <div class="text-2xl font-bold text-blue-400">{{ fixed }}</div>
+            <div class="text-xs text-gray-400">Fixed</div>
+        </div>
+        <div class="bg-slate-800 rounded-lg p-3 border border-green-900/50">
+            <div class="text-2xl font-bold text-green-400">{{ verified }}</div>
+            <div class="text-xs text-gray-400">Verified</div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex flex-wrap gap-2">
+        <a href="/admin/qa-board"
+           class="px-3 py-1 text-xs rounded-full {{ 'bg-indigo-600 text-white' if not filter_status else 'bg-slate-700 text-gray-300 hover:bg-slate-600' }}">
+            All
+        </a>
+        {% for s in ['Reported', 'Investigating', 'Fixed', 'Verified'] %}
+        <a href="/admin/qa-board?status={{ s }}"
+           class="px-3 py-1 text-xs rounded-full {{ 'bg-indigo-600 text-white' if filter_status == s else 'bg-slate-700 text-gray-300 hover:bg-slate-600' }}">
+            {{ s }}
+        </a>
+        {% endfor %}
+        <span class="text-gray-600">|</span>
+        {% for c in ['AI', 'UX', 'Backend', 'Compliance', 'Integration'] %}
+        <a href="/admin/qa-board?category={{ c }}"
+           class="px-3 py-1 text-xs rounded-full {{ 'bg-indigo-600 text-white' if filter_category == c else 'bg-slate-700 text-gray-300 hover:bg-slate-600' }}">
+            {{ c }}
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Bug list -->
+    <div class="space-y-3">
+        {% for bug in bugs %}
+        <div class="bg-slate-800 rounded-lg p-4 border border-slate-700 hover:border-slate-600 transition-colors">
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs font-mono text-indigo-400">{{ bug.bug_id }}</span>
+                        {% if bug.risk_level == 'Critical' %}
+                        <span class="px-1.5 py-0.5 text-xs rounded bg-red-900/50 text-red-300">Critical</span>
+                        {% elif bug.risk_level == 'High' %}
+                        <span class="px-1.5 py-0.5 text-xs rounded bg-orange-900/50 text-orange-300">High</span>
+                        {% elif bug.risk_level == 'Medium' %}
+                        <span class="px-1.5 py-0.5 text-xs rounded bg-yellow-900/50 text-yellow-300">Medium</span>
+                        {% elif bug.risk_level == 'Low' %}
+                        <span class="px-1.5 py-0.5 text-xs rounded bg-slate-700 text-gray-300">Low</span>
+                        {% endif %}
+                        {% if bug.category %}
+                        <span class="px-1.5 py-0.5 text-xs rounded bg-slate-700 text-gray-400">{{ bug.category }}</span>
+                        {% endif %}
+                        <span class="px-1.5 py-0.5 text-xs rounded
+                            {% if bug.status == 'Reported' %}bg-red-900/30 text-red-300
+                            {% elif bug.status == 'Investigating' %}bg-yellow-900/30 text-yellow-300
+                            {% elif bug.status == 'Fixed' %}bg-blue-900/30 text-blue-300
+                            {% elif bug.status == 'Verified' %}bg-green-900/30 text-green-300
+                            {% endif %}">{{ bug.status }}</span>
+                    </div>
+                    <h3 class="text-white font-medium truncate">{{ bug.title }}</h3>
+                    <p class="text-sm text-gray-400 mt-1 line-clamp-2">{{ bug.problem[:200] }}</p>
+                    <div class="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                        <span>{{ bug.created_at.strftime('%Y-%m-%d') if bug.created_at else '' }}</span>
+                        <span>{{ bug.environment }}</span>
+                        <span>{{ bug.reporter[:30] if bug.reporter else '' }}</span>
+                        {% if bug.protection %}
+                        <span class="text-green-500">🛡 {{ bug.protection }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if bug.screenshot_url %}
+                <a href="{{ bug.screenshot_url }}" target="_blank" class="flex-shrink-0">
+                    <img src="{{ bug.screenshot_url }}" alt="screenshot" class="w-16 h-16 object-cover rounded border border-slate-600">
+                </a>
+                {% endif %}
+            </div>
+
+            <!-- Expandable details -->
+            <details class="mt-3">
+                <summary class="text-xs text-gray-500 cursor-pointer hover:text-gray-300">Details & Actions</summary>
+                <div class="mt-2 space-y-2 text-sm">
+                    {% if bug.root_cause %}
+                    <div><span class="text-gray-500">Root cause:</span> <span class="text-gray-300">{{ bug.root_cause }}</span></div>
+                    {% endif %}
+                    {% if bug.fix %}
+                    <div><span class="text-gray-500">Fix:</span> <span class="text-gray-300">{{ bug.fix }}</span></div>
+                    {% endif %}
+                    {% if bug.rule %}
+                    <div><span class="text-gray-500">Rule:</span> <span class="text-green-400">{{ bug.rule }}</span></div>
+                    {% endif %}
+                    {% if bug.verification_comment %}
+                    <div><span class="text-gray-500">QA:</span> <span class="text-blue-300">{{ bug.verification_comment }}</span></div>
+                    {% endif %}
+
+                    <!-- Quick status change -->
+                    <form hx-post="/admin/qa-board/{{ bug.bug_id }}/status" hx-target="#status-result-{{ bug.id }}" hx-swap="innerHTML"
+                          class="flex items-center gap-2 mt-2 pt-2 border-t border-slate-700">
+                        <select name="new_status" class="bg-slate-700 text-white text-xs rounded px-2 py-1 border border-slate-600">
+                            <option value="Reported" {{ 'selected' if bug.status == 'Reported' }}>Reported</option>
+                            <option value="Investigating" {{ 'selected' if bug.status == 'Investigating' }}>Investigating</option>
+                            <option value="Fixed" {{ 'selected' if bug.status == 'Fixed' }}>Fixed</option>
+                            <option value="Verified" {{ 'selected' if bug.status == 'Verified' }}>Verified</option>
+                        </select>
+                        <input type="text" name="verification_comment" placeholder="Comment (optional)"
+                               class="bg-slate-700 text-white text-xs rounded px-2 py-1 border border-slate-600 flex-1">
+                        <button type="submit" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded">
+                            Update
+                        </button>
+                        <span id="status-result-{{ bug.id }}"></span>
+                    </form>
+                </div>
+            </details>
+        </div>
+        {% else %}
+        <div class="bg-slate-800 rounded-lg p-8 text-center border border-slate-700">
+            <p class="text-gray-400">No bugs found{{ ' matching filters' if filter_status or filter_category else '' }}.</p>
+            <a href="/report-issue" class="text-indigo-400 hover:text-indigo-300 text-sm mt-2 inline-block">Report the first bug →</a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

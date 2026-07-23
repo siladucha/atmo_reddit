@@ -120,18 +120,45 @@ jobs:
           ssh staging "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps app celery celery-fast celery-beat nginx marketing"
 
       # Alembic migrations run automatically in entrypoint.sh on app container start.
-      # Verify they completed successfully.
+      # Verify they completed successfully AND schema matches code expectations.
       - name: Verify migrations applied
         run: |
-          sleep 5
-          migration_log=$(ssh staging "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=20 app 2>&1 | grep -i 'alembic\|migration'" || true)
-          if echo "$migration_log" | grep -qi "error\|failed\|traceback"; then
-            echo "❌ Alembic migration error detected:"
+          sleep 8
+          # Check container is still running (entrypoint exits on migration failure now)
+          app_status=$(ssh staging "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml ps app --format '{{.Status}}'" || echo "unknown")
+          if echo "$app_status" | grep -qi "exited\|restarting"; then
+            echo "❌ App container failed to start (likely migration error):"
+            ssh staging "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=40 app" || true
+            exit 1
+          fi
+
+          # Verify alembic current == alembic heads (not just stamped)
+          current=$(ssh staging "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T app alembic current 2>&1 | grep -oP '[a-f0-9]+(?= \(head\))'") || true
+          heads=$(ssh staging "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T app alembic heads 2>&1 | grep -oP '^[a-f0-9]+'") || true
+
+          echo "  Alembic current: $current"
+          echo "  Alembic heads:   $heads"
+
+          if [ -z "$current" ] || [ -z "$heads" ]; then
+            echo "❌ Could not determine Alembic state"
+            ssh staging "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=30 app" || true
+            exit 1
+          fi
+
+          if [ "$current" != "$heads" ]; then
+            echo "❌ Alembic NOT at head! DB=$current, Code expects=$heads"
+            echo "  Migration was likely stamped without applying. Manual fix required."
+            exit 1
+          fi
+
+          # Check logs for any migration warnings
+          migration_log=$(ssh staging "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=30 app 2>&1 | grep -i 'alembic\|migration\|CRITICAL'" || true)
+          if echo "$migration_log" | grep -qi "CRITICAL\|NOT stamping"; then
+            echo "❌ Migration critical error in logs:"
             echo "$migration_log"
             exit 1
           fi
-          echo "✅ Migrations OK"
-          echo "$migration_log"
+          echo "✅ Migrations OK (at head: $current)"
 
       - name: Health check
         run: |
@@ -165,6 +192,20 @@ jobs:
           [[ "$admin" =~ ^30[2-3]$ ]] || { echo "❌ /admin/ should redirect (302/303)"; exit 1; }
           [[ "$sse" =~ ^(401|302|303)$ ]] || { echo "❌ SSE should be 401 or redirect"; exit 1; }
           [ "$terms" = "200" ] || { echo "❌ /terms failed"; exit 1; }
+
+          # Functional login test — POST with bad creds must return 200 (form re-render)
+          # NOT 500 (which would mean DB schema mismatch or broken auth)
+          login_post=$(curl -sf -o /tmp/login_body -w '%{http_code}' \
+            -X POST "https://staging.gorampit.com/login" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "email=smoke-test@invalid.test&password=wrongpassword123" || echo "000")
+          echo "  POST /login → $login_post"
+
+          if [ "$login_post" = "500" ] || [ "$login_post" = "000" ]; then
+            echo "❌ POST /login returned 500 — auth system broken (likely DB schema mismatch)"
+            cat /tmp/login_body 2>/dev/null | head -20
+            exit 1
+          fi
 
           echo "✅ All smoke tests passed"
 

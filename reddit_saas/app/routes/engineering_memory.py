@@ -7,9 +7,12 @@ from fastapi.responses import HTMLResponse
 
 from app.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from sqlalchemy import desc
 
 from app.database import get_db
+from app.dependencies.permissions import require_platform_admin
 from app.logging_config import get_logger
+from app.models.bug_report import BugReport
 
 logger = get_logger(__name__)
 
@@ -143,3 +146,81 @@ async def report_issue_submit(
             {"request": request, "error": "Something went wrong. Please try again.", **user_ctx},
             request=request,
         )
+
+
+
+@router.get("/admin/qa-board", response_class=HTMLResponse)
+async def admin_qa_board(
+    request: Request,
+    status: str = "",
+    category: str = "",
+    risk_level: str = "",
+    db: Session = Depends(get_db),
+    _user=Depends(require_platform_admin),
+):
+    """QA Board — internal bug tracking dashboard (replaces Notion)."""
+    query = db.query(BugReport)
+
+    if status:
+        query = query.filter(BugReport.status == status)
+    if category:
+        query = query.filter(BugReport.category == category)
+    if risk_level:
+        query = query.filter(BugReport.risk_level == risk_level)
+
+    bugs = query.order_by(desc(BugReport.created_at)).all()
+
+    # Stats
+    total = db.query(BugReport).count()
+    reported = db.query(BugReport).filter(BugReport.status == "Reported").count()
+    investigating = db.query(BugReport).filter(BugReport.status == "Investigating").count()
+    fixed = db.query(BugReport).filter(BugReport.status == "Fixed").count()
+    verified = db.query(BugReport).filter(BugReport.status == "Verified").count()
+
+    return templates.TemplateResponse(
+        "admin_qa_board.html",
+        {
+            "request": request,
+            "bugs": bugs,
+            "total": total,
+            "reported": reported,
+            "investigating": investigating,
+            "fixed": fixed,
+            "verified": verified,
+            "filter_status": status,
+            "filter_category": category,
+            "filter_risk_level": risk_level,
+            "active_nav": "qa_board",
+        },
+        request=request,
+    )
+
+
+@router.post("/admin/qa-board/{bug_id}/status", response_class=HTMLResponse)
+async def admin_qa_board_update_status(
+    request: Request,
+    bug_id: str,
+    new_status: str = Form(...),
+    verification_comment: str = Form(""),
+    db: Session = Depends(get_db),
+    _user=Depends(require_platform_admin),
+):
+    """Update bug status from QA Board."""
+    from datetime import datetime, timezone
+
+    bug = db.query(BugReport).filter(BugReport.bug_id == bug_id).first()
+    if not bug:
+        return HTMLResponse("<div class='text-red-400'>Bug not found</div>", status_code=404)
+
+    bug.status = new_status
+    if new_status == "Fixed":
+        bug.fixed_at = datetime.now(timezone.utc)
+    elif new_status == "Verified":
+        bug.verified_at = datetime.now(timezone.utc)
+        bug.verified_by = getattr(_user, "full_name", None) or getattr(_user, "email", "Unknown")
+        if verification_comment:
+            bug.verification_comment = verification_comment
+
+    db.commit()
+    # Return updated row partial
+    return HTMLResponse(f"""<span class="text-green-400">✓ {bug.bug_id} → {new_status}</span>""")
