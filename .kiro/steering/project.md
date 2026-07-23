@@ -59,6 +59,16 @@ A Reddit marketing SaaS platform. AI monitors subreddits, scores posts, generate
 - **Domain:** gorampit.com (SSL via Let's Encrypt)
 - **Backups:** DO weekly backups enabled + **daily pg_dump** (`/opt/ramp/backups/`, 14-day rotation, systemd timer 03:00 UTC)
 - **External Watchdog:** `/opt/ramp/ramp_watchdog.sh` (systemd timer every 30s). Checks: Redis, PG, App, Beat, Workers, Disk. Auto-restarts on failure. Telegram alerts to operator (live since July 3, 2026). Deployed July 2, 2026.
+- **Staging Sync:** `/opt/ramp/sync-staging.sh` (systemd timer daily 09:30). Fresh pg_dump → scp → staging restore → sanitize (passwords→`staging123`, tokens cleared). Deployed July 23, 2026.
+
+### Staging Server (DigitalOcean)
+- **Droplet:** `ramp-staging`
+- **Region:** Frankfurt (FRA1) 🇩🇪
+- **IPv4:** `167.172.191.42`
+- **Domain:** staging.gorampit.com (SSL via Let's Encrypt)
+- **Access:** `ssh ramp-staging`
+- **Auto-deploy:** push to `staging` branch → GitHub Actions CI + deploy
+- **Daily DB sync:** 09:30 Israel time from prod (after EPG). All passwords = `staging123`.
 
 ### SSH Configuration (local Mac)
 
@@ -436,12 +446,15 @@ reddit_saas/
 └── watchdog/                  # External watchdog (deployed to /opt/ramp/ on host)
     ├── ramp_watchdog.sh       # Main watchdog (Redis, PG, App, Beat, Workers, Disk)
     ├── pg_backup.sh           # Daily pg_dump + rotation
+    ├── sync-staging.sh        # Daily prod→staging DB sync (09:30, sanitized)
     ├── install.sh             # One-click setup script for production
     └── systemd/               # Timer + service unit files
         ├── ramp-watchdog.timer
         ├── ramp-watchdog.service
         ├── ramp-backup.timer
-        └── ramp-backup.service
+        ├── ramp-backup.service
+        ├── ramp-sync-staging.timer
+        └── ramp-sync-staging.service
 
 ramp_poster/                   # Flutter mobile app [PLANNED — parallel development]
 ├── lib/

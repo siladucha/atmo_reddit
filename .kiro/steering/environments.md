@@ -39,6 +39,13 @@ inclusion: always
 - Safe to break, reset DB, deploy experimental code
 - Reddit API key shared with prod (same app)
 - LLM keys active (for onboarding/generation testing)
+- **Daily DB sync from prod (09:30 Israel time):**
+  - Systemd timer on prod: `ramp-sync-staging.timer` → `/opt/ramp/sync-staging.sh`
+  - Runs AFTER EPG generation (08:15 build + ~09:00 complete)
+  - Fresh pg_dump → scp to staging → drop/create DB → restore → sanitize → health check
+  - **All passwords → `staging123`** (login with any prod email + this password)
+  - Tokens cleared, executor emails masked, Reddit credentials wiped
+  - Source: `reddit_saas/watchdog/sync-staging.sh` + `watchdog/systemd/ramp-sync-staging.*`
 
 ## Production
 
