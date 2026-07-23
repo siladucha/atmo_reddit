@@ -9,17 +9,6 @@
         <p class="text-small" style="margin-top:4px;">Manage your subscription, plan, and payment method.</p>
     </div>
 
-    {% if not billing_configured %}
-    <!-- Billing Not Configured -->
-    <div class="surface" style="padding:var(--space-4);text-align:center;">
-        <div style="font-size:48px;margin-bottom:16px;">💳</div>
-        <h2 class="text-h3" style="margin-bottom:8px;">Billing Not Configured</h2>
-        <p class="text-small" style="color:var(--color-muted);max-width:400px;margin:0 auto;">
-            Billing integration is not yet set up for this platform. Please contact your account manager for billing inquiries.
-        </p>
-    </div>
-    {% else %}
-
     <!-- Payment Failure Banner -->
     {% if subscription_status == "past_due" %}
     <div style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.4);border-radius:var(--radius-card);padding:14px 18px;margin-bottom:var(--space-3);display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -28,7 +17,7 @@
             <p style="font-weight:600;color:#f59e0b;margin:0;">Payment failed. Please update your payment method.</p>
             <p class="text-small" style="color:var(--color-muted);margin:4px 0 0;">Your subscription is past due. Update your payment method to restore full access.</p>
         </div>
-        {% if has_stripe_customer %}
+        {% if billing_configured and has_stripe_customer %}
         <form method="post" action="/clients/{{ client_id }}/billing/manage" style="margin:0;">
             <button type="submit" style="padding:8px 16px;background:#f59e0b;color:#000;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">
                 Update Payment Method
@@ -73,10 +62,31 @@
                 {% endif %}
             </div>
         </div>
+
+        <!-- Trial progress bar -->
+        {% if subscription_status == "trial" and trial_days_remaining is not none %}
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--color-border);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <span class="text-small" style="color:var(--color-muted);">Trial period</span>
+                <span class="text-small" style="color:{% if trial_days_remaining <= 3 %}#f59e0b{% else %}var(--color-muted){% endif %};font-weight:600;">
+                    {% if trial_days_remaining > 0 %}{{ trial_days_remaining }} day{{ "s" if trial_days_remaining != 1 else "" }} remaining{% else %}Expired{% endif %}
+                </span>
+            </div>
+            <div style="height:6px;background:var(--color-surface-alt);border-radius:3px;overflow:hidden;">
+                {% set trial_pct = ((14 - trial_days_remaining) / 14 * 100) | int %}
+                <div style="height:100%;width:{{ trial_pct }}%;background:{% if trial_days_remaining <= 3 %}#f59e0b{% elif trial_days_remaining <= 7 %}#3b82f6{% else %}#22c55e{% endif %};border-radius:3px;transition:width 0.3s;"></div>
+            </div>
+            {% if trial_started_at %}
+            <p class="text-small" style="margin-top:6px;color:var(--color-muted);">
+                Started {{ trial_started_at.strftime('%b %d, %Y') }}
+            </p>
+            {% endif %}
+        </div>
+        {% endif %}
     </div>
 
-    <!-- Actions Row -->
-    {% if has_stripe_customer %}
+    <!-- Actions Row (Stripe required) -->
+    {% if billing_configured and has_stripe_customer %}
     <div style="display:flex;gap:12px;margin-bottom:var(--space-3);flex-wrap:wrap;">
         <!-- Manage Subscription -->
         <form method="post" action="/clients/{{ client_id }}/billing/manage" style="margin:0;flex:1;min-width:180px;">
@@ -87,9 +97,9 @@
     </div>
     {% endif %}
 
-    <!-- Change Plan -->
+    <!-- Plan Tiers -->
     <div class="surface" style="padding:var(--space-3);margin-bottom:var(--space-3);">
-        <h2 class="text-h3" style="margin-bottom:16px;">Change Plan</h2>
+        <h2 class="text-h3" style="margin-bottom:16px;">{% if billing_configured %}Change Plan{% else %}Available Plans{% endif %}</h2>
         <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));gap:12px;">
             {% for tier in all_tiers %}
             <div style="padding:16px;background:var(--color-surface-alt);border-radius:var(--radius-card);border:{% if tier.is_current %}2px solid var(--color-orange){% else %}1px solid var(--color-border){% endif %};display:flex;flex-direction:column;gap:8px;position:relative;">
@@ -99,7 +109,7 @@
                 <p style="font-weight:600;color:var(--color-white);margin-bottom:0;">{{ tier.display_name }}</p>
                 <p style="font-size:22px;font-weight:700;color:var(--color-orange);margin-bottom:0;">{{ tier.price_display }}<span class="text-small" style="font-weight:400;">/mo</span></p>
                 <p class="text-small" style="margin-bottom:8px;color:var(--color-muted);">{{ tier.max_avatars }} voice{{ "s" if tier.max_avatars > 1 else "" }}</p>
-                {% if not tier.is_current and has_stripe_customer %}
+                {% if billing_configured and not tier.is_current and has_stripe_customer %}
                 <form method="post" action="/clients/{{ client_id }}/billing/change-plan" style="margin:0;">
                     <input type="hidden" name="plan_tier" value="{{ tier.name }}">
                     <button type="submit" style="width:100%;padding:8px 12px;background:var(--color-orange);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;transition:opacity 0.2s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
@@ -114,9 +124,15 @@
             </div>
             {% endfor %}
         </div>
+        {% if not billing_configured %}
+        <p class="text-small" style="color:var(--color-muted);margin-top:12px;">
+            To upgrade or change your plan, contact your account manager.
+        </p>
+        {% endif %}
     </div>
 
-    <!-- Invoices -->
+    <!-- Invoices (Stripe required) -->
+    {% if billing_configured %}
     <div class="surface" style="padding:var(--space-3);">
         <h2 class="text-h3" style="margin-bottom:16px;">Recent Invoices</h2>
         {% if invoices %}
@@ -170,7 +186,16 @@
         <p class="text-small" style="color:var(--color-muted);text-align:center;padding:24px 0;">No invoices yet.</p>
         {% endif %}
     </div>
-
     {% endif %}
+
+    <!-- Contact banner (when Stripe not configured) -->
+    {% if not billing_configured %}
+    <div class="surface" style="padding:var(--space-3);text-align:center;">
+        <p class="text-small" style="color:var(--color-muted);margin:0;">
+            💬 For billing inquiries, plan changes, or payment setup — contact your account manager.
+        </p>
+    </div>
+    {% endif %}
+
 </div>
 {% endblock %}

@@ -238,7 +238,7 @@ def generate_landscape_report_tracked(
     step_start = time.monotonic()
     try:
         week_ago = now - timedelta(days=7)
-        # Case-insensitive subreddit matching to fix casing discrepancies
+        # Build lowercase list for case-insensitive match
         subreddit_names_lower = [s.lower() for s in subreddit_names]
         threads = (
             db.query(RedditThread)
@@ -247,7 +247,7 @@ def generate_landscape_report_tracked(
                 RedditThread.created_at >= week_ago,
             )
             .order_by(RedditThread.ups.desc().nullslast())
-            .limit(200)
+            .limit(100)
             .all()
         )
 

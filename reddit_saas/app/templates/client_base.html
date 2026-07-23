@@ -447,7 +447,7 @@
                     <div style="font-size:13px;color:var(--color-muted);font-weight:600;text-transform:uppercase;margin-bottom:8px;">Seed</div>
                     <div style="font-size:28px;font-weight:700;color:var(--color-white);margin-bottom:4px;">$149<span style="font-size:14px;color:var(--color-muted);font-weight:400;">/mo</span></div>
                     <div style="font-size:12px;color:var(--color-muted);margin-bottom:16px;line-height:1.5;">1 voice · 1 subreddit<br>30 comments/mo</div>
-                    <a href="mailto:tzvi@gorampit.com?subject=RAMP%20Upgrade%20-%20Seed%20Plan" style="display:block;padding:8px;background:var(--color-orange);color:#fff;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;">Get Started</a>
+                    <form method="post" action="/clients/{{ client_id }}/billing/change-plan"><input type="hidden" name="plan_tier" value="seed"><button type="submit" style="display:block;width:100%;padding:8px;background:var(--color-orange);color:#fff;border-radius:6px;font-size:13px;font-weight:600;border:none;cursor:pointer;">Get Started</button></form>
                 </div>
                 <!-- Starter -->
                 <div style="background:var(--color-surface-alt);border:2px solid var(--color-orange);border-radius:12px;padding:20px;text-align:center;position:relative;">
@@ -455,21 +455,21 @@
                     <div style="font-size:13px;color:var(--color-muted);font-weight:600;text-transform:uppercase;margin-bottom:8px;">Starter</div>
                     <div style="font-size:28px;font-weight:700;color:var(--color-white);margin-bottom:4px;">$399<span style="font-size:14px;color:var(--color-muted);font-weight:400;">/mo</span></div>
                     <div style="font-size:12px;color:var(--color-muted);margin-bottom:16px;line-height:1.5;">3 voices · 2 subreddits<br>60 comments/mo</div>
-                    <a href="mailto:tzvi@gorampit.com?subject=RAMP%20Upgrade%20-%20Starter%20Plan" style="display:block;padding:8px;background:var(--color-orange);color:#fff;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;">Get Started</a>
+                    <form method="post" action="/clients/{{ client_id }}/billing/change-plan"><input type="hidden" name="plan_tier" value="starter"><button type="submit" style="display:block;width:100%;padding:8px;background:var(--color-orange);color:#fff;border-radius:6px;font-size:13px;font-weight:600;border:none;cursor:pointer;">Get Started</button></form>
                 </div>
                 <!-- Growth -->
                 <div style="background:var(--color-surface-alt);border:1px solid var(--color-border);border-radius:12px;padding:20px;text-align:center;">
                     <div style="font-size:13px;color:var(--color-muted);font-weight:600;text-transform:uppercase;margin-bottom:8px;">Growth</div>
                     <div style="font-size:28px;font-weight:700;color:var(--color-white);margin-bottom:4px;">$799<span style="font-size:14px;color:var(--color-muted);font-weight:400;">/mo</span></div>
                     <div style="font-size:12px;color:var(--color-muted);margin-bottom:16px;line-height:1.5;">7 voices · 5 subreddits<br>150 comments + 10 posts</div>
-                    <a href="mailto:tzvi@gorampit.com?subject=RAMP%20Upgrade%20-%20Growth%20Plan" style="display:block;padding:8px;background:var(--color-orange);color:#fff;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;">Get Started</a>
+                    <form method="post" action="/clients/{{ client_id }}/billing/change-plan"><input type="hidden" name="plan_tier" value="growth"><button type="submit" style="display:block;width:100%;padding:8px;background:var(--color-orange);color:#fff;border-radius:6px;font-size:13px;font-weight:600;border:none;cursor:pointer;">Get Started</button></form>
                 </div>
                 <!-- Scale -->
                 <div style="background:var(--color-surface-alt);border:1px solid var(--color-border);border-radius:12px;padding:20px;text-align:center;">
                     <div style="font-size:13px;color:var(--color-muted);font-weight:600;text-transform:uppercase;margin-bottom:8px;">Scale</div>
                     <div style="font-size:28px;font-weight:700;color:var(--color-white);margin-bottom:4px;">$1,499<span style="font-size:14px;color:var(--color-muted);font-weight:400;">/mo</span></div>
                     <div style="font-size:12px;color:var(--color-muted);margin-bottom:16px;line-height:1.5;">15 voices · unlimited<br>400 actions/mo</div>
-                    <a href="mailto:tzvi@gorampit.com?subject=RAMP%20Upgrade%20-%20Scale%20Plan" style="display:block;padding:8px;background:var(--color-orange);color:#fff;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;">Get Started</a>
+                    <form method="post" action="/clients/{{ client_id }}/billing/change-plan"><input type="hidden" name="plan_tier" value="scale"><button type="submit" style="display:block;width:100%;padding:8px;background:var(--color-orange);color:#fff;border-radius:6px;font-size:13px;font-weight:600;border:none;cursor:pointer;">Get Started</button></form>
                 </div>
             </div>
             <p style="text-align:center;margin-top:20px;color:var(--color-muted);font-size:13px;">Not sure? <a href="mailto:tzvi@gorampit.com?subject=RAMP%20Plan%20Question" style="color:var(--color-orange);text-decoration:none;">Talk to sales →</a></p>

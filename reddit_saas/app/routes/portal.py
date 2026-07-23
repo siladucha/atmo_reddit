@@ -3477,22 +3477,23 @@ def portal_landscape(
     status = get_job_status(db, client_id)
 
     if status["status"] == "completed" and status.get("completed_at"):
-        # Check freshness (<24h) — data refreshes daily via scraping
+        # Serve cached report (7-day TTL — report regenerates via weekly discovery)
+        # Never block the HTTP request with synchronous generation
+        report = status["report_data"]
         completed_at = datetime.fromisoformat(status["completed_at"])
-        if (datetime.now(timezone.utc) - completed_at) < timedelta(hours=24):
-            # Serve cached report
-            report = status["report_data"]
-            return _portal_render(
-                request,
-                "client/landscape.html",
-                client_id,
-                db,
-                active_page="landscape",
-                extra_context={"landscape": report, "landscape_status": "completed"},
-            )
-        else:
-            # Stale — trigger fresh generation
-            report = generate_landscape_report_tracked(db, client_id)
+        is_stale = (datetime.now(timezone.utc) - completed_at) > timedelta(days=7)
+        return _portal_render(
+            request,
+            "client/landscape.html",
+            client_id,
+            db,
+            active_page="landscape",
+            extra_context={
+                "landscape": report,
+                "landscape_status": "completed",
+                "is_stale": is_stale,
+            },
+        )
     elif status["status"] in ("pending", "processing"):
         # Already generating — render status page with HTMX poll
         return _portal_render(
@@ -3514,42 +3515,30 @@ def portal_landscape(
             extra_context={"landscape_status": "failed", "job_status": status},
         )
     else:
-        # No job exists — trigger generation
-        report = generate_landscape_report_tracked(db, client_id)
-
-    # If result is a processing/dedup response (dict with status key)
-    if isinstance(report, dict) and report.get("status") == "processing":
-        refreshed_status = get_job_status(db, client_id)
+        # No job exists — trigger generation in background (non-blocking)
+        from app.services.onboarding.landscape_report import get_or_create_report_job
+        get_or_create_report_job(db, client_id, "portal")
+        # Start generation in background thread to avoid blocking HTTP response
+        import threading
+        _cid = str(client_id)
+        def _bg_generate():
+            from app.database import SessionLocal
+            bg_db = SessionLocal()
+            try:
+                generate_landscape_report_tracked(bg_db, UUID(_cid))
+            except Exception as e:
+                logger.error("Background landscape generation failed: %s", e)
+            finally:
+                bg_db.close()
+        threading.Thread(target=_bg_generate, daemon=True).start()
         return _portal_render(
             request,
             "client/landscape.html",
             client_id,
             db,
             active_page="landscape",
-            extra_context={"landscape_status": "generating", "job_status": refreshed_status},
+            extra_context={"landscape_status": "generating", "job_status": {"status": "processing"}},
         )
-
-    # If result is an error response
-    if isinstance(report, dict) and report.get("error"):
-        refreshed_status = get_job_status(db, client_id)
-        return _portal_render(
-            request,
-            "client/landscape.html",
-            client_id,
-            db,
-            active_page="landscape",
-            extra_context={"landscape_status": "failed", "job_status": refreshed_status},
-        )
-
-    # Normal render with report data
-    return _portal_render(
-        request,
-        "client/landscape.html",
-        client_id,
-        db,
-        active_page="landscape",
-        extra_context={"landscape": report, "landscape_status": "completed"},
-    )
 
 
 @router.get("/clients/{client_id}/landscape/status", response_class=HTMLResponse)
@@ -4285,6 +4274,14 @@ def portal_billing(
         except Exception as e:
             logger.warning("Failed to fetch invoices for client %s: %s", client_id, str(e))
 
+    # Trial info
+    trial_days_remaining = None
+    trial_started_at = None
+    if plan_type == "trial" and client.created_at:
+        days_since = (datetime.now(timezone.utc) - client.created_at).days
+        trial_days_remaining = max(0, 14 - days_since)
+        trial_started_at = client.created_at
+
     return _portal_render(
         request,
         "client/billing.html",
@@ -4300,6 +4297,8 @@ def portal_billing(
             "has_stripe_customer": has_stripe_customer,
             "all_tiers": all_tiers,
             "invoices": invoices,
+            "trial_days_remaining": trial_days_remaining,
+            "trial_started_at": trial_started_at,
         },
     )
 
