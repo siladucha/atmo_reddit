@@ -757,7 +757,7 @@ async def post_heartbeat(
     latest_version = ""
     download_url = ""
     if body.extension_version:
-        latest_version = get_setting(db, "extension_latest_version") or "0.3.1"
+        latest_version = get_setting(db, "extension_latest_version") or "0.4.0"
         if _version_lt(body.extension_version, latest_version):
             update_available = True
             download_url = get_setting(db, "extension_download_url") or "https://gorampit.com/static/extension/ramp_extension_latest.zip"
