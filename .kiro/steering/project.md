@@ -115,10 +115,10 @@ ssh ramp "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod
 - **Timezone**: All containers, PostgreSQL, Celery Beat, and logs use `Asia/Jerusalem` (IDT/IST). Set via `TZ` env var in docker-compose + `PGTZ` for PostgreSQL + `-c timezone=Asia/Jerusalem` in postgres command + Celery `timezone="Asia/Jerusalem"` config.
 
 ### Versioning & Environment Controls (June 2026)
-- **VERSION file**: `reddit_saas/VERSION` — single source of truth (currently `0.3.0`)
+- **VERSION file**: `reddit_saas/VERSION` — single source of truth (currently `0.4.0`)
 - **Extension version**: `ramp_extension/manifest.json` → `"version"` — MUST match RAMP version
 - **`app/version.py`**: reads VERSION file, exposes `__version__`
-- **Health endpoint**: `/health` returns `{"version": "0.3.0", "env": "...", "posting_disabled": true/false, ...}`
+- **Health endpoint**: `/health` returns `{"version": "0.4.0", "env": "...", "posting_disabled": true/false, ...}`
 - **UI footer**: version + env + posting status shown in both `base.html` and `admin_base.html` (sidebar) for all roles
 - **Version sync rule**: RAMP backend and Extension ALWAYS share the same version number
 - **Bump policy** (semver):

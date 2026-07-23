@@ -274,7 +274,7 @@ EPG build → slot "generated" → draft "pending"
 **Files changed (July 7):**
 - `app/routes/extension_api.py` — draft review endpoints + version check in heartbeat + `_version_lt()` helper
 - `app/services/epg_executor.py` — `_notify_drafts_pending()` portal bell notification
-- `ramp_extension/manifest.json` — version 0.3.1
+- `ramp_extension/manifest.json` — version 0.4.0
 - `ramp_extension/popup/popup.html` — Review Drafts section + update banner
 - `ramp_extension/popup/popup.js` — `fetchPendingDrafts()`, `handleApproveAllDrafts()`, `checkHealth()` update check
 - `ramp_extension/popup/popup.css` — `.badge--review`, `.task-card--draft`, `.alert--update` styles

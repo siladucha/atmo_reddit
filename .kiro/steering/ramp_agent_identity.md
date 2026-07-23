@@ -81,7 +81,7 @@ The agent's understanding of itself lives in `/system_model/`:
 
 ## Agent Evolution — Current vs Target
 
-### Current State (v0.3.0): "Autonomous Pipeline, Manual Ops"
+### Current State (v0.4.0): "Autonomous Pipeline, Manual Ops"
 
 The content pipeline runs fully autonomously. But operational decisions (unfreeze avatar, add subreddit, change strategy, respond to incidents) require a human to notice and act.
 

@@ -8,7 +8,7 @@
 # Staleness rule: treat as inaccurate if >48h old.
 
 meta:
-  version: "0.3.0"
+  version: "0.4.0"
   last_reconciled: "2026-07-02T12:00:00+03:00"
   reconciled_by: "manual + steering audit + code review"
   staleness_threshold_hours: 48
@@ -22,7 +22,7 @@ system_health:
   posting_disabled: false
   worker_alive: true
   pipeline_alive: true
-  last_health_endpoint: '{"version":"0.3.0","env":"production","status":"ok","worker_alive":true}'
+  last_health_endpoint: '{"version":"0.4.0","env":"production","status":"ok","worker_alive":true}'
   last_verified: "2026-06-28T22:00:00+03:00"
 
 infrastructure:
