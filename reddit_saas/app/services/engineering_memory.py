@@ -39,7 +39,7 @@ def _build_problem_text(form_data: dict) -> str:
         val = form_data.get(key, "").strip()
         if val:
             parts.append(f"{label}: {val}")
-    screenshot_url = form_data.get("screenshot_url", "").strip()
+    screenshot_url = (form_data.get("screenshot_url") or "").strip()
     if screenshot_url:
         parts.append(f"[Screenshot: {screenshot_url}]")
     return "\n\n".join(parts)
@@ -126,6 +126,7 @@ def create_incident(db: Session, form_data: dict) -> BugReport:
         environment=form_data.get("environment", "prod"),
         screenshot_url=form_data.get("screenshot_url"),
         source_url=form_data.get("source_url"),
+        reporter_email=form_data.get("reporter_email"),
     )
 
     db.add(bug)

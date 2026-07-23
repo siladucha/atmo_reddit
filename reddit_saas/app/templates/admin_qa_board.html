@@ -87,12 +87,18 @@
                             {% elif bug.status == 'Fixed' %}bg-blue-900/30 text-blue-300
                             {% elif bug.status == 'Verified' %}bg-green-900/30 text-green-300
                             {% endif %}">{{ bug.status }}</span>
+                        {% if bug.environment == 'prod' %}
+                        <span class="px-1.5 py-0.5 text-xs rounded bg-red-900/50 text-red-300">prod</span>
+                        {% elif bug.environment == 'staging' %}
+                        <span class="px-1.5 py-0.5 text-xs rounded bg-yellow-900/50 text-yellow-300">staging</span>
+                        {% elif bug.environment == 'dev' %}
+                        <span class="px-1.5 py-0.5 text-xs rounded bg-slate-700 text-gray-300">dev</span>
+                        {% endif %}
                     </div>
                     <h3 class="text-white font-medium truncate">{{ bug.title }}</h3>
                     <p class="text-sm text-gray-400 mt-1 line-clamp-2">{{ bug.problem[:200] }}</p>
                     <div class="flex items-center gap-3 mt-2 text-xs text-gray-500">
                         <span>{{ bug.created_at.strftime('%Y-%m-%d') if bug.created_at else '' }}</span>
-                        <span>{{ bug.environment }}</span>
                         <span>{{ bug.reporter[:30] if bug.reporter else '' }}</span>
                         {% if bug.protection %}
                         <span class="text-green-500">🛡 {{ bug.protection }}</span>
@@ -100,9 +106,9 @@
                     </div>
                 </div>
                 {% if bug.screenshot_url %}
-                <a href="{{ bug.screenshot_url }}" target="_blank" class="flex-shrink-0">
-                    <img src="{{ bug.screenshot_url }}" alt="screenshot" class="w-16 h-16 object-cover rounded border border-slate-600">
-                </a>
+                <button type="button" onclick="openScreenshotModal('{{ bug.screenshot_url }}')" class="flex-shrink-0 cursor-pointer">
+                    <img src="{{ bug.screenshot_url }}" alt="screenshot" class="w-16 h-16 object-cover rounded border border-slate-600 hover:border-indigo-500 transition-colors">
+                </button>
                 {% endif %}
             </div>
 
@@ -110,6 +116,12 @@
             <details class="mt-3">
                 <summary class="text-xs text-gray-500 cursor-pointer hover:text-gray-300">Details & Actions</summary>
                 <div class="mt-2 space-y-2 text-sm">
+                    {% if bug.source_url %}
+                    <div><span class="text-gray-500">Source URL:</span> <a href="{{ bug.source_url }}" target="_blank" class="text-indigo-400 hover:text-indigo-300">{{ bug.source_url }}</a></div>
+                    {% endif %}
+                    {% if bug.reporter_email %}
+                    <div><span class="text-gray-500">Reporter email:</span> <span class="text-gray-300">{{ bug.reporter_email }}</span></div>
+                    {% endif %}
                     {% if bug.root_cause %}
                     <div><span class="text-gray-500">Root cause:</span> <span class="text-gray-300">{{ bug.root_cause }}</span></div>
                     {% endif %}
@@ -150,4 +162,35 @@
         {% endfor %}
     </div>
 </div>
+
+<!-- Screenshot lightbox modal -->
+<div id="screenshot-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 backdrop-blur-sm" onclick="closeScreenshotModal(event)">
+    <div class="relative max-w-[90vw] max-h-[90vh]">
+        <button type="button" onclick="closeScreenshotModal()"
+                class="absolute -top-3 -right-3 w-8 h-8 flex items-center justify-center rounded-full bg-slate-700 text-white hover:bg-slate-600 text-lg font-bold z-10"
+                aria-label="Close">×</button>
+        <img id="screenshot-modal-img" src="" alt="Screenshot full size" class="max-w-full max-h-[85vh] rounded-lg shadow-2xl">
+    </div>
+</div>
+
+<script>
+function openScreenshotModal(url) {
+    const modal = document.getElementById('screenshot-modal');
+    const img = document.getElementById('screenshot-modal-img');
+    img.src = url;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.addEventListener('keydown', handleEscapeKey);
+}
+function closeScreenshotModal(event) {
+    if (event && event.target !== event.currentTarget && !event.currentTarget.hasAttribute('aria-label')) return;
+    const modal = document.getElementById('screenshot-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.removeEventListener('keydown', handleEscapeKey);
+}
+function handleEscapeKey(e) {
+    if (e.key === 'Escape') closeScreenshotModal();
+}
+</script>
 {% endblock %}

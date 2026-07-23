@@ -19,6 +19,12 @@ logger = get_logger(__name__)
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
+from app.version import __version__ as app_version
+from app.config import get_settings as _get_settings
+templates.env.globals["app_version"] = app_version
+templates.env.globals["posting_disabled"] = lambda: _get_settings().posting_disabled
+templates.env.globals["app_env"] = _get_settings().app_env
+
 
 def _get_user_context(request: Request) -> dict:
     """Try to extract logged-in user info from JWT cookie (non-blocking)."""
@@ -96,8 +102,6 @@ async def report_issue_submit(
         errors.append("'What happened?' is required")
     if not where.strip():
         errors.append("'Where?' is required")
-    if not expected.strip():
-        errors.append("'Expected?' is required")
     if not actual_result.strip():
         errors.append("'Actual result?' is required")
 
@@ -126,6 +130,8 @@ async def report_issue_submit(
         "reporter_name": reporter_name,
         "environment": environment,
         "screenshot_url": screenshot_url,
+        "source_url": where,
+        "reporter_email": email,
     }
 
     try:

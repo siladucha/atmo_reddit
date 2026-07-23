@@ -25,6 +25,7 @@ class BugReport(Base):
     environment: Mapped[str] = mapped_column(String(20), nullable=False, default="prod")  # dev/staging/prod
     reporter: Mapped[str] = mapped_column(String(200), nullable=False, default="Client")
     reporter_role: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    reporter_email: Mapped[str | None] = mapped_column(String(200), nullable=True)
     screenshot_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

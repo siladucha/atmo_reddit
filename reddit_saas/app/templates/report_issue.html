@@ -118,14 +118,12 @@
                 <!-- What was expected? -->
                 <div>
                     <label for="expected" class="block text-sm font-medium text-gray-700">
-                        What was expected? <span class="text-red-500" aria-label="required">*</span>
+                        What was expected? <span class="text-gray-400 text-xs font-normal">(optional)</span>
                     </label>
                     <textarea
                         id="expected"
                         name="expected"
                         rows="3"
-                        required
-                        aria-required="true"
                         class="mt-1 block w-full rounded-md border border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-3"
                         placeholder="What should have happened instead"
                     ></textarea>
@@ -161,6 +159,19 @@
                         class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                     >
                     <p id="screenshot-help" class="mt-1 text-xs text-gray-400">PNG, JPG, or GIF up to 10 MB</p>
+                    <p class="mt-1 text-xs text-gray-400">or paste from clipboard (Ctrl+V / Cmd+V)</p>
+                </div>
+
+                <!-- Paste preview -->
+                <div id="paste-preview" class="hidden">
+                    <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-md border border-gray-200">
+                        <img id="paste-preview-img" src="" alt="Pasted screenshot preview" class="w-16 h-16 object-cover rounded border border-gray-300">
+                        <div class="flex-1">
+                            <p class="text-sm text-gray-700">Pasted image</p>
+                            <p id="paste-preview-size" class="text-xs text-gray-400"></p>
+                        </div>
+                        <button type="button" onclick="removePastedScreenshot()" class="text-red-500 hover:text-red-700 text-sm font-medium">Remove</button>
+                    </div>
                 </div>
 
                 <!-- Email (optional) -->
@@ -207,6 +218,45 @@
         // JS challenge: compute simple value that proves JS executed
         document.getElementById('human_check').value = (7 * 13).toString();
     })();
+    </script>
+
+    <!-- Clipboard paste support for screenshot -->
+    <script>
+    document.addEventListener('paste', function(e) {
+        const items = e.clipboardData && e.clipboardData.items;
+        if (!items) return;
+
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                const blob = items[i].getAsFile();
+                if (!blob) continue;
+
+                // Set the file input using DataTransfer
+                const dt = new DataTransfer();
+                dt.items.add(blob);
+                document.getElementById('screenshot').files = dt.files;
+
+                // Show preview
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    document.getElementById('paste-preview-img').src = ev.target.result;
+                    const sizeKB = Math.round(blob.size / 1024);
+                    document.getElementById('paste-preview-size').textContent = sizeKB + ' KB';
+                    document.getElementById('paste-preview').classList.remove('hidden');
+                };
+                reader.readAsDataURL(blob);
+
+                e.preventDefault();
+                break;
+            }
+        }
+    });
+
+    function removePastedScreenshot() {
+        document.getElementById('screenshot').value = '';
+        document.getElementById('paste-preview').classList.add('hidden');
+        document.getElementById('paste-preview-img').src = '';
+    }
     </script>
 
 </body>
