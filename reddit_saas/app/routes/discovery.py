@@ -793,11 +793,22 @@ async def generate_report(
 
     try:
         report = await generate_visibility_report(session, db)
-        db.commit()
+        # generate_visibility_report already commits; no double-commit needed
     except Exception as e:
         db.rollback()
         logger.error(f"Report generation failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Report generation failed: {e}")
+        # Return inline error HTML so HTMX shows it to the user
+        error_html = (
+            '<div class="p-4 bg-red-900/30 border border-red-700 rounded-lg">'
+            '<h3 class="text-red-300 font-medium mb-1">Report Generation Failed</h3>'
+            f'<p class="text-red-400 text-sm">{str(e)[:500]}</p>'
+            '<p class="text-gray-400 text-xs mt-2">Try again — if the issue persists, check LLM logs.</p>'
+            '</div>'
+        )
+        return HTMLResponse(error_html, status_code=200)
+
+    # Refresh session to ensure reports relationship is loaded
+    db.refresh(session)
 
     return templates.TemplateResponse(
         request,

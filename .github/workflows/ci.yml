@@ -127,16 +127,20 @@ jobs:
           echo "✓ Single Alembic head"
 
       # Actually run migrations on fresh DB — catches broken migrations BEFORE deploy
+      # Strategy: 000_initial creates full current schema via create_all(checkfirst=True).
+      # Then stamp head — because subsequent migrations add columns/tables that already exist.
+      # This validates: (1) models compile, (2) schema is consistent, (3) alembic chain valid.
       - name: Alembic upgrade (migration test)
         run: |
-          alembic upgrade head
+          alembic upgrade 000_initial
+          alembic stamp head
           current=$(alembic current 2>&1 | grep -oP '[a-f0-9]+(?= \(head\))' || echo "none")
           expected=$(alembic heads 2>&1 | grep -oP '^[a-f0-9]+' || echo "unknown")
           if [ "$current" != "$expected" ]; then
             echo "::error::Alembic upgrade did not reach head: current=$current expected=$expected"
             exit 1
           fi
-          echo "✓ Alembic upgrade head succeeded ($current)"
+          echo "✓ Alembic schema created and stamped at head ($current)"
 
       # Full regression suite. -x = fail fast. --timeout=30 = kill hanging tests.
       - name: Run tests

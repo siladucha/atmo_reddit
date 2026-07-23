@@ -97,16 +97,29 @@ class VisibilityOutcome(BaseModel):
 
 
 class VisibilityReportContent(BaseModel):
-    """Validates the JSONB content structure of a Visibility Report."""
+    """Validates the JSONB content structure of a Visibility Report.
 
-    executive_summary: str
-    demand_assessment: str
-    communities: list[ReportCommunity]
-    discussion_activity: str
-    entry_points: list[str]
-    competitive_landscape: str
-    visibility_outcomes: list[VisibilityOutcome]
-    risks_and_limitations: str
+    Fields have defaults to handle graceful degradation when LLM output
+    is truncated (max_tokens cutoff) and repaired by closing open braces.
+    """
+
+    executive_summary: str = ""
+    demand_assessment: str = ""
+    communities: list[ReportCommunity] = Field(default_factory=list)
+    discussion_activity: str = ""
+    entry_points: list[str] = Field(default_factory=list)
+    competitive_landscape: str = ""
+    visibility_outcomes: list[VisibilityOutcome] = Field(default_factory=list)
+    risks_and_limitations: str = ""
+
+    @model_validator(mode="after")
+    def require_minimum_content(self) -> "VisibilityReportContent":
+        """Report must have at least executive_summary and 1 community to be useful."""
+        if not self.executive_summary:
+            raise ValueError("executive_summary is required")
+        if not self.communities:
+            raise ValueError("at least 1 community entry is required")
+        return self
 
 
 # --- Request/Action Schemas ---

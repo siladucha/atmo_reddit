@@ -157,6 +157,8 @@ async def generate_visibility_report(
 
     # call_llm is synchronous (uses litellm.completion) — run in thread
     # to avoid blocking the async event loop. 180s timeout — reports with many hypotheses need more time.
+    # max_tokens=8192: Gemini Flash reports typically need 5000-7000 tokens for full JSON.
+    # 4096 was causing truncation → invalid JSON → parse failure.
     try:
         result = await asyncio.wait_for(
             asyncio.to_thread(
@@ -164,7 +166,7 @@ async def generate_visibility_report(
                 messages=messages,
                 model=REPORT_MODEL,
                 temperature=0.4,
-                max_tokens=4096,
+                max_tokens=8192,
                 timeout=90,
             ),
             timeout=120.0,
@@ -279,6 +281,7 @@ def _extract_report_json(content: str) -> dict | None:
     1. Pure JSON string
     2. Markdown code blocks (```json ... ```)
     3. Prose-wrapped JSON (text before/after JSON block)
+    4. Truncated JSON (attempts to close open braces/brackets)
     """
     if not content or not content.strip():
         return None
@@ -300,7 +303,10 @@ def _extract_report_json(content: str) -> dict | None:
         try:
             return json.loads(block)
         except json.JSONDecodeError:
-            pass
+            # Try to repair truncated JSON from code block
+            repaired = _try_repair_truncated_json(block)
+            if repaired is not None:
+                return repaired
 
     if "```" in text:
         parts = text.split("```")
@@ -312,7 +318,9 @@ def _extract_report_json(content: str) -> dict | None:
             try:
                 return json.loads(block.strip())
             except json.JSONDecodeError:
-                pass
+                repaired = _try_repair_truncated_json(block.strip())
+                if repaired is not None:
+                    return repaired
 
     # 3. Find the outermost { ... } block (handles nested objects)
     brace_start = text.find("{")
@@ -330,6 +338,56 @@ def _extract_report_json(content: str) -> dict | None:
                     except json.JSONDecodeError:
                         pass
                     break
+
+        # 4. If we reached end without closing all braces — JSON is truncated
+        # Try to repair by closing open structures
+        candidate = text[brace_start:]
+        repaired = _try_repair_truncated_json(candidate)
+        if repaired is not None:
+            return repaired
+
+    return None
+
+
+def _try_repair_truncated_json(text: str) -> dict | None:
+    """Attempt to repair truncated JSON by closing open structures.
+
+    This handles the common case where max_tokens cuts off mid-JSON.
+    Strategy: find the last complete key-value pair, close all open structures.
+    """
+    if not text or "{" not in text:
+        return None
+
+    # Strip trailing incomplete value (after last complete comma or colon)
+    # Find last complete line ending with a comma or value
+    lines = text.rstrip().split("\n")
+
+    # Try progressively removing lines from the end until we can close valid JSON
+    for trim_count in range(min(len(lines), 20)):
+        candidate_lines = lines[:len(lines) - trim_count] if trim_count > 0 else lines
+        candidate = "\n".join(candidate_lines).rstrip().rstrip(",")
+
+        # Count open braces/brackets
+        open_braces = candidate.count("{") - candidate.count("}")
+        open_brackets = candidate.count("[") - candidate.count("]")
+
+        if open_braces < 0 or open_brackets < 0:
+            continue
+
+        # Close all open structures
+        suffix = "]" * open_brackets + "}" * open_braces
+        attempt = candidate + suffix
+
+        try:
+            parsed = json.loads(attempt)
+            if isinstance(parsed, dict):
+                logger.warning(
+                    "Repaired truncated JSON by closing %d braces, %d brackets (trimmed %d lines)",
+                    open_braces, open_brackets, trim_count,
+                )
+                return parsed
+        except json.JSONDecodeError:
+            continue
 
     return None
 

@@ -274,14 +274,19 @@ def update_ai_cost(session_id: uuid.UUID, cost_delta: float, db: Session) -> Non
     Raises:
         ValueError: If cost_delta is not positive.
     """
+    from decimal import Decimal
+
     if cost_delta <= 0:
         raise ValueError(f"cost_delta must be positive, got {cost_delta}")
+
+    # Convert to Decimal to match Numeric(10,4) column type
+    cost_decimal = Decimal(str(cost_delta))
 
     rows_updated = (
         db.query(DiscoverySession)
         .filter(DiscoverySession.id == session_id)
         .update(
-            {DiscoverySession.total_ai_cost_usd: DiscoverySession.total_ai_cost_usd + cost_delta},
+            {DiscoverySession.total_ai_cost_usd: DiscoverySession.total_ai_cost_usd + cost_decimal},
             synchronize_session="fetch",
         )
     )
