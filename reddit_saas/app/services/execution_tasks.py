@@ -582,9 +582,8 @@ def compose_task_email(task: ExecutionTask) -> tuple[str, str, str | None]:
     # Format deadline time (soft window end)
     deadline_str = task.deadline.strftime("%H:%M") if task.deadline else "N/A"
 
-    # Subject — [RAMP Task: type] Client / Avatar / r/Sub / TASK-CODE / by HH:MM
-    task_code_short = task.task_code
-    subject = f"[RAMP Task: {task.task_type}] {task.client_name} / {task.avatar_username} / r/{task.subreddit} / {task_code_short} / by {deadline_str}"
+    # Subject — RAMP Task for <brand>
+    subject = f"RAMP Task for {task.client_name}"
 
     # Token link
     from app.services.settings import get_setting as _gs
