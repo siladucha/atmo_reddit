@@ -498,6 +498,36 @@ DEFAULTS: dict[str, dict] = {
         "desc": "Perplexity API key for GEO monitoring queries",
         "group": "geo",
     },
+    "geo_provider_openai_enabled": {
+        "value": "false",
+        "secret": False,
+        "desc": "Enable OpenAI (ChatGPT) as GEO query provider. Requires openai_api_key set.",
+        "group": "geo",
+    },
+    "geo_provider_anthropic_enabled": {
+        "value": "false",
+        "secret": False,
+        "desc": "Enable Anthropic (Claude) as GEO query provider. Uses shared llm_api_key (Anthropic).",
+        "group": "geo",
+    },
+    "geo_rate_limit_openai_rpm": {
+        "value": "20",
+        "secret": False,
+        "desc": "Max OpenAI API requests per minute for GEO queries",
+        "group": "geo",
+    },
+    "geo_rate_limit_anthropic_rpm": {
+        "value": "20",
+        "secret": False,
+        "desc": "Max Anthropic API requests per minute for GEO queries",
+        "group": "geo",
+    },
+    "openai_api_key": {
+        "value": "",
+        "secret": True,
+        "desc": "OpenAI API key for GEO monitoring and embeddings",
+        "group": "geo",
+    },
     "geo_monthly_cost_alert_threshold": {
         "value": "100",
         "secret": False,

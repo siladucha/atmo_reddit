@@ -63,7 +63,7 @@ PROVIDERS: dict[str, GeoProviderConfig] = {
         display_name="ChatGPT",
         color_class="green",
         setting_key_enabled="geo_provider_openai_enabled",
-        setting_key_api="",  # uses OPENAI_API_KEY env var
+        setting_key_api="openai_api_key",  # stored in system_settings
         cost_per_query_usd=0.04,
         uses_web_search_options=True,
     ),
@@ -73,7 +73,7 @@ PROVIDERS: dict[str, GeoProviderConfig] = {
         display_name="Claude",
         color_class="orange",
         setting_key_enabled="geo_provider_anthropic_enabled",
-        setting_key_api="",  # uses ANTHROPIC_API_KEY env var or LITELLM_API_KEY
+        setting_key_api="",  # uses llm_api_key via _resolve_api_key (shared Anthropic key)
         cost_per_query_usd=0.03,
         uses_web_search_options=True,
     ),
