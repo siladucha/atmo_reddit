@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "RAMP Extension",
   "version": "0.4.0",
-  "description": "RAMP Execution Node v3 — automated comment posting via old.reddit.com",
+  "description": "RAMP Execution Node v0.4 — community engagement via reddit.com",
   "permissions": [
     "storage",
     "alarms",
