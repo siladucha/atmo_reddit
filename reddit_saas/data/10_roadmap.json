@@ -1,7 +1,7 @@
 {
   "meta": {
-    "version": "1.0.0",
-    "last_updated": "2026-07-07",
+    "version": "1.1.0",
+    "last_updated": "2026-07-24",
     "owner": "Max (AI Agent)",
     "description": "RAMP Agent Roadmap — prioritized work items derived from spec audit"
   },
@@ -259,6 +259,32 @@
       "description": "90% done. Remaining: tests, staging deploy, production deploy with feature flag enabled.",
       "blocks": ["phase-incubation-mentor-refactor"],
       "owner": "agent"
+    },
+    {
+      "id": "R-021",
+      "phase": "P1",
+      "title": "Clipboard Screenshot Paste in Bug Report Form",
+      "spec": "clipboard-screenshot-paste",
+      "status": "in_progress",
+      "effort": "0.5d",
+      "type": "feature",
+      "description": "Paste screenshot from clipboard (Cmd+V) into /report-issue form. Reduces QA reporting friction — faster bug submissions with visual evidence. Paste listener partially exists, needs 10MB size validation + UX polish. Closes operational risk: slow bug reporting = missed regressions = P1/P2 SBM violations detected late.",
+      "blocks": [],
+      "owner": "agent"
+    },
+    {
+      "id": "R-022",
+      "phase": "P3",
+      "title": "Extension Health Escalation",
+      "spec": null,
+      "status": "idea",
+      "effort": "1-2w",
+      "type": "feature",
+      "description": "Proactive executor alerting when extension is offline or tasks are stalling. Detect heartbeat loss / idle executor → alert via Telegram/email → executor responds (busy/didn't know/can't fix) → system auto-acts (reschedule, fallback to email, freeze slots). Strengthens SBM P1 (Monotonic Progress) — stalled extension = zero output.",
+      "blocks": [],
+      "owner": "agent",
+      "sbm": "P1",
+      "trigger": "5+ executors active AND task expiry becomes recurring problem"
     },
     {
       "id": "R-020",

@@ -130,6 +130,7 @@ These items must be done before Tzvi can close a deal.
 
 | Item | Trigger |
 |------|---------|
+| Extension Health Escalation (proactive executor alerting) | 5+ executors active |
 | Trust engine (per-avatar decay scores) | 10+ clients |
 | Billing integration (Stripe) | Self-service launch |
 | Horizontal scaling (separate worker pools) | CPU > 80% sustained |
@@ -252,3 +253,59 @@ Client triggers GEO → Celery task → Provider Queue (Redis sorted set) → Wo
 - Fallback chain in call_llm() (Perplexity → Gemini → Sonnet)
 - Per-query circuit breaker in GEO batch (consecutive_failures threshold)
 
+
+
+---
+
+## Done: Clipboard Screenshot Paste (added July 24, 2026)
+
+**Problem:** Форма `/report-issue` принимает скриншоты только через file picker. Нельзя вставить из буфера (Cmd+V). Это замедляет bug reporting — Jenny и Tzvi делают скриншот, но потом должны сохранять в файл и искать его в файловой системе.
+
+**Solution:** Paste listener на форме + DataTransfer API → image blob → file input + preview.
+
+**Spec:** `.kiro/specs/clipboard-screenshot-paste/` (requirements ✅, design ✅)
+
+**Closes risk:** Снижает трение QA-процесса (Engineering Memory loop). Чем быстрее баг можно отрепортить со скриншотом, тем меньше багов теряется "потом забыл". Indirect: SBM operational quality — faster incident detection = faster P1/P2 violation detection.
+
+**Effort:** <0.5 day (paste listener already partially exists, нужна только 10MB валидация + UX polish).
+
+---
+
+## Future: Extension Health Escalation (added July 24, 2026)
+
+**Problem:** Extension не выполняет задачи вовремя (offline, executor забыл, crashed), а система просто ждёт — слоты протухают, контент теряется.
+
+**Solution: Proactive executor alerting via Telegram/email**
+
+**Detection triggers:**
+- Heartbeat пропал > N минут (extension offline)
+- Задачи копятся без выполнения > M минут (executor inactive)
+- Lease expired на нескольких задачах подряд
+
+**Escalation flow:**
+```
+Detection → Grace period (15-30 min) → Alert executor (Telegram/email) → Wait for response
+                                                                              ↓
+                                                    ┌─────────────────────────────────────┐
+                                                    │ "Знаю, вернусь через X" → ждём      │
+                                                    │ "Не знал, спасибо!" → executor opens │
+                                                    │ "Не могу починить" → помощь/fallback │
+                                                    │ Нет ответа 1h → авто-действие        │
+                                                    └─────────────────────────────────────┘
+```
+
+**System auto-actions (if no response):**
+- Reschedule slots на позже (сдвиг окна)
+- Fallback на email delivery channel
+- Переназначить executor'у с другого аватара (если доступен)
+- Freeze slots (не тратить контент на мёртвое окно)
+
+**Scenarios:**
+1. Extension offline (heartbeat gone) — notify, offer help
+2. Extension active but executor idle — gentle nudge
+3. Executor responds "busy" — system waits, reschedules
+4. Executor unresponsive — auto-fallback after timeout
+
+**Relates to:** SBM P1 (Monotonic Progress) — stalled extension = zero output for that avatar.
+
+**When to build:** When 5+ executors active and task expiry becomes recurring problem.
