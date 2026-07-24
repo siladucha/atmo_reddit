@@ -624,8 +624,13 @@ async def retry_task(
     # Reset to APPROVED for scheduler pickup
     task.task_lifecycle_status = "APPROVED"
 
-    # Track retry in status_history
+    # Reschedule: set scheduled_at to 2 minutes from now so scheduler picks it up
     now = datetime.now(timezone.utc)
+    task.scheduled_at = now + timedelta(minutes=2)
+    # Extend deadline to 4 hours from now
+    task.deadline = now + timedelta(hours=4)
+
+    # Track retry in status_history
     if task.status_history is None:
         task.status_history = []
     task.status_history = task.status_history + [
