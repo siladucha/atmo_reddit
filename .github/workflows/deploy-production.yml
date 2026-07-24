@@ -216,8 +216,8 @@ jobs:
           fi
 
           # Verify alembic current == alembic heads (not just stamped)
-          current=$(ssh production "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T app alembic current 2>&1 | grep -oP '[a-f0-9]+(?= \(head\))'") || true
-          heads=$(ssh production "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T app alembic heads 2>&1 | grep -oP '^[a-f0-9]+'") || true
+          current=$(ssh production "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T app alembic current 2>&1 | grep -oP '\S+(?= \(head\))'") || true
+          heads=$(ssh production "cd /app && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T app alembic heads 2>&1 | grep -oP '^\S+'") || true
 
           echo "  Alembic current: $current"
           echo "  Alembic heads:   $heads"

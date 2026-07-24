@@ -134,8 +134,8 @@ jobs:
         run: |
           alembic upgrade 000_initial
           alembic stamp head
-          current=$(alembic current 2>&1 | grep -oP '[a-f0-9]+(?= \(head\))' || echo "none")
-          expected=$(alembic heads 2>&1 | grep -oP '^[a-f0-9]+' || echo "unknown")
+          current=$(alembic current 2>&1 | grep -oP '\S+(?= \(head\))' || echo "none")
+          expected=$(alembic heads 2>&1 | grep -oP '^\S+' || echo "unknown")
           if [ "$current" != "$expected" ]; then
             echo "::error::Alembic upgrade did not reach head: current=$current expected=$expected"
             exit 1
