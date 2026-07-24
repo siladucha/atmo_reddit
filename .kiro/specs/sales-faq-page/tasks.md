@@ -6,8 +6,8 @@ Add a compliance-vetted FAQ accordion to the RAMP marketing site. The implementa
 
 ## Tasks
 
-- [ ] 1. Create FAQ data module and shared partial
-  - [ ] 1.1 Create `app/data/faq_data.py` with 7 FAQ entries
+- [x] 1. Create FAQ data module and shared partial
+  - [x] 1.1 Create `app/data/faq_data.py` with 7 FAQ entries
     - Create `marketing_site/app/data/__init__.py` (empty)
     - Create `marketing_site/app/data/faq_data.py` with `FAQ_ITEMS: list[dict[str, str]]`
     - Write all 7 question-answer entries covering: voice protection (Req 3), human-in-the-loop differentiation (Req 4), results expectations (Req 5), existing accounts audit (Req 6), content authorship (Req 7), plan inclusions (Req 8), cancellation policy (Req 9)
@@ -16,7 +16,7 @@ Add a compliance-vetted FAQ accordion to the RAMP marketing site. The implementa
     - Answers may contain safe inline HTML (`<strong>`, `<br>`, `<ul>`/`<li>`) for formatting
     - _Requirements: 1.2, 3.1–3.5, 4.1–4.5, 5.1–5.4, 6.1–6.4, 7.1–7.6, 8.1–8.6, 9.1–9.4, 11.1–11.6_
 
-  - [ ] 1.2 Create `partials/faq_section.html` Jinja2 partial
+  - [x] 1.2 Create `partials/faq_section.html` Jinja2 partial
     - Create `marketing_site/app/templates/partials/faq_section.html`
     - Iterate over `faq_items` context variable using `{% for item in faq_items %}`
     - Each item renders as a `<button>` (question) + hidden `<div>` (answer)
@@ -29,8 +29,8 @@ Add a compliance-vetted FAQ accordion to the RAMP marketing site. The implementa
     - Answer rendered with `{{ item.answer | safe }}`
     - _Requirements: 1.3, 1.4, 1.5, 1.7, 10.1–10.5, 12.2, 12.3_
 
-- [ ] 2. Implement standalone FAQ page and modify pricing route
-  - [ ] 2.1 Create `marketing_faq.html` template
+- [x] 2. Implement standalone FAQ page and modify pricing route
+  - [x] 2.1 Create `marketing_faq.html` template
     - Create `marketing_site/app/templates/marketing_faq.html`
     - Extend `marketing_base.html`
     - Set `<title>` block: "FAQ — RAMP Community Engagement" (≤60 chars, contains "FAQ")
@@ -41,24 +41,24 @@ Add a compliance-vetted FAQ accordion to the RAMP marketing site. The implementa
     - Responsive: `max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20`
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 12.1_
 
-  - [ ] 2.2 Register `/faq` route in `pages.py` and modify `/pricing` handler
+  - [x] 2.2 Register `/faq` route in `pages.py` and modify `/pricing` handler
     - Import `FAQ_ITEMS` from `app.data.faq_data` in `pages.py`
     - Add `/faq` route as async handler returning `templates.TemplateResponse` with `response_class=HTMLResponse`, passing `{"faq_items": FAQ_ITEMS}` in context
     - Modify existing `/pricing` handler to pass `{"faq_items": FAQ_ITEMS}` in context
     - _Requirements: 2.1, 2.5, 12.4, 12.5_
 
-  - [ ] 2.3 Modify `marketing_pricing.html` to embed FAQ partial
+  - [x] 2.3 Modify `marketing_pricing.html` to embed FAQ partial
     - Replace the existing hardcoded "COMMON QUESTIONS" section with the dynamic accordion
     - Add section with heading "FREQUENTLY ASKED QUESTIONS" (h2, uppercase, bold, white)
     - `{% include "partials/faq_section.html" %}`
     - Position between Agency Plans section and Bottom CTA (same location as current Q&A)
     - _Requirements: 1.1, 1.6, 10.1–10.5_
 
-- [ ] 3. Checkpoint - Verify FAQ renders correctly
+- [x] 3. Checkpoint - Verify FAQ renders correctly
   - Ensure the marketing site starts without errors, `/faq` returns 200, `/pricing` contains the FAQ accordion. Ask the user if questions arise.
 
-- [ ] 4. Write tests for routes and compliance
-  - [ ] 4.1 Create `tests/test_marketing_faq.py` with route and data tests
+- [x] 4. Write tests for routes and compliance
+  - [x] 4.1 Create `tests/test_marketing_faq.py` with route and data tests
     - Create `marketing_site/tests/test_marketing_faq.py`
     - Test `GET /faq` returns HTTP 200 and contains FAQ content (title, meta description, accordion items, CTA link)
     - Test `GET /pricing` returns HTTP 200 and contains FAQ accordion section
@@ -87,14 +87,14 @@ Add a compliance-vetted FAQ accordion to the RAMP marketing site. The implementa
     - Use Hypothesis to generate answer strings with numerical patterns and verify detection
     - **Validates: Requirements 5.4**
 
-- [ ] 5. Update SEO references
-  - [ ] 5.1 Add `/faq` to `robots.txt` Allow list and `sitemap.xml`
+- [x] 5. Update SEO references
+  - [x] 5.1 Add `/faq` to `robots.txt` Allow list and `sitemap.xml`
     - Add `Allow: /faq` to the robots.txt response in `pages.py`
     - Add FAQ URL entry to `sitemap.xml` response with `changefreq=monthly` and `priority=0.7`
     - Add FAQ to `llms.txt` pages list
     - _Requirements: 2.3_
 
-- [ ] 6. Final checkpoint - Ensure all tests pass
+- [x] 6. Final checkpoint - Ensure all tests pass
   - Run `pytest marketing_site/tests/ -x -q` and ensure all tests pass. Ask the user if questions arise.
 
 ## Notes

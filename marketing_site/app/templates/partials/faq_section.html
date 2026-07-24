@@ -1,0 +1,48 @@
+<style>
+  .faq-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+  .faq-content.open { max-height: 1000px; }
+  .faq-chevron { transition: transform 0.2s; }
+  .faq-toggle[aria-expanded="true"] .faq-chevron { transform: rotate(180deg); }
+</style>
+
+<div class="space-y-3" id="faq-accordion">
+  {% for item in faq_items %}
+  <div class="border border-white/10 rounded-xl overflow-hidden">
+    <button
+      class="faq-toggle w-full flex items-center gap-4 px-6 py-5 bg-gray-800/50 hover:bg-gray-700/50 transition text-left"
+      aria-expanded="false"
+      aria-controls="faq-answer-{{ loop.index }}"
+      id="faq-question-{{ loop.index }}"
+      onclick="toggleFaq(this)"
+    >
+      <span class="flex-1 text-white font-semibold text-sm sm:text-base">{{ item.question }}</span>
+      <svg class="faq-chevron w-5 h-5 text-gray-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+      </svg>
+    </button>
+    <div
+      id="faq-answer-{{ loop.index }}"
+      class="faq-content"
+      role="region"
+      aria-labelledby="faq-question-{{ loop.index }}"
+    >
+      <div class="px-6 py-4 text-gray-400 text-sm leading-relaxed">
+        {{ item.answer | safe }}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+function toggleFaq(btn) {
+  const expanded = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', String(!expanded));
+  const content = btn.nextElementSibling;
+  if (expanded) {
+    content.classList.remove('open');
+  } else {
+    content.classList.add('open');
+  }
+}
+</script>

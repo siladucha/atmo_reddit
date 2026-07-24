@@ -2,6 +2,8 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from app.data.faq_data import FAQ_ITEMS
+
 router = APIRouter(tags=["pages"])
 templates = Jinja2Templates(directory="app/templates")
 
@@ -23,7 +25,20 @@ async def for_agencies(request: Request) -> HTMLResponse:
 
 @router.get("/pricing", response_class=HTMLResponse)
 async def pricing(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(request=request, name="marketing_pricing.html")
+    return templates.TemplateResponse(
+        request=request,
+        name="marketing_pricing.html",
+        context={"faq_items": FAQ_ITEMS},
+    )
+
+
+@router.get("/faq", response_class=HTMLResponse)
+async def faq(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request=request,
+        name="marketing_faq.html",
+        context={"faq_items": FAQ_ITEMS},
+    )
 
 
 @router.get("/intelligence-report", response_class=HTMLResponse)
@@ -67,6 +82,7 @@ Allow: /whats-coming
 Allow: /trial
 Allow: /thank-you
 Allow: /terms
+Allow: /faq
 
 # Internal application routes — not for indexing
 Disallow: /admin
@@ -145,6 +161,7 @@ The platform provides:
 - Intelligence Report: https://gorampit.com/intelligence-report
 - Product Roadmap: https://gorampit.com/whats-coming
 - Free Trial: https://gorampit.com/trial
+- FAQ: https://gorampit.com/faq
 
 ## Contact
 
@@ -168,6 +185,7 @@ async def sitemap_xml():
   <url><loc>https://gorampit.com/whats-coming</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
   <url><loc>https://gorampit.com/trial</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
   <url><loc>https://gorampit.com/terms</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://gorampit.com/faq</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 </urlset>
 """,
         media_type="application/xml",
